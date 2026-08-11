@@ -1,0 +1,23 @@
+Winlator File Manager - GameNative native-copy patch
+====================================================
+
+The wfm.exe payload is built from the original Winlator File Manager:
+https://github.com/brunodev85/wfm
+
+Source commit:
+cb1d078cef36d3d61eec822882febcde828f09e7
+
+Only the copy/paste implementation and its conflict prompts are changed. The
+patches are included alongside this notice as native-copy.patch,
+replace-all-conflicts.patch, and copy-hardening.patch, in that application
+order using standard `git apply` commands. Together they replace ACTION_COPY's
+shell32 SHFileOperation call with direct Win32 file-copy calls; offer Replace
+All, Review Each, or Cancel on the first conflict; and add safe handling for
+read-only files, reparse points, type conflicts, copy errors, path limits,
+copying a folder into its descendant through direct or aliased drive paths, and
+basic directory metadata. Unsupported reparse-point entries are skipped and
+summarized after the copy. The original WFM user interface, directory
+enumeration, move behavior, and delete behavior are retained.
+
+Winlator File Manager is licensed under the MIT License. Its copyright and
+permission notice are included in LICENSE.WFM.txt.

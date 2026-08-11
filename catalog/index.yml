@@ -1,0 +1,46 @@
+{
+  "sourceSchemaVersion": 1,
+  "output": {
+    "version": 1,
+    "updatedAt": "2026-06-30"
+  },
+  "sources": [
+    {
+      "path": "drivers.yml",
+      "type": "driver"
+    },
+    {
+      "path": "dxvk.yml",
+      "type": "dxvk"
+    },
+    {
+      "path": "proton.yml",
+      "type": "proton"
+    },
+    {
+      "path": "fex.yml",
+      "type": "fexcore"
+    },
+    {
+      "path": "wowbox64.yml",
+      "type": "wowbox64",
+      "schemaVersion": 2
+    },
+    {
+      "path": "vkd3d.yml",
+      "type": "vkd3d"
+    },
+    {
+      "path": "wine.yml",
+      "type": "wine"
+    },
+    {
+      "path": "box64.yml",
+      "type": "box64"
+    },
+    {
+      "path": "audio.yml",
+      "type": "audio"
+    }
+  ]
+}

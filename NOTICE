@@ -1,0 +1,24 @@
+Gameplay
+========
+
+Gameplay is a modified fork of GameNative:
+https://github.com/utkarshdalal/GameNative
+
+GameNative and its contributors retain copyright in their original work.
+Gameplay modifications are distributed under the GNU General Public License,
+version 3, as provided in the accompanying LICENSE file.
+
+Notable modifications include a new user interface and theming system, local
+Windows executable and installer import, expanded controller support,
+cross-store library awareness, adaptive display resolution, battery warnings,
+and coordinated downloads across supported stores.
+
+Modified work: 2026, Gameplay contributors.
+
+The Android application continues to use the internal `app.gamenative`
+namespace for data, upgrade, JNI, and native-component compatibility. This
+technical identifier is not the displayed product name.
+
+Additional component-specific notices and source offers are in
+THIRD_PARTY_NOTICES. No original copyright or license notice is revoked by
+the Gameplay name change.

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?><!--
+  PlayStation R1 button glyph, drawn in the Kenney Input Prompts style.
+  License: CC0 (Public Domain)
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="64"
+    android:viewportHeight="64">
+  <path
+      android:pathData="M16 20 L48 20 Q56 20 56 28 L56 36 Q56 44 48 44 L16 44 Q8 44 8 36 L8 28 Q8 20 16 20 Z"
+      android:strokeColor="#FFFFFF"
+      android:strokeWidth="4"
+      android:strokeLineJoin="round"
+      android:fillColor="#00000000" />
+  <path
+      android:pathData="M18 38 L18 26 L26 26 Q31 26 31 30 Q31 34 26 34 L18 34 M26 34 L32 38 M40 38 L40 27 M37 29.5 L40 27 M37 38 L44 38"
+      android:strokeColor="#FFFFFF"
+      android:strokeWidth="3.5"
+      android:strokeLineCap="round"
+      android:strokeLineJoin="round"
+      android:fillColor="#00000000" />
+</vector>

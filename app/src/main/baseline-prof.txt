@@ -1,0 +1,102 @@
+# Baseline Profile Rules for Gameplay
+# These rules tell the Android Runtime (ART) which code paths should be
+# precompiled at install time for better startup and runtime performance.
+#
+# Format: HSPLclass_name;method_name(parameters)return_type
+# H = Hot (frequently called), S = Startup, P = Post-startup, L = Class
+#
+# Reference: https://developer.android.com/topic/performance/baselineprofiles
+# Adapted from upstream GameNative PR #392 to the Gameplay console shell.
+
+# ========================================================================
+# Console Shell - Library Screen Components
+# ========================================================================
+
+# Main library screen
+HSPLapp/gamenative/ui/screen/library/LibraryScreenKt;->**(**)**
+HSPLapp/gamenative/ui/screen/library/LibraryListPaneKt;->**(**)**
+HSPLapp/gamenative/ui/screen/library/LibraryAppScreenKt;->**(**)**
+HSPLapp/gamenative/ui/screen/library/LibraryCarouselPaneKt;->**(**)**
+HSPLapp/gamenative/ui/screen/library/LibraryTabBarKt;->**(**)**
+
+# Library components (console panels, skeleton, ambient overlay)
+HSPLapp/gamenative/ui/screen/library/components/**;->**(**)**
+
+# Shared console UI components (side panel shell, action bar, rails, focus ring)
+HSPLapp/gamenative/ui/component/ConsoleSidePanelKt;->**(**)**
+HSPLapp/gamenative/ui/component/GamepadActionBarKt;->**(**)**
+HSPLapp/gamenative/ui/component/ConsoleCategoryRailKt;->**(**)**
+HSPLapp/gamenative/ui/component/FocusRingKt;->**(**)**
+HSPLapp/gamenative/ui/component/OptionListItemKt;->**(**)**
+
+# Settings screens
+HSPLapp/gamenative/ui/screen/settings/**;->**(**)**
+HSPLapp/gamenative/ui/component/dialog/ContainerConfigDialogKt;->**(**)**
+HSPLapp/gamenative/ui/component/dialog/ConsoleSettingsPageKt;->**(**)**
+
+# Semantic theme engine (decode/validate on theme application)
+HSPLapp/gamenative/ui/theme/GameplayThemeDocumentKt;->**(**)**
+HSPLapp/gamenative/ui/theme/GameplayThemeDocument**;->**(**)**
+HSPLapp/gamenative/ui/theme/ThemeKt;->**(**)**
+
+# ========================================================================
+# Compose Foundation - Lazy layouts and gestures (scrolling)
+# ========================================================================
+
+HSPLandroidx/compose/foundation/lazy/**;->**(**)**
+HSPLandroidx/compose/foundation/lazy/layout/**;->**(**)**
+HSPLandroidx/compose/foundation/pager/**;->**(**)**
+HSPLandroidx/compose/foundation/gestures/**;->**(**)**
+
+# ========================================================================
+# Compose Animation (transitions)
+# ========================================================================
+
+HSPLandroidx/compose/animation/core/**;->**(**)**
+HSPLandroidx/compose/animation/**;->**(**)**
+
+# ========================================================================
+# Compose UI Graphics Layer (scale, alpha, offset transforms)
+# ========================================================================
+
+HSPLandroidx/compose/ui/graphics/**;->**(**)**
+HSPLandroidx/compose/ui/draw/**;->**(**)**
+HSPLandroidx/compose/ui/layout/**;->**(**)**
+HSPLandroidx/compose/ui/Modifier**;->**(**)**
+
+# ========================================================================
+# Image Loading (Coil - for game artwork)
+# ========================================================================
+
+HSPLcoil/**;->**(**)**
+HSPLcom/skydoves/landscapist/**;->**(**)**
+
+# ========================================================================
+# Compose Material3 Components
+# ========================================================================
+
+HSPLandroidx/compose/material3/**;->**(**)**
+
+# ========================================================================
+# Kotlin Coroutines (async operations during scrolling)
+# ========================================================================
+
+HSPLkotlinx/coroutines/**;->**(**)**
+
+# ========================================================================
+# Data Classes and ViewModels
+# ========================================================================
+
+HSPLapp/gamenative/data/LibraryItem;->**(**)**
+HSPLapp/gamenative/data/LibraryItem**;->**(**)**
+HSPLapp/gamenative/ui/data/LibraryState;->**(**)**
+HSPLapp/gamenative/ui/model/LibraryViewModel;->**(**)**
+HSPLapp/gamenative/ui/model/MainViewModel;->**(**)**
+
+# ========================================================================
+# Startup Classes
+# ========================================================================
+
+HSPLapp/gamenative/PluviaApp;->**(**)**
+HSPLapp/gamenative/MainActivity;->**(**)**
+HSPLapp/gamenative/ui/PluviaMain**;->**(**)**

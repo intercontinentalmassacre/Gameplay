@@ -1,0 +1,37 @@
+name: Component/package problem
+description: A runtime component (Wine, Box64, FEX, Turnip, DXVK, driver) fails to download, verify or install
+title: "[Component]: <component> <version>"
+labels: ["component"]
+body:
+  - type: input
+    id: component
+    attributes:
+      label: Component and version
+      placeholder: e.g. FEX 2607, Turnip v26.2.0, DXVK 2.7
+    validations:
+      required: true
+  - type: dropdown
+    id: stage
+    attributes:
+      label: Where does it fail?
+      options:
+        - Download
+        - Hash/verification
+        - Extraction
+        - Activation/install
+        - Game fails only with this component
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Device, Android, Gameplay version
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: Details and logs
+      description: Error message, retries tried, support bundle if available
+    validations:
+      required: true

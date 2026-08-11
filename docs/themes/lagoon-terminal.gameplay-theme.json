@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 2,
+  "name": "Lagoon Terminal",
+  "dark": {
+    "primary": "#53E0C1", "onPrimary": "#00201A", "background": "#041918", "onBackground": "#E7FFFA",
+    "surface": "#0B2927", "surfaceElevated": "#16403C", "onSurface": "#E7FFFA", "textMuted": "#ABD5CC",
+    "border": "#47736B", "success": "#7BDD8B", "warning": "#F4C54E", "danger": "#FF928E",
+    "surfaceOverlay": "#103633", "surfaceGlass": "#16403C", "surfaceScrim": "#010D0C",
+    "statusInstalled": "#7BDD8B", "statusDownloading": "#69D5FF", "statusAvailable": "#53E0C1", "statusAway": "#F4C54E", "statusOffline": "#8AA9A3",
+    "compatGood": "#7BDD8B", "compatPartial": "#F4C54E", "compatUnknown": "#ABD5CC", "compatBad": "#FF928E",
+    "rarityCommon": "#ABD5CC", "rarityRare": "#69D5FF", "rarityUltraRare": "#53E0C1", "focusRingColor": "#53E0C1"
+  },
+  "light": {
+    "primary": "#006B5B", "onPrimary": "#FFFFFF", "background": "#F2FFFB", "onBackground": "#09211F",
+    "surface": "#DCF7F0", "surfaceElevated": "#BDE9DE", "onSurface": "#09211F", "textMuted": "#3E615C",
+    "border": "#6E9089", "success": "#216A36", "warning": "#715300", "danger": "#A42E2A",
+    "surfaceOverlay": "#C9F0E7", "surfaceGlass": "#C9F0E7", "surfaceScrim": "#09211F",
+    "statusInstalled": "#216A36", "statusDownloading": "#005A78", "statusAvailable": "#006B5B", "statusAway": "#715300", "statusOffline": "#3E615C",
+    "compatGood": "#216A36", "compatPartial": "#715300", "compatUnknown": "#3E615C", "compatBad": "#A42E2A",
+    "rarityCommon": "#3E615C", "rarityRare": "#005A78", "rarityUltraRare": "#006B5B", "focusRingColor": "#006B5B"
+  },
+  "tokens": {
+    "focusRingWidthDp": 1, "focusRingStyle": "solid", "motionInstantMs": 40, "motionFastMs": 100, "motionNormalMs": 160,
+    "cornerSmDp": 4, "cornerMdDp": 6, "cornerLgDp": 10, "elevationModalDp": 8, "density": "compact",
+    "panelMaxWidthDp": 400, "panelHorizontalPaddingDp": 20, "panelVerticalPaddingDp": 14, "menuItemGapDp": 3
+  }
+}

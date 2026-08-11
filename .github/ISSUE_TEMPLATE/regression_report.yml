@@ -1,0 +1,32 @@
+name: Regression after update
+description: Something that worked in a previous Gameplay version broke after an update
+title: "[Regression]: <what broke>"
+labels: ["regression"]
+body:
+  - type: input
+    id: last-good
+    attributes:
+      label: Last working version
+      placeholder: e.g. 1.1.0
+    validations:
+      required: true
+  - type: input
+    id: first-bad
+    attributes:
+      label: First broken version
+      placeholder: e.g. 1.1.1
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: What broke and how to reproduce
+      description: Steps, affected game/container if relevant, support bundle
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Device, Android, runtime stack
+    validations:
+      required: true

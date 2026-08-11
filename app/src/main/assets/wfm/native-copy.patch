@@ -1,0 +1,144 @@
+From: GameNative local compatibility build
+Subject: [PATCH] Avoid shell32 for WFM copy operations
+
+Apply to https://github.com/brunodev85/wfm at commit
+cb1d078cef36d3d61eec822882febcde828f09e7.
+
+This intentionally changes only ACTION_COPY. The original WFM UI, directory
+enumeration, move behavior, and delete behavior remain unchanged.
+
+diff --git a/src/file_actions.c b/src/file_actions.c
+index 4961edb..0f03c6e 100644
+--- a/src/file_actions.c
++++ b/src/file_actions.c
+@@ -125,6 +125,104 @@ INT_PTR CALLBACK FileActionDialogProc(HWND hwndDlg, UINT msg, WPARAM wParam, LPA
+     return (INT_PTR)FALSE;
+ }
+ 
++enum CopyResult {
++    COPY_RESULT_FAILED,
++    COPY_RESULT_OK,
++    COPY_RESULT_CANCELLED
++};
++
++static enum CopyResult copyPathNative(wchar_t* srcPath, wchar_t* dstPath);
++
++static enum CopyResult confirmAndCopyFile(wchar_t* srcPath, wchar_t* dstPath) {
++    if (CopyFile(srcPath, dstPath, TRUE)) return COPY_RESULT_OK;
++
++    DWORD error = GetLastError();
++    if (error != ERROR_FILE_EXISTS && error != ERROR_ALREADY_EXISTS) {
++        return COPY_RESULT_FAILED;
++    }
++
++    wchar_t basename[MAX_PATH] = {0};
++    getBasenameFromPath(dstPath, basename, false);
++
++    wchar_t msg[MAX_PATH + 96] = {0};
++    swprintf_s(
++        msg,
++        MAX_PATH + 96,
++        L"\"%ls\" already exists.\n\nDo you want to replace it?",
++        basename
++    );
++
++    int response = MessageBox(
++        hwndDlg,
++        msg,
++        L"Confirm File Replace",
++        MB_YESNOCANCEL | MB_ICONQUESTION
++    );
++    if (response == IDCANCEL) {
++        actionData->cancel = true;
++        return COPY_RESULT_CANCELLED;
++    }
++    if (response == IDNO) return COPY_RESULT_OK;
++
++    return CopyFile(srcPath, dstPath, FALSE)
++        ? COPY_RESULT_OK
++        : COPY_RESULT_FAILED;
++}
++
++static enum CopyResult copyDirectoryNative(wchar_t* srcPath, wchar_t* dstPath) {
++    if (!CreateDirectory(dstPath, NULL)) {
++        DWORD error = GetLastError();
++        if (error != ERROR_ALREADY_EXISTS) return COPY_RESULT_FAILED;
++
++        DWORD dstAttributes = GetFileAttributes(dstPath);
++        if (dstAttributes == INVALID_FILE_ATTRIBUTES ||
++            !(dstAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
++            return COPY_RESULT_FAILED;
++        }
++    }
++
++    wchar_t pattern[MAX_PATH] = {0};
++    swprintf_s(pattern, MAX_PATH, L"%ls\\*", srcPath);
++
++    WIN32_FIND_DATA wfd = {0};
++    HANDLE handle = FindFirstFile(pattern, &wfd);
++    if (handle == INVALID_HANDLE_VALUE) {
++        return GetLastError() == ERROR_FILE_NOT_FOUND
++            ? COPY_RESULT_OK
++            : COPY_RESULT_FAILED;
++    }
++
++    enum CopyResult result = COPY_RESULT_OK;
++    do {
++        if (wcscmp(wfd.cFileName, L".") == 0 ||
++            wcscmp(wfd.cFileName, L"..") == 0) {
++            continue;
++        }
++
++        wchar_t childSrc[MAX_PATH] = {0};
++        wchar_t childDst[MAX_PATH] = {0};
++        swprintf_s(childSrc, MAX_PATH, L"%ls\\%ls", srcPath, wfd.cFileName);
++        swprintf_s(childDst, MAX_PATH, L"%ls\\%ls", dstPath, wfd.cFileName);
++
++        result = copyPathNative(childSrc, childDst);
++    }
++    while (result == COPY_RESULT_OK &&
++           !actionData->cancel &&
++           FindNextFile(handle, &wfd));
++
++    FindClose(handle);
++    return actionData->cancel ? COPY_RESULT_CANCELLED : result;
++}
++
++static enum CopyResult copyPathNative(wchar_t* srcPath, wchar_t* dstPath) {
++    DWORD attributes = GetFileAttributes(srcPath);
++    if (attributes == INVALID_FILE_ATTRIBUTES) return COPY_RESULT_FAILED;
++
++    return attributes & FILE_ATTRIBUTE_DIRECTORY
++        ? copyDirectoryNative(srcPath, dstPath)
++        : confirmAndCopyFile(srcPath, dstPath);
++}
++
+ static DWORD WINAPI fileActionTask(void* param) {
+     struct ActionData* actionData = (struct ActionData*)param;
+     DWORD lastTime = GetTickCount();
+@@ -142,11 +240,23 @@ static DWORD WINAPI fileActionTask(void* param) {
+             int res = SHFileOperation(&sfo);
+             if (res != 0) break;
+         }
+-        else if (actionData->action == ACTION_COPY || actionData->action == ACTION_MOVE) {
++        else if (actionData->action == ACTION_COPY) {
++            wchar_t basename[MAX_PATH] = {0};
++            wchar_t dstPath[MAX_PATH] = {0};
++            getBasenameFromPath(actionData->srcPaths[i], basename, false);
++            swprintf_s(dstPath, MAX_PATH, L"%ls\\%ls", actionData->dstPath, basename);
++
++            // Copying an item onto itself is a no-op.
++            if (wcsicmp(actionData->srcPaths[i], dstPath) == 0) continue;
++
++            enum CopyResult result = copyPathNative(actionData->srcPaths[i], dstPath);
++            if (result != COPY_RESULT_OK) break;
++        }
++        else if (actionData->action == ACTION_MOVE) {
+             SHFILEOPSTRUCT sfo;
+             memset(&sfo, 0, sizeof(sfo));
+             sfo.hwnd = hwndDlg;
+-            sfo.wFunc = actionData->action == ACTION_COPY ? FO_COPY : FO_MOVE;
++            sfo.wFunc = FO_MOVE;
+             sfo.fFlags = FOF_SILENT;
+             sfo.pTo = actionData->dstPath;
+             sfo.pFrom = actionData->srcPaths[i];

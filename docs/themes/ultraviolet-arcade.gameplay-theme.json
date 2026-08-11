@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 2,
+  "name": "Ultraviolet Arcade",
+  "dark": {
+    "primary": "#D9FF43", "onPrimary": "#182000", "background": "#190B35", "onBackground": "#F8F0FF",
+    "surface": "#27134D", "surfaceElevated": "#40206E", "onSurface": "#F8F0FF", "textMuted": "#D1B9E9",
+    "border": "#7651A2", "success": "#6FE6A0", "warning": "#FFD15C", "danger": "#FF9BB4",
+    "surfaceOverlay": "#32185C", "surfaceGlass": "#452371", "surfaceScrim": "#0B031C",
+    "statusInstalled": "#6FE6A0", "statusDownloading": "#79C6FF", "statusAvailable": "#BCA1FF", "statusAway": "#FFD15C", "statusOffline": "#B4A8C4",
+    "compatGood": "#7BE4A7", "compatPartial": "#FFD15C", "compatUnknown": "#C9B7DA", "compatBad": "#FF9BB4",
+    "rarityCommon": "#C9B7DA", "rarityRare": "#79C6FF", "rarityUltraRare": "#D9FF43", "focusRingColor": "#D9FF43"
+  },
+  "light": {
+    "primary": "#426000", "onPrimary": "#FFFFFF", "background": "#FCF8FF", "onBackground": "#27113E",
+    "surface": "#F1E8FF", "surfaceElevated": "#DEC8FA", "onSurface": "#27113E", "textMuted": "#654A7C",
+    "border": "#9471AD", "success": "#17663B", "warning": "#745600", "danger": "#A1264D",
+    "surfaceOverlay": "#E8D9FF", "surfaceGlass": "#E8D9FF", "surfaceScrim": "#27113E",
+    "statusInstalled": "#17663B", "statusDownloading": "#315D92", "statusAvailable": "#604687", "statusAway": "#745600", "statusOffline": "#654A7C",
+    "compatGood": "#17663B", "compatPartial": "#745600", "compatUnknown": "#654A7C", "compatBad": "#A1264D",
+    "rarityCommon": "#654A7C", "rarityRare": "#315D92", "rarityUltraRare": "#426000", "focusRingColor": "#426000"
+  },
+  "tokens": {
+    "focusRingWidthDp": 3, "focusRingStyle": "solid", "motionInstantMs": 60, "motionFastMs": 130, "motionNormalMs": 190,
+    "cornerSmDp": 8, "cornerMdDp": 12, "cornerLgDp": 16, "elevationModalDp": 12, "density": "comfortable",
+    "panelMaxWidthDp": 520, "panelHorizontalPaddingDp": 32, "panelVerticalPaddingDp": 24, "menuItemGapDp": 10
+  }
+}

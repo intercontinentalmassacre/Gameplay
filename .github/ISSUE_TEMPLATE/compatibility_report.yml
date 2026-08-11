@@ -1,0 +1,70 @@
+name: Game compatibility report
+description: Report whether a specific game works on your device
+title: "[Compat]: <game name> on <device>"
+labels: ["compatibility"]
+body:
+  - type: input
+    id: device
+    attributes:
+      label: Device model
+      placeholder: e.g. HONOR PTP-N49, AYN Thor, Odin 2
+    validations:
+      required: true
+  - type: input
+    id: soc
+    attributes:
+      label: SoC and GPU
+      placeholder: e.g. Snapdragon 8 Gen 2 / Adreno 740
+    validations:
+      required: true
+  - type: input
+    id: android
+    attributes:
+      label: Android version and page size
+      placeholder: e.g. Android 15, 16 KB (adb shell getconf PAGE_SIZE)
+    validations:
+      required: true
+  - type: input
+    id: app-version
+    attributes:
+      label: Gameplay version
+      placeholder: e.g. 1.1.1
+    validations:
+      required: true
+  - type: textarea
+    id: runtime
+    attributes:
+      label: Runtime stack
+      description: Container settings as shown in the game page runtime summary
+      placeholder: |
+        Wine/Proton:
+        CPU backend (Box64/WOWBox64/FEX):
+        DXVK/VKD3D + version:
+        Driver (Turnip/system/vortek) + version:
+    validations:
+      required: true
+  - type: textarea
+    id: game
+    attributes:
+      label: Game and version
+      placeholder: e.g. Super Meat Boy, Steam, latest
+    validations:
+      required: true
+  - type: dropdown
+    id: result
+    attributes:
+      label: How far does it get?
+      options:
+        - Does not boot
+        - Boots to menu
+        - In game, broken (describe below)
+        - In game, works
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: Details and support bundle
+      description: What exactly is broken (audio/video/input/crash), and attach the support bundle (game page -> Export technical report) if available
+    validations:
+      required: true

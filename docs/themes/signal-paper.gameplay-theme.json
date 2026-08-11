@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 2,
+  "name": "Signal Paper",
+  "dark": {
+    "primary": "#FF6B55", "onPrimary": "#300400", "background": "#202020", "onBackground": "#FFF9F5",
+    "surface": "#30302E", "surfaceElevated": "#474642", "onSurface": "#FFF9F5", "textMuted": "#D2CDC6",
+    "border": "#7B7770", "success": "#8BDB90", "warning": "#FFD15A", "danger": "#FF9E94",
+    "surfaceOverlay": "#3B3A37", "surfaceGlass": "#474642", "surfaceScrim": "#10100F",
+    "statusInstalled": "#8BDB90", "statusDownloading": "#83C5FF", "statusAvailable": "#FFB0A4", "statusAway": "#FFD15A", "statusOffline": "#B8B3AC",
+    "compatGood": "#8BDB90", "compatPartial": "#FFD15A", "compatUnknown": "#D2CDC6", "compatBad": "#FF9E94",
+    "rarityCommon": "#D2CDC6", "rarityRare": "#83C5FF", "rarityUltraRare": "#FFB0A4", "focusRingColor": "#FFB0A4"
+  },
+  "light": {
+    "primary": "#B52D1C", "onPrimary": "#FFFFFF", "background": "#FFFEFC", "onBackground": "#242321",
+    "surface": "#F3F1ED", "surfaceElevated": "#E2DED8", "onSurface": "#242321", "textMuted": "#5D5954",
+    "border": "#817B74", "success": "#2C7133", "warning": "#705100", "danger": "#A52B24",
+    "surfaceOverlay": "#EBE7E1", "surfaceGlass": "#EBE7E1", "surfaceScrim": "#242321",
+    "statusInstalled": "#2C7133", "statusDownloading": "#285F94", "statusAvailable": "#B52D1C", "statusAway": "#705100", "statusOffline": "#5D5954",
+    "compatGood": "#2C7133", "compatPartial": "#705100", "compatUnknown": "#5D5954", "compatBad": "#A52B24",
+    "rarityCommon": "#5D5954", "rarityRare": "#285F94", "rarityUltraRare": "#B52D1C", "focusRingColor": "#B52D1C"
+  },
+  "tokens": {
+    "focusRingWidthDp": 2, "focusRingStyle": "dashed", "motionInstantMs": 80, "motionFastMs": 150, "motionNormalMs": 220,
+    "cornerSmDp": 4, "cornerMdDp": 8, "cornerLgDp": 12, "elevationModalDp": 10, "density": "compact",
+    "panelMaxWidthDp": 420, "panelHorizontalPaddingDp": 20, "panelVerticalPaddingDp": 16, "menuItemGapDp": 4
+  }
+}

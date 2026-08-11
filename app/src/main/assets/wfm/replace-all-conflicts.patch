@@ -1,0 +1,74 @@
+From: GameNative local compatibility build
+Subject: [PATCH] Offer replace-all policy on first copy conflict
+
+Apply after native-copy.patch.
+
+Offer Replace All, Review Each, or Cancel on the first file conflict and reuse
+that policy for the rest of the paste operation.
+
+diff --git a/src/file_actions.c b/src/file_actions.c
+index 0f03c6e..45a2c60 100644
+--- a/src/file_actions.c
++++ b/src/file_actions.c
+@@ -15,12 +15,19 @@ enum FileAction {
+     ACTION_MOVE
+ };
+ 
++enum ConflictPolicy {
++    CONFLICT_POLICY_ASK,
++    CONFLICT_POLICY_REPLACE_ALL,
++    CONFLICT_POLICY_REVIEW_EACH
++};
++
+ struct ActionData {
+     enum FileAction action;
+     wchar_t** srcPaths;
+     int numSrcPaths;
+     wchar_t* dstPath;
+     bool cancel;
++    enum ConflictPolicy conflictPolicy;
+ };
+ 
+ static HWND hwndDlg;
+@@ -141,6 +148,33 @@ static enum CopyResult confirmAndCopyFile(wchar_t* srcPath, wchar_t* dstPath) {
+         return COPY_RESULT_FAILED;
+     }
+ 
++
++    if (actionData->conflictPolicy == CONFLICT_POLICY_ASK) {
++        int response = MessageBox(
++            hwndDlg,
++            L"Existing files were found.\n\n"
++            L"Yes: Replace all conflicts during this paste\n"
++            L"No: Review each conflict\n"
++            L"Cancel: Stop copying",
++            L"File Conflicts",
++            MB_YESNOCANCEL | MB_ICONQUESTION
++        );
++
++        if (response == IDCANCEL) {
++            actionData->cancel = true;
++            return COPY_RESULT_CANCELLED;
++        }
++
++        actionData->conflictPolicy = response == IDYES
++            ? CONFLICT_POLICY_REPLACE_ALL
++            : CONFLICT_POLICY_REVIEW_EACH;
++    }
++
++    if (actionData->conflictPolicy == CONFLICT_POLICY_REPLACE_ALL) {
++        return CopyFile(srcPath, dstPath, FALSE)
++            ? COPY_RESULT_OK
++            : COPY_RESULT_FAILED;
++    }
+     wchar_t basename[MAX_PATH] = {0};
+     getBasenameFromPath(dstPath, basename, false);
+ 
+@@ -346,6 +380,7 @@ void pasteFiles(wchar_t* dstDir) {
+     actionData->cancel = false;
+     
+     hwndDlg = CreateDialogParam(globalHInstance, MAKEINTRESOURCE(IDD_FILE_ACTION), hwndMain, &FileActionDialogProc, 0);     
++    actionData->conflictPolicy = CONFLICT_POLICY_ASK;
+     SetTimer(hwndDlg, ID_EVENT_PRELOADER, PRELOADER_PERIOD, NULL);
+     CreateThread(NULL, 0, fileActionTask, actionData, 0, NULL);
+     ShowWindow(hwndDlg, SW_SHOW);   

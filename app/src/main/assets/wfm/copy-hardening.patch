@@ -1,0 +1,583 @@
+From: GameNative local compatibility build
+Subject: [PATCH] Harden native WFM copies for filesystem edge cases
+
+Apply after native-copy.patch and replace-all-conflicts.patch.
+
+Handle read-only replacements, type conflicts, copy failures, path limits,
+directory metadata, unsupported reparse-point entries, and mapped-drive aliases.
+Reject destinations that resolve inside the source tree.
+
+diff --git a/src/file_actions.c b/src/file_actions.c
+index 45a2c60..225c9a1 100644
+--- a/src/file_actions.c
++++ b/src/file_actions.c
+@@ -28,6 +28,7 @@ struct ActionData {
+     wchar_t* dstPath;
+     bool cancel;
+     enum ConflictPolicy conflictPolicy;
++    int skippedCount;
+ };
+ 
+ static HWND hwndDlg;
+@@ -135,17 +136,288 @@ INT_PTR CALLBACK FileActionDialogProc(HWND hwndDlg, UINT msg, WPARAM wParam, LPA
+ enum CopyResult {
+     COPY_RESULT_FAILED,
+     COPY_RESULT_OK,
+-    COPY_RESULT_CANCELLED
++    COPY_RESULT_CANCELLED,
++    COPY_RESULT_SKIPPED
+ };
+ 
+ static enum CopyResult copyPathNative(wchar_t* srcPath, wchar_t* dstPath);
+ 
+-static enum CopyResult confirmAndCopyFile(wchar_t* srcPath, wchar_t* dstPath) {
++static enum CopyResult failCopy(
++    const wchar_t* srcPath,
++    const wchar_t* dstPath,
++    DWORD error,
++    const wchar_t* detail
++) {
++    wchar_t systemMessage[256] = {0};
++    DWORD messageLength = FormatMessage(
++        FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
++        NULL,
++        error,
++        0,
++        systemMessage,
++        sizeof(systemMessage) / sizeof(systemMessage[0]),
++        NULL
++    );
++    if (messageLength == 0) {
++        wcscpy_s(systemMessage, 256, L"Unknown Windows error.");
++    }
++
++    wchar_t message[MAX_PATH * 2 + 768] = {0};
++    int result = _snwprintf_s(
++        message,
++        sizeof(message) / sizeof(message[0]),
++        _TRUNCATE,
++        L"%ls\n\nFrom:\n%ls\n\nTo:\n%ls\n\n%ls (error %lu)",
++        detail,
++        srcPath,
++        dstPath,
++        systemMessage,
++        error
++    );
++    if (result < 0) {
++        _snwprintf_s(
++            message,
++            sizeof(message) / sizeof(message[0]),
++            _TRUNCATE,
++            L"%ls\n\nThe affected path is too long to display.\n\nError %lu",
++            detail,
++            error
++        );
++    }
++
++    MessageBox(hwndDlg, message, L"Copy Failed", MB_OK | MB_ICONERROR);
++    SetLastError(error);
++    return COPY_RESULT_FAILED;
++}
++
++static bool joinCopyPath(
++    const wchar_t* directory,
++    const wchar_t* name,
++    wchar_t* destination,
++    size_t destinationSize
++) {
++    int length = _snwprintf_s(
++        destination,
++        destinationSize,
++        _TRUNCATE,
++        L"%ls\\%ls",
++        directory,
++        name
++    );
++    return length >= 0 && (size_t)length < destinationSize;
++}
++
++#define COPY_RESOLVED_PATH_SIZE 1024
++
++static bool isCopyPathSeparator(wchar_t value) {
++    return value == L'\\' || value == L'/';
++}
++
++static size_t trimCopyPath(wchar_t* path) {
++    size_t length = wcslen(path);
++    while (length > 3 && isCopyPathSeparator(path[length - 1])) {
++        path[--length] = L'\0';
++    }
++    return length;
++}
++
++static bool isSameOrDescendantCopyPath(
++    wchar_t* ancestor,
++    wchar_t* candidate,
++    bool includeSame
++) {
++    size_t ancestorLength = trimCopyPath(ancestor);
++    size_t candidateLength = trimCopyPath(candidate);
++    if (candidateLength < ancestorLength ||
++        _wcsnicmp(ancestor, candidate, ancestorLength) != 0) {
++        return false;
++    }
++    if (candidateLength == ancestorLength) return includeSame;
++    if (isCopyPathSeparator(ancestor[ancestorLength - 1])) return true;
++    return isCopyPathSeparator(candidate[ancestorLength]);
++}
++
++static bool resolveFinalCopyPath(
++    const wchar_t* path,
++    wchar_t* resolvedPath,
++    DWORD resolvedPathSize
++) {
++    HANDLE handle = CreateFile(
++        path,
++        0,
++        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
++        NULL,
++        OPEN_EXISTING,
++        FILE_FLAG_BACKUP_SEMANTICS,
++        NULL
++    );
++    if (handle == INVALID_HANDLE_VALUE) return false;
++
++    DWORD length = GetFinalPathNameByHandle(
++        handle,
++        resolvedPath,
++        resolvedPathSize,
++        FILE_NAME_NORMALIZED | VOLUME_NAME_DOS
++    );
++    CloseHandle(handle);
++    return length > 0 && length < resolvedPathSize;
++}
++
++static bool removeLastCopyPathComponent(wchar_t* path) {
++    size_t length = trimCopyPath(path);
++    if (length <= 3) return false;
++
++    wchar_t* separator = wcsrchr(path, L'\\');
++    wchar_t* alternateSeparator = wcsrchr(path, L'/');
++    if (alternateSeparator != NULL &&
++        (separator == NULL || alternateSeparator > separator)) {
++        separator = alternateSeparator;
++    }
++    if (separator == NULL || separator == path) return false;
++    if (separator == path + 2 && path[1] == L':') {
++        separator[1] = L'\0';
++    }
++    else {
++        *separator = L'\0';
++    }
++    return true;
++}
++
++static bool isCopyDestinationDescendant(
++    const wchar_t* srcPath,
++    const wchar_t* dstPath
++) {
++    wchar_t fullSrc[MAX_PATH] = {0};
++    wchar_t fullDst[MAX_PATH] = {0};
++    DWORD srcLength = GetFullPathName(srcPath, MAX_PATH, fullSrc, NULL);
++    DWORD dstLength = GetFullPathName(dstPath, MAX_PATH, fullDst, NULL);
++    if (srcLength == 0 || srcLength >= MAX_PATH ||
++        dstLength == 0 || dstLength >= MAX_PATH) {
++        return false;
++    }
++
++    if (isSameOrDescendantCopyPath(fullSrc, fullDst, false)) return true;
++
++    wchar_t resolvedSrc[COPY_RESOLVED_PATH_SIZE] = {0};
++    if (!resolveFinalCopyPath(
++            fullSrc,
++            resolvedSrc,
++            COPY_RESOLVED_PATH_SIZE)) {
++        return false;
++    }
++
++    wchar_t candidate[MAX_PATH] = {0};
++    wcscpy_s(candidate, MAX_PATH, fullDst);
++    do {
++        wchar_t resolvedCandidate[COPY_RESOLVED_PATH_SIZE] = {0};
++        if (resolveFinalCopyPath(
++                candidate,
++                resolvedCandidate,
++                COPY_RESOLVED_PATH_SIZE)) {
++            return isSameOrDescendantCopyPath(
++                resolvedSrc,
++                resolvedCandidate,
++                true
++            );
++        }
++    }
++    while (removeLastCopyPathComponent(candidate));
++    return false;
++}
++
++static enum CopyResult overwriteFileNative(
++    wchar_t* srcPath,
++    wchar_t* dstPath
++) {
++    DWORD dstAttributes = GetFileAttributes(dstPath);
++    if (dstAttributes == INVALID_FILE_ATTRIBUTES) {
++        DWORD error = GetLastError();
++        if (error == ERROR_FILE_NOT_FOUND || error == ERROR_PATH_NOT_FOUND) {
++            return CopyFile(srcPath, dstPath, TRUE)
++                ? COPY_RESULT_OK
++                : failCopy(
++                    srcPath,
++                    dstPath,
++                    GetLastError(),
++                    L"The destination disappeared before it could be replaced."
++                );
++        }
++        return failCopy(
++            srcPath,
++            dstPath,
++            error,
++            L"The existing destination could not be inspected."
++        );
++    }
++
++    if (dstAttributes & FILE_ATTRIBUTE_DIRECTORY) {
++        return failCopy(
++            srcPath,
++            dstPath,
++            ERROR_ALREADY_EXISTS,
++            L"A folder exists where the copied file needs to be created."
++        );
++    }
++    if (dstAttributes & FILE_ATTRIBUTE_REPARSE_POINT) {
++        return failCopy(
++            srcPath,
++            dstPath,
++            ERROR_NOT_SUPPORTED,
++            L"Replacing symbolic links and other reparse points is not supported."
++        );
++    }
++
++    bool clearedReadOnly = (dstAttributes & FILE_ATTRIBUTE_READONLY) != 0;
++    DWORD writableAttributes = dstAttributes & ~FILE_ATTRIBUTE_READONLY;
++    if (writableAttributes == 0) writableAttributes = FILE_ATTRIBUTE_NORMAL;
++    if (clearedReadOnly &&
++        !SetFileAttributes(dstPath, writableAttributes)) {
++        return failCopy(
++            srcPath,
++            dstPath,
++            GetLastError(),
++            L"The existing file is read-only and could not be made writable."
++        );
++    }
++
++    if (CopyFile(srcPath, dstPath, FALSE)) return COPY_RESULT_OK;
++
++    DWORD error = GetLastError();
++    if (clearedReadOnly) SetFileAttributes(dstPath, dstAttributes);
++    return failCopy(srcPath, dstPath, error, L"The existing file could not be replaced.");
++}
++
++static enum CopyResult confirmAndCopyFile(
++    wchar_t* srcPath,
++    wchar_t* dstPath
++) {
+     if (CopyFile(srcPath, dstPath, TRUE)) return COPY_RESULT_OK;
+ 
+     DWORD error = GetLastError();
+-    if (error != ERROR_FILE_EXISTS && error != ERROR_ALREADY_EXISTS) {
+-        return COPY_RESULT_FAILED;
++    DWORD dstAttributes = GetFileAttributes(dstPath);
++    if (dstAttributes == INVALID_FILE_ATTRIBUTES) {
++        return failCopy(srcPath, dstPath, error, L"The file could not be copied.");
++    }
++    if (dstAttributes & FILE_ATTRIBUTE_DIRECTORY) {
++        return failCopy(
++            srcPath,
++            dstPath,
++            ERROR_ALREADY_EXISTS,
++            L"A folder exists where the copied file needs to be created."
++        );
++    }
++    if (dstAttributes & FILE_ATTRIBUTE_REPARSE_POINT) {
++        return failCopy(
++            srcPath,
++            dstPath,
++            ERROR_NOT_SUPPORTED,
++            L"Replacing symbolic links and other reparse points is not supported."
++        );
++    }
++    if (error != ERROR_FILE_EXISTS &&
++        error != ERROR_ALREADY_EXISTS &&
++        error != ERROR_ACCESS_DENIED) {
++        return failCopy(srcPath, dstPath, error, L"The file could not be copied.");
+     }
+ 
+ 
+@@ -171,9 +443,7 @@ static enum CopyResult confirmAndCopyFile(wchar_t* srcPath, wchar_t* dstPath) {
+     }
+ 
+     if (actionData->conflictPolicy == CONFLICT_POLICY_REPLACE_ALL) {
+-        return CopyFile(srcPath, dstPath, FALSE)
+-            ? COPY_RESULT_OK
+-            : COPY_RESULT_FAILED;
++        return overwriteFileNative(srcPath, dstPath);
+     }
+     wchar_t basename[MAX_PATH] = {0};
+     getBasenameFromPath(dstPath, basename, false);
+@@ -198,32 +468,123 @@ static enum CopyResult confirmAndCopyFile(wchar_t* srcPath, wchar_t* dstPath) {
+     }
+     if (response == IDNO) return COPY_RESULT_OK;
+ 
+-    return CopyFile(srcPath, dstPath, FALSE)
+-        ? COPY_RESULT_OK
+-        : COPY_RESULT_FAILED;
++    return overwriteFileNative(srcPath, dstPath);
++}
++
++static void preserveDirectoryMetadata(const wchar_t* srcPath, const wchar_t* dstPath) {
++    HANDLE srcHandle = CreateFile(
++        srcPath,
++        FILE_READ_ATTRIBUTES,
++        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
++        NULL,
++        OPEN_EXISTING,
++        FILE_FLAG_BACKUP_SEMANTICS,
++        NULL
++    );
++    HANDLE dstHandle = CreateFile(
++        dstPath,
++        FILE_WRITE_ATTRIBUTES,
++        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
++        NULL,
++        OPEN_EXISTING,
++        FILE_FLAG_BACKUP_SEMANTICS,
++        NULL
++    );
++
++    if (srcHandle != INVALID_HANDLE_VALUE && dstHandle != INVALID_HANDLE_VALUE) {
++        FILETIME creationTime;
++        FILETIME accessTime;
++        FILETIME writeTime;
++        if (GetFileTime(srcHandle, &creationTime, &accessTime, &writeTime)) {
++            SetFileTime(dstHandle, &creationTime, &accessTime, &writeTime);
++        }
++    }
++    if (srcHandle != INVALID_HANDLE_VALUE) CloseHandle(srcHandle);
++    if (dstHandle != INVALID_HANDLE_VALUE) CloseHandle(dstHandle);
++
++    DWORD srcAttributes = GetFileAttributes(srcPath);
++    if (srcAttributes != INVALID_FILE_ATTRIBUTES) {
++        DWORD basicAttributes = srcAttributes & (
++            FILE_ATTRIBUTE_READONLY |
++            FILE_ATTRIBUTE_HIDDEN |
++            FILE_ATTRIBUTE_SYSTEM |
++            FILE_ATTRIBUTE_ARCHIVE
++        );
++        SetFileAttributes(
++            dstPath,
++            basicAttributes == 0 ? FILE_ATTRIBUTE_NORMAL : basicAttributes
++        );
++    }
+ }
+ 
+-static enum CopyResult copyDirectoryNative(wchar_t* srcPath, wchar_t* dstPath) {
++static enum CopyResult copyDirectoryNative(
++    wchar_t* srcPath,
++    wchar_t* dstPath
++) {
++    bool createdDestination = false;
+     if (!CreateDirectory(dstPath, NULL)) {
+         DWORD error = GetLastError();
+-        if (error != ERROR_ALREADY_EXISTS) return COPY_RESULT_FAILED;
++        if (error != ERROR_ALREADY_EXISTS) {
++            return failCopy(
++                srcPath,
++                dstPath,
++                error,
++                L"The destination folder could not be created."
++            );
++        }
+ 
+         DWORD dstAttributes = GetFileAttributes(dstPath);
+-        if (dstAttributes == INVALID_FILE_ATTRIBUTES ||
+-            !(dstAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
+-            return COPY_RESULT_FAILED;
++        if (dstAttributes == INVALID_FILE_ATTRIBUTES) {
++            return failCopy(
++                srcPath,
++                dstPath,
++                GetLastError(),
++                L"The existing destination could not be inspected."
++            );
++        }
++        if (!(dstAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
++            return failCopy(
++                srcPath,
++                dstPath,
++                ERROR_ALREADY_EXISTS,
++                L"A file exists where the copied folder needs to be created."
++            );
++        }
++        if (dstAttributes & FILE_ATTRIBUTE_REPARSE_POINT) {
++            return failCopy(
++                srcPath,
++                dstPath,
++                ERROR_NOT_SUPPORTED,
++                L"Copying into symbolic links and other reparse points is not supported."
++            );
+         }
+     }
++    else createdDestination = true;
+ 
+     wchar_t pattern[MAX_PATH] = {0};
+-    swprintf_s(pattern, MAX_PATH, L"%ls\\*", srcPath);
++    if (!joinCopyPath(srcPath, L"*", pattern, MAX_PATH)) {
++        return failCopy(
++            srcPath,
++            dstPath,
++            ERROR_FILENAME_EXCED_RANGE,
++            L"The source folder path is too long."
++        );
++    }
+ 
+     WIN32_FIND_DATA wfd = {0};
+     HANDLE handle = FindFirstFile(pattern, &wfd);
+     if (handle == INVALID_HANDLE_VALUE) {
+-        return GetLastError() == ERROR_FILE_NOT_FOUND
+-            ? COPY_RESULT_OK
+-            : COPY_RESULT_FAILED;
++        DWORD error = GetLastError();
++        if (error == ERROR_FILE_NOT_FOUND) {
++            if (createdDestination) preserveDirectoryMetadata(srcPath, dstPath);
++            return COPY_RESULT_OK;
++        }
++        return failCopy(
++            srcPath,
++            dstPath,
++            error,
++            L"The source folder could not be enumerated."
++        );
+     }
+ 
+     enum CopyResult result = COPY_RESULT_OK;
+@@ -235,22 +596,67 @@ static enum CopyResult copyDirectoryNative(wchar_t* srcPath, wchar_t* dstPath) {
+ 
+         wchar_t childSrc[MAX_PATH] = {0};
+         wchar_t childDst[MAX_PATH] = {0};
+-        swprintf_s(childSrc, MAX_PATH, L"%ls\\%ls", srcPath, wfd.cFileName);
+-        swprintf_s(childDst, MAX_PATH, L"%ls\\%ls", dstPath, wfd.cFileName);
++        if (!joinCopyPath(srcPath, wfd.cFileName, childSrc, MAX_PATH) ||
++            !joinCopyPath(dstPath, wfd.cFileName, childDst, MAX_PATH)) {
++            result = failCopy(
++                srcPath,
++                dstPath,
++                ERROR_FILENAME_EXCED_RANGE,
++                L"A path inside this folder is too long."
++            );
++            break;
++        }
+ 
+         result = copyPathNative(childSrc, childDst);
++        if (result == COPY_RESULT_SKIPPED) result = COPY_RESULT_OK;
+     }
+     while (result == COPY_RESULT_OK &&
+            !actionData->cancel &&
+            FindNextFile(handle, &wfd));
+ 
++    if (result == COPY_RESULT_OK &&
++        !actionData->cancel &&
++        GetLastError() != ERROR_NO_MORE_FILES) {
++        result = failCopy(
++            srcPath,
++            dstPath,
++            GetLastError(),
++            L"The source folder could not be fully enumerated."
++        );
++    }
+     FindClose(handle);
+-    return actionData->cancel ? COPY_RESULT_CANCELLED : result;
++    if (actionData->cancel) return COPY_RESULT_CANCELLED;
++    if (result == COPY_RESULT_OK && createdDestination) {
++        preserveDirectoryMetadata(srcPath, dstPath);
++    }
++    return result;
+ }
+ 
+ static enum CopyResult copyPathNative(wchar_t* srcPath, wchar_t* dstPath) {
++    if (actionData->cancel) return COPY_RESULT_CANCELLED;
++
+     DWORD attributes = GetFileAttributes(srcPath);
+-    if (attributes == INVALID_FILE_ATTRIBUTES) return COPY_RESULT_FAILED;
++    if (attributes == INVALID_FILE_ATTRIBUTES) {
++        return failCopy(
++            srcPath,
++            dstPath,
++            GetLastError(),
++            L"The source item could not be inspected."
++        );
++    }
++    if (attributes & FILE_ATTRIBUTE_REPARSE_POINT) {
++        actionData->skippedCount++;
++        return COPY_RESULT_SKIPPED;
++    }
++    if ((attributes & FILE_ATTRIBUTE_DIRECTORY) &&
++        isCopyDestinationDescendant(srcPath, dstPath)) {
++        return failCopy(
++            srcPath,
++            dstPath,
++            ERROR_INVALID_PARAMETER,
++            L"A folder cannot be copied into itself or one of its subfolders."
++        );
++    }
+ 
+     return attributes & FILE_ATTRIBUTE_DIRECTORY
+         ? copyDirectoryNative(srcPath, dstPath)
+@@ -278,12 +684,21 @@ static DWORD WINAPI fileActionTask(void* param) {
+             wchar_t basename[MAX_PATH] = {0};
+             wchar_t dstPath[MAX_PATH] = {0};
+             getBasenameFromPath(actionData->srcPaths[i], basename, false);
+-            swprintf_s(dstPath, MAX_PATH, L"%ls\\%ls", actionData->dstPath, basename);
++            if (!joinCopyPath(actionData->dstPath, basename, dstPath, MAX_PATH)) {
++                failCopy(
++                    actionData->srcPaths[i],
++                    actionData->dstPath,
++                    ERROR_FILENAME_EXCED_RANGE,
++                    L"The destination path is too long."
++                );
++                break;
++            }
+ 
+             // Copying an item onto itself is a no-op.
+             if (wcsicmp(actionData->srcPaths[i], dstPath) == 0) continue;
+ 
+             enum CopyResult result = copyPathNative(actionData->srcPaths[i], dstPath);
++            if (result == COPY_RESULT_SKIPPED) continue;
+             if (result != COPY_RESULT_OK) break;
+         }
+         else if (actionData->action == ACTION_MOVE) {
+@@ -305,6 +720,18 @@ static DWORD WINAPI fileActionTask(void* param) {
+             lastTime = currTime;
+         }
+     }
++
++    if (actionData->action == ACTION_COPY && actionData->skippedCount > 0) {
++        wchar_t message[192] = {0};
++        _snwprintf_s(
++            message,
++            sizeof(message) / sizeof(message[0]),
++            _TRUNCATE,
++            L"Skipped %d symbolic link or reparse point item(s). The copy continued with the remaining items.",
++            actionData->skippedCount
++        );
++        MessageBox(hwndDlg, message, L"Copy Summary", MB_OK | MB_ICONINFORMATION);
++    }
+     
+     SendMessage(hwndDlg, MSG_CLOSE, 0, 0);
+     return 0;
+@@ -378,6 +805,7 @@ void pasteFiles(wchar_t* dstDir) {
+     actionData->srcPaths = clipboard;
+     actionData->numSrcPaths = clipboardSize;
+     actionData->cancel = false;
++    actionData->skippedCount = 0;
+     
+     hwndDlg = CreateDialogParam(globalHInstance, MAKEINTRESOURCE(IDD_FILE_ACTION), hwndMain, &FileActionDialogProc, 0);     
+     actionData->conflictPolicy = CONFLICT_POLICY_ASK;

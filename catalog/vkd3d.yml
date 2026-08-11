@@ -1,0 +1,35 @@
+{
+  "type": "vkd3d",
+  "components": [
+    {
+      "id": "2.6",
+      "name": "VKD3D 2.6",
+      "url": "https://downloads.gamenative.app/dxwrapper/vkd3d-2.6.tzst",
+      "variant": "bionic"
+    },
+    {
+      "id": "2.12",
+      "name": "VKD3D 2.12",
+      "url": "https://downloads.gamenative.app/dxwrapper/vkd3d-2.12.tzst",
+      "variant": "bionic"
+    },
+    {
+      "id": "2.13",
+      "name": "VKD3D 2.13",
+      "url": "https://downloads.gamenative.app/dxwrapper/vkd3d-2.13.tzst",
+      "variant": "bionic"
+    },
+    {
+      "id": "3.0b",
+      "name": "VKD3D 3.0b",
+      "url": "https://downloads.gamenative.app/dxwrapper/vkd3d-3.0b.tzst",
+      "variant": "bionic"
+    },
+    {
+      "id": "3.0.1-0",
+      "name": "VKD3D 3.0.1-0",
+      "url": "https://downloads.gamenative.app/drivers/vkd3d-proton-3.0.1.wcp",
+      "variant": "bionic"
+    }
+  ]
+}

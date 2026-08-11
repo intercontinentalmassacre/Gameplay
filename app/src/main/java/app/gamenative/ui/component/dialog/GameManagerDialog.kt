@@ -1,0 +1,798 @@
+package app.gamenative.ui.component.dialog
+
+import android.content.Context
+import android.content.res.Configuration
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import app.gamenative.ui.component.Button
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import app.gamenative.BuildConfig
+import app.gamenative.R
+import app.gamenative.data.DepotInfo
+import app.gamenative.data.ManifestInfo
+import app.gamenative.externaldisplay.DsHomeSecondScreen
+import app.gamenative.service.SteamService
+import app.gamenative.service.SteamService.Companion.INVALID_APP_ID
+import app.gamenative.ui.component.LoadingScreen
+import app.gamenative.ui.component.ConsoleDialogButton
+import app.gamenative.ui.component.GamepadAction
+import app.gamenative.ui.component.GamepadActionBar
+import app.gamenative.ui.component.GamepadButton
+import app.gamenative.ui.component.focusRing
+import app.gamenative.ui.component.topbar.BackButton
+import app.gamenative.ui.data.GameDisplayInfo
+import app.gamenative.ui.internal.fakeAppInfo
+import app.gamenative.ui.screen.library.components.ConsolePanelHeader
+import app.gamenative.ui.theme.PluviaTheme
+import app.gamenative.utils.rememberHasExternalDisplay
+import app.gamenative.utils.SteamUtils
+import app.gamenative.utils.StorageUtils
+import com.skydoves.landscapist.ImageOptions
+import com.skydoves.landscapist.coil.CoilImage
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import kotlin.collections.orEmpty
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
+
+data class InstallSizeInfo(
+    val downloadSize: String,
+    val installSize: String,
+    val availableSpace: String,
+    val installBytes: Long,
+    val availableBytes: Long,
+)
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun GameManagerDialog(
+    visible: Boolean,
+    onGetDisplayInfo: @Composable (Context) -> GameDisplayInfo,
+    branch: String? = null,
+    onInstall: (List<Int>) -> Unit,
+    onDismissRequest: () -> Unit
+) {
+    val context = LocalContext.current
+    val scrollState = rememberScrollState()
+
+    val downloadableDepots = remember { mutableStateMapOf<Int, DepotInfo>() }
+    val allDownloadableApps = remember { mutableStateListOf<Pair<Int, DepotInfo>>() }
+    val selectedAppIds = remember { mutableStateMapOf<Int, Boolean>() }
+    val enabledAppIds = remember { mutableStateMapOf<Int, Boolean>() }
+
+    val displayInfo = onGetDisplayInfo(context)
+    val gameId = displayInfo.gameId
+
+    val isBaseGameInstalled = remember(gameId) {
+        SteamService.isAppInstalled(gameId)
+    }
+    val installedApp = remember(gameId, isBaseGameInstalled) {
+        if (isBaseGameInstalled) SteamService.getInstalledApp(gameId) else null
+    }
+    val installedDlcIds = installedApp?.dlcDepots.orEmpty()
+
+    val indirectDlcAppIds = remember(gameId) {
+        SteamService.getDownloadableDlcAppsOf(gameId).orEmpty().map { it.id }
+    }
+
+    val mainAppDlcIdsWithoutProperDepotDlcIds = remember(gameId) {
+        SteamService.getMainAppDlcIdsWithoutProperDepotDlcIds(gameId).toList()
+    }
+
+    LaunchedEffect(visible) {
+        scrollState.animateScrollTo(0)
+
+        downloadableDepots.clear()
+        allDownloadableApps.clear()
+
+        // Get Downloadable Depots
+        val allPossibleDownloadableDepots = SteamService.getDownloadableDepots(gameId)
+        downloadableDepots.putAll(allPossibleDownloadableDepots)
+
+        // Get Optional DLC IDs
+        val optionalDlcIds = allPossibleDownloadableDepots
+            .filter { it.value.optionalDlcId == it.value.dlcAppId }
+            .map { it.value.dlcAppId }
+
+        // Add DLCs
+        downloadableDepots
+            .toSortedMap()
+            .filter { (_, depot) ->
+                return@filter depot.dlcAppId != INVALID_APP_ID // Skip Main App
+            }.values
+                .groupBy { it.dlcAppId }
+                .mapValues { it.value.first() }
+                .toMap()
+            .forEach { (_, depotInfo) ->
+                allDownloadableApps.add(Pair(depotInfo.dlcAppId, depotInfo))
+                val installed = SteamService.isAppInstalled(depotInfo.dlcAppId)
+                selectedAppIds[depotInfo.dlcAppId] =
+                        installed || // For installed Base Game and Indirect DLC App
+                        installedDlcIds.contains(depotInfo.dlcAppId) || // For installed DLC from Main Depot
+                        ( !indirectDlcAppIds.contains(depotInfo.dlcAppId) && !optionalDlcIds.contains(depotInfo.dlcAppId) ) // Not in indirect DLC and not in optional DLC ids
+
+                enabledAppIds[depotInfo.dlcAppId] = !installedDlcIds.contains(depotInfo.dlcAppId) && !installed
+            }
+
+        allDownloadableApps.sortBy { it.first }
+
+        // Add Base Game
+        val baseDepot = downloadableDepots.values.firstOrNull { it.dlcAppId == INVALID_APP_ID } ?: return@LaunchedEffect
+        allDownloadableApps.add(0, Pair(gameId, baseDepot))
+        selectedAppIds[gameId] = true
+        enabledAppIds[gameId] = false
+    }
+
+    fun getDepotAppName(depotInfo: DepotInfo): String {
+        if (depotInfo.dlcAppId == INVALID_APP_ID) {
+            return displayInfo.name
+        }
+
+        val app = SteamService.getAppInfoOf(depotInfo.dlcAppId)
+        if (app != null) {
+            return app.name
+        }
+
+        return context.getString(R.string.install_dlc_fallback, depotInfo.dlcAppId)
+    }
+
+    val selectedBranch = branch ?: installedApp?.branch ?: "public"
+
+    fun manifestFor(depot: DepotInfo): ManifestInfo? =
+        depot.manifests[selectedBranch]
+            ?: depot.encryptedManifests[selectedBranch]
+            ?: depot.manifests["public"]
+
+    fun getSizeInfo(dlcAppId: Int): Pair<String, String> {
+        if (dlcAppId == INVALID_APP_ID || dlcAppId == gameId) {
+            val depotsForBaseGame = downloadableDepots.filter { (_, depot) ->
+                depot.dlcAppId == INVALID_APP_ID
+            }
+
+            val installBytes = depotsForBaseGame.values.sumOf {
+                manifestFor(it)?.size ?: 0
+            }
+            val downloadBytes = depotsForBaseGame.values.sumOf {
+                SteamUtils.getDownloadBytes(manifestFor(it))
+            }
+
+            return Pair(
+                StorageUtils.formatBinarySize(downloadBytes),
+                StorageUtils.formatBinarySize(installBytes)
+            )
+        }
+
+        val depotsForDlc = downloadableDepots.filter { (_, depot) ->
+            depot.dlcAppId == dlcAppId
+        }
+
+        val installBytes = depotsForDlc.values.sumOf {
+            manifestFor(it)?.size ?: 0
+        }
+        val downloadBytes = depotsForDlc.values.sumOf {
+            SteamUtils.getDownloadBytes(manifestFor(it))
+        }
+
+        return Pair(
+            StorageUtils.formatBinarySize(downloadBytes),
+            StorageUtils.formatBinarySize(installBytes)
+        )
+    }
+
+    fun getInstallSizeInfo(): InstallSizeInfo {
+        val availableBytes = StorageUtils.getAvailableSpaceForUncreatedPath(SteamService.getAppDirPath(gameId))
+
+        val baseGameInstallBytes = if (!isBaseGameInstalled) {
+            downloadableDepots
+                .filter { (_, depot) ->
+                    depot.dlcAppId == INVALID_APP_ID
+                }.values.sumOf { manifestFor(it)?.size ?: 0 }
+        } else {
+            0L
+        }
+
+        val baseGameDownloadBytes = if (!isBaseGameInstalled) {
+            downloadableDepots
+                .filter { (_, depot) ->
+                    depot.dlcAppId == INVALID_APP_ID
+                }.values.sumOf {
+                    SteamUtils.getDownloadBytes(manifestFor(it))
+                }
+        } else {
+            0L
+        }
+
+        val selectedInstallBytes = downloadableDepots
+            .filter { (_, depot) ->
+                selectedAppIds[depot.dlcAppId] == true && enabledAppIds[depot.dlcAppId] == true
+            }
+            .values.sumOf { manifestFor(it)?.size ?: 0 }
+
+        val selectedDownloadBytes = downloadableDepots
+            .filter { (_, depot) ->
+                selectedAppIds[depot.dlcAppId] == true && enabledAppIds[depot.dlcAppId] == true
+            }
+            .values.sumOf {
+                SteamUtils.getDownloadBytes(manifestFor(it))
+            }
+
+        return InstallSizeInfo(
+            downloadSize = StorageUtils.formatBinarySize(baseGameDownloadBytes + selectedDownloadBytes),
+            installSize = StorageUtils.formatBinarySize(baseGameInstallBytes + selectedInstallBytes),
+            availableSpace = StorageUtils.formatBinarySize(availableBytes),
+            installBytes = baseGameInstallBytes + selectedInstallBytes,
+            availableBytes = availableBytes
+        )
+    }
+
+    val selectableAppIds by remember(enabledAppIds.toMap()) {
+        derivedStateOf {
+            enabledAppIds.filter { it.value }.keys.toList()
+        }
+    }
+
+    val allSelectableSelected by remember(selectedAppIds.toMap(), selectableAppIds) {
+        derivedStateOf {
+            selectableAppIds.isNotEmpty() && selectableAppIds.all { selectedAppIds[it] == true }
+        }
+    }
+
+    val installSizeInfo by remember(downloadableDepots.keys.toSet(), selectedAppIds.toMap(), enabledAppIds.toMap()) {
+        derivedStateOf { getInstallSizeInfo() }
+    }
+
+    fun installSizeDisplay() : String {
+        return context.getString(
+            R.string.steam_install_space,
+            installSizeInfo.downloadSize,
+            installSizeInfo.installSize,
+            installSizeInfo.availableSpace
+        )
+    }
+
+    fun installButtonEnabled() : Boolean {
+        if (installSizeInfo.availableBytes < installSizeInfo.installBytes) {
+            return false
+        }
+
+        if (isBaseGameInstalled) {
+            val installed = installedDlcIds.toSet() - mainAppDlcIdsWithoutProperDepotDlcIds.toSet()
+            val realSelectedAppIds = selectedAppIds.filter { it.value }.keys - installed
+            return (realSelectedAppIds.size - 1) > 0 // -1 for main app
+        }
+
+        return selectedAppIds.filter { it.value }.isNotEmpty()
+    }
+
+    val hasExternalDisplay = rememberHasExternalDisplay()
+    if (visible && hasExternalDisplay) {
+        val secondScreenContent: @Composable () -> Unit = {
+            val cancelFocusRequester = remember { FocusRequester() }
+            val windowInfo = LocalWindowInfo.current
+            val installEnabled = installButtonEnabled()
+
+            BackHandler(onBack = onDismissRequest)
+            LaunchedEffect(Unit) {
+                withTimeoutOrNull(2_000) {
+                    snapshotFlow { windowInfo.isWindowFocused }
+                        .filter { it }
+                        .first()
+                }
+                runCatching { cancelFocusRequester.requestFocus() }
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.background),
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(bottom = 56.dp),
+                ) {
+                    ConsolePanelHeader(
+                        title = displayInfo.name,
+                        onBack = onDismissRequest,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                    )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
+
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                            .verticalScroll(scrollState)
+                            .padding(horizontal = 18.dp, vertical = 14.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.install),
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        Text(
+                            text = installSizeDisplay(),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        if (branch != null && branch != "public") {
+                            Text(
+                                text = stringResource(R.string.install_branch_name, branch),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+
+                        if (selectableAppIds.isNotEmpty()) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End,
+                            ) {
+                                Button(
+                                    onClick = {
+                                        val newState = !allSelectableSelected
+                                        selectableAppIds.forEach { appId -> selectedAppIds[appId] = newState }
+                                    },
+                                ) {
+                                    Text(
+                                        stringResource(R.string.install_select_all)
+                                            .takeIf { !allSelectableSelected }
+                                            ?: stringResource(R.string.install_clear_selection),
+                                    )
+                                }
+                            }
+                        }
+
+                        allDownloadableApps.forEach { (dlcAppId, depotInfo) ->
+                            val checked = selectedAppIds[dlcAppId] ?: false
+                            val enabled = enabledAppIds[dlcAppId] ?: false
+                            val (downloadSize, installSize) = getSizeInfo(dlcAppId)
+                            DualInstallContentRow(
+                                title = getDepotAppName(depotInfo),
+                                subtitle = stringResource(
+                                    R.string.install_content_size,
+                                    downloadSize,
+                                    installSize,
+                                ),
+                                checked = checked,
+                                enabled = enabled,
+                                onToggle = { selectedAppIds[dlcAppId] = !checked },
+                            )
+                        }
+                    }
+
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 18.dp, vertical = 10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        ConsoleDialogButton(
+                            text = stringResource(R.string.cancel),
+                            onClick = onDismissRequest,
+                            focusRequester = cancelFocusRequester,
+                        )
+                        Button(
+                            enabled = installEnabled,
+                            onClick = {
+                                onInstall(
+                                    selectedAppIds
+                                        .filter { it.key in enabledAppIds.filterValues { value -> value }.keys }
+                                        .filterValues { value -> value }
+                                        .keys
+                                        .toList(),
+                                )
+                            },
+                        ) {
+                            Text(stringResource(R.string.install))
+                        }
+                    }
+                }
+
+                GamepadActionBar(
+                    actions = listOf(
+                        GamepadAction(GamepadButton.A, R.string.action_select),
+                        GamepadAction(GamepadButton.B, R.string.back, onDismissRequest),
+                    ),
+                    modifier = Modifier.align(Alignment.BottomCenter),
+                    forceVisible = true,
+                    compact = true,
+                )
+            }
+        }
+
+        SideEffect {
+            DsHomeSecondScreen.publish(
+                DsHomeSecondScreen.Model(
+                    owner = DsHomeSecondScreen.Owner.DIALOG,
+                    mode = DsHomeSecondScreen.Mode.SETTINGS,
+                    onBack = onDismissRequest,
+                    settingsContent = secondScreenContent,
+                ),
+            )
+        }
+        DisposableEffect(Unit) {
+            onDispose { DsHomeSecondScreen.clear(DsHomeSecondScreen.Owner.DIALOG) }
+        }
+        return
+    }
+
+    when {
+        visible -> {
+            Dialog(
+                onDismissRequest = onDismissRequest,
+                properties = secondScreenDialogProperties(
+                    DialogProperties(
+                        usePlatformDefaultWidth = false,
+                        dismissOnClickOutside = false,
+                    ),
+                ),
+                content = {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.Black)
+                            .verticalScroll(scrollState),
+                        horizontalAlignment = Alignment.Start,
+                    ) {
+                        // Hero Section with Game Image Background
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(250.dp)
+                        ) {
+                            // Hero background image
+                            if (displayInfo.heroImageUrl != null) {
+                                CoilImage(
+                                    modifier = Modifier.fillMaxSize(),
+                                    imageModel = { displayInfo.heroImageUrl },
+                                    imageOptions = ImageOptions(contentScale = ContentScale.Crop),
+                                    loading = { LoadingScreen() },
+                                    failure = {
+                                        Box(
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentAlignment = Alignment.Center,
+                                        ) {
+                                            // Gradient background as fallback
+                                            Surface(
+                                                modifier = Modifier.fillMaxSize(),
+                                                color = MaterialTheme.colorScheme.primary
+                                            ) { }
+                                        }
+                                    },
+                                    previewPlaceholder = painterResource(R.drawable.testhero),
+                                )
+                            } else {
+                                // Fallback gradient background when no hero image
+                                Surface(
+                                    modifier = Modifier.fillMaxSize(),
+                                    color = MaterialTheme.colorScheme.primary
+                                ) { }
+                            }
+
+                            // Gradient overlay
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(
+                                        brush = Brush.verticalGradient(
+                                            colors = listOf(
+                                                Color.Transparent,
+                                                Color.Black.copy(alpha = 0.8f)
+                                            )
+                                        )
+                                    )
+                            )
+
+                            // Back button (top left)
+                            Box(
+                                modifier = Modifier
+                                    .padding(20.dp)
+                                    .background(
+                                        color = Color.Black.copy(alpha = 0.5f),
+                                        shape = RoundedCornerShape(12.dp)
+                                    )
+                            ) {
+                                BackButton(onClick = onDismissRequest)
+                            }
+
+                            // Game title and subtitle
+                            Column(
+                                modifier = Modifier
+                                    .align(Alignment.BottomStart)
+                                    .padding(20.dp)
+                            ) {
+                                Text(
+                                    text = displayInfo.name,
+                                    style = MaterialTheme.typography.headlineLarge.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        shadow = Shadow(
+                                            color = Color.Black.copy(alpha = 0.5f),
+                                            offset = Offset(0f, 2f),
+                                            blurRadius = 10f
+                                        )
+                                    ),
+                                    color = Color.White
+                                )
+
+                                Text(
+                                    text = "${displayInfo.developer} • ${
+                                        remember(displayInfo.releaseDate) {
+                                            if (displayInfo.releaseDate > 0) {
+                                                SimpleDateFormat("yyyy", Locale.getDefault()).format(Date(displayInfo.releaseDate * 1000))
+                                            } else {
+                                                ""
+                                            }
+                                        }
+                                    }",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = Color.White.copy(alpha = 0.9f)
+                                )
+                            }
+                        }
+
+                        Column(
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            if (branch != null && branch != "public") {
+                                Text(
+                                    text = stringResource(R.string.installing_branch, branch),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                                )
+                            }
+
+                            // Select All toggle
+                            if (selectableAppIds.isNotEmpty()) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                                    horizontalArrangement = Arrangement.End
+                                ) {
+                                    Button(
+                                        onClick = {
+                                            val newState = !allSelectableSelected
+                                            selectableAppIds.forEach { appId ->
+                                                selectedAppIds[appId] = newState
+                                            }
+                                        }
+                                    ) {
+                                        Text(
+                                            text = stringResource(
+                                                if (allSelectableSelected) {
+                                                    R.string.install_deselect_all
+                                                } else {
+                                                    R.string.install_select_all
+                                                },
+                                            )
+                                        )
+                                    }
+                                }
+                            }
+
+                            allDownloadableApps.forEach { (dlcAppId, depotInfo) ->
+                                val checked = selectedAppIds[dlcAppId] ?: false
+                                val enabled = enabledAppIds[dlcAppId] ?: false
+
+                                ListItem(
+                                    headlineContent = {
+                                        Column {
+                                            Text(
+                                                text = getDepotAppName(depotInfo)
+                                            )
+                                            // Add size display
+                                            val (downloadSize, installSize) = getSizeInfo(dlcAppId)
+                                            Text(
+                                                text = stringResource(
+                                                    R.string.install_download_and_install_size,
+                                                    downloadSize,
+                                                    installSize,
+                                                ),
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                            )
+                                        }
+                                    },
+                                    trailingContent = {
+                                        Checkbox(
+                                            checked = checked,
+                                            enabled = enabled,
+                                            onCheckedChange = { isChecked ->
+                                                // Update the local (unsaved) state only
+                                                selectedAppIds[dlcAppId] = isChecked
+                                            }
+                                        )
+                                    },
+                                    modifier = Modifier.clickable(enabled = enabled) {
+                                        // Toggle checkbox when ListItem is clicked
+                                        selectedAppIds[dlcAppId] = !checked
+                                    }
+                                )
+
+                                HorizontalDivider(
+                                    modifier = Modifier.padding(horizontal = 16.dp),
+                                    thickness = 0.5.dp,
+                                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                                )
+                            }
+                        }
+
+                        Column(
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 8.dp, start = 8.dp, bottom = 8.dp, end = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    modifier = Modifier.weight(0.5f),
+                                    text = installSizeDisplay()
+                                )
+
+                                Button(
+                                    enabled = installButtonEnabled(),
+                                    onClick = {
+                                        onInstall(selectedAppIds
+                                            .filter { selectedId -> selectedId.key in enabledAppIds.filter { enabledId -> enabledId.value } }
+                                            .filter { selectedId -> selectedId.value }.keys.toList())
+                                    }
+                                ) {
+                                    Text(stringResource(R.string.install))
+                                }
+                            }
+                        }
+                    }
+                },
+            )
+        }
+    }
+}
+
+@Composable
+private fun DualInstallContentRow(
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    enabled: Boolean,
+    onToggle: () -> Unit,
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val focused by interactionSource.collectIsFocusedAsState()
+    val shape = RoundedCornerShape(10.dp)
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(
+                color = if (focused) {
+                    MaterialTheme.colorScheme.surfaceContainerHighest
+                } else {
+                    MaterialTheme.colorScheme.surfaceContainerLow
+                },
+                shape = shape,
+            )
+            .focusRing(interactionSource, shape, width = 2.dp)
+            .clickable(
+                enabled = enabled,
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onToggle,
+            )
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = if (focused) FontWeight.SemiBold else FontWeight.Normal,
+                color = if (enabled) {
+                    MaterialTheme.colorScheme.onSurface
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+            )
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Checkbox(
+            checked = checked,
+            enabled = enabled,
+            onCheckedChange = null,
+        )
+    }
+}
+
+@Preview(uiMode = Configuration.UI_MODE_NIGHT_YES or Configuration.UI_MODE_TYPE_NORMAL)
+@Composable
+fun Preview_GameManagerDialog() {
+    val fakeApp = fakeAppInfo(1)
+    val displayInfo = GameDisplayInfo(
+        name = fakeApp.name,
+        developer = fakeApp.developer,
+        releaseDate = fakeApp.releaseDate,
+        heroImageUrl = fakeApp.getHeroUrl(),
+        iconUrl = fakeApp.iconUrl,
+        gameId = fakeApp.id,
+        appId = "STEAM_${fakeApp.id}",
+        installLocation = null,
+        sizeOnDisk = null,
+        sizeFromStore = null,
+        lastPlayedText = null,
+        playtimeText = null,
+    )
+
+    PluviaTheme {
+        GameManagerDialog(
+            visible = true,
+            onGetDisplayInfo = {
+                return@GameManagerDialog displayInfo
+            },
+            onInstall = {},
+            onDismissRequest = {}
+        )
+    }
+}

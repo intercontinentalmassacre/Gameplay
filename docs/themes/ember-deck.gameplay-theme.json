@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 2,
+  "name": "Ember Deck",
+  "dark": {
+    "primary": "#FF7A18", "onPrimary": "#1A0C00", "background": "#120E0B", "onBackground": "#FFF1E8",
+    "surface": "#211711", "surfaceElevated": "#38251A", "onSurface": "#FFF1E8", "textMuted": "#D3B5A0",
+    "border": "#76513B", "success": "#78C58B", "warning": "#FFC15A", "danger": "#FF9185",
+    "surfaceOverlay": "#2B1D15", "surfaceGlass": "#38251A", "surfaceScrim": "#090604",
+    "statusInstalled": "#78C58B", "statusDownloading": "#7CC7FF", "statusAvailable": "#FF9F56", "statusAway": "#FFC15A", "statusOffline": "#B59D8E",
+    "compatGood": "#78C58B", "compatPartial": "#FFC15A", "compatUnknown": "#D3B5A0", "compatBad": "#FF9185",
+    "rarityCommon": "#D3B5A0", "rarityRare": "#7CC7FF", "rarityUltraRare": "#FF7A18", "focusRingColor": "#FFB36B"
+  },
+  "light": {
+    "primary": "#9C3900", "onPrimary": "#FFFFFF", "background": "#FFF8F4", "onBackground": "#27150D",
+    "surface": "#FFF0E6", "surfaceElevated": "#F5D8C4", "onSurface": "#27150D", "textMuted": "#704B39",
+    "border": "#9B715C", "success": "#166B38", "warning": "#784D00", "danger": "#A62C23",
+    "surfaceOverlay": "#FBE4D3", "surfaceGlass": "#FBE4D3", "surfaceScrim": "#27150D",
+    "statusInstalled": "#166B38", "statusDownloading": "#235D8E", "statusAvailable": "#9C3900", "statusAway": "#784D00", "statusOffline": "#704B39",
+    "compatGood": "#166B38", "compatPartial": "#784D00", "compatUnknown": "#704B39", "compatBad": "#A62C23",
+    "rarityCommon": "#704B39", "rarityRare": "#235D8E", "rarityUltraRare": "#9C3900", "focusRingColor": "#9C3900"
+  },
+  "tokens": {
+    "focusRingWidthDp": 3, "focusRingStyle": "solid", "motionInstantMs": 90, "motionFastMs": 170, "motionNormalMs": 240,
+    "cornerSmDp": 6, "cornerMdDp": 10, "cornerLgDp": 16, "elevationModalDp": 12, "density": "comfortable",
+    "panelMaxWidthDp": 480, "panelHorizontalPaddingDp": 28, "panelVerticalPaddingDp": 20, "menuItemGapDp": 8
+  }
+}

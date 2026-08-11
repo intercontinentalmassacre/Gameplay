@@ -1,0 +1,32 @@
+{
+  "type": "wowbox64",
+  "components": [
+    {
+      "id": "0.3.6-0",
+      "name": "WOWBox64 0.3.6",
+      "version": "0.3.6",
+      "channel": "stable",
+      "variant": "bionic",
+      "abi": [
+        "arm64-v8a"
+      ],
+      "archiveFormat": "wcp",
+      "urls": [
+        "https://github.com/Arihany/WinlatorWCPHub/releases/download/WOWBOX64/wowbox64-0.3.6.wcp"
+      ],
+      "sizeBytes": 1293484,
+      "sha256": "4c69a542aea2e144ad6b11c74454be140a6a9f50c2a7db88c7af4d67caa00f27",
+      "sourceRepository": "https://github.com/ptitSeb/box64",
+      "sourceCommit": "03d220b1d297a9e5be81760833b014edf9dfe7ab",
+      "license": "MIT",
+      "pageSizes": [
+        4096
+      ],
+      "requiredFiles": [
+        "wowbox64.dll"
+      ],
+      "requires": [],
+      "conflicts": []
+    }
+  ]
+}

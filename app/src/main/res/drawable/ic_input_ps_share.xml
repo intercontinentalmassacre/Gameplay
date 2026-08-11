@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?><!--
+  PlayStation Share/Create button glyph, drawn in the Kenney Input Prompts style.
+  License: CC0 (Public Domain)
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="64"
+    android:viewportHeight="64">
+  <path
+      android:pathData="M20 20 L44 20 Q52 20 52 28 L52 36 Q52 44 44 44 L20 44 Q12 44 12 36 L12 28 Q12 20 20 20 Z"
+      android:strokeColor="#FFFFFF"
+      android:strokeWidth="4"
+      android:strokeLineJoin="round"
+      android:fillColor="#00000000" />
+  <path
+      android:pathData="M32 25 L32 34 M27 29 L32 24 L37 29 M24 34 L24 39 L40 39 L40 34"
+      android:strokeColor="#FFFFFF"
+      android:strokeWidth="3.5"
+      android:strokeLineCap="round"
+      android:strokeLineJoin="round"
+      android:fillColor="#00000000" />
+</vector>

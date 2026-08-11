@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?><!--
+  PlayStation L2 button glyph, drawn in the Kenney Input Prompts style.
+  License: CC0 (Public Domain)
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="64"
+    android:viewportHeight="64">
+  <path
+      android:pathData="M16 20 L48 20 Q56 20 56 28 L56 36 Q56 44 48 44 L16 44 Q8 44 8 36 L8 28 Q8 20 16 20 Z"
+      android:strokeColor="#FFFFFF"
+      android:strokeWidth="4"
+      android:strokeLineJoin="round"
+      android:fillColor="#00000000" />
+  <path
+      android:pathData="M17 26 L17 38 L25 38 M32 29 Q32 25 37 25 Q42 25 42 29 Q42 32 39 35 L32 38 L43 38"
+      android:strokeColor="#FFFFFF"
+      android:strokeWidth="3.5"
+      android:strokeLineCap="round"
+      android:strokeLineJoin="round"
+      android:fillColor="#00000000" />
+</vector>
