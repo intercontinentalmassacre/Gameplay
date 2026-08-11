@@ -131,6 +131,7 @@ import app.gamenative.ui.component.GameStatsRow
 import app.gamenative.ui.component.dialog.LocalSecondScreenDialogWindowToken
 import app.gamenative.ui.component.dialog.LocalSecondScreenDialogWindowType
 import app.gamenative.ui.data.GameCardStats
+import app.gamenative.ui.data.InstallProgress
 import app.gamenative.ui.data.PerformanceHudConfig
 import app.gamenative.ui.data.shouldLoadNextLibraryPage
 import app.gamenative.ui.enums.LibraryTab
@@ -216,6 +217,7 @@ object DsHomeSecondScreen {
         val focusedItem: LibraryItem? = null,
         val focusedStats: GameCardStats? = null,
         val focusedCompat: GameCompatibilityStatus? = null,
+        val installProgressByAppId: Map<String, InstallProgress> = emptyMap(),
         val libraryLayout: PaneType = PaneType.GRID_CAPSULE,
         val currentTab: LibraryTab = LibraryTab.ALL,
         val isLoading: Boolean = false,
@@ -1246,6 +1248,7 @@ private fun DsHomeSecondScreenGrid(model: DsHomeSecondScreen.Model) {
                     )
                     else -> DsGameGrid(
                         items = model.items,
+                        installProgressByAppId = model.installProgressByAppId,
                         listState = gridState,
                         cellMinSize = cellMinSize,
                         focusTargetIndex = model.focusedIndex,

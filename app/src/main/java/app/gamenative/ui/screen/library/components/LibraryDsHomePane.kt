@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -57,6 +58,7 @@ import app.gamenative.data.LibraryItem
 import app.gamenative.ui.component.focusRing
 import app.gamenative.ui.gcds.GcdsHero
 import app.gamenative.ui.data.LibraryState
+import app.gamenative.ui.data.InstallProgress
 import app.gamenative.ui.enums.PaneType
 import app.gamenative.ui.theme.PluviaTheme
 import app.gamenative.ui.theme.motionSpec
@@ -109,6 +111,7 @@ internal fun LibraryDsHomePane(
         DsHeroCard(
             item = focusedItem,
             onClick = { focusedItem?.let { onNavigate(it.appId) } },
+            installProgress = focusedItem?.let { state.installProgress[it.appId] },
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(0.42f),
@@ -116,6 +119,7 @@ internal fun LibraryDsHomePane(
 
         DsGameGrid(
             items = state.appInfoList,
+            installProgressByAppId = state.installProgress,
             listState = listState,
             cellMinSize = cellMinSize,
             focusTargetIndex = focusTargetListIndex,
@@ -148,6 +152,7 @@ internal fun DsGameGrid(
     showLabels: Boolean = false,
     cellAspectRatio: Float = 1f,
     preferSquareIcon: Boolean = true,
+    installProgressByAppId: Map<String, InstallProgress> = emptyMap(),
     contentPadding: PaddingValues = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 72.dp),
     modifier: Modifier = Modifier,
 ) {
@@ -172,7 +177,7 @@ internal fun DsGameGrid(
             key = { index -> items[index].appId },
         ) { index ->
             val item = items[index]
-            DsGameCell(
+DsGameCell(
                 item = item,
                 onClick = { onNavigate(item.appId) },
                 onFocused = { onFocusedIndexChanged(index) },
@@ -180,6 +185,7 @@ internal fun DsGameGrid(
                 showLabel = showLabels,
                 cellAspectRatio = cellAspectRatio,
                 preferSquareIcon = preferSquareIcon,
+                installProgress = installProgressByAppId[item.appId],
                 focusRequester = if (firstItemFocusRequester != null && index == focusTargetIndex) {
                     firstItemFocusRequester
                 } else {
@@ -195,6 +201,7 @@ internal fun DsHeroCard(
     item: LibraryItem?,
     onClick: () -> Unit,
     interactive: Boolean = true,
+    installProgress: InstallProgress? = null,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -269,6 +276,16 @@ internal fun DsHeroCard(
                         .align(Alignment.BottomStart)
                         .padding(horizontal = 16.dp, vertical = 12.dp),
                 )
+
+                installProgress?.let { progress ->
+                    InstallProgressOverlay(
+                        progress = progress,
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .width(84.dp)
+                            .padding(end = 16.dp, bottom = 16.dp),
+                    )
+                }
             }
         }
     }
@@ -283,6 +300,7 @@ private fun DsGameCell(
     showLabel: Boolean = false,
     cellAspectRatio: Float = 1f,
     preferSquareIcon: Boolean = true,
+    installProgress: InstallProgress? = null,
     focusRequester: FocusRequester? = null,
 ) {
     val context = LocalContext.current
@@ -375,6 +393,16 @@ private fun DsGameCell(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
+        }
+        installProgress?.let { progress ->
+            InstallProgressOverlay(
+                progress = progress,
+                compact = true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.BottomCenter)
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
+            )
         }
     }
 }

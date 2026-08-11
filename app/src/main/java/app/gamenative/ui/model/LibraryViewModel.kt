@@ -19,6 +19,7 @@ import app.gamenative.data.LibraryPlayHistory
 import app.gamenative.data.SteamApp
 import app.gamenative.data.SteamCollection
 import app.gamenative.data.SteamCollectionRepository
+import app.gamenative.data.DownloadInfo
 import app.gamenative.events.AndroidEvent
 import app.gamenative.data.GOGGame
 import app.gamenative.data.EpicGame
@@ -38,6 +39,8 @@ import app.gamenative.service.gog.GOGService
 import app.gamenative.steam.SteamCollectionFilter
 import app.gamenative.ui.data.LibraryState
 import app.gamenative.ui.data.statsFor
+import app.gamenative.ui.data.InstallProgress
+import app.gamenative.ui.data.isActiveInstallation
 import app.gamenative.ui.enums.AppFilter
 import app.gamenative.ui.enums.LibraryTab
 import app.gamenative.ui.enums.LibraryTab.Companion.next
@@ -117,6 +120,18 @@ class LibraryViewModel @Inject constructor(
         // Increment refresh counter and refresh the library list to pick up newly fetched images
         _state.update { it.copy(imageRefreshCounter = it.imageRefreshCounter + 1) }
         onFilterApps(paginationCurrentPage)
+    }
+
+    private val onDownloadStatusChanged: (AndroidEvent.DownloadStatusChanged) -> Unit = {
+        scheduleRefreshInstallProgress()
+    }
+
+    private val onPostInstallSyncStatusChanged: (AndroidEvent.PostInstallSyncStatusChanged) -> Unit = {
+        scheduleRefreshInstallProgress()
+    }
+
+    private val onInstallationSessionChanged: (AndroidEvent.InstallationSessionChanged) -> Unit = {
+        scheduleRefreshInstallProgress()
     }
 
     // How many items loaded on one page of results
@@ -326,12 +341,21 @@ class LibraryViewModel @Inject constructor(
 
         PluviaApp.events.on<AndroidEvent.LibraryInstallStatusChanged, Unit>(onInstallStatusChanged)
         PluviaApp.events.on<AndroidEvent.CustomGameImagesFetched, Unit>(onCustomGameImagesFetched)
+        PluviaApp.events.on<AndroidEvent.DownloadStatusChanged, Unit>(onDownloadStatusChanged)
+        PluviaApp.events.on<AndroidEvent.PostInstallSyncStatusChanged, Unit>(onPostInstallSyncStatusChanged)
+        PluviaApp.events.on<AndroidEvent.InstallationSessionChanged, Unit>(onInstallationSessionChanged)
+
+        scheduleRefreshInstallProgress()
     }
 
     override fun onCleared() {
         searchDebounceJob?.cancel()
         PluviaApp.events.off<AndroidEvent.LibraryInstallStatusChanged, Unit>(onInstallStatusChanged)
         PluviaApp.events.off<AndroidEvent.CustomGameImagesFetched, Unit>(onCustomGameImagesFetched)
+        PluviaApp.events.off<AndroidEvent.DownloadStatusChanged, Unit>(onDownloadStatusChanged)
+        PluviaApp.events.off<AndroidEvent.PostInstallSyncStatusChanged, Unit>(onPostInstallSyncStatusChanged)
+        PluviaApp.events.off<AndroidEvent.InstallationSessionChanged, Unit>(onInstallationSessionChanged)
+        clearObservedDownloads()
         super.onCleared()
     }
 
@@ -685,6 +709,98 @@ class LibraryViewModel @Inject constructor(
     /** Resolves a sibling from the full owned library, independent of filters and pagination. */
     fun resolveCrossStoreSibling(appId: String, targetSource: GameSource): LibraryItem? =
         crossStoreItemsById[appId]?.firstOrNull { it.gameSource == targetSource }
+
+    // ── Live install progress (store downloads + local installers) ─────────────
+
+    private data class ObservedDownload(
+        val info: DownloadInfo,
+        val progressListener: (Float) -> Unit,
+    ) {
+        fun dispose() {
+            info.removeProgressListener(progressListener)
+        }
+    }
+
+    private val observedDownloads = mutableMapOf<String, ObservedDownload>()
+
+    private fun scheduleRefreshInstallProgress() {
+        viewModelScope.launch(Dispatchers.IO) {
+            refreshInstallProgress()
+        }
+    }
+
+    private fun refreshInstallProgress() {
+        try {
+            val activeBindings = mutableMapOf<String, DownloadInfo>()
+
+            for ((appId, info) in SteamService.getActiveDownloads()) {
+                activeBindings["${GameSource.STEAM.name}_$appId"] = info
+            }
+            for ((appId, info) in EpicService.getActiveDownloads()) {
+                activeBindings["${GameSource.EPIC.name}_$appId"] = info
+            }
+            for ((gameId, info) in GOGService.getActiveDownloads()) {
+                activeBindings["${GameSource.GOG.name}_$gameId"] = info
+            }
+            val amazonProductToAppId = amazonGameList.associate { it.productId to it.appId }
+            for ((productId, info) in AmazonService.getActiveDownloads()) {
+                amazonProductToAppId[productId]?.let { appId ->
+                    activeBindings["${GameSource.AMAZON.name}_$appId"] = info
+                }
+            }
+
+            val progress = HashMap<String, InstallProgress>()
+            for ((key, info) in activeBindings) {
+                progress[key] = when {
+                    info.isPostInstallSyncing() -> InstallProgress.Syncing
+                    else -> InstallProgress.Downloading(info.getProgress().coerceIn(0f, 1f))
+                }
+            }
+
+            // Local installer sessions carry no percentage — surface their stage.
+            val sessions = InstallationSessionStore(context).loadAll()
+            for (session in sessions) {
+                val appId = session.appId ?: continue
+                if (session.state.isActiveInstallation) {
+                    progress[appId] = InstallProgress.Installing(session.state)
+                }
+            }
+
+            syncObservedDownloads(activeBindings)
+
+            _state.update { it.copy(installProgress = progress) }
+        } catch (e: Exception) {
+            Timber.tag("LibraryViewModel").e(e, "Error refreshing install progress")
+        }
+    }
+
+    private fun syncObservedDownloads(activeBindings: Map<String, DownloadInfo>) {
+        observedDownloads.entries.toList().forEach { (key, observed) ->
+            val binding = activeBindings[key]
+            if (binding == null || binding !== observed.info) {
+                observed.dispose()
+                observedDownloads.remove(key)
+            }
+        }
+        activeBindings.forEach { (key, info) ->
+            if (observedDownloads[key]?.info === info) return@forEach
+
+            val progressListener: (Float) -> Unit = {
+                _state.update { current ->
+                    val updated = HashMap(current.installProgress)
+                    updated[key] = InstallProgress.Downloading(it.coerceIn(0f, 1f))
+                    current.copy(installProgress = updated)
+                }
+            }
+            info.addProgressListener(progressListener)
+            observedDownloads[key] = ObservedDownload(info, progressListener)
+        }
+    }
+
+    private fun clearObservedDownloads() {
+        observedDownloads.values.forEach { it.dispose() }
+        observedDownloads.clear()
+    }
 
     private fun invalidateLibrarySnapshot() {
         librarySnapshotVersion.incrementAndGet()

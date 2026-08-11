@@ -56,6 +56,9 @@ data class LibraryState(
     // Device-specific play stats, grouped by platform then game name
     val deviceGameStats: Map<GameSource, Map<String, DeviceGameStats>> = emptyMap(),
 
+    // Live install progress keyed by LibraryItem.appId (store downloads + local installers)
+    val installProgress: Map<String, InstallProgress> = emptyMap(),
+
     // GPU-specific play stats (across all devices with this GPU), grouped by platform then game name
     val gpuGameStats: Map<GameSource, Map<String, DeviceGameStats>> = emptyMap(),
 

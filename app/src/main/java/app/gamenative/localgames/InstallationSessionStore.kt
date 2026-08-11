@@ -26,6 +26,9 @@ class InstallationSessionStore(context: Context) {
             temporary.delete()
             throw IOException("Could not persist installation session ${session.id}")
         }
+        app.gamenative.PluviaApp.events.emitJava(
+            app.gamenative.events.AndroidEvent.InstallationSessionChanged(session.appId),
+        )
     }
 
     @Synchronized

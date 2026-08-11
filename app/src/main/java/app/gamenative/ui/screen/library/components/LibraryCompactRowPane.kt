@@ -61,6 +61,7 @@ import app.gamenative.ui.component.CompatibilityBadge
 import app.gamenative.ui.component.focusRing
 import app.gamenative.ui.data.LibraryState
 import app.gamenative.ui.data.statsFor
+import app.gamenative.ui.data.InstallProgress
 import app.gamenative.ui.enums.PaneType
 import app.gamenative.ui.theme.PluviaTheme
 import app.gamenative.ui.theme.motionSpec
@@ -258,6 +259,7 @@ internal fun LibraryCompactRowPane(
                         compatibilityStatus = state.compatibilityMap[item.name],
                         onClick = { onNavigate(item.appId) },
                         onFocused = { onFocusedIndexChanged(index) },
+                        installProgress = state.installProgress[item.appId],
                         focusRequester = if (firstItemFocusRequester != null && index == focusTargetListIndex) {
                             firstItemFocusRequester
                         } else {
@@ -296,6 +298,7 @@ internal fun LibraryCompactRowPane(
                         imageRefreshCounter = state.imageRefreshCounter,
                         compatibilityStatus = state.compatibilityMap[item.name],
                         gameStats = state.statsFor(item),
+                        installProgress = state.installProgress[item.appId],
                     )
                 }
             }
@@ -310,6 +313,7 @@ private fun CompactIconCell(
     compatibilityStatus: GameCompatibilityStatus?,
     onClick: () -> Unit,
     onFocused: () -> Unit,
+    installProgress: InstallProgress? = null,
     focusRequester: FocusRequester? = null,
 ) {
     val context = LocalContext.current
@@ -396,5 +400,15 @@ private fun CompactIconCell(
                 .fillMaxWidth()
                 .padding(top = 6.dp),
         )
+
+        installProgress?.let { progress ->
+            InstallProgressOverlay(
+                progress = progress,
+                compact = true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 6.dp),
+            )
+        }
     }
 }

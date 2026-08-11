@@ -40,6 +40,7 @@ import app.gamenative.data.GameSource
 import app.gamenative.data.LibraryItem
 import app.gamenative.ui.enums.PaneType
 import app.gamenative.ui.data.GameCardStats
+import app.gamenative.ui.data.InstallProgress
 import app.gamenative.ui.icons.Amazon
 import app.gamenative.ui.icons.Steam
 import app.gamenative.ui.internal.fakeAppInfo
@@ -75,6 +76,7 @@ internal fun AppItem(
     showFocusGlow: Boolean = true,
     enableFocusScale: Boolean = true,
     animateStats: Boolean = true,
+    installProgress: InstallProgress? = null,
 ) {
     val context = LocalContext.current
     var hideText by remember { mutableStateOf(true) }
@@ -131,6 +133,7 @@ internal fun AppItem(
             showFocusGlow = showFocusGlow,
             context = context,
             animateStats = animateStats,
+            installProgress = installProgress,
         )
     }
 }

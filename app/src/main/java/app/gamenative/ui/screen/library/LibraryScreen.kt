@@ -1204,6 +1204,7 @@ private fun LibraryScreenContent(
                             focusedItem = focusedItem,
                             focusedStats = focusedItem?.let { state.statsFor(it) },
                             focusedCompat = focusedItem?.let { state.compatibilityMap[it.name] },
+                            installProgressByAppId = state.installProgress,
                             libraryLayout = currentPaneType,
                             currentTab = state.currentTab,
                             isLoading = state.isLoading,
@@ -1369,6 +1370,8 @@ private fun LibraryScreenContent(
                             item = state.appInfoList.getOrNull(focusedIndex),
                             onClick = {},
                             interactive = false,
+                            installProgress = state.appInfoList.getOrNull(focusedIndex)
+                                ?.let { state.installProgress[it.appId] },
                             modifier = Modifier.fillMaxSize(),
                         )
                     }

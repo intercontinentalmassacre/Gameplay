@@ -249,6 +249,7 @@ internal fun LibraryListPane(
                                         imageRefreshCounter = state.imageRefreshCounter,
                                         compatibilityStatus = state.compatibilityMap[item.name],
                                         gameStats = state.statsFor(item),
+                                        installProgress = state.installProgress[item.appId],
                                     )
                                 }
                             }

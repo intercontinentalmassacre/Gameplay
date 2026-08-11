@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.Face4
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -65,6 +66,7 @@ import app.gamenative.ui.component.CompatibilityBadge
 import app.gamenative.ui.component.GameStatsRow
 import app.gamenative.ui.component.focusRing
 import app.gamenative.ui.data.GameCardStats
+import app.gamenative.ui.data.InstallProgress
 import app.gamenative.ui.enums.PaneType
 import app.gamenative.ui.theme.PluviaTheme
 import app.gamenative.ui.theme.motionSpec
@@ -99,6 +101,7 @@ internal fun GridViewCard(
     showFocusGlow: Boolean,
     context: Context,
     animateStats: Boolean = true,
+    installProgress: InstallProgress? = null,
 ) {
     val aspectRatio = if (paneType == PaneType.GRID_CAPSULE || paneType == PaneType.INSTALLED_COMPACT) 2f / 3f else 460f / 215f
     val isCapsule = (paneType == PaneType.GRID_CAPSULE || paneType == PaneType.INSTALLED_COMPACT)
@@ -296,6 +299,11 @@ internal fun GridViewCard(
                             tint = Color.White.copy(alpha = 0.55f),
                             animate = animateStats,
                         )
+                    }
+
+                    // Live install progress: thin determinate/indeterminate bar + stage label
+                    installProgress?.let { progress ->
+                        InstallProgressOverlay(progress = progress)
                     }
                 }
 

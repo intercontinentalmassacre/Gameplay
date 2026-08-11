@@ -530,6 +530,7 @@ internal fun LibraryCarouselPane(
                                             imageRefreshCounter = state.imageRefreshCounter,
                                             compatibilityStatus = state.compatibilityMap[item.name],
                                             gameStats = state.statsFor(item),
+                                            installProgress = state.installProgress[item.appId],
                                             showFocusGlow = false,
                                             enableFocusScale = false,
                                             animateStats = item.appId == settledBackdropItem?.appId,
