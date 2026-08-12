@@ -228,10 +228,56 @@ Issues and focused pull requests are welcome. Describe the device, Android versi
 
 Large interface changes should preserve Gameplay's controller-first, touch-compatible product direction and document user-visible behavior in the pull request.
 
+## Credits and thanks
+
+Gameplay stands on the work of many people and projects. This list is not exhaustive; the full per-component notice set is in [THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES).
+
+### Upstream lineage
+
+Gameplay is a fork of [GameNative](https://github.com/utkarshdalal/GameNative) by Utkarsh Dalal, the Android shell that brought Steam, GOG, Epic, and Amazon libraries to Wine/Proton containers on ARM64 devices.
+
+GameNative is itself a fork of [Pluvia](https://github.com/utkarshdalal/Pluvia) (the original project name), which was the first Android client to bundle a working Wine/Proton container for Steam.
+
+Both Pluvia and GameNative build on the [Winlator](https://github.com/lutris/winlator) Wine-on-Android project. Gameplay inherits their container, XServer, input-controls, graphics-translation, and Steamworks code, and ships its own theming, library, controller, and local-installer layers on top.
+
+### Bundled native components
+
+These projects are vendored under `app/src/main/cpp/` and are loaded by the runtime. Each has its own license and copyright in the matching subdirectory.
+
+- [Wine](https://www.winehq.org/) and [Proton](https://github.com/ValveSoftware/Proton) (Valve) — Windows compatibility layer and game runtime.
+- [DXVK](https://github.com/doitsujin/dxvk) and [VKD3D-Proton](https://github.com/HansKristian-Work/vkd3d-proton) — Vulkan-based translation for Direct3D 9/10/11/12.
+- [virglrenderer](https://gitlab.freedesktop.org/mesa/virglrenderer) (Mesa / freedesktop.org) — guest-to-host GPU translation used by the embedded X server.
+- [adrenotools](https://github.com/darksylinc/adrenotools) by Robert "darksylinc" Day — loadable Adreno GPU driver wrapper.
+- [lsfg-vk](https://github.com/PancakeTAS/lsfg-vk) by PancakeTAS — Lossless Scaling frame-generation Vulkan layer.
+- [MoltenVK](https://github.com/KhronosGroup/MoltenVK) (Khronos) — Vulkan-over-Metal shim used on supported paths.
+
+### Storefronts and data providers
+
+Gameplay talks to these services for library sync, ownership, and metadata. None are affiliated with this project; their data, branding, and access rules belong to the respective providers.
+
+- [Steam](https://store.steampowered.com/) and [Steamworks](https://partner.steamgames.com/doc/sdk) (Valve) — authentication, library, cloud saves, and store metadata.
+- [GOG](https://www.gog.com/) (CD Projekt) — authentication, library, and cloud saves.
+- [Epic Games Store](https://store.epicgames.com/) (Epic Games) — authentication and library.
+- [Amazon Games](https://gaming.amazon.com/) (Amazon) — authentication and library.
+- [SteamGridDB](https://www.steamgriddb.com/) — community-contributed grid, hero, logo, and icon artwork used for library enrichment. A user-supplied API key in `local.properties` activates this integration.
+- [NexusMods](https://www.nexusmods.com/) — mod hosting and Nexus Mod Manager download flow used by the in-app mod manager.
+- [PCGamingWiki](https://www.pcgamingwiki.com/) — community-maintained Windows-game fix database used to seed container configuration defaults.
+
+### Compatibility and runtime data
+
+- [ProtonDB](https://www.protondb.com/) (community, powered by Valve compatibility reports) is the de-facto reference for Linux/Wine game compatibility; Gameplay's community-config filter and per-game best-config service are shaped to interoperate with its data conventions.
+- [WineHQ AppDB](https://appdb.winehq.org/) and the [Wine staging](https://wiki.winehq.org/Wine-Staging) project for runtime patches.
+
+### Development tools and assistance
+
+This project uses AI generated code for design and theme engine work. The interface vocabulary, theme tokens, several settings and dialog flows, and refactors in this repository were produced with AI assistance (Anthropic Claude and OpenAI GPT, via opencode and Claude Code). Reviewers are listed in the commit log per change.
+
 ## License, attribution, and trademarks
 
 Gameplay is distributed under the [GNU General Public License version 3](LICENSE). If you distribute a modified APK or other binary, you must satisfy the GPL-3.0 requirements, including providing the corresponding source under the same license.
 
-GameNative and its contributors retain copyright in their original work. Gameplay's fork attribution is recorded in [NOTICE](NOTICE), and licenses or source information for bundled components are recorded in [THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES) and beside relevant assets.
+GameNative, Pluvia, Winlator, and their contributors retain copyright in their original work. Gameplay's fork attribution is recorded in [NOTICE](NOTICE), and per-component licenses and source offers are recorded in [THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES) and beside relevant assets.
+
+All trademarks, store names, game titles, and screenshots remain the property of their respective owners. Gameplay is not affiliated with Valve, CD Projekt, Epic Games, Amazon, or any storefront, publisher, or modding community listed above.
 
 Gameplay is not affiliated with or endorsed by Valve, Microsoft, Sony, Epic Games, GOG, Amazon, CodeWeavers, or the Wine project. Steam, Xbox, PlayStation, Windows, and other names and marks belong to their respective owners.
