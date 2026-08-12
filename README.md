@@ -6,6 +6,9 @@ It combines a controller-first console interface with isolated Wine/Proton conta
 
 Gameplay is a modified fork of [GameNative](https://github.com/utkarshdalal/GameNative). It remains licensed under GPL-3.0, preserves upstream attribution, and develops a separate product direction focused on a unified console shell, local installation workflows, extensive theming, and equal support for touch and physical controllers.
 
+This project uses AI generated code for design and theme engine.
+
+
 <img width="834" height="887" alt="{3D316416-197D-442F-A4F2-363EDE8EA080}" src="https://github.com/user-attachments/assets/9dda553b-d0d0-40d0-80a0-05c2506df88f" />
 
 
