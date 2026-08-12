@@ -196,19 +196,6 @@ STEAMGRIDDB_API_KEY=your_api_key_here
 
 Never commit `local.properties`, API keys, signing credentials, keystores, or generated APKs.
 
-## Repository layout
-
-- `app/` — Android application, Jetpack Compose interface, storefront integrations, game library, and container orchestration.
-- `ubuntufs/` — filesystem/runtime packaging module.
-- `app/src/main/assets/` — manifests and bundled runtime-support assets.
-- `docs/` — design and planning documentation, including the theme format, storefront API specs, and roadmap.
-- `NOTICE` — Gameplay fork attribution and naming information.
-- `THIRD_PARTY_NOTICES` — component licenses, notices, and source information.
-- `DESIGN.md` — visual language, focus vocabulary, color, and motion rules.
-- `PRODUCT.md` — product direction, brand personality, and accessibility targets.
-
-The Kotlin namespace and Android application ID remain `app.gamenative`. This is an internal compatibility identifier used by existing data, migrations, JNI bindings, and native components; it is not the displayed product name.
-
 ## Development expectations
 
 Gameplay is controller-first but not controller-only. Changes should preserve touch behavior and existing user data while moving ordinary navigation toward the shared console shell.
