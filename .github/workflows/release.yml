@@ -49,6 +49,7 @@ jobs:
 
       - name: Build signed modern APK
         run: |
+          : > local.properties
           ./gradlew :app:assembleModernRelease-signed --no-daemon
 
       - name: Prepare release assets
