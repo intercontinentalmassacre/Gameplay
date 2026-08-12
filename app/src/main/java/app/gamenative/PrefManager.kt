@@ -61,6 +61,16 @@ object PrefManager {
         val oldPassword = stringPreferencesKey("password")
         removePref(oldPassword)
 
+        // Migrate the legacy plaintext username to the encrypted key so the
+        // Steam account name is never persisted in the clear.
+        getPref(USER_NAME_PLAIN, "").let {
+            if (it.isNotEmpty()) {
+                Timber.i("Converting old username to encrypted")
+                username = it
+                removePref(USER_NAME_PLAIN)
+            }
+        }
+
         val oldAccessToken = stringPreferencesKey("access_token")
         val oldRefreshToken = stringPreferencesKey("refresh_token")
         getPref(oldAccessToken, "").let {
@@ -102,7 +112,8 @@ object PrefManager {
     fun clearSteamSessionPreferences() {
         scope.launch {
             dataStore.edit { pref ->
-                pref.remove(USER_NAME)
+                pref.remove(USER_NAME_PLAIN)
+                pref.remove(USER_NAME_ENC)
                 pref.remove(ACCESS_TOKEN_ENC)
                 pref.remove(REFRESH_TOKEN_ENC)
                 pref.remove(CLIENT_ID)
@@ -863,11 +874,24 @@ object PrefManager {
             setPref(CELL_ID_MANUALLY_SET, value)
         }
 
-    private val USER_NAME = stringPreferencesKey("user_name")
+    private val USER_NAME_PLAIN = stringPreferencesKey("user_name")
+    private val USER_NAME_ENC = byteArrayPreferencesKey("user_name_enc")
     var username: String
-        get() = getPref(USER_NAME, "")
+        get() {
+            val encryptedBytes = getPref(USER_NAME_ENC, ByteArray(0))
+            return if (encryptedBytes.isEmpty()) {
+                ""
+            } else {
+                runCatching { String(Crypto.decrypt(encryptedBytes)) }.getOrDefault("")
+            }
+        }
         set(value) {
-            setPref(USER_NAME, value)
+            if (value.isEmpty()) {
+                removePref(USER_NAME_ENC)
+            } else {
+                val bytes = Crypto.encrypt(value.toByteArray())
+                setPref(USER_NAME_ENC, bytes)
+            }
         }
 
     private val ACCESS_TOKEN_ENC = byteArrayPreferencesKey("access_token_enc")
