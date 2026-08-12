@@ -305,6 +305,13 @@ object DsHomeSecondScreen {
 
     fun publishPresentationWindow(token: IBinder?, type: Int?) {
         Timber.d("publishPresentationWindow token=$token type=$type (was token=$presentationWindowToken type=$presentationWindowType)")
+        // Skip the Compose-state write when the value did not change; the
+        // post-attached republish from DsHomePresentationHost used to fire
+        // twice (once on show, once after the window token became available)
+        // and each write triggered a recomposition of every consumer of the
+        // second-screen dialog locals. Dialogs that were already open would
+        // re-evaluate secondScreenDialogProperties() and flash.
+        if (presentationWindowToken == token && presentationWindowType == type) return
         presentationWindowToken = token
         presentationWindowType = type
     }
@@ -595,6 +602,12 @@ class DsHomePresentation(
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         DsHomeSecondScreen.attachPresentation(this)
+        // Match the host Surface background so the Presentation window does not
+        // flash its default (black) window background between show() and the
+        // Compose tree drawing its first frame.
+        window?.setBackgroundDrawable(
+            android.graphics.drawable.ColorDrawable(android.graphics.Color.BLACK),
+        )
         updateInputMode(DsHomeSecondScreen.model?.mode ?: DsHomeSecondScreen.Mode.DETAILS)
         // A Presentation window is TYPE_PRESENTATION (2037). Compose Dialog()
         // creates its own window; its LayoutParams type (2037 via
@@ -1204,7 +1217,7 @@ private fun DsHomeSecondScreenGrid(model: DsHomeSecondScreen.Model) {
             DualLibraryHeader(model, onLayoutCycle = cycleNavMode)
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f))
 
-            Box(modifier = Modifier.weight(1f)) {
+            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                 when {
                     model.isLoading && model.items.isEmpty() -> {
                         CircularProgressIndicator(
@@ -2261,7 +2274,10 @@ fun DsHomePresentationHost() {
                     type = presentation.window?.attributes?.type,
                 )
                 // decorView.windowToken is null until the presentation window is
-                // attached; re-publish once attached so dialogs get a valid token
+                // attached; re-publish once attached so dialogs get a valid token.
+                // publishPresentationWindow short-circuits when the value did not
+                // change, so this only fires a recomposition when the token was
+                // actually null at show time and is now non-null.
                 presentation.window?.decorView?.post {
                     DsHomeSecondScreen.publishPresentationWindow(
                         token = presentation.window?.decorView?.windowToken,

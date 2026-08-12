@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.selection.selectable
@@ -31,6 +32,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteForever
@@ -41,6 +43,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import app.gamenative.ui.component.ConsoleIconButton
 import app.gamenative.ui.component.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -62,8 +65,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -713,6 +718,56 @@ private fun StorageEntryCard(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+
+            val containerPath = entry.containerPath
+            if (containerPath != null) {
+                Spacer(modifier = Modifier.height(6.dp))
+                val clipboard = LocalClipboardManager.current
+                val coroutineScope = rememberCoroutineScope()
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Text(
+                        text = stringResource(R.string.container_storage_path_label),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    )
+                    Text(
+                        text = containerPath,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier
+                            .weight(1f, fill = false)
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onClick = {
+                                    clipboard.setText(AnnotatedString(containerPath))
+                                    coroutineScope.launch {
+                                        SnackbarManager.show(
+                                            context.getString(R.string.container_storage_path_copied),
+                                        )
+                                    }
+                                },
+                            ),
+                    )
+                    ConsoleIconButton(
+                        onClick = {
+                            clipboard.setText(AnnotatedString(containerPath))
+                            coroutineScope.launch {
+                                SnackbarManager.show(
+                                    context.getString(R.string.container_storage_path_copied),
+                                )
+                            }
+                        },
+                        icon = Icons.Default.ContentCopy,
+                        contentDescription = stringResource(R.string.container_storage_path_copy),
+                    )
+                }
+            }
 
             val canRemoveContainer = entry.hasContainer
             if (canMoveToExternal || canMoveToInternal || entry.canUninstallGame || canRemoveContainer) {
