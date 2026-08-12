@@ -1,6 +1,7 @@
 package app.gamenative.service.amazon
 
 import android.content.Context
+import app.gamenative.Crypto
 import app.gamenative.data.AmazonCredentials
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -208,7 +209,7 @@ object AmazonAuthManager {
         }
 
         val file = File(getCredentialsFilePath(context))
-        file.writeText(json.toString())
+        file.writeText(Crypto.encryptToString(json.toString().toByteArray()))
         Timber.d("[Amazon] Credentials saved to ${file.absolutePath}")
     }
 
@@ -217,7 +218,16 @@ object AmazonAuthManager {
             val file = File(getCredentialsFilePath(context))
             if (!file.exists()) return null
 
-            val json = JSONObject(file.readText())
+            val raw = file.readText()
+            val plain = Crypto.decryptFromString(raw)?.let { String(it) }
+                ?: run {
+                    // Legacy plaintext JSON from older releases. Parse as-is; the
+                    // next saveCredentials() call will rewrite it encrypted.
+                    if (raw.startsWith("{")) raw else null
+                }
+                ?: return null
+
+            val json = JSONObject(plain)
             AmazonCredentials(
                 accessToken = json.getString("access_token"),
                 refreshToken = json.getString("refresh_token"),
