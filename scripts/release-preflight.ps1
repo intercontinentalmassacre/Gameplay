@@ -50,8 +50,10 @@ foreach ($required in 'storeFile', 'storePassword', 'keyAlias', 'keyPassword') {
     }
 }
 
-$trackedSigningConfig = & git -C $repoRoot ls-files --error-unmatch 'app/keystores/keystore.properties' 2>$null
-if ($LASTEXITCODE -eq 0 -or $trackedSigningConfig) {
+# git ls-files prints nothing (and no stderr) when the file is untracked,
+# unlike --error-unmatch which fails loudly on $ErrorActionPreference='Stop'.
+$trackedSigningConfig = (& git -C $repoRoot ls-files 'app/keystores/keystore.properties') -join "`n"
+if (-not [string]::IsNullOrWhiteSpace($trackedSigningConfig)) {
     throw 'app/keystores/keystore.properties is tracked by Git. Remove it from the index before releasing.'
 }
 
@@ -73,7 +75,10 @@ $apk = Get-ChildItem -LiteralPath (Join-Path $repoRoot 'app\build\outputs\apk\mo
 if ($null -eq $apk) { throw 'Signed modern APK was not produced.' }
 
 $sdkRoot = if ($env:ANDROID_HOME) { $env:ANDROID_HOME } elseif ($env:ANDROID_SDK_ROOT) { $env:ANDROID_SDK_ROOT } else { $null }
-if ([string]::IsNullOrWhiteSpace($sdkRoot)) { throw 'Set ANDROID_HOME (or ANDROID_SDK_ROOT) to verify the APK.' }
+if ([string]::IsNullOrWhiteSpace($sdkRoot)) {
+    $sdkRoot = Join-Path $env:LOCALAPPDATA 'Android\Sdk'
+}
+if (-not (Test-Path -LiteralPath $sdkRoot)) { throw "Android SDK not found at $sdkRoot. Set ANDROID_HOME (or ANDROID_SDK_ROOT)." }
 
 $buildTools = Get-ChildItem -LiteralPath (Join-Path $sdkRoot 'build-tools') -Directory |
     Sort-Object Name -Descending |
