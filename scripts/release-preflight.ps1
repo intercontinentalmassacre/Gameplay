@@ -55,7 +55,7 @@ if ($LASTEXITCODE -eq 0 -or $trackedSigningConfig) {
     throw 'app/keystores/keystore.properties is tracked by Git. Remove it from the index before releasing.'
 }
 
-$gradleArgs = @(':app:assembleModernReleaseSigned', '--no-daemon')
+$gradleArgs = @(':app:assembleModernRelease-signed', '--no-daemon')
 if ($Offline) { $gradleArgs += '--offline' }
 
 Write-Host "Building signed Gameplay $versionName ($versionCode) for $Tag..."

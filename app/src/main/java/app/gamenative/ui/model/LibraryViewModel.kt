@@ -723,6 +723,9 @@ class LibraryViewModel @Inject constructor(
 
     private val observedDownloads = mutableMapOf<String, ObservedDownload>()
 
+    /** App ids with an active install/download, tracked to detect membership changes. */
+    @Volatile private var activeInstallationAppIds: Set<String> = emptySet()
+
     private fun scheduleRefreshInstallProgress() {
         viewModelScope.launch(Dispatchers.IO) {
             refreshInstallProgress()
@@ -769,6 +772,14 @@ class LibraryViewModel @Inject constructor(
             syncObservedDownloads(activeBindings)
 
             _state.update { it.copy(installProgress = progress) }
+
+            // A card must appear in the Installed tab the moment its install starts, so when the
+            // set of active installs changes, re-run the filter pass (the InstallProgress values
+            // themselves update in place without rebuilding the list).
+            if (progress.keys != activeInstallationAppIds) {
+                activeInstallationAppIds = progress.keys
+                onFilterApps(paginationCurrentPage)
+            }
         } catch (e: Exception) {
             Timber.tag("LibraryViewModel").e(e, "Error refreshing install progress")
         }
@@ -1007,16 +1018,25 @@ class LibraryViewModel @Inject constructor(
                 .toList()
 
             val explicitInstalledOnly = currentState.appInfoSortType.contains(AppFilter.INSTALLED)
+
+            // Games with an active install/download count as "installed" in the Installed tab and
+            // under the Installed filter, so their card shows up with a live progress bar even
+            // before the install completes.
+            val activeInstallAppIds = currentState.installProgress.keys
+
+            fun steamInProgress(item: SteamApp): Boolean =
+                activeInstallAppIds.contains("${GameSource.STEAM.name}_${item.id}")
+
             val stableSteamOwnerTypeFiltered = if (explicitInstalledOnly) {
                 steamOwnerTypeSearchFiltered.filter { item ->
-                    downloadDirectorySet.contains(SteamService.getAppDirName(item))
+                    downloadDirectorySet.contains(SteamService.getAppDirName(item)) || steamInProgress(item)
                 }
             } else {
                 steamOwnerTypeSearchFiltered
             }
             val steamOwnerTypeFiltered = if (currentState.currentTab.installedOnly) {
                 stableSteamOwnerTypeFiltered.filter { item ->
-                    downloadDirectorySet.contains(SteamService.getAppDirName(item))
+                    downloadDirectorySet.contains(SteamService.getAppDirName(item)) || steamInProgress(item)
                 }
             } else {
                 stableSteamOwnerTypeFiltered
@@ -1081,7 +1101,7 @@ class LibraryViewModel @Inject constructor(
             val steamEntriesAppIds = mutableSetOf<String>()
 
             val steamEntries: List<LibraryEntry> = filteredSteamApps.map { item ->
-                val isInstalled = downloadDirectorySet.contains(SteamService.getAppDirName(item))
+                val isInstalled = downloadDirectorySet.contains(SteamService.getAppDirName(item)) || steamInProgress(item)
                 val installedBranch = if (isInstalled) {
                     snapshot.installedAppsById[item.id]?.branch ?: "public"
                 } else {
@@ -1145,7 +1165,7 @@ class LibraryViewModel @Inject constructor(
                     val installedOnly = currentState.currentTab.installedOnly ||
                         currentState.appInfoSortType.contains(AppFilter.INSTALLED)
                     if (installedOnly) {
-                        game.isInstalled
+                        game.isInstalled || activeInstallAppIds.contains("${GameSource.GOG.name}_${game.id}")
                     } else {
                         true
                     }
@@ -1169,7 +1189,7 @@ class LibraryViewModel @Inject constructor(
                             isShared = false,
                             gameSource = GameSource.GOG,
                         ),
-                        isInstalled = game.isInstalled,
+                        isInstalled = game.isInstalled || activeInstallAppIds.contains(appId),
                         lastPlayed = lastPlayedFor(appId),
                     )
                 }
@@ -1188,7 +1208,7 @@ class LibraryViewModel @Inject constructor(
                     val installedOnly = currentState.currentTab.installedOnly ||
                         currentState.appInfoSortType.contains(AppFilter.INSTALLED)
                     if (installedOnly) {
-                        game.isInstalled
+                        game.isInstalled || activeInstallAppIds.contains("${GameSource.EPIC.name}_${game.id}")
                     } else {
                         true
                     }
@@ -1212,7 +1232,7 @@ class LibraryViewModel @Inject constructor(
                             isShared = false,
                             gameSource = GameSource.EPIC,
                         ),
-                        isInstalled = game.isInstalled,
+                        isInstalled = game.isInstalled || activeInstallAppIds.contains(appId),
                         lastPlayed = lastPlayedFor(appId),
                     )
                 }
@@ -1231,7 +1251,7 @@ class LibraryViewModel @Inject constructor(
                     val installedOnly = currentState.currentTab.installedOnly ||
                         currentState.appInfoSortType.contains(AppFilter.INSTALLED)
                     if (installedOnly) {
-                        game.isInstalled
+                        game.isInstalled || activeInstallAppIds.contains("${GameSource.AMAZON.name}_${game.appId}")
                     } else {
                         true
                     }
@@ -1258,7 +1278,7 @@ class LibraryViewModel @Inject constructor(
                             isShared = false,
                             gameSource = GameSource.AMAZON,
                         ),
-                        isInstalled = game.isInstalled,
+                        isInstalled = game.isInstalled || activeInstallAppIds.contains(appId),
                         lastPlayed = lastPlayedFor(appId),
                     )
                 }

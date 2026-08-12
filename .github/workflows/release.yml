@@ -48,7 +48,8 @@ jobs:
           EOF
 
       - name: Build signed modern APK
-        run: ./gradlew :app:assembleModernReleaseSigned --no-daemon
+        run: |
+          ./gradlew :app:assembleModernRelease-signed --no-daemon
 
       - name: Prepare release assets
         id: assets
