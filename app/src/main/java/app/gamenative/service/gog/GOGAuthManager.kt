@@ -1,6 +1,7 @@
 package app.gamenative.service.gog
 
 import android.content.Context
+import app.gamenative.Crypto
 import app.gamenative.data.GOGCredentials
 import app.gamenative.utils.Net
 import com.winlator.xenvironment.components.EnvRedactor
@@ -37,6 +38,31 @@ object GOGAuthManager {
     fun hasStoredCredentials(context: Context): Boolean {
         val authFile = File(getAuthConfigPath(context))
         return authFile.exists()
+    }
+
+    /**
+     * Reads the auth file content, transparently decrypting it when present.
+     * Legacy plaintext payloads are rewritten as encrypted on the fly.
+     */
+    private suspend fun readAuthContent(authFile: File): String {
+        val raw = withContext(Dispatchers.IO) { authFile.readText() }
+        val plain = Crypto.decryptFromString(raw)?.let { String(it) }
+        if (plain != null) {
+            return plain
+        }
+        // Legacy plaintext JSON stored by older releases. Migrate now.
+        if (raw.startsWith("{")) {
+            withContext(Dispatchers.IO) {
+                authFile.writeText(Crypto.encryptToString(raw.toByteArray()))
+            }
+        }
+        return raw
+    }
+
+    /** Writes the auth payload encrypted at rest. */
+    private suspend fun writeAuthContent(authFile: File, content: String) {
+        val encrypted = Crypto.encryptToString(content.toByteArray())
+        withContext(Dispatchers.IO) { authFile.writeText(encrypted) }
     }
 
     /**
@@ -132,9 +158,7 @@ object GOGAuthManager {
                 })
             }
 
-            withContext(Dispatchers.IO) {
-                authFile.writeText(authData.toString(2))
-            }
+            writeAuthContent(authFile, authData.toString(2))
             Timber.tag("GOG").i("GOG authentication successful")
 
             Result.success(credentials)
@@ -158,7 +182,7 @@ object GOGAuthManager {
 
             // Read credentials from file (IO dispatcher)
             val authFile = File(authConfigPath)
-            val authContent = withContext(Dispatchers.IO) { authFile.readText() }
+            val authContent = readAuthContent(authFile)
             val authJson = JSONObject(authContent)
 
             // Get Galaxy app credentials
@@ -221,7 +245,7 @@ object GOGAuthManager {
             }
 
             // Read auth file
-            val authContent = withContext(Dispatchers.IO) { authFile.readText() }
+            val authContent = readAuthContent(authFile)
             val authJson = JSONObject(authContent)
 
             // Check if we already have credentials for this game
@@ -288,7 +312,7 @@ object GOGAuthManager {
                 authJson.put(clientId, json)
 
                 // Write updated auth file
-                withContext(Dispatchers.IO) { authFile.writeText(authJson.toString(2)) }
+                writeAuthContent(authFile, authJson.toString(2))
 
                 Timber.tag("GOG").i("Successfully obtained game-specific token for clientId: $clientId")
                 json
@@ -362,7 +386,7 @@ object GOGAuthManager {
             }
 
             // Read current credentials
-            val authContent = withContext(Dispatchers.IO) { authFile.readText() }
+            val authContent = readAuthContent(authFile)
             val authJson = JSONObject(authContent)
 
             // Get refresh token from Galaxy credentials
@@ -407,7 +431,7 @@ object GOGAuthManager {
             // Update credentials in auth file
             tokenJson.put("loginTime", System.currentTimeMillis() / 1000.0)
             authJson.put(clientId, tokenJson)
-            withContext(Dispatchers.IO) { authFile.writeText(authJson.toString(2)) }
+            writeAuthContent(authFile, authJson.toString(2))
 
             Timber.tag("GOG").i("Successfully refreshed credentials for clientId: $clientId")
             Result.success(true)

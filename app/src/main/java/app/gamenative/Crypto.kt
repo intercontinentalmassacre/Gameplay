@@ -73,4 +73,18 @@ object Crypto {
         cipher.init(Cipher.DECRYPT_MODE, getKey(), IvParameterSpec(iv))
         return cipher.doFinal(data)
     }
+
+    /**
+     * Encrypts raw bytes into a Base64 string suitable for storing in a file.
+     * The IV is prepended to the ciphertext before encoding.
+     */
+    fun encryptToString(bytes: ByteArray): String =
+        android.util.Base64.encodeToString(encrypt(bytes), android.util.Base64.NO_WRAP)
+
+    /**
+     * Decrypts a Base64 string produced by [encryptToString]. Returns null when
+     * the input is not a valid encrypted payload.
+     */
+    fun decryptFromString(value: String): ByteArray? =
+        runCatching { decrypt(android.util.Base64.decode(value, android.util.Base64.NO_WRAP)) }.getOrNull()
 }

@@ -1,6 +1,7 @@
 package app.gamenative.service.epic
 
 import android.content.Context
+import app.gamenative.Crypto
 import app.gamenative.data.EpicCredentials
 import app.gamenative.data.EpicGameToken
 import app.gamenative.utils.sanitizeForFilename
@@ -17,6 +18,28 @@ object EpicAuthManager {
     // (~5 requests / 24h / game). Cache to disk and re-use a few minutes under the
     // server-side validity window to avoid burning the quota on relaunches.
     private const val OWNERSHIP_TOKEN_CACHE_TTL_MS = 25L * 60L * 1000L
+
+    /**
+     * Reads a cached file, decrypting it transparently. Legacy plaintext
+     * payloads are migrated to encrypted on the fly.
+     */
+    private fun readEncryptedFile(file: File): String {
+        if (!file.exists()) return ""
+        val raw = file.readText()
+        val plain = Crypto.decryptFromString(raw)?.let { String(it) }
+        if (plain != null) {
+            return plain
+        }
+        if (raw.startsWith("{")) {
+            runCatching { file.writeText(Crypto.encryptToString(raw.toByteArray())) }
+        }
+        return raw
+    }
+
+    /** Writes a cached file encrypted at rest. */
+    private fun writeEncryptedFile(file: File, content: String) {
+        file.writeText(Crypto.encryptToString(content.toByteArray()))
+    }
 
     private fun getCredentialsFilePath(context: Context): String {
         val dir = File(context.filesDir, "epic")
@@ -35,12 +58,12 @@ object EpicAuthManager {
         val file = ownershipTokenCacheFile(context, namespace, catalogItemId)
         if (!file.exists()) return null
         if (System.currentTimeMillis() - file.lastModified() >= OWNERSHIP_TOKEN_CACHE_TTL_MS) return null
-        return runCatching { file.readText().trim().takeIf { it.isNotEmpty() } }.getOrNull()
+        return runCatching { readEncryptedFile(file).trim().takeIf { it.isNotEmpty() } }.getOrNull()
     }
 
     private fun writeOwnershipTokenHex(context: Context, namespace: String, catalogItemId: String, hex: String) {
         runCatching {
-            ownershipTokenCacheFile(context, namespace, catalogItemId).writeText(hex)
+            ownershipTokenCacheFile(context, namespace, catalogItemId).let { writeEncryptedFile(it, hex) }
         }.onFailure { Timber.tag("Epic").w(it, "Failed caching ownership token for $namespace:$catalogItemId") }
     }
 
@@ -293,7 +316,7 @@ object EpicAuthManager {
         }
 
         val file = File(getCredentialsFilePath(context))
-        file.writeText(json.toString())
+        writeEncryptedFile(file, json.toString())
 
         Timber.d("Credentials saved to ${file.absolutePath}")
     }
@@ -305,7 +328,7 @@ object EpicAuthManager {
                 return null
             }
 
-            val json = JSONObject(file.readText())
+            val json = JSONObject(readEncryptedFile(file))
 
             EpicCredentials(
                 accessToken = json.getString("access_token"),
