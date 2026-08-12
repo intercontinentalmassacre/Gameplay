@@ -357,7 +357,8 @@ fun ContainerConfigDialog(
 ) {
     if (visible) {
         val hasExternalDisplay = rememberHasExternalDisplay()
-        if (!embedded && hasExternalDisplay) {
+        val alreadyOnSecondScreen = LocalSecondScreenDialogWindowType.current != null
+        if (!embedded && hasExternalDisplay && !alreadyOnSecondScreen) {
             val secondScreenContent: @Composable () -> Unit = {
                 ContainerConfigDialog(
                     visible = true,
