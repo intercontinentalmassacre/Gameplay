@@ -127,15 +127,6 @@ There is no meaningful single “supported up to year X” cutoff. A demanding o
 
 The XR flavors are experimental and are not the primary Gameplay target.
 
-## Documentation
-
-- [DESIGN.md](DESIGN.md) — visual language, console focus vocabulary, color, and motion.
-- [PRODUCT.md](PRODUCT.md) — product direction, user model, and accessibility targets.
-- [docs/THEMES.md](docs/THEMES.md) — versioned theme format and authoring notes.
-- [docs/GOG_API_SPEC.json](docs/GOG_API_SPEC.json), [docs/EPIC_API_SPEC.json](docs/EPIC_API_SPEC.json), [docs/AMAZON_API_SPEC.json](docs/AMAZON_API_SPEC.json) — storefront integration specs.
-- [docs/PRODUCTION_PLAN.md](docs/PRODUCTION_PLAN.md), [docs/DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md) — roadmap and priorities.
-- [UPSTREAM_ARCHITECTURE.md](UPSTREAM_ARCHITECTURE.md) — inherited GameNative architecture notes.
-
 ## Building from source
 
 Use a current Android Studio installation with its bundled JDK. Clone submodules when obtaining a fresh checkout:
