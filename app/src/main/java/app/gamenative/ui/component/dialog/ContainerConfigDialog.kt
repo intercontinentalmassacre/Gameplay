@@ -30,6 +30,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ViewList
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.outlined.AddCircleOutline
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -49,6 +50,8 @@ import androidx.compose.material3.Scaffold
 import app.gamenative.ui.component.Slider
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -61,6 +64,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -1336,6 +1341,14 @@ fun ContainerConfigDialog(
                 val scrollState = rememberScrollState()
                 var selectedTab by rememberSaveable { mutableIntStateOf(0) }
                 var searchActive by rememberSaveable { mutableStateOf(false) }
+                var drawerOpen by remember { mutableStateOf(false) }
+                val drawerState = rememberDrawerState(
+                    initialValue = if (drawerOpen) DrawerValue.Open else DrawerValue.Closed,
+                )
+                val drawerScope = rememberCoroutineScope()
+                LaunchedEffect(drawerState.isOpen) {
+                    drawerOpen = drawerState.isOpen
+                }
                 var searchQuery by rememberSaveable { mutableStateOf("") }
                 val closeSearch: () -> Unit = {
                     searchActive = false
@@ -1395,6 +1408,11 @@ fun ContainerConfigDialog(
                                 )
                             },
                             actions = {
+                                ConsoleIconButton(
+                                    onClick = { drawerOpen = true },
+                                    icon = Icons.Default.Menu,
+                                    contentDescription = stringResource(R.string.container_config_open_categories),
+                                )
                                 SettingsSearchToggle(
                                     active = searchActive,
                                     query = searchQuery,
@@ -1416,10 +1434,8 @@ fun ContainerConfigDialog(
                     // forward, L1/L2 back (both wrap). The handler lives on the content
                     // container (not a focusable wrapper, which would break up/down
                     // traversal), so it fires whenever focus is anywhere in the tabs or
-                    // content below.
-                    val isCompactWidth = LocalConfiguration.current.screenWidthDp < 600
-                    val categoryRailWidth = if (isCompactWidth) 156.dp else 228.dp
-
+                    // content below. Works whether the category drawer is open or not,
+                    // so controller users never have to open the drawer to switch tabs.
                     @Composable
                     fun tabContent() {
                         if (searchQuery.isNotBlank() && filteredTabIndices.isEmpty()) {
@@ -1453,7 +1469,7 @@ fun ContainerConfigDialog(
                         }
                     }
 
-                    val layoutModifier = Modifier
+                    val contentModifier = Modifier
                         .onPreviewKeyEvent { event ->
                             if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                             val currentIndex = visibleTabIndices.indexOf(selectedTab).coerceAtLeast(0)
@@ -1477,57 +1493,48 @@ fun ContainerConfigDialog(
                         )
                         .fillMaxSize()
 
-                    if (isCompactWidth) {
-                        // Dual-screen lower display / narrow portrait: categories move to a
-                        // horizontal strip on top, content takes the full width below.
-                        Column(modifier = layoutModifier) {
-                            GcdsStrip(
-                                items = visibleTabIndices,
-                                selectedItem = selectedTab,
-                                label = { tabs[it] },
-                                onSelected = { selectedTab = it },
-                                requestInitialFocus = true,
+                    BackHandler(enabled = drawerOpen) {
+                        drawerScope.launch { drawerState.close() }
+                    }
+
+                    ModalNavigationDrawer(
+                        drawerState = drawerState,
+                        drawerContent = {
+                            ModalDrawerSheet(
                                 modifier = Modifier.fillMaxWidth(),
-                            )
-                            Column(
-                                modifier = Modifier
-                                    .padding(horizontal = 12.dp)
-                                    .verticalScroll(scrollState)
-                                    .weight(1f),
                             ) {
-                                tabContent()
+                                GcdsRail(
+                                    items = visibleTabIndices,
+                                    selectedItem = selectedTab,
+                                    label = { tabs[it] },
+                                    onSelected = {
+                                        selectedTab = it
+                                        drawerScope.launch { drawerState.close() }
+                                    },
+                                    footer = stringResource(R.string.container_config_console_controls_hint),
+                                    footerHints = listOf(
+                                        GamepadHint(GamepadButton.A, R.string.action_select),
+                                        GamepadHint(GamepadButton.B, R.string.back),
+                                    ),
+                                    requestInitialFocus = drawerOpen,
+                                    compact = true,
+                                    modifier = Modifier.fillMaxSize(),
+                                )
                             }
-                        }
-                    } else {
-                    Row(
-                        modifier = layoutModifier,
-                    ) {
-                        GcdsRail(
-                            items = visibleTabIndices,
-                            selectedItem = selectedTab,
-                            label = { tabs[it] },
-                            onSelected = { selectedTab = it },
-                            footer = stringResource(R.string.container_config_console_controls_hint),
-                    footerHints = listOf(
-                        GamepadHint(listOf(GamepadButton.LB, GamepadButton.RB), R.string.hint_categories),
-                        GamepadHint(GamepadButton.A, R.string.action_select),
-                        GamepadHint(GamepadButton.B, R.string.back),
-                    ),
-                            requestInitialFocus = true,
-                            modifier = Modifier
-                                .width(categoryRailWidth)
-                                .fillMaxSize(),
-                        )
-                        Column(
-                            modifier = Modifier
-                                .padding(horizontal = 22.dp)
-                                .verticalScroll(scrollState)
-                                .weight(1f),
-                        ) {
-                            tabContent()
-                        }
-                    }
-                    }
+                        },
+                        content = {
+                            Column(modifier = contentModifier) {
+                                Column(
+                                    modifier = Modifier
+                                        .padding(horizontal = 22.dp)
+                                        .verticalScroll(scrollState)
+                                        .weight(1f),
+                                ) {
+                                    tabContent()
+                                }
+                            }
+                        },
+                    )
                 }
             }
 

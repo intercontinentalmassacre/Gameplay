@@ -123,6 +123,7 @@ object ContainerStorageManager {
         val gameInstallSizeBytes: Long? = null,
         val status: Status,
         val installPath: String? = null,
+        val containerPath: String? = null,
         val canUninstallGame: Boolean = false,
         val hasContainer: Boolean = true,
     ) {
@@ -674,6 +675,7 @@ object ContainerStorageManager {
                 gameInstallSizeBytes = resolveInstallSizeBytes(installedGame?.installSizeBytes),
                 status = Status.UNREADABLE,
                 installPath = installedGame?.installPath,
+                containerPath = dir.absolutePath,
                 canUninstallGame = installedGame != null && installedGame.gameSource != GameSource.CUSTOM_GAME,
                 hasContainer = true,
             )
@@ -722,6 +724,7 @@ object ContainerStorageManager {
             gameInstallSizeBytes = gameInstallSizeBytes,
             status = status,
             installPath = installPath,
+            containerPath = dir.absolutePath,
             canUninstallGame = (status == Status.READY || status == Status.GAME_FILES_MISSING) &&
                 gameSource != null && gameSource != GameSource.CUSTOM_GAME,
             hasContainer = true,

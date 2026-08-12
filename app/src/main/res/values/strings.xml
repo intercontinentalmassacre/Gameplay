@@ -1258,6 +1258,10 @@
     <string name="storage_calculating">%1$s: Calculating…</string>
     <string name="container_storage_title">Container &amp; Storage Manager</string>
     <string name="container_storage_subtitle">Review game and container storage, including installed games without containers</string>
+    <string name="container_storage_path_label">On disk</string>
+    <string name="container_storage_path_copy">Copy path</string>
+    <string name="container_storage_path_copied">Path copied</string>
+    <string name="container_storage_uninstall_note">Containers inside the app data directory are removed automatically when you uninstall Gameplay. Containers on external storage or the D: drive (Downloads) survive uninstall and must be deleted manually.</string>
     <string name="container_storage_summary">%1$d items • %2$s</string>
     <string name="container_storage_empty">No storage items found</string>
     <string name="container_storage_loading">Scanning storage…</string>
@@ -2540,6 +2544,7 @@
     <string name="radial_menu_weapon">Weapon %1$d</string>
     <string name="console_back_hint">B  Back</string>
     <string name="container_config_console_controls_hint">L1/R1  Categories   ·   A  Select   ·   B  Back</string>
+    <string name="container_config_open_categories">Open categories</string>
     <string name="installer_select_executable_title">Choose the game executable for %1$s</string>
     <string name="installer_completion_failed_title">Could not finish installing %1$s</string>
     <string name="installer_completed_message">%1$s is ready to play</string>
