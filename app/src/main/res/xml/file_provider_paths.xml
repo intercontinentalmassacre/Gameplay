@@ -4,5 +4,7 @@
     <external-cache-path name="external_cache" path="." />
     <files-path name="diagnostics" path="imagefs/usr/tmp/" />
     <external-files-path name="crash_logs" path="crash_logs/" />
+    <external-files-path name="external_game_files" path="Steam/steamapps/common/" />
+    <root-path name="game_files" path="." />
 </paths>
 

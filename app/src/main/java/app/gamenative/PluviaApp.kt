@@ -51,6 +51,16 @@ class PluviaApp : Application() {
         super.onCreate()
         instance = this
 
+        // Must be set before any class triggers System.loadLibrary("evshim"):
+        // its constructor resolves the gamepad shm dir from EVSHIM_BASE_PATH at
+        // load time, and the fallback in evshim.c only knows the stock package
+        // id, which is another package's private dir in id-suffixed builds (.dev).
+        try {
+            android.system.Os.setenv("EVSHIM_BASE_PATH", filesDir.path, true)
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to set EVSHIM_BASE_PATH")
+        }
+
         preloadSystemLibraries()
 
         // Allows to find resource streams not closed within GameNative and JavaSteam

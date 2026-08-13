@@ -60,6 +60,7 @@ import app.gamenative.ui.data.AppMenuOption
 import app.gamenative.ui.data.GameDisplayInfo
 import app.gamenative.ui.enums.AppOptionMenuType
 import app.gamenative.ui.enums.DialogType
+import app.gamenative.utils.AndroidGameLauncher
 import app.gamenative.utils.ContainerUtils
 import app.gamenative.utils.MarkerUtils
 import app.gamenative.utils.rememberHasExternalDisplay
@@ -229,8 +230,20 @@ class SteamAppScreen : BaseAppScreen() {
             return pendingUpdateVerifyOperations[gameId]
         }
 
-        // Shared state for deletion progress dialog
-        var showDeletingDialog by mutableStateOf(false)
+        // Shared state for deletion progress dialog - map of gameId to visibility
+        private val deletingDialogVisible = mutableStateMapOf<Int, Boolean>()
+
+        fun showDeletingDialog(gameId: Int) {
+            deletingDialogVisible[gameId] = true
+        }
+
+        fun hideDeletingDialog(gameId: Int) {
+            deletingDialogVisible.remove(gameId)
+        }
+
+        fun isDeletingDialogVisible(gameId: Int): Boolean {
+            return deletingDialogVisible[gameId] == true
+        }
     }
 
     @Composable
@@ -255,10 +268,13 @@ class SteamAppScreen : BaseAppScreen() {
             mutableStateOf(SteamService.isAppInstalled(gameId))
         }
 
+        var refreshTrigger by remember(libraryItem.appId) { mutableIntStateOf(0) }
+
         DisposableEffect(gameId) {
             val listener: (AndroidEvent.LibraryInstallStatusChanged) -> Unit = { event ->
                 if (event.appId == gameId) {
                     isInstalled = SteamService.isAppInstalled(gameId)
+                    refreshTrigger++
                 }
             }
             PluviaApp.events.on<AndroidEvent.LibraryInstallStatusChanged, Unit>(listener)
@@ -326,7 +342,7 @@ class SteamAppScreen : BaseAppScreen() {
 
         // Get size on disk (async, will update via state)
         var sizeOnDisk by remember { mutableStateOf<String?>(null) }
-        LaunchedEffect(isInstalled, gameId) {
+        LaunchedEffect(isInstalled, gameId, refreshTrigger) {
             if (isInstalled) {
                 DownloadService.getSizeOnDiskDisplay(gameId) {
                     sizeOnDisk = it
@@ -338,7 +354,7 @@ class SteamAppScreen : BaseAppScreen() {
 
         // Get size from store (async, will update via state)
         var sizeFromStore by remember { mutableStateOf<String?>(null) }
-        LaunchedEffect(isInstalled, gameId) {
+        LaunchedEffect(isInstalled, gameId, refreshTrigger) {
             if (!isInstalled) {
                 // Load size from store on IO, assign on Main to respect Compose threading
                 val size = withContext(Dispatchers.IO) {
@@ -407,7 +423,14 @@ class SteamAppScreen : BaseAppScreen() {
     }
 
     override fun isInstalled(context: Context, libraryItem: LibraryItem): Boolean {
-        return SteamService.isAppInstalled(libraryItem.gameId)
+        val gameId = libraryItem.gameId
+        if (!SteamService.isAppInstalled(gameId)) return false
+        // Android platform: the depot being downloaded isn't the same as the app actually
+        // being installed on the system — only show Play once it really is.
+        if (SteamService.isAndroidPlatform(gameId)) {
+            return AndroidGameLauncher.isGameInstalled(context, gameId)
+        }
+        return true
     }
 
     override fun isValidToDownload(context: Context, libraryItem: LibraryItem): Boolean {
@@ -881,16 +904,65 @@ class SteamAppScreen : BaseAppScreen() {
 
     override fun saveContainerConfig(context: Context, libraryItem: LibraryItem, config: ContainerData) {
         val container = getContainer(context, libraryItem.appId)
+        val platformChanged = !container.platform.equals(config.platform, ignoreCase = true)
+        val wasAndroid = container.platform.equals(Container.PLATFORM_ANDROID, ignoreCase = true)
+        val languageChanged = container.language != config.language
         ContainerUtils.applyToContainer(context, libraryItem.appId, config)
 
-        if (container.language != config.language) {
-            CoroutineScope(Dispatchers.IO).launch {
-                SteamService.downloadApp(libraryItem.gameId)
+        val gameId = libraryItem.gameId
+        when {
+            // Switching platform on an already-installed game: drop the old platform's files
+            // and fetch the newly selected one. Not installed yet -> just remember the choice,
+            // the Install/Play button will pick it up when the user actually installs.
+            platformChanged && SteamService.isAppInstalled(gameId) -> {
+                CoroutineScope(Dispatchers.IO).launch {
+                    SnackbarManager.show(context.getString(R.string.container_platform_switch_reinstalling))
+                    // Resolve and prompt removal of the installed Android app BEFORE its .apk is
+                    // deleted below — that's the only place the package name can still be read
+                    // from, and once the platform is switched away there's no other path back to
+                    // it. Wait for confirmation: if the user cancels, leave the files/app alone
+                    // rather than orphaning a still-installed app.
+                    if (wasAndroid) {
+                        val canDeleteFiles = withContext(Dispatchers.Main) {
+                            AndroidGameLauncher.requestUninstall(context, gameId)
+                        }
+                        if (!canDeleteFiles) {
+                            SnackbarManager.show(context.getString(R.string.android_game_uninstall_cancelled))
+                            return@launch
+                        }
+                        AndroidGameLauncher.cleanupStagedApk(context, gameId)
+                    }
+                    SteamService.deleteApp(gameId)
+                    DownloadService.invalidateCache()
+                    SteamService.downloadApp(gameId)
+                }
+            }
+            languageChanged -> {
+                CoroutineScope(Dispatchers.IO).launch {
+                    SteamService.downloadApp(gameId)
+                }
+            }
+            platformChanged -> {
+                // Not installed yet, nothing to redownload — but the store-size display on the
+                // game page reads the container's platform and needs a nudge to recompute now
+                // that it changed.
+                PluviaApp.events.emit(AndroidEvent.LibraryInstallStatusChanged(gameId, GameSource.STEAM))
             }
         }
     }
 
     override fun supportsContainerConfig(): Boolean = true
+
+    override fun hasAndroidVersion(libraryItem: LibraryItem): Boolean {
+        if (BuildConfig.MODERN_ANDROID) return false
+        return SteamService.getAppInfoOf(libraryItem.gameId)?.depots?.values?.any { it.isAndroidCompatible } == true
+    }
+
+    override fun getAndroidPackageName(context: Context, libraryItem: LibraryItem): String? {
+        val gameId = libraryItem.gameId
+        if (!SteamService.isAndroidPlatform(gameId)) return null
+        return AndroidGameLauncher.resolvePackageName(context, gameId)
+    }
 
     override fun getExportFileExtension(): String = ".steam"
 
@@ -1026,7 +1098,7 @@ class SteamAppScreen : BaseAppScreen() {
             }
         }
 
-        LaunchedEffect(gameId, hasStoragePermission) {
+        LaunchedEffect(gameId, hasStoragePermission, installDialogState.visible) {
             if (!hasStoragePermission) {
                 installSizeInfo = null
                 return@LaunchedEffect
@@ -1035,7 +1107,8 @@ class SteamAppScreen : BaseAppScreen() {
                 val info = withContext(Dispatchers.IO) {
                     val container = ContainerManager(context).getContainerById("STEAM_$gameId")
                     val language = container?.language ?: PrefManager.containerLanguage
-                    val depots = SteamService.getDownloadableDepots(gameId, language)
+                    val wantAndroid = container?.platform.equals(Container.PLATFORM_ANDROID, ignoreCase = true)
+                    val depots = SteamService.getDownloadableDepots(gameId, language, wantAndroid)
                     Timber.i("There are ${depots.size} depots belonging to ${libraryItem.appId}")
                     val branch = SteamService.getInstalledApp(gameId)?.branch ?: "public"
                     val availableBytes = StorageUtils.getAvailableSpaceForUncreatedPath(SteamService.getAppDirPath(gameId))
@@ -1138,7 +1211,7 @@ class SteamAppScreen : BaseAppScreen() {
                         downloadInfo?.cancel()
                         SteamService.workshopPausedApps.remove(gameId)
                         hideInstallDialog(gameId)
-                        showDeletingDialog = true
+                        showDeletingDialog(gameId)
                         CoroutineScope(Dispatchers.IO).launch {
                             try {
                                 SteamService.deleteApp(gameId)
@@ -1146,7 +1219,7 @@ class SteamAppScreen : BaseAppScreen() {
                                 PluviaApp.events.emit(AndroidEvent.LibraryInstallStatusChanged(gameId, GameSource.STEAM))
                             } finally {
                                 withContext(NonCancellable + Dispatchers.Main) {
-                                    showDeletingDialog = false
+                                    hideDeletingDialog(gameId)
                                 }
                             }
                         }
@@ -1262,12 +1335,29 @@ class SteamAppScreen : BaseAppScreen() {
                     TextButton(
                         onClick = {
                             hideUninstallDialog(libraryItem.appId)
-                            showDeletingDialog = true
+                            showDeletingDialog(gameId)
 
                             CoroutineScope(Dispatchers.IO).launch {
                                 try {
                                     val installedAppInfo = getInstalledApp(libraryItem.gameId)
                                     val gameRootDir = getInstallPath(context, libraryItem)?.let(::File)
+
+                                    // The installed Android app (Steam Frame / Lepton games) is a
+                                    // separate system entity from GameNative's own downloaded copy —
+                                    // prompt its uninstall and wait for confirmation before we delete
+                                    // the .apk we need to resolve the package name from. Checked by
+                                    // looking for an actual .apk on disk rather than the container's
+                                    // current platform setting, which may have since been switched back.
+                                    val canDeleteFiles = withContext(Dispatchers.Main) {
+                                        AndroidGameLauncher.requestUninstall(context, gameId)
+                                    }
+                                    if (!canDeleteFiles) {
+                                        withContext(Dispatchers.Main) {
+                                            SnackbarManager.show(context.getString(R.string.android_game_uninstall_cancelled))
+                                        }
+                                        return@launch
+                                    }
+                                    AndroidGameLauncher.cleanupStagedApk(context, gameId)
 
                                     val success = SteamService.deleteApp(gameId)
                                     DownloadService.invalidateCache()
@@ -1299,7 +1389,7 @@ class SteamAppScreen : BaseAppScreen() {
                                     }
                                 } finally {
                                     withContext(NonCancellable + Dispatchers.Main) {
-                                        showDeletingDialog = false
+                                        hideDeletingDialog(gameId)
                                     }
                                 }
                             }
@@ -1328,7 +1418,7 @@ class SteamAppScreen : BaseAppScreen() {
         }
 
         // Deletion progress dialog
-        if (showDeletingDialog) {
+        if (isDeletingDialogVisible(gameId)) {
             LoadingDialog(
                 visible = true,
                 progress = -1f,

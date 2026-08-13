@@ -1015,6 +1015,15 @@ class LibraryViewModel @Inject constructor(
                         true
                     }
                 }
+                .filter { item ->
+                    // item.depots is already deserialized in memory on the SteamApp we just
+                    // loaded, so this check is free — no per-item DB lookup.
+                    if (currentState.appInfoSortType.contains(AppFilter.ANDROID)) {
+                        item.depots.values.any { it.isAndroidCompatible }
+                    } else {
+                        true
+                    }
+                }
                 .toList()
 
             val explicitInstalledOnly = currentState.appInfoSortType.contains(AppFilter.INSTALLED)
@@ -1385,12 +1394,17 @@ class LibraryViewModel @Inject constructor(
             // sources can't match it — keep them out of the combined list (and their tab counts).
             val steamCollectionSelected = allowedSteamAppIds != null
 
+            // The Android depot feature only exists for Steam apps (it's a Steam Frame / Lepton
+            // concept), so the other sources can never match this filter either.
+            val androidFilterActive = currentState.appInfoSortType.contains(AppFilter.ANDROID)
+            val excludeNonSteam = steamCollectionSelected || androidFilterActive
+
             val combined = buildList {
                 if (includeSteam) addAll(steamEntries)
-                if (includeOpen && !steamCollectionSelected) addAll(customEntries)
-                if (includeGOG && !steamCollectionSelected) addAll(gogEntries)
-                if (includeEpic && !steamCollectionSelected) addAll(epicEntries)
-                if (includeAmazon && !steamCollectionSelected) addAll(amazonEntries)
+                if (includeOpen && !excludeNonSteam) addAll(customEntries)
+                if (includeGOG && !excludeNonSteam) addAll(gogEntries)
+                if (includeEpic && !excludeNonSteam) addAll(epicEntries)
+                if (includeAmazon && !excludeNonSteam) addAll(amazonEntries)
             }.map { entry -> entry.copy(item = enrichWithSiblings(entry.item)) }
                 .sortedWith(sortComparator).mapIndexed { idx, entry ->
                 entry.item.copy(index = idx, isInstalled = entry.isInstalled)

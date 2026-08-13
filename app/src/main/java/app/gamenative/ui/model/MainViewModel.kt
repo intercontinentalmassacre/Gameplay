@@ -31,16 +31,19 @@ import app.gamenative.service.amazon.AmazonService
 import app.gamenative.service.epic.EpicCloudSavesManager
 import app.gamenative.service.epic.EpicService
 import app.gamenative.service.gog.GOGService
-import app.gamenative.utils.CustomGameScanner
 import app.gamenative.ui.data.MainState
 import app.gamenative.ui.enums.ConnectionState
 import app.gamenative.ui.screen.PluviaScreen
+import app.gamenative.ui.util.SnackbarManager
+import app.gamenative.utils.AndroidGameLauncher
 import app.gamenative.utils.ContainerUtils
+import app.gamenative.utils.CustomGameScanner
 import app.gamenative.utils.IntentLaunchManager
 import app.gamenative.utils.SteamUtils
 import app.gamenative.utils.UpdateInfo
 import app.gamenative.utils.WineProcessSnapshotHelper
 import com.materialkolor.PaletteStyle
+import com.winlator.container.Container
 import com.winlator.core.GPUInformation
 import com.winlator.xserver.Window
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -531,6 +534,25 @@ class MainViewModel @Inject constructor(
                         lastPlayed = System.currentTimeMillis(),
                     ),
                 )
+            }
+
+// getOrCreateContainerWithOverride also picks up a temporary per-launch config
+            // (e.g. from an external Intent launch) — falls back to the persisted container
+            // untouched when there's no override, so this is safe unconditionally.
+            val container = withContext(Dispatchers.IO) {
+                ContainerUtils.getOrCreateContainerWithOverride(context, appId)
+            }
+            if (container.platform.equals(Container.PLATFORM_ANDROID, ignoreCase = true)) {
+                // Native Android (Steam Frame / Lepton) build: no Wine container involved at all.
+                val gameId = ContainerUtils.extractGameIdFromContainerId(appId)
+                when (withContext(Dispatchers.IO) { AndroidGameLauncher.installAndLaunch(context, gameId) }) {
+                    AndroidGameLauncher.Result.InstallStarted ->
+                        SnackbarManager.show(context.getString(R.string.android_game_install_started))
+                    AndroidGameLauncher.Result.Failed ->
+                        SnackbarManager.show(context.getString(R.string.android_game_launch_failed))
+                    AndroidGameLauncher.Result.Launched -> Unit
+                }
+                return@launch
             }
 
             setShowBootingSplash(true)

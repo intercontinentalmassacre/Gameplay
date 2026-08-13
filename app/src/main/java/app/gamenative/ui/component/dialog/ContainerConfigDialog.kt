@@ -253,13 +253,6 @@ private fun rememberContainerConfigDialogStaticData(): ContainerConfigDialogStat
     val sharpnessEffects = stringArrayResource(R.array.vkbasalt_sharpness_entries).toList()
     val sharpnessEffectLabels = stringArrayResource(R.array.vkbasalt_sharpness_labels).toList()
     val containerVariants = stringArrayResource(R.array.container_variant_entries).toList()
-        .let { variants ->
-            if (BuildConfig.MODERN_ANDROID) {
-                variants.filterNot { it.equals(Container.GLIBC, ignoreCase = true) }
-            } else {
-                variants
-            }
-        }
 
     val physicalSize = PluviaApp.getPhysicalDisplaySize()
     val displayMetrics = context.resources.displayMetrics
@@ -349,6 +342,7 @@ fun ContainerConfigDialog(
     default: Boolean = false,
     title: String,
     initialConfig: ContainerData = ContainerData(),
+    hasAndroidVersion: Boolean = false,
     onDismissRequest: () -> Unit,
     onSave: (ContainerData) -> Unit,
     mediaHeroUrl: String? = null,
@@ -493,6 +487,7 @@ fun ContainerConfigDialog(
         val installedLists = availability?.installed
 
         val isBionicVariant = config.containerVariant.equals(Container.BIONIC, ignoreCase = true)
+        val isAndroidPlatform = config.platform.equals(Container.PLATFORM_ANDROID, ignoreCase = true)
         val manifestDownloadMessage = if (manifestDownloadLabel.isNotEmpty()) {
             stringResource(R.string.manifest_downloading_item, manifestDownloadLabel)
         } else {
@@ -1296,6 +1291,8 @@ fun ContainerConfigDialog(
             gpuExtensions = gpuExtensions,
             inspectionMode = inspectionMode,
             isBionicVariant = isBionicVariant,
+            isAndroidPlatform = isAndroidPlatform,
+            hasAndroidVersion = hasAndroidVersion,
             nonDeletableDriveLetters = nonDeletableDriveLetters,
             availableDriveLetters = availableDriveLetters,
             launchManifestInstall = { entry, label, isDriver, expectedType, onInstalled ->
@@ -1340,6 +1337,12 @@ fun ContainerConfigDialog(
         val configurationContent: @Composable () -> Unit = {
                 val scrollState = rememberScrollState()
                 var selectedTab by rememberSaveable { mutableIntStateOf(0) }
+                // Android platform doesn't use Wine/Box64 at all: force the user back to
+                // General (where the platform picker lives) so they can't get stuck on a
+                // now-disabled tab.
+                LaunchedEffect(isAndroidPlatform) {
+                    if (isAndroidPlatform) selectedTab = 0
+                }
                 var searchActive by rememberSaveable { mutableStateOf(false) }
                 var drawerOpen by remember { mutableStateOf(false) }
                 val drawerState = rememberDrawerState(
@@ -1385,6 +1388,7 @@ fun ContainerConfigDialog(
                     matchesContainerConfigTab(tabs[index], tabKeywords[index], searchQuery)
                 }
                 val visibleTabIndices = filteredTabIndices.ifEmpty { tabs.indices.toList() }
+                    .let { if (isAndroidPlatform) listOf(0) else it }
                 LaunchedEffect(visibleTabIndices) {
                     if (selectedTab !in visibleTabIndices) selectedTab = visibleTabIndices.first()
                 }
@@ -1475,11 +1479,15 @@ fun ContainerConfigDialog(
                             val currentIndex = visibleTabIndices.indexOf(selectedTab).coerceAtLeast(0)
                             when (event.key) {
                                 Key.ButtonR1, Key.ButtonR2 -> {
-                                    selectedTab = visibleTabIndices[(currentIndex + 1) % visibleTabIndices.size]
+                                    if (!isAndroidPlatform) {
+                                        selectedTab = visibleTabIndices[(currentIndex + 1) % visibleTabIndices.size]
+                                    }
                                     true
                                 }
                                 Key.ButtonL1, Key.ButtonL2 -> {
-                                    selectedTab = visibleTabIndices[(currentIndex - 1 + visibleTabIndices.size) % visibleTabIndices.size]
+                                    if (!isAndroidPlatform) {
+                                        selectedTab = visibleTabIndices[(currentIndex - 1 + visibleTabIndices.size) % visibleTabIndices.size]
+                                    }
                                     true
                                 }
                                 else -> false
@@ -1700,11 +1708,18 @@ internal fun ExecutablePathDropdown(
     value: String,
     onValueChange: (String) -> Unit,
     containerData: ContainerData,
+    enabled: Boolean = true,
 ) {
     var expanded by remember { mutableStateOf(false) }
     var executables by remember { mutableStateOf<List<String>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
     val context = LocalContext.current
+
+    // Otherwise a stale `expanded = true` from before this field was disabled would keep the
+    // menu open (and its items selectable) even though it's now greyed out.
+    LaunchedEffect(enabled) {
+        if (!enabled) expanded = false
+    }
 
     // Load executables from A: drive when component is first created
     LaunchedEffect(containerData.drives) {
@@ -1716,14 +1731,15 @@ internal fun ExecutablePathDropdown(
     }
 
     ExposedDropdownMenuBox(
-        expanded = expanded,
-        onExpandedChange = { expanded = it },
+        expanded = expanded && enabled,
+        onExpandedChange = { if (enabled) expanded = it },
         modifier = modifier
     ) {
         NoExtractOutlinedTextField(
             value = value,
             onValueChange = onValueChange,
             readOnly = true,
+            enabled = enabled,
             label = { Text(stringResource(R.string.container_config_executable_path)) },
             placeholder = { Text(stringResource(R.string.container_config_executable_path_placeholder)) },
             trailingIcon = {
@@ -1740,7 +1756,7 @@ internal fun ExecutablePathDropdown(
                 // so the anchor never opens via controller. Intercept it here and toggle
                 // the menu. (Up/down focus-escape is handled in NoExtractOutlinedTextField.)
                 .onPreviewKeyEvent { event ->
-                    if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                    if (event.type != KeyEventType.KeyDown || !enabled) return@onPreviewKeyEvent false
                     when (event.key) {
                         Key.DirectionCenter, Key.Enter, Key.NumPadEnter, Key.Spacebar, Key.ButtonA -> {
                             expanded = !expanded
@@ -1754,7 +1770,7 @@ internal fun ExecutablePathDropdown(
 
         if (!isLoading && executables.isNotEmpty()) {
             ExposedDropdownMenu(
-                expanded = expanded,
+                expanded = expanded && enabled,
                 onDismissRequest = { expanded = false }
             ) {
                 executables.forEach { executable ->
