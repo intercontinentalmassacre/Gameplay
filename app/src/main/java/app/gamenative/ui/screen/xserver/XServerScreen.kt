@@ -4945,10 +4945,16 @@ private fun extractx86_64InputDlls(context: Context, container: Container) {
     val imageFs = ImageFs.find(context)
     val wineVersion: String? = container.getWineVersion()
     Log.d("XServerDisplayActivity", "x86_64 Input DLL Extraction Verification: Container Wine version: " + wineVersion)
-    if ("proton-9.0-x86_64" == wineVersion) {
+    if (wineVersion != null && wineVersion.contains("x86_64")) {
         val wineFolder: File = File(imageFs.getWinePath() + "/lib/wine/")
-        Log.d("XServerDisplayActivity", "Extracting input dlls to " + wineFolder.getPath())
-    } else Log.d("XServerDisplayActivity", "Wine version is not proton-9.0-x86_64, skipping input dlls extraction")
+        Log.d("XServerDisplayActivity", "Wine version is x86_64. Extracting input dlls to " + wineFolder.getPath())
+        val success: Boolean = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, context.assets, inputAsset, wineFolder)
+        if (!success) {
+            Log.d("XServerDisplayActivity", "Failed to extract input dlls")
+        }
+    } else {
+        Log.d("XServerDisplayActivity", "Wine version is not x86_64, skipping input dlls extraction")
+    }
 }
 
 private suspend fun setupWineSystemFiles(
