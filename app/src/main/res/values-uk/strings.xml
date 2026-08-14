@@ -2263,7 +2263,7 @@
     <string name="console_back_hint">B  Назад</string>
     <string name="console_hint_select_back">A  Вибрати   ·   B  Назад</string>
     <string name="container_config_apply_and_restart">Застосувати та перезапустити</string>
-    <string name="container_config_console_controls_hint">L1/R1  Категорії   ·   A  Вибрати   ·   B  Назад</string>
+    <string name="container_config_console_controls_hint">L1/L2/R1/R2  Категорії   ·   A  Вибрати   ·   B  Назад</string>
     <string name="container_config_open_categories">Відкрити категорії</string>
     <string name="container_config_restart_required_message">Деякі зміни набудуть чинності лише після перезапуску гри. Все збережено. Перезапустити зараз, щоб застосувати їх?</string>
     <string name="container_config_restart_required_title">Потрібен перезапуск</string>

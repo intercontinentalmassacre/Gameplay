@@ -30,6 +30,10 @@ data class ContainerData(
     val executablePath: String = "",
     val installPath: String = "",
     val showFPS: Boolean = false,
+    /** Vibration target: "off", "controller", "device" **/
+    val vibrationMode: String = "controller",
+    /** Vibration intensity percentage (0-100) **/
+    val vibrationIntensity: Int = 100,
     val launchRealSteam: Boolean = false,
     val launchBionicSteam: Boolean = false,
     val allowSteamUpdates: Boolean = false,
@@ -113,6 +117,8 @@ data class ContainerData(
     val explicitScreenSizeOverride: Boolean = false,
 ) {
     companion object {
+        private val VALID_RESTORED_VIBRATION_MODES = setOf("off", "controller", "device")
+
         val Saver = mapSaver(
             save = { state ->
                 mapOf(
@@ -135,6 +141,8 @@ data class ContainerData(
                     "executablePath" to state.executablePath,
                     "installPath" to state.installPath,
                     "showFPS" to state.showFPS,
+                    "vibrationMode" to state.vibrationMode,
+                    "vibrationIntensity" to state.vibrationIntensity,
                     "launchRealSteam" to state.launchRealSteam,
                     "launchBionicSteam" to state.launchBionicSteam,
                     "allowSteamUpdates" to state.allowSteamUpdates,
@@ -206,6 +214,11 @@ data class ContainerData(
                     executablePath = savedMap["executablePath"] as String,
                     installPath = savedMap["installPath"] as String,
                     showFPS = savedMap["showFPS"] as Boolean,
+                    vibrationMode = (savedMap["vibrationMode"] as? String)
+                        ?.trim()?.lowercase()
+                        ?.takeIf { it in VALID_RESTORED_VIBRATION_MODES }
+                        ?: "controller",
+                    vibrationIntensity = ((savedMap["vibrationIntensity"] as? Int) ?: 100).coerceIn(0, 100),
                     launchRealSteam = savedMap["launchRealSteam"] as Boolean,
                     launchBionicSteam = (savedMap["launchBionicSteam"] as? Boolean) ?: false,
                     allowSteamUpdates = savedMap["allowSteamUpdates"] as Boolean,

@@ -2260,7 +2260,7 @@
     <string name="console_back_hint">B  뒤로</string>
     <string name="console_hint_select_back">A  선택   ·   B  뒤로</string>
     <string name="container_config_apply_and_restart">적용 후 재시작</string>
-    <string name="container_config_console_controls_hint">L1/R1  카테고리   ·   A  선택   ·   B  뒤로</string>
+    <string name="container_config_console_controls_hint">L1/L2/R1/R2  카테고리   ·   A  선택   ·   B  뒤로</string>
     <string name="container_config_restart_required_message">일부 변경 사항은 게임을 재시작한 후에만 적용됩니다. 모든 항목이 저장되었습니다. 지금 재시작하여 적용하시겠습니까?</string>
     <string name="container_config_restart_required_title">재시작 필요</string>
     <string name="container_config_save_and_continue">계속</string>

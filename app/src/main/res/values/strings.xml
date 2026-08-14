@@ -269,6 +269,12 @@
     <string name="input_controls">On-screen Controller</string>
     <string name="edit_controls">Edit On-screen Controller</string>
     <string name="edit_physical_controller">Edit Physical Controller</string>
+    <string name="sc_edit_root">Steam Controller</string>
+    <string name="sc_edit_bindings">Buttons &amp; Bindings</string>
+    <string name="sc_edit_labels">Menu Labels</string>
+    <string name="sc_edit_layout">Overlay Layout</string>
+    <string name="sc_edit_keyboard">Keyboard Layout</string>
+    <string name="sc_edit_configs">Manage Configs</string>
     <string name="controller_disconnected">Disconnected</string>
     <string name="reset_onscreen_controls">Reset On-Screen Controls</string>
     <string name="open_navigation_menu">Open Navigation Menu</string>
@@ -978,6 +984,12 @@
     <string name="shooter_mode_toggle_description">Auto-replace stick elements with dynamic joysticks</string>
     <string name="shooter_mode_on">Enable Mouse</string>
     <string name="shooter_mode_off">Enable Sticks</string>
+    <!-- Vibration Settings -->
+    <string name="vibration_mode">Vibration Mode</string>
+    <string name="vibration_intensity">Vibration Intensity</string>
+    <string name="vibration_mode_option_off">Off</string>
+    <string name="vibration_mode_option_controller">Controller</string>
+    <string name="vibration_mode_option_device">Device</string>
     <!-- Gesture Settings Dialog -->
     <string name="gesture_settings_title">Touch Gesture Settings</string>
     <string name="gesture_section_single_finger">Single Finger</string>
@@ -1097,6 +1109,13 @@
     <string name="driver_manager">Driver Manager</string>
     <string name="select_a_driver">Select a driver</string>
     <string name="import_zip_from_device">Import ZIP from device</string>
+    <string name="settings_get_driver_title">Get Driver</string>
+    <string name="settings_get_driver_subtitle">Browse trusted driver repositories and install a graphics driver</string>
+    <string name="settings_manage_drivers_title">Manage Drivers</string>
+    <string name="settings_manage_drivers_subtitle">Remove or inspect installed driver packages</string>
+    <string name="driver_snackbar_installed">Driver installed: %s</string>
+    <string name="driver_snackbar_install_failed">Driver installation failed</string>
+    <string name="driver_snackbar_import_error">Could not import driver: %s</string>
 
     <!-- Contents Manager -->
     <string name="contents_manager">Contents Manager</string>
@@ -1216,6 +1235,10 @@
     <string name="settings_interface_hide_statusbar_subtitle">Hide Android status bar in game list, settings, etc. App will restart when changed.</string>
     <string name="settings_interface_swap_face_buttons_title">Swap face buttons</string>
     <string name="settings_interface_swap_face_buttons_subtitle">Swap A↔B and X↔Y button icons</string>
+    <string name="settings_interface_steam_controller_title">Steam Controller (2026)</string>
+    <string name="settings_interface_steam_controller_subtitle">Connect a paired Steam Controller over Bluetooth when a game starts. Off unless you own one.</string>
+    <string name="settings_interface_steam_controller_denied">Steam Controller support needs the Bluetooth (Nearby devices) permission.</string>
+    <string name="settings_interface_steam_controller_denied_forever">Android won\'t ask again — turn on "Nearby devices" for GameNative in app permissions.</string>
     <string name="settings_interface_warn_before_exit_title">Warn before exiting</string>
     <string name="settings_interface_warn_before_exit_subtitle">Require double back press to exit — first press shows a warning</string>
     <string name="settings_interface_second_screen_group">Second screen</string>
@@ -2552,7 +2575,7 @@
     <string name="radial_menu_keyboard">Keyboard</string>
     <string name="radial_menu_weapon">Weapon %1$d</string>
     <string name="console_back_hint">B  Back</string>
-    <string name="container_config_console_controls_hint">L1/R1  Categories   ·   A  Select   ·   B  Back</string>
+    <string name="container_config_console_controls_hint">L1/L2/R1/R2  Categories   ·   A  Select   ·   B  Back</string>
     <string name="container_config_open_categories">Open categories</string>
     <string name="installer_select_executable_title">Choose the game executable for %1$s</string>
     <string name="installer_completion_failed_title">Could not finish installing %1$s</string>
@@ -2583,9 +2606,45 @@
     <string name="driver_repository_loading">Loading available drivers…</string>
     <string name="driver_repository_available">Available drivers</string>
     <string name="driver_repository_empty">This source has no compatible ZIP packages.</string>
+    <string name="driver_repository_no_sources">No compatible sources found for this GPU.</string>
     <string name="driver_import_local_title">Import from this device</string>
     <string name="driver_importing">Importing driver…</string>
     <string name="driver_installed_title">Installed custom drivers</string>
+    <string name="adreno_target_a6xx">Adreno 6xx</string>
+    <string name="adreno_target_a7xx">Adreno 7xx</string>
+    <string name="adreno_target_a710_a720_a722">Adreno 710/720/722</string>
+    <string name="adreno_target_a8xx">Adreno 8xx (8 Elite)</string>
+    <string name="adreno_target_generic">Generic / unknown GPU</string>
+    <string name="driver_category_turnip_stable">Stable Turnip</string>
+    <string name="driver_category_turnip_stable_desc">Vendored stable Mesa Turnip releases — the safest baseline.</string>
+    <string name="driver_category_turnip_bleeding_edge">Bleeding edge</string>
+    <string name="driver_category_turnip_bleeding_edge_desc">Latest Mesa commits, rebuilt on every push. May regress.</string>
+    <string name="driver_category_turnip_community">Community</string>
+    <string name="driver_category_turnip_community_desc">Community-maintained Turnip forks and one-off builds.</string>
+    <string name="driver_category_adreno_packaged">Qualcomm Adreno</string>
+    <string name="driver_category_adreno_packaged_desc">Generic AdrenoTools-compatible Qualcomm packages.</string>
+    <string name="driver_category_wrapper">Wrapper</string>
+    <string name="driver_category_wrapper_desc">Bionic Vulkan wrapper (Mesa Vulkan ICD + adrenotools hooks).</string>
+    <string name="driver_category_support_count">%1$d source(s)</string>
+    <string name="driver_detected_gpu">Detected GPU: %1$s</string>
+    <string name="driver_detected_gpu_with_renderer">Detected GPU: %1$s (%2$s)</string>
+    <string name="get_driver_no_gpu">No Adreno GPU detected — grabbing generic packages.</string>
+    <string name="get_driver_change_source">Change source</string>
+    <string name="get_driver_recommended">Recommended</string>
+    <string name="get_driver_show_older">Show all versions</string>
+    <string name="driver_action_retry">Retry</string>
+    <string name="driver_action_cancel">Cancel download</string>
+    <string name="driver_action_delete">Delete driver</string>
+    <string name="driver_snackbar_download_error">Could not download driver: %1$s</string>
+    <string name="driver_snackbar_remove_error">Could not remove driver: %1$s</string>
+    <string name="driver_snackbar_removed">Driver removed</string>
+    <string name="driver_installed_badge">Installed</string>
+    <string name="driver_installed_version">Version %1$s</string>
+    <string name="driver_unknown_error">Unknown error</string>
+    <string name="manage_active_driver_card">Active driver</string>
+    <string name="manage_no_drivers">No custom drivers installed.</string>
+    <string name="manage_no_drivers_action">Get one from the store</string>
+    <string name="manage_action_add_driver">Add driver</string>
     <string name="game_options_title_for_game">Settings · %1$s</string>
     <string name="game_options_quick_actions_description">Start the container or create a launcher shortcut.</string>
     <string name="game_options_game_management_description">Installed files, add-ons, branches, Workshop items and mods.</string>

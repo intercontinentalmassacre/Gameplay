@@ -2267,7 +2267,7 @@
     <string name="console_back_hint">B  Wstecz</string>
     <string name="console_hint_select_back">A  Wybierz   ·   B  Wstecz</string>
     <string name="container_config_apply_and_restart">Zastosuj i uruchom ponownie</string>
-    <string name="container_config_console_controls_hint">L1/R1  Kategorie   ·   A  Wybierz   ·   B  Wstecz</string>
+    <string name="container_config_console_controls_hint">L1/L2/R1/R2  Kategorie   ·   A  Wybierz   ·   B  Wstecz</string>
     <string name="container_config_restart_required_message">Niektóre zmiany działają dopiero po ponownym uruchomieniu gry. Wszystko zostało zapisane. Uruchomić teraz ponownie, aby je zastosować?</string>
     <string name="container_config_restart_required_title">Wymagany restart</string>
     <string name="container_config_save_and_continue">Kontynuuj</string>

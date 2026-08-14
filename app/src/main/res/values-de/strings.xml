@@ -2204,7 +2204,7 @@
     <string name="console_back_hint">B  Zurück</string>
     <string name="console_hint_select_back">A  Auswählen   ·   B  Zurück</string>
     <string name="container_config_apply_and_restart">Anwenden und neu starten</string>
-    <string name="container_config_console_controls_hint">L1/R1  Kategorien   ·   A  Auswählen   ·   B  Zurück</string>
+    <string name="container_config_console_controls_hint">L1/L2/R1/R2  Kategorien   ·   A  Auswählen   ·   B  Zurück</string>
     <string name="container_config_restart_required_message">Manche Änderungen werden erst nach einem Neustart des Spiels wirksam. Alles wurde gespeichert. Jetzt neu starten, um sie anzuwenden?</string>
     <string name="container_config_restart_required_title">Neustart erforderlich</string>
     <string name="container_config_save_and_continue">Weiter</string>

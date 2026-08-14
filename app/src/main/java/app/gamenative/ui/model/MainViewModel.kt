@@ -520,6 +520,9 @@ class MainViewModel @Inject constructor(
 
     fun setDiagnostics(value: Boolean) {
         _state.update { it.copy(diagnostics = value) }
+        // Persist so setupXEnvironment can read it directly (see PrefManager.wrapperDiagnostics) rather than the
+        // XServerScreen composable threading it as a parameter, which tripped an ART VerifyError on that huge method.
+        PrefManager.wrapperDiagnostics = value
     }
 
     fun launchApp(context: Context, appId: String) {

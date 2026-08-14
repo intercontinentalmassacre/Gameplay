@@ -996,20 +996,25 @@ class DsHomePresentation(
                 it()
                 return true
             }
-            if (keyCode == KeyEvent.KEYCODE_BUTTON_B) {
-                currentModel.onBack()
-                return true
-            }
         }
-        if (keyCode == KeyEvent.KEYCODE_BACK) {
-            if (currentModel?.mode == DsHomeSecondScreen.Mode.SETTINGS) {
-                currentModel.onBack()
-                return true
-            }
+        if (keyCode == KeyEvent.KEYCODE_BACK || keyCode == KeyEvent.KEYCODE_BUTTON_B) {
             if (event.action == KeyEvent.ACTION_DOWN) {
-                val handledInCompose = composeView.dispatchKeyEvent(event)
+                // Never short-circuit settings layers: the focused tree may have
+                // enabled BackHandlers (drawer, search, unsaved-changes confirm)
+                // that must run first. Fall back to the dispatcher, then to the
+                // published model back, only when nothing in composition handled it.
+                val backEvent = if (keyCode == KeyEvent.KEYCODE_BACK) {
+                    event
+                } else {
+                    event.withKeyCode(KeyEvent.KEYCODE_BACK)
+                }
+                val handledInCompose = composeView.dispatchKeyEvent(backEvent)
                 if (!handledInCompose) {
-                    presentationLifecycleOwner.onBackPressedDispatcher.onBackPressed()
+                    if (presentationLifecycleOwner.onBackPressedDispatcher.hasEnabledCallbacks()) {
+                        presentationLifecycleOwner.onBackPressedDispatcher.onBackPressed()
+                    } else {
+                        currentModel?.onBack()
+                    }
                 }
             }
             return true

@@ -2341,7 +2341,7 @@ Ubuntu RootFs - releases.ubuntu.com/focal</string>
     <string name="radial_menu_keyboard">Клавиатура</string>
     <string name="radial_menu_weapon">Оружие %1$d</string>
     <string name="console_back_hint">B  Назад</string>
-    <string name="container_config_console_controls_hint">L1/R1  Категории   ·   A  Выбрать   ·   B  Назад</string>
+    <string name="container_config_console_controls_hint">L1/L2/R1/R2  Категории   ·   A  Выбрать   ·   B  Назад</string>
     <string name="container_config_open_categories">Открыть категории</string>
     <string name="installer_select_executable_title">Выберите файл запуска для %1$s</string>
     <string name="installer_completion_failed_title">Не удалось завершить установку %1$s</string>

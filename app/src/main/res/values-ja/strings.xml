@@ -2219,7 +2219,7 @@
     <string name="console_back_hint">B  戻る</string>
     <string name="console_hint_select_back">A  選択   ·   B  戻る</string>
     <string name="container_config_apply_and_restart">適用して再起動</string>
-    <string name="container_config_console_controls_hint">L1/R1  カテゴリ   ·   A  選択   ·   B  戻る</string>
+    <string name="container_config_console_controls_hint">L1/L2/R1/R2  カテゴリ   ·   A  選択   ·   B  戻る</string>
     <string name="container_config_restart_required_message">一部の変更はゲームの再起動後にのみ有効になります。すべて保存済みです。今すぐ再起動して適用しますか?</string>
     <string name="container_config_restart_required_title">再起動が必要です</string>
     <string name="container_config_save_and_continue">続行</string>

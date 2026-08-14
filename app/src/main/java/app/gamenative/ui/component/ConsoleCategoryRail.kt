@@ -101,7 +101,7 @@ fun <T> ConsoleCategoryRail(
                     )
                     .padding(
                         horizontal = if (compact) 12.dp else 16.dp,
-                        vertical = if (compact) 8.dp else 13.dp,
+                        vertical = if (compact) 10.dp else 13.dp,
                     ),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,

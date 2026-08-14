@@ -86,7 +86,7 @@
     <string name="console_back_hint">B  Tilbage</string>
     <string name="console_hint_select_back">A  Vælg   ·   B  Tilbage</string>
     <string name="container_config_apply_and_restart">Anvend og genstart</string>
-    <string name="container_config_console_controls_hint">L1/R1  Kategorier   ·   A  Vælg   ·   B  Tilbage</string>
+    <string name="container_config_console_controls_hint">L1/L2/R1/R2  Kategorier   ·   A  Vælg   ·   B  Tilbage</string>
     <string name="container_config_restart_required_message">Nogle ændringer træder først i kraft, efter spillet genstartes. Alt er blevet gemt. Vil du genstarte nu for at anvende dem?</string>
     <string name="container_config_restart_required_title">Genstart påkrævet</string>
     <string name="container_config_save_and_continue">Fortsæt</string>

@@ -2278,7 +2278,7 @@
     <string name="console_back_hint">B  返回</string>
     <string name="console_hint_select_back">A  选择   ·   B  返回</string>
     <string name="container_config_apply_and_restart">应用并重启</string>
-    <string name="container_config_console_controls_hint">L1/R1  类别   ·   A  选择   ·   B  返回</string>
+    <string name="container_config_console_controls_hint">L1/L2/R1/R2  类别   ·   A  选择   ·   B  返回</string>
     <string name="container_config_restart_required_message">部分更改仅在游戏重启后生效。所有内容均已保存。现在重启以应用吗？</string>
     <string name="container_config_restart_required_title">需要重启</string>
     <string name="container_config_save_and_continue">继续</string>
