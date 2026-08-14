@@ -144,6 +144,15 @@ object ContainerFilesDownloader {
     }
 
     /**
+     * UI-facing variant of [loadContainerFilesManifest] that swallows asset
+     * parse errors and returns `null` instead of throwing, so the Downloads
+     * screen degrades gracefully on builds that ship without the manifest.
+     */
+    fun loadManifestForUi(context: Context): ContainerFilesManifest? {
+        return runCatching { loadContainerFilesManifest(context) }.getOrNull()
+    }
+
+    /**
      * Clears the cached container files to free up space.
      */
     fun clearCache(context: Context) {

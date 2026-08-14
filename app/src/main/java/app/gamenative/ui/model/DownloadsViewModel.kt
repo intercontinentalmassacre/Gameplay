@@ -3,6 +3,7 @@ package app.gamenative.ui.model
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import app.gamenative.BuildConfig
 import app.gamenative.PluviaApp
 import app.gamenative.R
 import app.gamenative.data.DownloadInfo
@@ -21,11 +22,15 @@ import app.gamenative.service.epic.EpicService
 import app.gamenative.service.gog.GOGConstants
 import app.gamenative.service.gog.GOGService
 import app.gamenative.ui.data.CancelConfirmation
+import app.gamenative.ui.data.ContainerClearConfirmation
+import app.gamenative.ui.data.ContainerFileItemState
+import app.gamenative.ui.data.ContainerFileStatus
 import app.gamenative.ui.data.DownloadItemState
 import app.gamenative.ui.data.DownloadItemStatus
 import app.gamenative.ui.data.DownloadsState
 import app.gamenative.utils.ContainerUtils
 import app.gamenative.utils.CustomGameScanner
+import app.gamenative.utils.downloader.ContainerFilesDownloader
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.LinkedHashMap
@@ -89,6 +94,15 @@ class DownloadsViewModel @Inject constructor(
     private val pendingCancelledDownloads = ConcurrentHashMap.newKeySet<String>()
     private val recentFailureMessages = ConcurrentHashMap<String, String>()
 
+    private data class ContainerJob(
+        val job: Job,
+        var lastProgress: Float = 0f,
+    )
+
+    private val containerJobs = ConcurrentHashMap<String, ContainerJob>()
+    private val containerPaused = ConcurrentHashMap.newKeySet<String>()
+    private val containerFailures = ConcurrentHashMap<String, String>()
+
     @Volatile
     private var lastTrackedDownloads: Map<String, DownloadItemState> = emptyMap()
 
@@ -112,6 +126,7 @@ class DownloadsViewModel @Inject constructor(
         viewModelScope.launch(Dispatchers.IO) {
             refreshRequests.collect {
                 refreshDownloadsSnapshot()
+                refreshContainerFilesSnapshot()
             }
         }
 
@@ -123,6 +138,8 @@ class DownloadsViewModel @Inject constructor(
         PluviaApp.events.off<AndroidEvent.LibraryInstallStatusChanged, Unit>(onLibraryInstallStatusChanged)
         PluviaApp.events.off<AndroidEvent.PostInstallSyncStatusChanged, Unit>(onPostInstallSyncStatusChanged)
         clearObservedDownloads()
+        containerJobs.values.forEach { it.job.cancel() }
+        containerJobs.clear()
         super.onCleared()
     }
 
@@ -752,5 +769,225 @@ class DownloadsViewModel @Inject constructor(
                 GameSource.CUSTOM_GAME -> Unit
             }
         }
+    }
+
+    // ── Container pre-fetch ──────────────────────────────────────────────────
+
+    /**
+     * The set of container components surfaced in the UI. Order matters —
+     * the same order is used to seed [DownloadsState.containers] so the
+     * rendering doesn't reshuffle between refreshes. Items not declared here
+     * fall back to the raw componentId so the UI degrades gracefully when
+     * the upstream manifest grows new entries.
+     */
+    private fun displayNamesFor(componentId: String): Pair<Int, Int> = when (componentId) {
+        "extras" -> R.string.container_file_extras to R.string.container_file_extras_desc
+        "container_pattern_common" ->
+            R.string.container_file_container_pattern_common to
+                R.string.container_file_container_pattern_common_desc
+        "container_pattern_gamenative" ->
+            R.string.container_file_container_pattern_gamenative to
+                R.string.container_file_container_pattern_gamenative_desc
+        "proton-9.0-x86_64_container_pattern" ->
+            R.string.container_file_proton_9_0_x86_64 to
+                R.string.container_file_proton_9_0_x86_64_desc
+        "proton-9.0-arm64ec_container_pattern" ->
+            R.string.container_file_proton_9_0_arm64ec to
+                R.string.container_file_proton_9_0_arm64ec_desc
+        else -> R.string.downloads_containers_section_title to R.string.downloads_containers_subtitle
+    }
+
+    private fun knownContainerComponentIds(): List<String> = listOf(
+        "extras",
+        "container_pattern_common",
+        "container_pattern_gamenative",
+        "proton-9.0-x86_64_container_pattern",
+        "proton-9.0-arm64ec_container_pattern",
+    )
+
+    private fun resolveContainerStatus(
+        componentId: String,
+        exists: Boolean,
+        sizeBytes: Long,
+    ): ContainerFileItemState {
+        val (nameResId, descResId) = displayNamesFor(componentId)
+        val hasActiveJob = containerJobs.containsKey(componentId)
+        val paused = containerPaused.contains(componentId)
+        val failure = containerFailures[componentId]
+
+        return when {
+            hasActiveJob -> {
+                val progress = containerJobs[componentId]?.lastProgress ?: 0f
+                ContainerFileItemState(
+                    componentId = componentId,
+                    nameResId = nameResId,
+                    descriptionResId = descResId,
+                    progress = progress,
+                    bytesDownloaded = (sizeBytes * progress).toLong(),
+                    status = ContainerFileStatus.DOWNLOADING,
+                    statusMessage = null,
+                )
+            }
+            paused -> ContainerFileItemState(
+                componentId = componentId,
+                nameResId = nameResId,
+                descriptionResId = descResId,
+                progress = containerJobs[componentId]?.lastProgress,
+                bytesDownloaded = null,
+                status = ContainerFileStatus.PAUSED,
+                statusMessage = appContext.getString(R.string.downloads_containers_status_paused),
+            )
+            exists && sizeBytes > 0L -> ContainerFileItemState(
+                componentId = componentId,
+                nameResId = nameResId,
+                descriptionResId = descResId,
+                progress = 1f,
+                bytesDownloaded = sizeBytes,
+                status = ContainerFileStatus.READY,
+                statusMessage = appContext.getString(R.string.downloads_containers_status_ready),
+            )
+            failure != null -> ContainerFileItemState(
+                componentId = componentId,
+                nameResId = nameResId,
+                descriptionResId = descResId,
+                progress = null,
+                bytesDownloaded = null,
+                status = ContainerFileStatus.FAILED,
+                statusMessage = failure,
+            )
+            else -> ContainerFileItemState(
+                componentId = componentId,
+                nameResId = nameResId,
+                descriptionResId = descResId,
+                progress = null,
+                bytesDownloaded = null,
+                status = ContainerFileStatus.NOT_DOWNLOADED,
+                statusMessage = appContext.getString(R.string.downloads_containers_status_not_downloaded),
+            )
+        }
+    }
+
+    private suspend fun refreshContainerFilesSnapshot() {
+        try {
+            val cacheDir = java.io.File(appContext.filesDir, ContainerFilesDownloader.CONTAINER_FILES_CACHE_DIR)
+            val manifest = runCatching {
+                ContainerFilesDownloader.loadManifestForUi(appContext)
+            }.getOrNull()
+            val knownIds = knownContainerComponentIds()
+            val knownSet = knownIds.toSet()
+            val manifestIds = manifest?.components?.map { it.id } ?: emptyList()
+            // Surface known components first, then any new manifest entries
+            // the codebase hasn't learned a display name for yet.
+            val orderedIds = (knownIds.filter { it in manifestIds || manifest == null } +
+                manifestIds.filter { it !in knownSet })
+
+            val items = LinkedHashMap<String, ContainerFileItemState>()
+            for (id in orderedIds) {
+                val file = java.io.File(cacheDir, "$id.tzst")
+                val exists = file.isFile && file.length() > 0L
+                items[id] = resolveContainerStatus(id, exists, file.length())
+            }
+
+            _state.update { current -> current.copy(containers = items) }
+        } catch (e: Exception) {
+            Timber.tag("DownloadsViewModel").w(e, "Error refreshing container files snapshot")
+        }
+    }
+
+    fun onDownloadContainer(componentId: String) {
+        if (BuildConfig.MODERN_ANDROID.not()) return
+        if (containerJobs.containsKey(componentId)) return
+        containerPaused.remove(componentId)
+        containerFailures.remove(componentId)
+
+        val job = viewModelScope.launch(Dispatchers.IO) {
+            try {
+                ContainerFilesDownloader.ensureContainerFileAvailable(appContext, componentId) { progress ->
+                    containerJobs[componentId]?.lastProgress = progress
+                    viewModelScope.launch(Dispatchers.Default) {
+                        // Lightweight refresh; the next refreshRequest pass will
+                        // re-walk the cache and pick the file size up too.
+                        val current = _state.value.containers[componentId] ?: return@launch
+                        _state.update { state ->
+                            val merged = LinkedHashMap(state.containers)
+                            merged[componentId] = current.copy(
+                                progress = progress,
+                                bytesDownloaded = current.bytesDownloaded,
+                                status = if (progress >= 1f) {
+                                    ContainerFileStatus.READY
+                                } else {
+                                    ContainerFileStatus.DOWNLOADING
+                                },
+                            )
+                            state.copy(containers = merged)
+                        }
+                    }
+                }
+                containerFailures.remove(componentId)
+            } catch (e: Exception) {
+                containerFailures[componentId] = e.message ?: e.javaClass.simpleName
+                Timber.tag("DownloadsViewModel").w(e, "Container download failed: $componentId")
+            } finally {
+                containerJobs.remove(componentId)
+                scheduleRefreshDownloads()
+            }
+        }
+        containerJobs[componentId] = ContainerJob(job)
+        scheduleRefreshDownloads()
+    }
+
+    fun onPauseContainer(componentId: String) {
+        val job = containerJobs.remove(componentId) ?: return
+        job.job.cancel()
+        containerPaused.add(componentId)
+        scheduleRefreshDownloads()
+    }
+
+    fun onResumeContainer(componentId: String) {
+        containerPaused.remove(componentId)
+        containerFailures.remove(componentId)
+        onDownloadContainer(componentId)
+    }
+
+    fun onRemoveContainer(componentId: String) {
+        val cacheDir = java.io.File(appContext.filesDir, ContainerFilesDownloader.CONTAINER_FILES_CACHE_DIR)
+        runCatching {
+            java.io.File(cacheDir, "$componentId.tzst").delete()
+        }
+        containerPaused.remove(componentId)
+        containerFailures.remove(componentId)
+        scheduleRefreshDownloads()
+    }
+
+    fun onDownloadAllContainers() {
+        knownContainerComponentIds().forEach { id ->
+            val current = _state.value.containers[id]
+            if (current != null && current.canDownload) {
+                onDownloadContainer(id)
+            }
+        }
+    }
+
+    fun onPauseAllContainers() {
+        containerJobs.keys.toList().forEach(::onPauseContainer)
+    }
+
+    fun onClearAllContainers() {
+        val totalSize = ContainerFilesDownloader.getCacheSize(appContext)
+        if (totalSize <= 0L && containerJobs.isEmpty()) return
+        _state.update { it.copy(containerClearConfirmation = ContainerClearConfirmation(totalSize)) }
+    }
+
+    fun onDismissClearAllContainers() {
+        _state.update { it.copy(containerClearConfirmation = null) }
+    }
+
+    fun onConfirmClearAllContainers() {
+        _state.update { it.copy(containerClearConfirmation = null) }
+        onPauseAllContainers()
+        ContainerFilesDownloader.clearCache(appContext)
+        containerFailures.clear()
+        containerPaused.clear()
+        scheduleRefreshDownloads()
     }
 }

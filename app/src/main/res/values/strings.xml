@@ -1280,6 +1280,40 @@
     <string name="downloads_status_failed">Failed</string>
     <string name="downloads_summary">%1$d active • %2$d resumable • %3$d finished</string>
 
+    <!-- Downloads: Containers pre-fetch -->
+    <string name="downloads_containers_section_title">Containers</string>
+    <string name="downloads_containers_subtitle">Pre-fetch container files so your first game install is faster</string>
+    <string name="downloads_containers_status_ready">Ready</string>
+    <string name="downloads_containers_status_downloading">Downloading</string>
+    <string name="downloads_containers_status_paused">Paused</string>
+    <string name="downloads_containers_status_failed">Failed</string>
+    <string name="downloads_containers_status_not_downloaded">Not downloaded</string>
+    <string name="downloads_containers_size_unknown">—</string>
+    <string name="downloads_containers_total_size">%1$s on disk • %2$d of %3$d ready</string>
+    <string name="downloads_containers_download_all">Download all</string>
+    <string name="downloads_containers_pause_all">Pause all</string>
+    <string name="downloads_containers_clear_all">Remove all</string>
+    <string name="downloads_containers_clear_confirm_title">Remove all containers?</string>
+    <string name="downloads_containers_clear_confirm_message">This deletes %1$s of cached container files. They will re-download automatically on the next game install.</string>
+    <string name="downloads_containers_action_download">Download</string>
+    <string name="downloads_containers_action_pause">Pause</string>
+    <string name="downloads_containers_action_resume">Resume</string>
+    <string name="downloads_containers_action_remove">Remove</string>
+    <string name="downloads_containers_legacy_unavailable">Container files come bundled with this build; no download required.</string>
+    <string name="downloads_containers_empty">No container files in this build</string>
+
+    <!-- Container display names -->
+    <string name="container_file_extras">Runtime extras</string>
+    <string name="container_file_extras_desc">Common Windows runtime files shared by every container</string>
+    <string name="container_file_container_pattern_common">Common container pattern</string>
+    <string name="container_file_container_pattern_common_desc">Base Wine/Proton layout, fonts, and registry templates</string>
+    <string name="container_file_container_pattern_gamenative">GameNative container pattern</string>
+    <string name="container_file_container_pattern_gamenative_desc">GameNative-specific overlays and drivers</string>
+    <string name="container_file_proton_9_0_x86_64">Proton 9.0 (x86_64)</string>
+    <string name="container_file_proton_9_0_x86_64_desc">Proton binaries for x86_64 devices</string>
+    <string name="container_file_proton_9_0_arm64ec">Proton 9.0 (arm64ec)</string>
+    <string name="container_file_proton_9_0_arm64ec_desc">Proton binaries for arm64ec translation</string>
+
     <!-- Settings: Storage Manager -->
     <string name="settings_storage_title">Storage</string>
     <string name="settings_storage_manage_title">Storage Manager</string>
