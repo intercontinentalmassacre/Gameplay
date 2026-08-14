@@ -1100,7 +1100,7 @@ private fun SystemHubRow(
         focused -> MaterialTheme.colorScheme.onPrimaryContainer
         else -> MaterialTheme.colorScheme.onSurface
     }
-    val shape = RoundedCornerShape(PluviaTheme.tokens.cornerMd)
+    val shape = RoundedCornerShape(0.dp)
 
     Row(
         modifier = modifier

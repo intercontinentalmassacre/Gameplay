@@ -1345,12 +1345,6 @@ fun ContainerConfigDialog(
                 // Each tab owns its own scroll position; sharing one state left
                 // users mid-content after switching tabs.
                 val scrollState = remember(selectedTab) { ScrollState(0) }
-                // Android platform doesn't use Wine/Box64 at all: force the user back to
-                // General (where the platform picker lives) so they can't get stuck on a
-                // now-disabled tab.
-                LaunchedEffect(isAndroidPlatform) {
-                    if (isAndroidPlatform) selectedTab = 0
-                }
                 var searchActive by rememberSaveable { mutableStateOf(false) }
                 val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
                 val drawerScope = rememberCoroutineScope()
@@ -1396,9 +1390,11 @@ fun ContainerConfigDialog(
                     matchesContainerConfigTab(tabs[index], tabKeywords[index], searchQuery)
                 }
                 val visibleTabIndices = filteredTabIndices.ifEmpty { tabs.indices.toList() }
-                    .let { if (isAndroidPlatform) listOf(0) else it }
-                LaunchedEffect(visibleTabIndices) {
-                    if (selectedTab !in visibleTabIndices) selectedTab = visibleTabIndices.first()
+                val firstVisibleTab = visibleTabIndices.firstOrNull()
+                LaunchedEffect(searchQuery, visibleTabIndices.size, firstVisibleTab) {
+                    if (firstVisibleTab != null && selectedTab !in visibleTabIndices) {
+                        selectedTab = firstVisibleTab
+                    }
                 }
 
                 Scaffold(
@@ -1411,15 +1407,11 @@ fun ContainerConfigDialog(
                             val currentIndex = visibleTabIndices.indexOf(selectedTab).coerceAtLeast(0)
                             when (event.key) {
                                 Key.ButtonR1, Key.ButtonR2 -> {
-                                    if (!isAndroidPlatform) {
-                                        selectedTab = visibleTabIndices[(currentIndex + 1) % visibleTabIndices.size]
-                                    }
+                                    selectedTab = visibleTabIndices[(currentIndex + 1) % visibleTabIndices.size]
                                     true
                                 }
                                 Key.ButtonL1, Key.ButtonL2 -> {
-                                    if (!isAndroidPlatform) {
-                                        selectedTab = visibleTabIndices[(currentIndex - 1 + visibleTabIndices.size) % visibleTabIndices.size]
-                                    }
+                                    selectedTab = visibleTabIndices[(currentIndex - 1 + visibleTabIndices.size) % visibleTabIndices.size]
                                     true
                                 }
                                 else -> false
@@ -1529,7 +1521,11 @@ fun ContainerConfigDialog(
                         // Lower display: categories are a horizontal strip above the
                         // content (same as the in-game settings workspace), never a
                         // burger-drawer. No burger, no drawer, no drawer-back.
-                        Column(modifier = Modifier.fillMaxSize()) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(top = paddingValues.calculateTopPadding()),
+                        ) {
                             GcdsStrip(
                                 items = visibleTabIndices,
                                 selectedItem = selectedTab,
@@ -1541,7 +1537,6 @@ fun ContainerConfigDialog(
                                 modifier = Modifier
                                     .weight(1f)
                                     .padding(
-                                        top = paddingValues.calculateTopPadding(),
                                         bottom = 32.dp + paddingValues.calculateBottomPadding(),
                                         start = paddingValues.calculateStartPadding(LayoutDirection.Ltr),
                                         end = paddingValues.calculateEndPadding(LayoutDirection.Ltr),

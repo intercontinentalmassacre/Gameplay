@@ -34,7 +34,7 @@ fun DropdownMenuItem(
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
-    val shape = RoundedCornerShape(8.dp)
+    val shape = RoundedCornerShape(0.dp)
 
     androidx.compose.material3.DropdownMenuItem(
         text = text,

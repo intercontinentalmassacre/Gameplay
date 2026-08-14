@@ -601,7 +601,7 @@ private fun GcdsQueueActionRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .gcdsFocusRing(interactionSource, RoundedCornerShape(10.dp))
+            .gcdsFocusRing(interactionSource, RoundedCornerShape(0.dp))
             .background(
                 when {
                     !enabled -> Color.Transparent
@@ -609,7 +609,7 @@ private fun GcdsQueueActionRow(
                     emphasized -> MaterialTheme.colorScheme.surfaceContainerHigh
                     else -> Color.Transparent
                 },
-                RoundedCornerShape(10.dp),
+                RoundedCornerShape(0.dp),
             )
             .clickable(
                 interactionSource = interactionSource,
