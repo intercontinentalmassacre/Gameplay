@@ -390,12 +390,12 @@ private fun AchievementListRow(
                     Modifier
                 },
             )
-            .clip(RoundedCornerShape(9.dp))
+            .clip(RoundedCornerShape(0.dp))
             .background(
                 if (selected) MaterialTheme.colorScheme.surfaceContainerHigh
                 else MaterialTheme.colorScheme.surfaceContainerLow,
             )
-            .focusRing(interactionSource, RoundedCornerShape(9.dp), width = 2.dp)
+            .focusRing(interactionSource, RoundedCornerShape(0.dp), width = 2.dp)
             .selectable(selected, interactionSource, null, onClick = onClick)
             .padding(12.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),

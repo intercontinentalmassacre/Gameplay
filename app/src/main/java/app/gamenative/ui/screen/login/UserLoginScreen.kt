@@ -382,7 +382,6 @@ private fun UserLoginScreenContent(
     }
 
     val primaryColor = MaterialTheme.colorScheme.primary
-    val tertiaryColor = MaterialTheme.colorScheme.tertiary
 
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
@@ -451,7 +450,6 @@ private fun UserLoginScreenContent(
                         if (!embedded && userLoginState.loginScreen != LoginScreen.TWO_FACTOR) {
                             LoginOnboardingHero(
                                 primaryColor = primaryColor,
-                                tertiaryColor = tertiaryColor,
                             )
                             Spacer(modifier = Modifier.height(12.dp))
                         }
@@ -465,17 +463,6 @@ private fun UserLoginScreenContent(
                             border = BorderStroke(1.dp, primaryColor.copy(alpha = 0.2f)),
                             shape = RoundedCornerShape(16.dp),
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(2.dp)
-                                    .background(
-                                        brush = Brush.horizontalGradient(
-                                            colors = listOf(primaryColor, tertiaryColor, primaryColor),
-                                        ),
-                                    ),
-                            )
-
                             val scrollState = rememberScrollState()
                             BoxWithConstraints(
                                 modifier = Modifier
@@ -654,7 +641,7 @@ private fun UserLoginScreenContent(
 }
 
 @Composable
-private fun LoginOnboardingHero(primaryColor: Color, tertiaryColor: Color) {
+private fun LoginOnboardingHero(primaryColor: Color) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -687,38 +674,23 @@ private fun LoginOnboardingHero(primaryColor: Color, tertiaryColor: Color) {
                 }
             }
             Spacer(modifier = Modifier.height(14.dp))
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                LoginOnboardingStep("1", stringResource(R.string.login_onboarding_step_connect), primaryColor)
-                LoginOnboardingStep("2", stringResource(R.string.login_onboarding_step_tune), tertiaryColor)
-                LoginOnboardingStep("3", stringResource(R.string.login_onboarding_step_play), primaryColor)
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                LoginOnboardingStep(stringResource(R.string.login_onboarding_step_connect))
+                LoginOnboardingStep(stringResource(R.string.login_onboarding_step_tune))
+                LoginOnboardingStep(stringResource(R.string.login_onboarding_step_play))
             }
         }
     }
 }
 
 @Composable
-private fun LoginOnboardingStep(number: String, label: String, accent: Color) {
-    Surface(
-        color = accent.copy(alpha = 0.12f),
-        shape = RoundedCornerShape(50),
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = number,
-                style = MaterialTheme.typography.labelLarge,
-                color = accent,
-                fontWeight = FontWeight.Bold,
-            )
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelLarge,
-                modifier = Modifier.padding(start = 5.dp),
-            )
-        }
-    }
+private fun LoginOnboardingStep(label: String) {
+    Text(
+        text = label,
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.fillMaxWidth(),
+    )
 }
 
 @Composable
@@ -727,7 +699,6 @@ private fun UpperScreenLoginContent(
     onQrRetry: () -> Unit,
 ) {
     val primaryColor = MaterialTheme.colorScheme.primary
-    val tertiaryColor = MaterialTheme.colorScheme.tertiary
 
     Box(
         modifier = Modifier
@@ -749,7 +720,6 @@ private fun UpperScreenLoginContent(
             Spacer(modifier = Modifier.height(16.dp))
             LoginOnboardingHero(
                 primaryColor = primaryColor,
-                tertiaryColor = tertiaryColor,
             )
             Spacer(modifier = Modifier.height(20.dp))
             Text(

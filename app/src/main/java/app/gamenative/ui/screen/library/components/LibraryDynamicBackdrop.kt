@@ -61,7 +61,7 @@ internal fun LibraryDynamicBackdrop(
     ) {
         Crossfade(
             targetState = appInfo,
-            animationSpec = tween(durationMillis = 500),
+            animationSpec = tween(durationMillis = PluviaTheme.tokens.motionNormalMs),
             label = "backdrop_fade",
         ) { targetInfo ->
             if (targetInfo != null) {

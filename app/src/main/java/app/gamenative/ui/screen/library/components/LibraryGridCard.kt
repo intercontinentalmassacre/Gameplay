@@ -385,11 +385,7 @@ private fun CapsuleFallbackBackdrop(
         CoilImage(
             modifier = Modifier
                 .fillMaxSize()
-                .graphicsLayer {
-                    scaleX = 1.08f
-                    scaleY = 1.08f
-                }
-                .blur(14.dp),
+                .blur(8.dp),
             imageModel = { imageUrl },
             imageOptions = ImageOptions(
                 contentScale = ContentScale.Crop,

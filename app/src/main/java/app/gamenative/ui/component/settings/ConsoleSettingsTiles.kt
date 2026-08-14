@@ -1,6 +1,7 @@
 package app.gamenative.ui.component.settings
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
@@ -10,7 +11,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.focusable
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
@@ -34,16 +34,13 @@ import com.alorma.compose.settings.ui.base.internal.SettingsTileDefaults
 @Composable
 fun Modifier.consoleSettingsTile(): Modifier {
     var isFocused by remember { mutableStateOf(false) }
-    val shape = RoundedCornerShape(10.dp)
+    val shape = RoundedCornerShape(0.dp)
     return this
+        .padding(vertical = 4.dp)
         .onFocusChanged { isFocused = it.isFocused }
-        .clip(shape)
-        .background(
-            if (isFocused) {
-                MaterialTheme.colorScheme.surfaceContainerHighest
-            } else {
-                Color.Transparent
-            },
+        .then(
+            if (isFocused) Modifier.background(MaterialTheme.colorScheme.surfaceContainerHighest, shape)
+            else Modifier,
         )
         .focusRing(isFocused, shape, width = 2.dp)
 }
