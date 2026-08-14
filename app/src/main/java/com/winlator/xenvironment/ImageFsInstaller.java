@@ -169,6 +169,7 @@ public abstract class ImageFsInstaller {
                 installWineFromDownloads(context);
                 installGuestLibs(context);
                 imageFs.createImgVersionFile(LATEST_VERSION);
+                imageFs.createVariantFile(containerVariant);
                 resetContainerImgVersions(context);
 
                 // Clear Steam DLL markers for all games

@@ -2262,7 +2262,7 @@
     <string name="console_back_hint">B  Atrás</string>
     <string name="console_hint_select_back">A  Seleccionar   ·   B  Atrás</string>
     <string name="container_config_apply_and_restart">Aplicar y reiniciar</string>
-    <string name="container_config_console_controls_hint">L1/R1  Categorías   ·   A  Seleccionar   ·   B  Atrás</string>
+    <string name="container_config_console_controls_hint">L1/L2/R1/R2  Categorías   ·   A  Seleccionar   ·   B  Atrás</string>
     <string name="container_config_restart_required_message">Algunos cambios solo surten efecto tras reiniciar el juego. Todo se ha guardado. ¿Reiniciar ahora para aplicarlos?</string>
     <string name="container_config_restart_required_title">Reinicio necesario</string>
     <string name="container_config_save_and_continue">Continuar</string>

@@ -2273,7 +2273,7 @@
     <string name="console_back_hint">B  Retour</string>
     <string name="console_hint_select_back">A  Sélectionner   ·   B  Retour</string>
     <string name="container_config_apply_and_restart">Appliquer et redémarrer</string>
-    <string name="container_config_console_controls_hint">L1/R1  Catégories   ·   A  Sélectionner   ·   B  Retour</string>
+    <string name="container_config_console_controls_hint">L1/L2/R1/R2  Catégories   ·   A  Sélectionner   ·   B  Retour</string>
     <string name="container_config_restart_required_message">Certaines modifications ne prennent effet qu\'après le redémarrage du jeu. Tout a été enregistré. Redémarrer maintenant pour les appliquer ?</string>
     <string name="container_config_restart_required_title">Redémarrage requis</string>
     <string name="container_config_save_and_continue">Continuer</string>

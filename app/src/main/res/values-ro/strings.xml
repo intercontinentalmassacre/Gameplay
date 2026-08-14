@@ -2267,7 +2267,7 @@
     <string name="console_back_hint">B  Înapoi</string>
     <string name="console_hint_select_back">A  Selectează   ·   B  Înapoi</string>
     <string name="container_config_apply_and_restart">Aplică și repornește</string>
-    <string name="container_config_console_controls_hint">L1/R1  Categorii   ·   A  Selectează   ·   B  Înapoi</string>
+    <string name="container_config_console_controls_hint">L1/L2/R1/R2  Categorii   ·   A  Selectează   ·   B  Înapoi</string>
     <string name="container_config_restart_required_message">Unele modificări au efect doar după repornirea jocului. Totul a fost salvat. Repornești acum pentru a le aplica?</string>
     <string name="container_config_restart_required_title">Repornire necesară</string>
     <string name="container_config_save_and_continue">Continuă</string>

@@ -542,7 +542,86 @@ public class ControllerManager {
     }
 
     private boolean isSlotAvailable(int slot) {
-        return slot >= 0 && slot < MAX_SLOTS && getAssignedDeviceForSlot(slot) == null;
+        return slot >= 0 && slot < MAX_SLOTS && !reservedSlots[slot] && getAssignedDeviceForSlot(slot) == null;
+    }
+
+    /**
+     * Slots held by a virtual controller that Android never reports as an InputDevice — currently only the
+     * BLE Steam Controller, which feeds WinHandler directly instead of registering as a gamepad. Such a
+     * controller is invisible to {@link #getAssignedDeviceForSlot}, so without this the auto-assigner would
+     * hand its slot to the next physical pad and the two would share one player slot (same shared-memory
+     * gamepad state, same rumble). Session-only and deliberately NOT persisted by {@link #saveAssignments}:
+     * a reservation must never outlive the session that took it.
+     */
+    private final boolean[] reservedSlots = new boolean[MAX_SLOTS];
+
+    // Physical controller moved off Player 1 to make room for a virtual one, so the move can be undone when
+    // the reservation is released. Session-only, like the reservation itself.
+    private String displacedIdentifier = null;
+    private int displacedToSlot = -1;
+
+    /**
+     * Reserves <b>Player 1</b> for a virtual controller, moving any physical pad sitting there to the next
+     * free slot for the duration.
+     * <p>
+     * Player 1 specifically, not "the first free slot": single-player games read player 1 only, so a virtual
+     * controller parked on player 2 has its sticks and buttons silently ignored while its trackpad/mouse
+     * output — which doesn't go through a player slot — keeps working. That split is confusing enough to be
+     * worth displacing a pad over. The displacement is NOT persisted, so the user's own slot assignment is
+     * restored by {@link #releaseVirtualSlot} and survives untouched in preferences either way.
+     *
+     * @return the reserved slot, or -1 if no slot could be freed (caller should carry on unreserved).
+     */
+    public synchronized int reserveVirtualSlot() {
+        if (reservedSlots[0]) return -1;
+        // Test the PERSISTED assignment, not isSlotAvailable(0): that resolves the slot against currently
+        // connected InputDevices, so a pad assigned to Player 1 but switched off reads as "available". We
+        // would then reserve Player 1 while its name is still in slotAssignments, and when the pad powers on
+        // mid-session onDeviceConnected() sees an existing assignment, leaves it alone, and lands it right
+        // back on top of the virtual controller.
+        String occupant = slotAssignments.get(0);
+        if (occupant != null) {
+            // The displacement target must be free of a persisted assignment too, or we would overwrite some
+            // other pad's saved slot.
+            int target = -1;
+            for (int slot = 1; slot < MAX_SLOTS; slot++) {
+                if (!reservedSlots[slot] && slotAssignments.get(slot) == null) { target = slot; break; }
+            }
+            if (target < 0) {
+                Log.w(TAG, "Player 1 is taken and cannot be freed; virtual controller stays unreserved");
+                return -1;
+            }
+            slotAssignments.remove(0);
+            slotAssignments.put(target, occupant);
+            enabledSlots[target] = true;
+            displacedIdentifier = occupant;
+            displacedToSlot = target;
+            Log.i(TAG, "Moved " + occupant + " to Player " + (target + 1) + " for a virtual controller");
+        }
+        reservedSlots[0] = true;
+        enabledSlots[0] = true;
+        notifySlotsChanged();
+        Log.i(TAG, "Reserved Player 1 for a virtual controller");
+        return 0;
+    }
+
+    /** Releases a slot taken by {@link #reserveVirtualSlot}, restoring any pad it displaced. */
+    public synchronized void releaseVirtualSlot(int slot) {
+        if (slot < 0 || slot >= MAX_SLOTS || !reservedSlots[slot]) return;
+        reservedSlots[slot] = false;
+        if (displacedIdentifier != null) {
+            if (displacedIdentifier.equals(slotAssignments.get(displacedToSlot))) {
+                slotAssignments.remove(displacedToSlot);
+            }
+            slotAssignments.put(slot, displacedIdentifier);
+            Log.i(TAG, "Restored " + displacedIdentifier + " to Player " + (slot + 1));
+            displacedIdentifier = null;
+            displacedToSlot = -1;
+        } else {
+            markSlotRecentlyFreed(slot);
+        }
+        notifySlotsChanged();
+        Log.i(TAG, "Released virtual-controller reservation on Player " + (slot + 1));
     }
 
     private int getPreferredFreeSlot(String deviceIdentifier) {

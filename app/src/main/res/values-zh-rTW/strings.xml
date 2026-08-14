@@ -2269,7 +2269,7 @@
     <string name="console_back_hint">B  返回</string>
     <string name="console_hint_select_back">A  選擇   ·   B  返回</string>
     <string name="container_config_apply_and_restart">套用並重新啟動</string>
-    <string name="container_config_console_controls_hint">L1/R1  類別   ·   A  選擇   ·   B  返回</string>
+    <string name="container_config_console_controls_hint">L1/L2/R1/R2  類別   ·   A  選擇   ·   B  返回</string>
     <string name="container_config_restart_required_message">部分變更僅會在遊戲重新啟動後生效。所有內容均已儲存。現在重新啟動以套用嗎？</string>
     <string name="container_config_restart_required_title">需要重新啟動</string>
     <string name="container_config_save_and_continue">繼續</string>

@@ -86,7 +86,7 @@
     <string name="console_back_hint">B  Voltar</string>
     <string name="console_hint_select_back">A  Selecionar   ·   B  Voltar</string>
     <string name="container_config_apply_and_restart">Aplicar e reiniciar</string>
-    <string name="container_config_console_controls_hint">L1/R1  Categorias   ·   A  Selecionar   ·   B  Voltar</string>
+    <string name="container_config_console_controls_hint">L1/L2/R1/R2  Categorias   ·   A  Selecionar   ·   B  Voltar</string>
     <string name="container_config_restart_required_message">Algumas alterações só entram em vigor após reiniciar o jogo. Tudo foi salvo. Reiniciar agora para aplicá-las?</string>
     <string name="container_config_restart_required_title">Reinicialização necessária</string>
     <string name="container_config_save_and_continue">Continuar</string>

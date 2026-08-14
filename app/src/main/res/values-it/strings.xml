@@ -2254,7 +2254,7 @@
     <string name="console_back_hint">B  Indietro</string>
     <string name="console_hint_select_back">A  Seleziona   ·   B  Indietro</string>
     <string name="container_config_apply_and_restart">Applica e riavvia</string>
-    <string name="container_config_console_controls_hint">L1/R1  Categorie   ·   A  Seleziona   ·   B  Indietro</string>
+    <string name="container_config_console_controls_hint">L1/L2/R1/R2  Categorie   ·   A  Seleziona   ·   B  Indietro</string>
     <string name="container_config_restart_required_message">Alcune modifiche hanno effetto solo dopo il riavvio del gioco. Tutto è stato salvato. Riavviare ora per applicarle?</string>
     <string name="container_config_restart_required_title">Riavvio richiesto</string>
     <string name="container_config_save_and_continue">Continua</string>

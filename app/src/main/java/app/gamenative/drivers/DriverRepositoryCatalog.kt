@@ -20,6 +20,9 @@ data class DriverRepository(
     val name: String,
     val apiUrl: String,
     val description: String,
+    val category: DriverCategory,
+    val targets: Set<AdrenoTarget>,
+    val packagingFormat: DriverPackagingFormat = DriverPackagingFormat.ADRENOTOOLS_ZIP,
 )
 
 data class RemoteDriverPackage(
@@ -44,32 +47,58 @@ object DriverRepositoryCatalog {
             name = "StevenMXZ AdrenoTools",
             apiUrl = "https://api.github.com/repos/StevenMXZ/Adreno-Tools-Drivers/releases",
             description = "AdrenoTools-packaged Turnip builds, published on a regular schedule.",
+            category = DriverCategory.TURNIP_STABLE,
+            targets = setOf(AdrenoTarget.A6XX, AdrenoTarget.A7XX, AdrenoTarget.A8XX, AdrenoTarget.GENERIC),
         ),
         DriverRepository(
             id = "whitebelyash-adrenotools",
             name = "Whitebelyash AdrenoTools",
             apiUrl = "https://api.github.com/repos/whitebelyash/AdrenoToolsDrivers/releases",
             description = "AdrenoTools-compatible stable and experimental packages.",
+            category = DriverCategory.TURNIP_STABLE,
+            targets = setOf(AdrenoTarget.A6XX, AdrenoTarget.A7XX, AdrenoTarget.A8XX, AdrenoTarget.GENERIC),
+        ),
+        DriverRepository(
+            id = "banners-turnip",
+            name = "Banners-Turnip",
+            apiUrl = "https://api.github.com/repos/The412Banner/Banners-Turnip/releases",
+            description = "Bleeding-edge Mesa Turnip rebuilt hourly from mesa/main; A6xx/A7xx standard plus A710/A720/A722 and A8xx (Snapdragon 8 Elite) experimental builds.",
+            category = DriverCategory.TURNIP_BLEEDING_EDGE,
+            targets = setOf(AdrenoTarget.A6XX, AdrenoTarget.A7XX, AdrenoTarget.A710_A720_A722, AdrenoTarget.A8XX),
         ),
         DriverRepository(
             id = "weab-chan-turnip",
             name = "Weab-Chan Turnip",
             apiUrl = "https://api.github.com/repos/Weab-chan/freedreno_turnip-CI/releases",
             description = "Alternative Turnip builds for compatibility testing.",
+            category = DriverCategory.TURNIP_BLEEDING_EDGE,
+            targets = setOf(AdrenoTarget.A6XX, AdrenoTarget.A7XX, AdrenoTarget.GENERIC),
         ),
         DriverRepository(
             id = "purple-turnip",
             name = "Purple Turnip",
             apiUrl = "https://api.github.com/repos/MrPurple666/purple-turnip/releases",
             description = "Community Turnip builds for compatibility testing.",
+            category = DriverCategory.TURNIP_COMMUNITY,
+            targets = setOf(AdrenoTarget.A6XX, AdrenoTarget.A7XX, AdrenoTarget.GENERIC),
         ),
         DriverRepository(
             id = "zoerakk-qualcomm",
             name = "Zoerakk Qualcomm Adreno",
             apiUrl = "https://api.github.com/repos/zoerakk/qualcomm-adreno-driver/releases",
             description = "Qualcomm Adreno packages; only AdrenoTools-compatible ZIP assets are shown.",
+            category = DriverCategory.ADRENO_PACKAGED,
+            targets = setOf(AdrenoTarget.A6XX, AdrenoTarget.A7XX, AdrenoTarget.A8XX, AdrenoTarget.GENERIC),
         ),
     )
+
+    val categories: List<DriverCategory> = DriverCategory.entries.sortedBy { it.sortOrder }
+
+    fun repositoriesByCategory(category: DriverCategory): List<DriverRepository> =
+        trustedRepositories.filter { it.category == category }
+
+    fun repositoriesForTarget(target: AdrenoTarget): List<DriverRepository> =
+        trustedRepositories.filter { target in it.targets || AdrenoTarget.GENERIC in it.targets }
 
     suspend fun fetchPackages(repository: DriverRepository): List<RemoteDriverPackage> =
         withContext(Dispatchers.IO) {

@@ -270,6 +270,34 @@ object PrefManager {
             setPref(SHARPNESS_DENOISE, value.coerceIn(0, 100))
         }
 
+    private val VALID_VIBRATION_MODES = setOf("off", "controller", "device")
+    private const val DEFAULT_VIBRATION_MODE = "controller"
+
+    /** Normalizes a vibration mode string to a known value, falling back to the default. */
+    private fun normalizeVibrationMode(value: String?): String {
+        val v = value?.trim()?.lowercase().orEmpty()
+        return if (v in VALID_VIBRATION_MODES) v else DEFAULT_VIBRATION_MODE
+    }
+
+    /**
+     * Returns a value in `VALID_VIBRATION_MODES`, for prefs, container extras, or WinHandler.
+     */
+    fun normalizeVibrationModeInput(value: String?): String = normalizeVibrationMode(value)
+
+    private val VIBRATION_MODE = stringPreferencesKey("vibration_mode")
+    var vibrationMode: String
+        get() = normalizeVibrationMode(getPref(VIBRATION_MODE, DEFAULT_VIBRATION_MODE))
+        set(value) {
+            setPref(VIBRATION_MODE, normalizeVibrationMode(value))
+        }
+
+    private val VIBRATION_INTENSITY = intPreferencesKey("vibration_intensity")
+    var vibrationIntensity: Int
+        get() = getPref(VIBRATION_INTENSITY, 100).coerceIn(0, 100)
+        set(value) {
+            setPref(VIBRATION_INTENSITY, value.coerceIn(0, 100))
+        }
+
     private val CONTAINER_VARIANT = stringPreferencesKey("container_variant")
     var containerVariant: String
         get() = getPref(CONTAINER_VARIANT, Container.DEFAULT_VARIANT)
@@ -1436,6 +1464,22 @@ object PrefManager {
         set(value) {
             setPref(CUSTOM_GAME_MANUAL_FOLDERS, Json.encodeToString(value))
         }
+
+    // Diagnostics launch mode (verbose wrapper/Wine logging). Persisted so setupXEnvironment can read it via
+    // context instead of threading it as a parameter through the (very large) XServerScreen composable — adding a
+    // parameter there pushed the method past ART's bytecode-verifier limit (VerifyError on launch). See MainViewModel.
+    private val WRAPPER_DIAGNOSTICS = booleanPreferencesKey("wrapper_diagnostics")
+    var wrapperDiagnostics: Boolean
+        get() = getPref(WRAPPER_DIAGNOSTICS, false)
+        set(value) = setPref(WRAPPER_DIAGNOSTICS, value)
+
+    // Steam Controller (2026 "Triton") BLE support. OFF by default: enabling it makes every game launch connect to
+    // the controller over BLE, which is pure overhead (and a runtime BT-permission prompt) for anyone without the
+    // hardware. The settings switch requests the Bluetooth permissions before it can be turned on.
+    private val STEAM_CONTROLLER_ENABLED = booleanPreferencesKey("steam_controller_enabled")
+    var steamControllerEnabled: Boolean
+        get() = getPref(STEAM_CONTROLLER_ENABLED, false)
+        set(value) = setPref(STEAM_CONTROLLER_ENABLED, value)
 
     // Add new setting for Wine debug logging
     private val ENABLE_WINE_DEBUG = booleanPreferencesKey("enable_wine_debug")
