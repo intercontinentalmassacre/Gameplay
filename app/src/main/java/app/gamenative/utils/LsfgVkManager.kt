@@ -3,6 +3,7 @@ package app.gamenative.utils
 import android.content.Context
 import app.gamenative.service.SteamService
 import com.winlator.container.Container
+import com.winlator.container.ContainerManager
 import com.winlator.core.FileUtils
 import com.winlator.core.envvars.EnvVars
 import java.io.File
@@ -66,11 +67,11 @@ object LsfgVkManager {
     private const val ENV_PROCESS = "LSFG_PROCESS"
 
     // Current runtime version (bumped when the bundled .so changes)
-    private const val RUNTIME_VERSION = "v1.0.2-gameplay-recovery-arm64-v8a"
+    private const val RUNTIME_VERSION = "v1.3.3-android-arm64-v8a"
 
-    // Asset paths
+    // The manifest stays in assets; the Vulkan layer itself is packaged as a
+    // native library so Android extracts it through the normal jniLibs path.
     private const val ASSET_DIR = "lsfg_vk/android_arm64_v8a"
-    private const val ASSET_LIB = "$ASSET_DIR/$LIB_FILENAME"
     private const val ASSET_MANIFEST = "$ASSET_DIR/$MANIFEST_FILENAME"
 
     // ---- Public API --------------------------------------------------------
@@ -174,8 +175,14 @@ object LsfgVkManager {
                 localLibDir.mkdirs()
                 layerDir.mkdirs()
 
-                // Copy the layer .so from assets
-                FileUtils.copy(context, ASSET_LIB, libFile)
+                val sourceLib = File(context.applicationInfo.nativeLibraryDir, LIB_FILENAME)
+                if (!sourceLib.isFile) {
+                    Timber.tag(TAG).e("Bundled LSFG native library is missing: %s", sourceLib.absolutePath)
+                    return false
+                }
+                sourceLib.inputStream().use { input ->
+                    libFile.outputStream().use { output -> input.copyTo(output) }
+                }
                 // Write the manifest with patched library_path
                 val manifestText = context.assets.open(ASSET_MANIFEST)
                     .bufferedReader().use { it.readText() }
@@ -206,7 +213,9 @@ object LsfgVkManager {
             Timber.tag(TAG).d("Runtime %s already installed in %s", RUNTIME_VERSION, rootDir)
         }
 
-        // Copy Lossless.dll from Steam install dir into the container
+        // Copy Lossless.dll from Steam install dir into the container.
+        // Only after it is present can the legacy utility container be safely
+        // removed: users must never lose the only usable copy of the DLL.
         val dllFile = File(dllDir, LOSSLESS_DLL_NAME)
         val steamDll = findSteamDll()
         if (steamDll != null) {
@@ -221,6 +230,7 @@ object LsfgVkManager {
                     if (dllFile.exists()) FileUtils.chmod(dllFile, 0b110100100)
                     Timber.tag(TAG).i("Copied Lossless.dll (%d bytes) into %s", dllFile.length(), dllDir)
                 }
+                removeLegacyLosslessScalingContainer(context)
             } catch (t: Throwable) {
                 Timber.tag(TAG).e(t, "Failed to copy Lossless.dll into container")
                 success = false
@@ -357,7 +367,31 @@ object LsfgVkManager {
     private fun findSteamDll(): File? {
         val appDir = SteamService.getAppDirPath(LOSSLESS_SCALING_APP_ID)
         val dll = File(appDir, LOSSLESS_DLL_NAME)
-        return dll.takeIf { it.isFile }
+        if (dll.isFile) return dll
+
+        // Keep a fallback for stale app metadata or manually renamed Steam
+        // directories. getAppDirPath already covers the normal storage paths.
+        SteamService.allInstallPaths.forEach { basePath ->
+            File(basePath).listFiles()?.firstNotNullOfOrNull { directory ->
+                File(directory, LOSSLESS_DLL_NAME).takeIf { it.isFile }
+            }?.let { return it }
+        }
+        return null
+    }
+
+    private fun removeLegacyLosslessScalingContainer(context: Context) {
+        try {
+            val manager = ContainerManager(context)
+            val legacyContainer = manager.getContainerById("STEAM_$LOSSLESS_SCALING_APP_ID") ?: return
+            if (FileUtils.delete(legacyContainer.rootDir)) {
+                manager.containers.remove(legacyContainer)
+                Timber.tag(TAG).i("Removed obsolete Lossless Scaling utility container")
+            } else {
+                Timber.tag(TAG).w("Could not remove obsolete Lossless Scaling utility container")
+            }
+        } catch (error: Throwable) {
+            Timber.tag(TAG).w(error, "Could not clean up legacy Lossless Scaling container")
+        }
     }
 
     // ---- Helpers -----------------------------------------------------------
