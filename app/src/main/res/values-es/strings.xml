@@ -2272,6 +2272,9 @@
     <string name="downloads_stage_description">Transferencias, progreso de instalación y gestión de almacenamiento.</string>
     <string name="downloads_stage_navigation_hint">Gestiona las descargas en la pantalla inferior</string>
     <string name="ds_home_icon_size_action">Tamaño del icono</string>
+    <string name="ds_home_layout_grid">Cuadrícula</string>
+    <string name="ds_home_layout_flow">Cover Flow</string>
+    <string name="ds_home_layout_wall">Cover Wall</string>
     <string name="game_players_now">%1$s jugando ahora</string>
     <string name="game_runtime_directx">Capa de DirectX</string>
     <string name="game_runtime_driver">Controlador gráfico</string>

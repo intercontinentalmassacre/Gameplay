@@ -1476,6 +1476,8 @@ private fun LibraryScreenContent(
                         onTabSelected = onTabChanged,
                         onOptionsClick = { onOptionsPanelToggle(true) },
                         onSearchClick = { onIsSearching(true) },
+                        onRefresh = onRefresh,
+                        isRefreshing = state.isRefreshing,
                         onAddGameClick = onAddCustomGameClick,
                         onMenuClick = { layerController?.openSystem() },
                         onNavigateDownToGrid = {

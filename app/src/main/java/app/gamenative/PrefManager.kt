@@ -1566,6 +1566,17 @@ object PrefManager {
             setPref(GPU_GAME_STATS_CACHE, value)
         }
 
+    /* Persistent cover cache (on-device store of game cover images) */
+    private val COVER_CACHE_ENABLED = booleanPreferencesKey("cover_cache_enabled")
+    var coverCacheEnabled: Boolean
+        get() = getPref(COVER_CACHE_ENABLED, true)
+        set(value) = setPref(COVER_CACHE_ENABLED, value)
+
+    private val COVER_CACHE_MAX_MB = intPreferencesKey("cover_cache_max_mb")
+    var coverCacheMaxMb: Int
+        get() = getPref(COVER_CACHE_MAX_MB, 500)
+        set(value) = setPref(COVER_CACHE_MAX_MB, value)
+
     /* Security / Attestation */
     private val KEY_ATTESTATION_AVAILABLE = booleanPreferencesKey("key_attestation_available")
     var keyAttestationAvailable: Boolean

@@ -98,6 +98,9 @@
     <string name="downloads_stage_description">Overførsler, installationsfremgang og lagerpladsadministration.</string>
     <string name="downloads_stage_navigation_hint">Administrer downloads på den nederste skærm</string>
     <string name="ds_home_icon_size_action">Ikonstørrelse</string>
+    <string name="ds_home_layout_grid">Gitter</string>
+    <string name="ds_home_layout_flow">Cover Flow</string>
+    <string name="ds_home_layout_wall">Cover Wall</string>
     <string name="fexcore_env_var_help__disablel2cache">Deaktivér FEXCore JIT L2-cache-opslag, sparer hukommelse, men medfører hakken.</string>
     <string name="fexcore_env_var_help__dynamicl1cache">Skifter FEXCore JIT L1-cachen til dynamisk størrelse, sparer hukommelse, men medfører hakken.</string>
     <string name="fexcore_env_var_help__halfbarriertsoenabled">Bruger halvbarriere-atomics til ujusterede load/store under TSO.</string>

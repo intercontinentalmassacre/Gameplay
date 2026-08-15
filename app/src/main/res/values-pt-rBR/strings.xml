@@ -98,6 +98,9 @@
     <string name="downloads_stage_description">Transferências, progresso da instalação e gerenciamento de armazenamento.</string>
     <string name="downloads_stage_navigation_hint">Gerencie os downloads na tela inferior</string>
     <string name="ds_home_icon_size_action">Tamanho do ícone</string>
+    <string name="ds_home_layout_grid">Grade</string>
+    <string name="ds_home_layout_flow">Cover Flow</string>
+    <string name="ds_home_layout_wall">Cover Wall</string>
     <string name="fexcore_env_var_help__disablel2cache">Desativa a consulta ao cache L2 do JIT do FEXCore, economizando memória, mas causando engasgos.</string>
     <string name="fexcore_env_var_help__dynamicl1cache">Altera o cache L1 do JIT do FEXCore para tamanho dinâmico, economizando memória, mas causando engasgos.</string>
     <string name="fexcore_env_var_help__halfbarriertsoenabled">Usa atomicos de meia barreira para loads/stores desalinhados sob TSO.</string>

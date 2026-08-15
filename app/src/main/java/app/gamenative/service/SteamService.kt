@@ -65,6 +65,8 @@ import app.gamenative.utils.Net
 import app.gamenative.utils.SteamUtils
 import app.gamenative.utils.CURRENT_UFS_PARSE_VERSION
 import app.gamenative.utils.generateSteamApp
+import app.gamenative.utils.CoverCache
+import app.gamenative.utils.SteamCoverUrls
 import app.gamenative.workshop.WorkshopManager
 import com.winlator.container.Container
 import com.winlator.xenvironment.ImageFs
@@ -4618,6 +4620,15 @@ class SteamService : Service(), IChallengeUrlChanged {
                                     Timber.i("Inserting ${steamAppsMap.size} PICS apps to database")
                                     db.withTransaction {
                                         appDao.insertAll(steamAppsMap)
+                                    }
+                                    // Pre-download covers for the freshly inserted
+                                    // apps so the home grid renders from disk on
+                                    // next frame. No-op when covers already cached.
+                                    for (app in steamAppsMap) {
+                                        CoverCache.enqueueAll(
+                                            appId = app.id.toString(),
+                                            urls = SteamCoverUrls.resolve(app),
+                                        )
                                     }
                                 }
                             }

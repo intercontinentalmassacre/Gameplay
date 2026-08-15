@@ -2280,6 +2280,9 @@
     <string name="downloads_stage_description">傳輸、安裝進度和儲存管理。</string>
     <string name="downloads_stage_navigation_hint">在下方螢幕管理下載</string>
     <string name="ds_home_icon_size_action">圖示大小</string>
+    <string name="ds_home_layout_grid">網格</string>
+    <string name="ds_home_layout_flow">Cover Flow</string>
+    <string name="ds_home_layout_wall">Cover Wall</string>
     <string name="game_players_now">正在遊玩 %1$s</string>
     <string name="game_runtime_directx">DirectX 層</string>
     <string name="game_runtime_driver">圖形驅動程式</string>
