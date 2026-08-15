@@ -113,6 +113,7 @@ fun GcdsQuickMenu(
     onFpsLimiterEnabledChanged: (Boolean) -> Unit = {},
     onFpsLimiterChanged: (Int) -> Unit = {},
     hasPhysicalController: Boolean = false,
+    isSteamControllerLive: Boolean = false,
     isTouchscreenModeActive: Boolean = false,
     onTouchGestureSettingsClick: () -> Unit = {},
     isShooterModeActive: Boolean = false,
@@ -172,6 +173,7 @@ fun GcdsQuickMenu(
             onFpsLimiterEnabledChanged = onFpsLimiterEnabledChanged,
             onFpsLimiterChanged = onFpsLimiterChanged,
             hasPhysicalController = hasPhysicalController,
+            isSteamControllerLive = isSteamControllerLive,
             isTouchscreenModeActive = isTouchscreenModeActive,
             onTouchGestureSettingsClick = onTouchGestureSettingsClick,
             isShooterModeActive = isShooterModeActive,
@@ -249,6 +251,7 @@ private fun GcdsGameQuickMenu(
     onFpsLimiterEnabledChanged: (Boolean) -> Unit = {},
     onFpsLimiterChanged: (Int) -> Unit = {},
     hasPhysicalController: Boolean = false,
+    isSteamControllerLive: Boolean = false,
     isTouchscreenModeActive: Boolean = false,
     onTouchGestureSettingsClick: () -> Unit = {},
     isShooterModeActive: Boolean = false,
@@ -344,13 +347,14 @@ private fun GcdsGameQuickMenu(
                         onPerformanceHudConfigChanged = onPerformanceHudConfigChanged,
                         onFpsLimiterEnabledChanged = onFpsLimiterEnabledChanged,
                         onFpsLimiterChanged = onFpsLimiterChanged,
-                        hasPhysicalController = hasPhysicalController,
-                        isTouchscreenModeActive = isTouchscreenModeActive,
-                        onTouchGestureSettingsClick = onTouchGestureSettingsClick,
-                        isShooterModeActive = isShooterModeActive,
-                        onShooterModeSettingsClick = onShooterModeSettingsClick,
-                        activeToggleIds = activeToggleIds,
-                        isLsfgAvailable = isLsfgAvailable,
+hasPhysicalController = hasPhysicalController,
+            isSteamControllerLive = isSteamControllerLive,
+            isTouchscreenModeActive = isTouchscreenModeActive,
+            onTouchGestureSettingsClick = onTouchGestureSettingsClick,
+            isShooterModeActive = isShooterModeActive,
+            onShooterModeSettingsClick = onShooterModeSettingsClick,
+            activeToggleIds = activeToggleIds,
+            isLsfgAvailable = isLsfgAvailable,
                         lsfgMultiplier = lsfgMultiplier,
                         lsfgFlowScale = lsfgFlowScale,
                         lsfgPerformanceMode = lsfgPerformanceMode,
@@ -414,6 +418,7 @@ private fun GcdsGameQuickMenu(
             onFpsLimiterEnabledChanged = onFpsLimiterEnabledChanged,
             onFpsLimiterChanged = onFpsLimiterChanged,
             hasPhysicalController = hasPhysicalController,
+            isSteamControllerLive = isSteamControllerLive,
             isTouchscreenModeActive = isTouchscreenModeActive,
             onTouchGestureSettingsClick = onTouchGestureSettingsClick,
             isShooterModeActive = isShooterModeActive,
@@ -596,7 +601,7 @@ private fun GcdsQueueActionRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .gcdsFocusRing(interactionSource, RoundedCornerShape(10.dp))
+            .gcdsFocusRing(interactionSource, RoundedCornerShape(0.dp))
             .background(
                 when {
                     !enabled -> Color.Transparent
@@ -604,7 +609,7 @@ private fun GcdsQueueActionRow(
                     emphasized -> MaterialTheme.colorScheme.surfaceContainerHigh
                     else -> Color.Transparent
                 },
-                RoundedCornerShape(10.dp),
+                RoundedCornerShape(0.dp),
             )
             .clickable(
                 interactionSource = interactionSource,

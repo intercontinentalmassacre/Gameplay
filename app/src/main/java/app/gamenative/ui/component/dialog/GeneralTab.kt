@@ -10,6 +10,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -27,6 +28,10 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.gamenative.R
+import app.gamenative.ui.component.ConsoleDialogButton
+import app.gamenative.ui.component.GamepadButton
+import app.gamenative.ui.component.GamepadHint
+import app.gamenative.ui.component.GamepadHintRow
 import app.gamenative.ui.component.NoExtractOutlinedTextField
 import app.gamenative.ui.component.settings.SettingsListDropdown
 import app.gamenative.ui.component.settings.SettingsSwitch
@@ -41,6 +46,28 @@ import com.winlator.core.StringUtils
 import com.winlator.contents.ContentProfile
 import com.winlator.xenvironment.components.PulseAudioComponent
 import java.util.Locale
+
+/**
+ * Checks if DirectAudio is supported for the given wine version and container variant.
+ * DirectAudio is only supported on Proton 11 with bionic variant.
+ */
+private fun isDirectAudioSupported(wineVersion: String, containerVariant: String): Boolean {
+    return wineVersion.startsWith("proton-11", ignoreCase = true) &&
+            wineVersion.contains("arm64ec", ignoreCase = true) &&
+           containerVariant.equals(Container.BIONIC, ignoreCase = true)
+}
+
+/**
+ * Returns a validated audio driver. If DirectAudio is selected but not supported
+ * for the given wine version and variant, returns "pulseaudio" instead.
+ */
+private fun getValidatedAudioDriver(config: ContainerData): String {
+    return if (config.audioDriver == "directaudio" && !isDirectAudioSupported(config.wineVersion, config.containerVariant)) {
+        "pulseaudio"
+    } else {
+        config.audioDriver
+    }
+}
 
 @Composable
 fun GeneralTabContent(
@@ -104,10 +131,19 @@ fun GeneralTabContent(
                             modifier = Modifier.padding(top = 8.dp)
                         )
                     }
+                    GamepadHintRow(
+                        hints = listOf(
+                            GamepadHint(GamepadButton.A, R.string.action_select),
+                            GamepadHint(GamepadButton.B, R.string.back),
+                        ),
+                        modifier = Modifier.align(Alignment.CenterHorizontally),
+                    )
                 }
             },
             confirmButton = {
-                TextButton(
+                ConsoleDialogButton(
+                    text = stringResource(R.string.ok),
+                    isPrimary = true,
                     onClick = {
                         val widthRaw = state.customScreenWidth.value.toIntOrNull() ?: 0
                         val heightRaw = state.customScreenHeight.value.toIntOrNull() ?: 0
@@ -125,21 +161,39 @@ fun GeneralTabContent(
                             state.showCustomResolutionDialog.value = false
                         }
                     },
-                ) {
-                    Text(text = stringResource(R.string.ok))
-                }
+                )
             },
             dismissButton = {
-                TextButton(
+                ConsoleDialogButton(
+                    text = stringResource(R.string.cancel),
                     onClick = { state.showCustomResolutionDialog.value = false },
-                ) {
-                    Text(text = stringResource(R.string.cancel))
-                }
+                )
             }
         )
     }
 
-    SettingsGroup() {
+    SettingsGroup {
+        if (state.hasAndroidVersion) {
+            val platformItems = listOf(
+                stringResource(R.string.container_platform_normal),
+                stringResource(R.string.container_platform_android),
+            )
+            val platformIndex = if (config.platform.equals(Container.PLATFORM_ANDROID, ignoreCase = true)) 1 else 0
+            SettingsListDropdown(
+                colors = settingsTileColors(),
+                title = { Text(text = stringResource(R.string.container_platform)) },
+                subtitle = { Text(text = stringResource(R.string.container_platform_description)) },
+                value = platformIndex,
+                items = platformItems,
+                enabled = true,
+                onItemSelected = { idx ->
+                    val newPlatform = if (idx == 1) Container.PLATFORM_ANDROID else Container.PLATFORM_WINDOWS
+                    state.config.value = config.copy(platform = newPlatform)
+                },
+            )
+        }
+    }
+    SettingsGroup(enabled = !state.isAndroidPlatform) {
         run {
             val variantIndex = rememberSaveable {
                 mutableIntStateOf(
@@ -183,6 +237,7 @@ fun GeneralTabContent(
                             graphicsDriverVersion = "",
                             graphicsDriverConfig = newCfg.toString(),
                             box64Version = "0.3.6",
+                            audioDriver = getValidatedAudioDriver(config.copy(wineVersion = defaultGlibcWine, containerVariant = newVariant)),
                         )
                     } else {
                         val defaultBionicDriver = StringUtils.parseIdentifier(state.bionicGraphicsDrivers.first())
@@ -227,6 +282,7 @@ fun GeneralTabContent(
                             graphicsDriverConfig = newCfg.toString(),
                             box64Version = "0.3.7",
                             dxwrapperConfig = currentConfig.toString(),
+                            audioDriver = getValidatedAudioDriver(config.copy(wineVersion = newWine, containerVariant = newVariant)),
                         )
                     }
                 },
@@ -250,11 +306,18 @@ fun GeneralTabContent(
                                 ContentProfile.ContentType.CONTENT_TYPE_WINE
                             }
                             state.launchManifestContentInstall(manifestEntry, expectedType) {
-                                state.config.value = config.copy(wineVersion = selectedId)
+                                state.config.value = config.copy(
+                                    wineVersion = selectedId,
+                                    audioDriver = getValidatedAudioDriver(config.copy(wineVersion = selectedId))
+                                )
                             }
                             return@SettingsListDropdown
                         }
-                        state.config.value = config.copy(wineVersion = selectedId.ifEmpty { state.bionicWineOptions.labels[idx] })
+                        val newWineVersion = selectedId.ifEmpty { state.bionicWineOptions.labels[idx] }
+                        state.config.value = config.copy(
+                            wineVersion = newWineVersion,
+                            audioDriver = getValidatedAudioDriver(config.copy(wineVersion = newWineVersion))
+                        )
                     },
                 )
             }
@@ -264,11 +327,13 @@ fun GeneralTabContent(
             value = config.executablePath,
             onValueChange = { state.config.value = config.copy(executablePath = it) },
             containerData = config,
+            enabled = !state.isAndroidPlatform,
         )
         NoExtractOutlinedTextField(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
             value = config.execArgs,
             onValueChange = { state.config.value = config.copy(execArgs = it) },
+            enabled = !state.isAndroidPlatform,
             label = { Text(text = stringResource(R.string.exec_arguments)) },
             placeholder = { Text(text = stringResource(R.string.exec_arguments_example)) },
             singleLine = true,
@@ -284,7 +349,6 @@ fun GeneralTabContent(
             }
         }
         SettingsListDropdown(
-            enabled = true,
             value = state.languageIndex.value,
             items = state.languages.map(displayNameForLanguage),
             fallbackDisplay = displayNameForLanguage("english"),
@@ -316,14 +380,33 @@ fun GeneralTabContent(
             state = config.portraitMode,
             onCheckedChange = { state.config.value = config.copy(portraitMode = it) },
         )
+        // Sync audioDriverIndex when config.audioDriver changes (e.g., when wine version changes)
+        LaunchedEffect(config.audioDriver) {
+            val driverIndex = state.audioDrivers.indexOfFirst {
+                StringUtils.parseIdentifier(it) == config.audioDriver
+            }
+            if (driverIndex >= 0 && driverIndex != state.audioDriverIndex.value) {
+                state.audioDriverIndex.value = driverIndex
+            }
+        }
         SettingsListDropdown(
             colors = settingsTileColors(),
             title = { Text(text = stringResource(R.string.audio_driver)) },
             value = state.audioDriverIndex.value,
             items = state.audioDrivers,
             onItemSelected = {
-                state.audioDriverIndex.value = it
-                state.config.value = config.copy(audioDriver = StringUtils.parseIdentifier(state.audioDrivers[it]))
+                val selectedDriver = StringUtils.parseIdentifier(state.audioDrivers[it])
+                // If DirectAudio is selected but wine version is not Proton 11 or variant is not bionic, revert to PulseAudio
+                if (selectedDriver == "directaudio" && !isDirectAudioSupported(config.wineVersion, config.containerVariant)) {
+                    val pulseaudioIndex = state.audioDrivers.indexOfFirst {
+                        StringUtils.parseIdentifier(it) == "pulseaudio"
+                    }.coerceAtLeast(0)
+                    state.audioDriverIndex.value = pulseaudioIndex
+                    state.config.value = config.copy(audioDriver = "pulseaudio")
+                } else {
+                    state.audioDriverIndex.value = it
+                    state.config.value = config.copy(audioDriver = selectedDriver)
+                }
             },
         )
         if (config.audioDriver == "pulseaudio") {

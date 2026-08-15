@@ -131,8 +131,14 @@ object PrefManager {
     fun getBoolean(key: String, defaultValue: Boolean): Boolean =
         getPref(booleanPreferencesKey(key), defaultValue)
 
+    fun setBoolean(key: String, value: Boolean): Unit =
+        setPref(booleanPreferencesKey(key), value)
+
     fun getString(key: String, defaultValue: String): String =
         getPref(stringPreferencesKey(key), defaultValue)
+
+    fun setString(key: String, value: String): Unit =
+        setPref(stringPreferencesKey(key), value)
 
     fun getFloat(key: String, defaultValue: Float): Float =
         getPref(floatPreferencesKey(key), defaultValue)
@@ -148,6 +154,12 @@ object PrefManager {
     @Suppress("SameParameterValue")
     private fun <T> setPref(key: Preferences.Key<T>, value: T) {
         scope.launch {
+            dataStore.edit { pref -> pref[key] = value }
+        }
+    }
+
+    private fun <T> setPrefBlocking(key: Preferences.Key<T>, value: T) {
+        runBlocking {
             dataStore.edit { pref -> pref[key] = value }
         }
     }
@@ -268,6 +280,34 @@ object PrefManager {
         get() = getPref(SHARPNESS_DENOISE, 100)
         set(value) {
             setPref(SHARPNESS_DENOISE, value.coerceIn(0, 100))
+        }
+
+    private val VALID_VIBRATION_MODES = setOf("off", "controller", "device")
+    private const val DEFAULT_VIBRATION_MODE = "controller"
+
+    /** Normalizes a vibration mode string to a known value, falling back to the default. */
+    private fun normalizeVibrationMode(value: String?): String {
+        val v = value?.trim()?.lowercase().orEmpty()
+        return if (v in VALID_VIBRATION_MODES) v else DEFAULT_VIBRATION_MODE
+    }
+
+    /**
+     * Returns a value in `VALID_VIBRATION_MODES`, for prefs, container extras, or WinHandler.
+     */
+    fun normalizeVibrationModeInput(value: String?): String = normalizeVibrationMode(value)
+
+    private val VIBRATION_MODE = stringPreferencesKey("vibration_mode")
+    var vibrationMode: String
+        get() = normalizeVibrationMode(getPref(VIBRATION_MODE, DEFAULT_VIBRATION_MODE))
+        set(value) {
+            setPref(VIBRATION_MODE, normalizeVibrationMode(value))
+        }
+
+    private val VIBRATION_INTENSITY = intPreferencesKey("vibration_intensity")
+    var vibrationIntensity: Int
+        get() = getPref(VIBRATION_INTENSITY, 100).coerceIn(0, 100)
+        set(value) {
+            setPref(VIBRATION_INTENSITY, value.coerceIn(0, 100))
         }
 
     private val CONTAINER_VARIANT = stringPreferencesKey("container_variant")
@@ -1437,6 +1477,22 @@ object PrefManager {
             setPref(CUSTOM_GAME_MANUAL_FOLDERS, Json.encodeToString(value))
         }
 
+    // Diagnostics launch mode (verbose wrapper/Wine logging). Persisted so setupXEnvironment can read it via
+    // context instead of threading it as a parameter through the (very large) XServerScreen composable — adding a
+    // parameter there pushed the method past ART's bytecode-verifier limit (VerifyError on launch). See MainViewModel.
+    private val WRAPPER_DIAGNOSTICS = booleanPreferencesKey("wrapper_diagnostics")
+    var wrapperDiagnostics: Boolean
+        get() = getPref(WRAPPER_DIAGNOSTICS, false)
+        set(value) = setPref(WRAPPER_DIAGNOSTICS, value)
+
+    // Steam Controller (2026 "Triton") BLE support. OFF by default: enabling it makes every game launch connect to
+    // the controller over BLE, which is pure overhead (and a runtime BT-permission prompt) for anyone without the
+    // hardware. The settings switch requests the Bluetooth permissions before it can be turned on.
+    private val STEAM_CONTROLLER_ENABLED = booleanPreferencesKey("steam_controller_enabled")
+    var steamControllerEnabled: Boolean
+        get() = getPref(STEAM_CONTROLLER_ENABLED, false)
+        set(value) = setPref(STEAM_CONTROLLER_ENABLED, value)
+
     // Add new setting for Wine debug logging
     private val ENABLE_WINE_DEBUG = booleanPreferencesKey("enable_wine_debug")
     var enableWineDebug: Boolean
@@ -1472,6 +1528,12 @@ object PrefManager {
         get() = getPref(AUTO_APPLY_KNOWN_CONFIG, true)
         set(value) = setPref(AUTO_APPLY_KNOWN_CONFIG, value)
 
+    // Opt-in shared immutable Wine DLLs for newly created containers only.
+    private val SHARED_CONTAINER_BASE = booleanPreferencesKey("shared_container_base")
+    var sharedContainerBase: Boolean
+        get() = getPref(SHARED_CONTAINER_BASE, false)
+        set(value) = setPrefBlocking(SHARED_CONTAINER_BASE, value)
+
     // Game compatibility cache (JSON string)
     private val GAME_COMPATIBILITY_CACHE = stringPreferencesKey("game_compatibility_cache")
     var gameCompatibilityCache: String
@@ -1503,6 +1565,17 @@ object PrefManager {
         set(value) {
             setPref(GPU_GAME_STATS_CACHE, value)
         }
+
+    /* Persistent cover cache (on-device store of game cover images) */
+    private val COVER_CACHE_ENABLED = booleanPreferencesKey("cover_cache_enabled")
+    var coverCacheEnabled: Boolean
+        get() = getPref(COVER_CACHE_ENABLED, true)
+        set(value) = setPref(COVER_CACHE_ENABLED, value)
+
+    private val COVER_CACHE_MAX_MB = intPreferencesKey("cover_cache_max_mb")
+    var coverCacheMaxMb: Int
+        get() = getPref(COVER_CACHE_MAX_MB, 500)
+        set(value) = setPref(COVER_CACHE_MAX_MB, value)
 
     /* Security / Attestation */
     private val KEY_ATTESTATION_AVAILABLE = booleanPreferencesKey("key_attestation_available")

@@ -31,16 +31,19 @@ import app.gamenative.service.amazon.AmazonService
 import app.gamenative.service.epic.EpicCloudSavesManager
 import app.gamenative.service.epic.EpicService
 import app.gamenative.service.gog.GOGService
-import app.gamenative.utils.CustomGameScanner
 import app.gamenative.ui.data.MainState
 import app.gamenative.ui.enums.ConnectionState
 import app.gamenative.ui.screen.PluviaScreen
+import app.gamenative.ui.util.SnackbarManager
+import app.gamenative.utils.AndroidGameLauncher
 import app.gamenative.utils.ContainerUtils
+import app.gamenative.utils.CustomGameScanner
 import app.gamenative.utils.IntentLaunchManager
 import app.gamenative.utils.SteamUtils
 import app.gamenative.utils.UpdateInfo
 import app.gamenative.utils.WineProcessSnapshotHelper
 import com.materialkolor.PaletteStyle
+import com.winlator.container.Container
 import com.winlator.core.GPUInformation
 import com.winlator.xserver.Window
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -517,6 +520,9 @@ class MainViewModel @Inject constructor(
 
     fun setDiagnostics(value: Boolean) {
         _state.update { it.copy(diagnostics = value) }
+        // Persist so setupXEnvironment can read it directly (see PrefManager.wrapperDiagnostics) rather than the
+        // XServerScreen composable threading it as a parameter, which tripped an ART VerifyError on that huge method.
+        PrefManager.wrapperDiagnostics = value
     }
 
     fun launchApp(context: Context, appId: String) {
@@ -531,6 +537,25 @@ class MainViewModel @Inject constructor(
                         lastPlayed = System.currentTimeMillis(),
                     ),
                 )
+            }
+
+// getOrCreateContainerWithOverride also picks up a temporary per-launch config
+            // (e.g. from an external Intent launch) — falls back to the persisted container
+            // untouched when there's no override, so this is safe unconditionally.
+            val container = withContext(Dispatchers.IO) {
+                ContainerUtils.getOrCreateContainerWithOverride(context, appId)
+            }
+            if (container.platform.equals(Container.PLATFORM_ANDROID, ignoreCase = true)) {
+                // Native Android (Steam Frame / Lepton) build: no Wine container involved at all.
+                val gameId = ContainerUtils.extractGameIdFromContainerId(appId)
+                when (withContext(Dispatchers.IO) { AndroidGameLauncher.installAndLaunch(context, gameId) }) {
+                    AndroidGameLauncher.Result.InstallStarted ->
+                        SnackbarManager.show(context.getString(R.string.android_game_install_started))
+                    AndroidGameLauncher.Result.Failed ->
+                        SnackbarManager.show(context.getString(R.string.android_game_launch_failed))
+                    AndroidGameLauncher.Result.Launched -> Unit
+                }
+                return@launch
             }
 
             setShowBootingSplash(true)
@@ -631,7 +656,7 @@ class MainViewModel @Inject constructor(
     fun exitSteamApp(context: Context, appId: String, onComplete: (() -> Unit)? = null) {
         viewModelScope.launch {
             try {
-                Timber.tag("Exit").i("Exiting, getting feedback for appId: $appId")
+                Timber.tag("Exit").i("Exiting appId: $appId")
                 bootingSplashTimeoutJob?.cancel()
                 bootingSplashTimeoutJob = null
                 setShowBootingSplash(false)
@@ -676,36 +701,6 @@ class MainViewModel @Inject constructor(
                 if (hadTemporaryOverride) {
                     PluviaApp.events.emit(AndroidEvent.PromptSaveContainerConfig(appId))
                     // Dialog handler in PluviaMain manages the save/discard logic
-                }
-
-                // After app closes, check if we need to show the feedback dialog
-                // Show feedback if: first time running this game OR config was changed
-                try {
-                    // Show feedback for all stores except custom games.
-                    if (gameSource != GameSource.CUSTOM_GAME) {
-                        val container = ContainerUtils.getContainer(context, appId)
-
-                        val shown = container.getExtra("discord_support_prompt_shown", "false") == "true"
-                        val configChanged = container.getExtra("config_changed", "false") == "true"
-                        if (!shown) {
-                            container.putExtra("discord_support_prompt_shown", "true")
-                            container.saveData()
-                            _uiEvent.send(MainUiEvent.ShowGameFeedbackDialog(appId))
-                        }
-
-                        // Only show feedback if container config was changed before this game run
-                        if (configChanged) {
-                            // Clear the flag
-                            container.putExtra("config_changed", "false")
-                            container.saveData()
-                            // Show the feedback dialog
-                            _uiEvent.send(MainUiEvent.ShowGameFeedbackDialog(appId))
-                        }
-                    } else {
-                        Timber.d("Custom game detected, not showing feedback")
-                    }
-                } catch (e: Exception) {
-                    Timber.w(e, "Failed to check/update feedback dialog state for $appId")
                 }
             } finally {
                 try {

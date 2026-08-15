@@ -123,6 +123,7 @@ object ContainerStorageManager {
         val gameInstallSizeBytes: Long? = null,
         val status: Status,
         val installPath: String? = null,
+        val containerPath: String? = null,
         val canUninstallGame: Boolean = false,
         val hasContainer: Boolean = true,
     ) {
@@ -450,6 +451,12 @@ object ContainerStorageManager {
                 GameSource.CUSTOM_GAME -> Result.failure(UnsupportedOperationException("Custom games are not supported"))
             }
 
+            // Drop any cached cover for this game so the home grid and
+            // backdrops stop referencing the removed library entry.
+            runCatching {
+                app.gamenative.utils.CoverCache.evict(gameId.toString())
+            }
+
             if (result.isSuccess) {
                 Timber.tag("ContainerStorageManager").i("Uninstall game+container succeeded for %s", entry.containerId)
             } else {
@@ -674,6 +681,7 @@ object ContainerStorageManager {
                 gameInstallSizeBytes = resolveInstallSizeBytes(installedGame?.installSizeBytes),
                 status = Status.UNREADABLE,
                 installPath = installedGame?.installPath,
+                containerPath = dir.absolutePath,
                 canUninstallGame = installedGame != null && installedGame.gameSource != GameSource.CUSTOM_GAME,
                 hasContainer = true,
             )
@@ -722,6 +730,7 @@ object ContainerStorageManager {
             gameInstallSizeBytes = gameInstallSizeBytes,
             status = status,
             installPath = installPath,
+            containerPath = dir.absolutePath,
             canUninstallGame = (status == Status.READY || status == Status.GAME_FILES_MISSING) &&
                 gameSource != null && gameSource != GameSource.CUSTOM_GAME,
             hasContainer = true,

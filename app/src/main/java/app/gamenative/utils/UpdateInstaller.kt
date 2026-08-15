@@ -128,7 +128,7 @@ object UpdateInstaller {
         require(versionCode > BuildConfig.VERSION_CODE) { "Downloaded APK is not newer than current app" }
     }
 
-    private fun installApk(context: Context, apkFile: File): Boolean {
+    fun installApk(context: Context, apkFile: File): Boolean {
         return try {
             if (!apkFile.isFile) return false
             val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {

@@ -61,8 +61,8 @@ android {
         buildConfigField("boolean", "XR_BUILD", "false")
         buildConfigField("boolean", "MODERN_XR", "false")
 
-        versionCode = 22
-        versionName = "0.1.1a"
+        versionCode = 23
+        versionName = "0.2"
 
         buildConfigField("boolean", "GOLD", "false")
         fun secret(name: String) =
@@ -124,22 +124,6 @@ android {
 
     flavorDimensions += "androidApi"
     productFlavors {
-        create("legacy") {
-            dimension = "androidApi"
-            targetSdk = 28
-            ndk.abiFilters += listOf("arm64-v8a", "armeabi-v7a")
-            buildConfigField("boolean", "MODERN_ANDROID", "false")
-            buildConfigField("String", "PRELOAD_BIONIC_SO", "\"libredirect-bionic.so\"")
-        }
-        create("legacyXr") {
-            dimension = "androidApi"
-            targetSdk = 28
-            ndk.abiFilters += listOf("arm64-v8a", "armeabi-v7a")
-            buildConfigField("boolean", "MODERN_ANDROID", "false")
-            buildConfigField("String", "PRELOAD_BIONIC_SO", "\"libredirect-bionic.so\"")
-            buildConfigField("boolean", "XR_BUILD", "true")
-            manifestPlaceholders["screenOrientation"] = "landscape"
-        }
         create("modern") {
             dimension = "androidApi"
             minSdk = 29
@@ -161,6 +145,22 @@ android {
             buildConfigField("String", "PRODUCT_SKU", "\"$productSku\"")
             manifestPlaceholders["screenOrientation"] = "landscape"
         }
+        create("legacy") {
+            dimension = "androidApi"
+            targetSdk = 28
+            ndk.abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+            buildConfigField("boolean", "MODERN_ANDROID", "false")
+            buildConfigField("String", "PRELOAD_BIONIC_SO", "\"libredirect-bionic.so\"")
+        }
+        create("legacyXr") {
+            dimension = "androidApi"
+            targetSdk = 28
+            ndk.abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+            buildConfigField("boolean", "MODERN_ANDROID", "false")
+            buildConfigField("String", "PRELOAD_BIONIC_SO", "\"libredirect-bionic.so\"")
+            buildConfigField("boolean", "XR_BUILD", "true")
+            manifestPlaceholders["screenOrientation"] = "landscape"
+        }
     }
 
     buildTypes {
@@ -169,11 +169,15 @@ android {
             isMinifyEnabled = false
             isShrinkResources = false
             signingConfig = signingConfigs.getByName("debug")
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
         }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
             signingConfig = signingConfigs.getByName("debug")
+            applicationIdSuffix = ".dev"
+            versionNameSuffix = "-dev"
         }
         create("release-signed") {
             isMinifyEnabled = true

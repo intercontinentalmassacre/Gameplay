@@ -1,9 +1,7 @@
 package app.gamenative.ui.screen.library.components
 
 import android.content.res.Configuration
-import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -38,7 +36,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
@@ -209,49 +206,30 @@ internal fun LibraryListPane(
                                 key = { listIndex -> state.appInfoList[listIndex].appId },
                             ) { listIndex ->
                                 val item = state.appInfoList[listIndex]
-                                val animateFade = remember(item.index) { !listState.isScrollInProgress }
-                                var isVisible by remember(item.index) { mutableStateOf(!animateFade) }
-                                val alpha by animateFloatAsState(
-                                    targetValue = if (isVisible) 1f else 0f,
-                                    animationSpec = spring(
-                                        dampingRatio = Spring.DampingRatioNoBouncy,
-                                        stiffness = Spring.StiffnessLow,
-                                    ),
-                                    label = "fadeIn",
+
+                                val appItemModifier = if (firstGridItemFocusRequester != null &&
+                                    focusTargetListIndex != null &&
+                                    listIndex == focusTargetListIndex
+                                ) {
+                                    Modifier.focusRequester(firstGridItemFocusRequester)
+                                } else {
+                                    Modifier
+                                }
+
+                                AppItem(
+                                    modifier = appItemModifier,
+                                    appInfo = item,
+                                    onClick = { onNavigate(item.appId) },
+                                    paneType = currentLayout,
+                                    onFocus = {
+                                        targetOfScroll = item.index
+                                        onFocusedIndexChanged(listIndex)
+                                    },
+                                    imageRefreshCounter = state.imageRefreshCounter,
+                                    compatibilityStatus = state.compatibilityMap[item.name],
+                                    gameStats = state.statsFor(item),
+                                    installProgress = state.installProgress[item.appId],
                                 )
-
-                                if (animateFade) {
-                                    LaunchedEffect(item.index) {
-                                        delay((item.index % 8) * 30L)
-                                        isVisible = true
-                                    }
-                                }
-
-                                Box(modifier = Modifier.graphicsLayer { this.alpha = alpha }) {
-                                    val appItemModifier = if (firstGridItemFocusRequester != null &&
-                                        focusTargetListIndex != null &&
-                                        listIndex == focusTargetListIndex
-                                    ) {
-                                        Modifier.focusRequester(firstGridItemFocusRequester)
-                                    } else {
-                                        Modifier
-                                    }
-
-                                    AppItem(
-                                        modifier = appItemModifier,
-                                        appInfo = item,
-                                        onClick = { onNavigate(item.appId) },
-                                        paneType = currentLayout,
-                                        onFocus = {
-                                            targetOfScroll = item.index
-                                            onFocusedIndexChanged(listIndex)
-                                        },
-                                        imageRefreshCounter = state.imageRefreshCounter,
-                                        compatibilityStatus = state.compatibilityMap[item.name],
-                                        gameStats = state.statsFor(item),
-                                        installProgress = state.installProgress[item.appId],
-                                    )
-                                }
                             }
                             if (state.appInfoList.size < state.totalAppsInFilter) {
                                 item {

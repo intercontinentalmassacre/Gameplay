@@ -30,6 +30,10 @@ data class ContainerData(
     val executablePath: String = "",
     val installPath: String = "",
     val showFPS: Boolean = false,
+    /** Vibration target: "off", "controller", "device" **/
+    val vibrationMode: String = "controller",
+    /** Vibration intensity percentage (0-100) **/
+    val vibrationIntensity: Int = 100,
     val launchRealSteam: Boolean = false,
     val launchBionicSteam: Boolean = false,
     val allowSteamUpdates: Boolean = false,
@@ -45,6 +49,8 @@ data class ContainerData(
     val desktopTheme: String = WineThemeManager.DEFAULT_DESKTOP_THEME,
     // container runtime variant (glibc or bionic)
     val containerVariant: String = Container.DEFAULT_VARIANT,
+    // which Steam depot platform to download/install (windows or android)
+    val platform: String = Container.PLATFORM_WINDOWS,
     // wine version identifier (used for bionic variant), defaults to main wine
     val wineVersion: String = WineInfo.MAIN_WINE_VERSION.identifier(),
     // selected 32-bit emulator for WoW64 processes (FEXCore/Box64)
@@ -111,6 +117,8 @@ data class ContainerData(
     val explicitScreenSizeOverride: Boolean = false,
 ) {
     companion object {
+        private val VALID_RESTORED_VIBRATION_MODES = setOf("off", "controller", "device")
+
         val Saver = mapSaver(
             save = { state ->
                 mapOf(
@@ -133,6 +141,8 @@ data class ContainerData(
                     "executablePath" to state.executablePath,
                     "installPath" to state.installPath,
                     "showFPS" to state.showFPS,
+                    "vibrationMode" to state.vibrationMode,
+                    "vibrationIntensity" to state.vibrationIntensity,
                     "launchRealSteam" to state.launchRealSteam,
                     "launchBionicSteam" to state.launchBionicSteam,
                     "allowSteamUpdates" to state.allowSteamUpdates,
@@ -147,6 +157,7 @@ data class ContainerData(
                     "box64Preset" to state.box64Preset,
                     "desktopTheme" to state.desktopTheme,
                     "containerVariant" to state.containerVariant,
+                    "platform" to state.platform,
                     "wineVersion" to state.wineVersion,
                     "emulator" to state.emulator,
                     "fexcoreVersion" to state.fexcoreVersion,
@@ -203,6 +214,11 @@ data class ContainerData(
                     executablePath = savedMap["executablePath"] as String,
                     installPath = savedMap["installPath"] as String,
                     showFPS = savedMap["showFPS"] as Boolean,
+                    vibrationMode = (savedMap["vibrationMode"] as? String)
+                        ?.trim()?.lowercase()
+                        ?.takeIf { it in VALID_RESTORED_VIBRATION_MODES }
+                        ?: "controller",
+                    vibrationIntensity = ((savedMap["vibrationIntensity"] as? Int) ?: 100).coerceIn(0, 100),
                     launchRealSteam = savedMap["launchRealSteam"] as Boolean,
                     launchBionicSteam = (savedMap["launchBionicSteam"] as? Boolean) ?: false,
                     allowSteamUpdates = savedMap["allowSteamUpdates"] as Boolean,
@@ -217,6 +233,7 @@ data class ContainerData(
                     box64Preset = savedMap["box64Preset"] as String,
                     desktopTheme = savedMap["desktopTheme"] as String,
                     containerVariant = (savedMap["containerVariant"] as? String) ?: Container.DEFAULT_VARIANT,
+                    platform = (savedMap["platform"] as? String) ?: Container.PLATFORM_WINDOWS,
                     wineVersion = (savedMap["wineVersion"] as? String) ?: WineInfo.MAIN_WINE_VERSION.identifier(),
                     emulator = (savedMap["emulator"] as? String) ?: Container.DEFAULT_EMULATOR,
                     fexcoreVersion = (savedMap["fexcoreVersion"] as? String) ?: DefaultVersion.FEXCORE,

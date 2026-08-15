@@ -109,7 +109,12 @@ object DXWrapperDownloader {
      */
     private fun loadDXWrapperManifest(context: Context): DXWrapperManifest {
         return try {
-            val manifestJson = context.assets.open(DXWRAPPER_MANIFEST_FILE).bufferedReader().use { it.readText() }
+            val manifestJson = context.assets
+                .open(DXWRAPPER_MANIFEST_FILE)
+                .bufferedReader()
+                .use { it.readText() }
+                .removePrefix("\uFEFF")
+                .trimStart()
             json.decodeFromString<DXWrapperManifest>(manifestJson)
         } catch (e: Exception) {
             Timber.e(e, "Failed to load $DXWRAPPER_MANIFEST_FILE")

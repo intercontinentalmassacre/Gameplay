@@ -8,6 +8,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -36,13 +37,18 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.filled.Archive
+import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.ButtonDefaults
 import app.gamenative.ui.component.FilledTonalButton
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -90,6 +96,8 @@ import app.gamenative.data.LibraryItem
 import app.gamenative.ui.component.DualScreenAmbientStage
 import app.gamenative.ui.component.dialog.MessageDialog
 import app.gamenative.ui.component.focusRing
+import app.gamenative.ui.data.ContainerFileItemState
+import app.gamenative.ui.data.ContainerFileStatus
 import app.gamenative.ui.data.DownloadItemState
 import app.gamenative.ui.data.DownloadItemStatus
 import app.gamenative.ui.data.DownloadsState
@@ -117,6 +125,10 @@ private enum class DownloadsSection(
     Downloads(
         titleResId = R.string.downloads_section_title,
         icon = Icons.Default.Download,
+    ),
+    Containers(
+        titleResId = R.string.downloads_containers_section_title,
+        icon = Icons.Default.Archive,
     ),
     Storage(
         titleResId = R.string.settings_storage_manage_title,
@@ -273,6 +285,19 @@ fun HomeDownloadsScreen(
                                 .padding(20.dp),
                         )
 
+                        DownloadsSection.Containers -> ContainerFilesContent(
+                            state = state,
+                            onDownload = viewModel::onDownloadContainer,
+                            onPause = viewModel::onPauseContainer,
+                            onResume = viewModel::onResumeContainer,
+                            onRemove = viewModel::onRemoveContainer,
+                            onToggleSelection = viewModel::onToggleContainerSelection,
+                            onPrefetchSelected = viewModel::onPrefetchSelectedContainers,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(20.dp),
+                        )
+
                         DownloadsSection.Storage -> ContainerStorageManagerContent(
                             state = storageManagerState,
                             onOpenGame = { gameSource, appId, name, iconUrl ->
@@ -337,6 +362,23 @@ fun HomeDownloadsScreen(
         onConfirmClick = { viewModel.onConfirmCancel() },
         onDismissClick = { viewModel.onDismissCancel() },
         onDismissRequest = { viewModel.onDismissCancel() },
+    )
+
+    val containerClearConfirmation = state.containerClearConfirmation
+    MessageDialog(
+        visible = containerClearConfirmation != null,
+        title = stringResource(R.string.downloads_containers_clear_confirm_title),
+        message = containerClearConfirmation?.let {
+            stringResource(
+                R.string.downloads_containers_clear_confirm_message,
+                Formatter.formatFileSize(LocalContext.current, it.totalSizeBytes),
+            )
+        },
+        confirmBtnText = stringResource(R.string.downloads_containers_clear_all),
+        dismissBtnText = stringResource(R.string.cancel),
+        onConfirmClick = { viewModel.onConfirmClearAllContainers() },
+        onDismissClick = { viewModel.onDismissClearAllContainers() },
+        onDismissRequest = { viewModel.onDismissClearAllContainers() },
     )
 
     ContainerStorageManagerTransientUi(storageManagerState)
@@ -782,6 +824,398 @@ private fun DownloadsContent(
             }
         }
     }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ContainerFilesContent(
+    state: DownloadsState,
+    onDownload: (String) -> Unit,
+    onPause: (String) -> Unit,
+    onResume: (String) -> Unit,
+    onRemove: (String) -> Unit,
+    onToggleSelection: (String) -> Unit,
+    onPrefetchSelected: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+    var collapsedCategories by rememberSaveable { mutableStateOf(emptyList<String>()) }
+    val items = remember(state.containers) {
+        state.containers.values.sortedWith(compareBy({ it.presentationCategory }, { it.displayName ?: it.componentId }))
+    }
+    val readyCount = items.count { it.isReady }
+    val activeCount = items.count { it.isActive }
+    val selectedCount = items.count { it.selected }
+    val selectedDownloadCount = items.count { it.selected && it.canDownload }
+    val totalBytes = remember(items) {
+        items.sumOf { it.bytesDownloaded ?: 0L }
+    }
+
+    Column(modifier = modifier.fillMaxSize()) {
+        Text(
+            text = stringResource(R.string.downloads_containers_subtitle),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        if (items.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                text = stringResource(
+                    R.string.downloads_containers_total_size,
+                    Formatter.formatFileSize(context, totalBytes),
+                    readyCount,
+                    items.size,
+                ),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = stringResource(
+                    R.string.downloads_containers_selection_summary,
+                    selectedCount,
+                    items.size,
+                    activeCount,
+                ),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+
+        if (items.isEmpty()) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center,
+            ) {
+                GcdsEmptyState(
+                    icon = Icons.Default.Archive,
+                    title = stringResource(R.string.downloads_containers_empty),
+                    description = stringResource(R.string.downloads_containers_legacy_unavailable),
+                )
+            }
+        } else {
+            val groups = remember(items) {
+                items.groupBy { it.presentationCategory }.toList()
+            }
+            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    contentPadding = PaddingValues(bottom = if (selectedDownloadCount > 0) 88.dp else 24.dp),
+                ) {
+                    groups.forEach { (category, group) ->
+                        val expanded = category !in collapsedCategories
+                        item(key = "category-$category") {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 4.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable {
+                                            collapsedCategories = if (expanded) {
+                                                collapsedCategories + category
+                                            } else {
+                                                collapsedCategories - category
+                                            }
+                                        }
+                                        .focusable(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                )
+                                {
+                                    Icon(
+                                        imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                    )
+                                    Text(
+                                        text = categoryTitle(category),
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.SemiBold,
+                                        modifier = Modifier.padding(start = 4.dp),
+                                    )
+                                }
+                                Text(
+                                    text = group.size.toString(),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                        if (expanded) {
+                            items(items = group, key = { it.uniqueId }) { item ->
+                                ContainerFileCard(
+                                    item = item,
+                                    onToggleSelection = { onToggleSelection(item.uniqueId) },
+                                    onDownload = { onDownload(item.uniqueId) },
+                                    onPause = { onPause(item.uniqueId) },
+                                    onResume = { onResume(item.uniqueId) },
+                                    onRemove = { onRemove(item.uniqueId) },
+                                )
+                            }
+                        }
+                    }
+                }
+                if (selectedDownloadCount > 0) {
+                    Surface(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth()
+                            .padding(8.dp),
+                        color = MaterialTheme.colorScheme.secondaryContainer,
+                        shape = RoundedCornerShape(12.dp),
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                        ) {
+                            Text(
+                                text = stringResource(
+                                    R.string.downloads_containers_selected_action,
+                                    selectedDownloadCount,
+                                ),
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            )
+                            DownloadsToolbarButton(
+                                text = stringResource(R.string.downloads_containers_prefetch_selected),
+                                icon = Icons.Default.CloudDownload,
+                                onClick = onPrefetchSelected,
+                                enabled = true,
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun categoryTitle(category: String): String = stringResource(
+    when (category) {
+        "container" -> R.string.downloads_containers_category_patterns
+        "proton", "wine" -> R.string.downloads_containers_category_proton
+        "dxvk" -> R.string.downloads_containers_category_dxvk
+        "vkd3d" -> R.string.downloads_containers_category_vkd3d
+        "box64", "wowbox64" -> R.string.downloads_containers_category_box64
+        "fexcore" -> R.string.downloads_containers_category_fexcore
+        else -> R.string.downloads_containers_category_other
+    },
+)
+
+@Composable
+private fun ContainerFileCard(
+    item: ContainerFileItemState,
+    onToggleSelection: () -> Unit,
+    onDownload: () -> Unit,
+    onPause: () -> Unit,
+    onResume: () -> Unit,
+    onRemove: () -> Unit,
+) {
+    val context = LocalContext.current
+    val progressColor = when (item.status) {
+        ContainerFileStatus.READY -> PluviaTheme.colors.accentSuccess
+        ContainerFileStatus.DOWNLOADING -> PluviaTheme.colors.statusDownloading
+        ContainerFileStatus.PAUSED,
+        ContainerFileStatus.FAILED,
+        -> PluviaTheme.colors.accentWarning
+        ContainerFileStatus.NOT_DOWNLOADED -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    val statusText = when (item.status) {
+        ContainerFileStatus.READY -> stringResource(R.string.downloads_containers_status_ready)
+        ContainerFileStatus.DOWNLOADING -> stringResource(R.string.downloads_containers_status_downloading)
+        ContainerFileStatus.PAUSED -> stringResource(R.string.downloads_containers_status_paused)
+        ContainerFileStatus.FAILED -> stringResource(R.string.downloads_containers_status_failed)
+        ContainerFileStatus.NOT_DOWNLOADED -> stringResource(R.string.downloads_containers_status_not_downloaded)
+    }
+    val sizeText = item.bytesDownloaded?.takeIf { it > 0L }?.let {
+        Formatter.formatFileSize(context, it)
+    } ?: item.expectedSizeBytes?.takeIf { it > 0L }?.let {
+        Formatter.formatFileSize(context, it)
+    } ?: stringResource(R.string.downloads_containers_size_unknown)
+    val itemName = item.displayName ?: stringResource(item.nameResId)
+    val itemDescription = item.displayDescription ?: stringResource(item.descriptionResId)
+
+    GcdsCard(
+        modifier = Modifier.fillMaxWidth(),
+        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.Top,
+        ) {
+            Checkbox(
+                    checked = item.selected,
+                    enabled = item.selectable,
+                    onCheckedChange = { onToggleSelection() },
+                modifier = Modifier.padding(top = 12.dp, start = 8.dp),
+            )
+            Column(modifier = Modifier.weight(1f).padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = itemName,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = itemDescription,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    text = sizeText,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = progressColor,
+                )
+            }
+
+            item.progress?.let { progress ->
+                Spacer(modifier = Modifier.height(12.dp))
+                GcdsProgressBar(progress = progress, color = progressColor)
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                MetadataChip(
+                    text = statusText,
+                    containerColor = statusContainerColor(item.status),
+                    contentColor = statusContentColor(item.status),
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    when {
+                        item.canPause -> ContainerFileActionButton(
+                            imageVector = Icons.Default.Pause,
+                            contentDescription = stringResource(R.string.downloads_containers_action_pause),
+                            onClick = onPause,
+                        )
+                        item.canResume -> ContainerFileActionButton(
+                            imageVector = Icons.Default.PlayArrow,
+                            contentDescription = stringResource(R.string.downloads_containers_action_resume),
+                            onClick = onResume,
+                        )
+                        item.canDownload -> ContainerFileActionButton(
+                            imageVector = Icons.Default.CloudDownload,
+                            contentDescription = stringResource(R.string.downloads_containers_action_download),
+                            onClick = onDownload,
+                        )
+                    }
+                    if (item.canRemove) {
+                        ContainerFileActionButton(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = stringResource(R.string.downloads_containers_action_remove),
+                            onClick = onRemove,
+                        )
+                    }
+                }
+            }
+            item.statusMessage?.takeIf { it != statusText }?.let { detail ->
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = detail,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ContainerFileActionButton(
+    imageVector: ImageVector,
+    contentDescription: String,
+    onClick: () -> Unit,
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isFocused by interactionSource.collectIsFocusedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (isFocused) 1.04f else 1f,
+        animationSpec = motionSpec(tween(PluviaTheme.tokens.motionFastMs)),
+        label = "containerFileActionButtonScale",
+    )
+    val accentColor = PluviaTheme.colors.accentPurple
+
+    Box(
+        modifier = Modifier
+            .scale(scale)
+            .size(40.dp)
+            .clip(CircleShape)
+            .background(
+                if (isFocused) accentColor.copy(alpha = 0.18f)
+                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+            )
+            .border(
+                width = if (isFocused) 2.dp else 1.dp,
+                color = if (isFocused) accentColor.copy(alpha = 0.65f)
+                else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f),
+                shape = CircleShape,
+            )
+            .selectable(
+                selected = isFocused,
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick,
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = imageVector,
+            contentDescription = contentDescription,
+            tint = if (isFocused) accentColor else MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(20.dp),
+        )
+    }
+}
+
+@Composable
+private fun statusContainerColor(status: ContainerFileStatus): Color = when (status) {
+    ContainerFileStatus.READY -> MaterialTheme.colorScheme.tertiaryContainer
+    ContainerFileStatus.DOWNLOADING -> MaterialTheme.colorScheme.primaryContainer
+    ContainerFileStatus.PAUSED,
+    ContainerFileStatus.FAILED,
+    -> MaterialTheme.colorScheme.secondaryContainer
+    ContainerFileStatus.NOT_DOWNLOADED -> MaterialTheme.colorScheme.surfaceVariant
+}
+
+@Composable
+private fun statusContentColor(status: ContainerFileStatus): Color = when (status) {
+    ContainerFileStatus.READY -> MaterialTheme.colorScheme.onTertiaryContainer
+    ContainerFileStatus.DOWNLOADING -> MaterialTheme.colorScheme.onPrimaryContainer
+    ContainerFileStatus.PAUSED,
+    ContainerFileStatus.FAILED,
+    -> MaterialTheme.colorScheme.onSecondaryContainer
+    ContainerFileStatus.NOT_DOWNLOADED -> MaterialTheme.colorScheme.onSurfaceVariant
 }
 
 @Composable

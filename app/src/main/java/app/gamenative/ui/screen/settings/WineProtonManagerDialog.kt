@@ -293,27 +293,6 @@ fun WineProtonManagerDialog(open: Boolean, onDismiss: () -> Unit) {
             // Detect binary variant (glibc vs bionic)
             // Note: Files are still in tmp directory at this point, not yet moved to install location
             val tmpDir = ContentsManager.getTmpDir(ctx)
-            val binaryVariant = detectBinaryVariant(tmpDir)
-
-            if (binaryVariant == "glibc") {
-                // Reject glibc builds - not supported in GameNative
-                statusMessage = ctx.getString(R.string.wine_proton_glibc_incompatible)
-                isStatusSuccess = false
-
-                // Clean up the extracted files from tmp directory
-                try {
-                    withContext(Dispatchers.IO) {
-                        ContentsManager.cleanTmpDir(ctx)
-                    }
-                } catch (e: Exception) {
-                    Timber.tag("WineProtonManagerDialog").e(e, "Error cleaning tmp dir")
-                }
-
-                SnackbarManager.show(statusMessage ?: "")
-                isBusy = false
-                SteamService.isImporting = false
-                return@launch
-            }
 
             pendingProfile = profile
             // Compute untrusted files and show confirmation if any
@@ -477,23 +456,6 @@ fun WineProtonManagerDialog(open: Boolean, onDismiss: () -> Unit) {
                 // Detect binary variant
                 // Note: Files are still in tmp directory at this point, not yet moved to install location
                 val tmpDir = ContentsManager.getTmpDir(ctx)
-                val binaryVariant = detectBinaryVariant(tmpDir)
-
-                //! We currently are not supporting GLIBC but we will in future.
-                if (binaryVariant == "glibc") {
-                    val errorMsg = ctx.getString(R.string.wine_proton_glibc_incompatible)
-                    withContext(Dispatchers.Main) {
-                        statusMessage = errorMsg
-                        isStatusSuccess = false
-                        SnackbarManager.show(errorMsg)
-                    }
-                    try {
-                        ContentsManager.cleanTmpDir(ctx)
-                    } catch (e: Exception) {
-                        Timber.e(e, "Failed to clean tmp dir")
-                    }
-                    return@launch
-                }
 
                 // Check for untrusted files
                 val files = withContext(Dispatchers.IO) { mgr.getUnTrustedContentFiles(profile) }

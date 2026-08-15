@@ -79,6 +79,7 @@ app/src/main/cpp/third_party/SDL2/
 docs/
 *.md
 !README.md
+!FRAME_GENERATION_BACKEND_PLAN.md
 !LICENSE
 !LICENSE.*
 !LICENCE
@@ -89,3 +90,4 @@ docs/
 
 # Native component checksums (machine-generated)
 docs/baseline/native-so-sha256.txt
+FRAME_GENERATION_BACKEND_PLAN.md

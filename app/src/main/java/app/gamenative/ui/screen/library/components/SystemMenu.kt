@@ -84,6 +84,8 @@ import app.gamenative.R
 import app.gamenative.data.SteamFriend
 import app.gamenative.events.SteamEvent
 import app.gamenative.service.SteamService
+import app.gamenative.service.epic.EpicAuthManager
+import app.gamenative.service.gog.GOGAuthManager
 import app.gamenative.ui.component.focusRing
 import app.gamenative.ui.gcds.GcdsCard
 import app.gamenative.ui.gcds.GcdsSystemMenu
@@ -833,13 +835,22 @@ fun DualSystemMenu(
     onAmazonLogoutClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
     var persona by remember { mutableStateOf<SteamFriend?>(null) }
+    var gogAccountName by remember { mutableStateOf<String?>(null) }
+    var epicAccountName by remember { mutableStateOf<String?>(null) }
     val initialFocusRequester = remember { FocusRequester() }
     val windowInfo = LocalWindowInfo.current
 
     LaunchedEffect(Unit) {
         persona = SteamService.instance?.localPersona?.value
+        if (gogLoggedIn) {
+            gogAccountName = GOGAuthManager.getStoredCredentials(context).getOrNull()?.username
+        }
+        if (epicLoggedIn) {
+            epicAccountName = EpicAuthManager.getStoredCredentials(context).getOrNull()?.displayName
+        }
         SteamService.userSteamId?.let { SteamService.requestUserPersona() }
         withTimeoutOrNull(2_000) {
             snapshotFlow { windowInfo.isWindowFocused }
@@ -1044,12 +1055,14 @@ fun DualSystemMenu(
                     SystemHubServiceRow(
                         serviceName = "GOG",
                         connected = gogLoggedIn,
+                        accountName = gogAccountName,
                         onClick = if (gogLoggedIn) onGogLogoutClick else onGogLoginClick,
                     )
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.28f))
                     SystemHubServiceRow(
                         serviceName = "Epic Games",
                         connected = epicLoggedIn,
+                        accountName = epicAccountName,
                         onClick = if (epicLoggedIn) onEpicLogoutClick else onEpicLoginClick,
                     )
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.28f))
@@ -1070,13 +1083,17 @@ fun DualSystemMenu(
 private fun SystemHubServiceRow(
     serviceName: String,
     connected: Boolean,
+    accountName: String? = null,
     onClick: () -> Unit,
 ) {
     SystemHubRow(
         title = serviceName,
-        subtitle = stringResource(
-            if (connected) R.string.system_hub_connected else R.string.system_hub_not_connected,
-        ),
+        subtitle = when {
+            connected && !accountName.isNullOrBlank() ->
+                stringResource(R.string.system_hub_connected_as, accountName)
+            connected -> stringResource(R.string.system_hub_connected)
+            else -> stringResource(R.string.system_hub_not_connected)
+        },
         icon = if (connected) Icons.AutoMirrored.Filled.Logout else Icons.AutoMirrored.Filled.Login,
         onClick = onClick,
         destructive = connected,
@@ -1100,7 +1117,7 @@ private fun SystemHubRow(
         focused -> MaterialTheme.colorScheme.onPrimaryContainer
         else -> MaterialTheme.colorScheme.onSurface
     }
-    val shape = RoundedCornerShape(PluviaTheme.tokens.cornerMd)
+    val shape = RoundedCornerShape(0.dp)
 
     Row(
         modifier = modifier

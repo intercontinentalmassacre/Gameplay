@@ -922,7 +922,7 @@ internal fun prepareCommunityConfigForApply(
 
 internal fun isValidCommunityConfig(
     config: JsonObject,
-    allowGlibc: Boolean = !BuildConfig.MODERN_ANDROID,
+    allowGlibc: Boolean = true,
 ): Boolean {
     fun value(key: String) = (config[key] as? JsonPrimitive)?.contentOrNull?.trim().orEmpty()
 

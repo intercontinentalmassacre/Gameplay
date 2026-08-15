@@ -21,6 +21,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.text.KeyboardOptions
@@ -42,6 +44,7 @@ import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import app.gamenative.ui.component.NoExtractOutlinedTextField
+import app.gamenative.ui.component.ConsoleDialogButton
 import app.gamenative.ui.component.ConsoleIconButton
 import app.gamenative.ui.component.SettingsSearchToggle
 import androidx.activity.compose.BackHandler
@@ -51,7 +54,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -98,9 +100,7 @@ import app.gamenative.ui.component.settings.SettingsListDropdown
 import app.gamenative.ui.components.rememberCustomGameFolderPicker
 import app.gamenative.ui.components.requestPermissionsForPath
 import app.gamenative.ui.theme.PluviaTheme
-import app.gamenative.ui.component.ConsoleCategoryRail
 import app.gamenative.ui.gcds.GcdsRail
-import app.gamenative.ui.component.ConsoleCategoryStrip
 import app.gamenative.ui.gcds.GcdsStrip
 import app.gamenative.ui.component.GamepadHint
 import app.gamenative.ui.component.GamepadButton
@@ -248,13 +248,6 @@ private fun rememberContainerConfigDialogStaticData(): ContainerConfigDialogStat
     val sharpnessEffects = stringArrayResource(R.array.vkbasalt_sharpness_entries).toList()
     val sharpnessEffectLabels = stringArrayResource(R.array.vkbasalt_sharpness_labels).toList()
     val containerVariants = stringArrayResource(R.array.container_variant_entries).toList()
-        .let { variants ->
-            if (BuildConfig.MODERN_ANDROID) {
-                variants.filterNot { it.equals(Container.GLIBC, ignoreCase = true) }
-            } else {
-                variants
-            }
-        }
 
     val physicalSize = PluviaApp.getPhysicalDisplaySize()
     val displayMetrics = context.resources.displayMetrics
@@ -344,6 +337,7 @@ fun ContainerConfigDialog(
     default: Boolean = false,
     title: String,
     initialConfig: ContainerData = ContainerData(),
+    hasAndroidVersion: Boolean = false,
     onDismissRequest: () -> Unit,
     onSave: (ContainerData) -> Unit,
     mediaHeroUrl: String? = null,
@@ -358,6 +352,9 @@ fun ContainerConfigDialog(
     if (visible) {
         val hasExternalDisplay = rememberHasExternalDisplay()
         val alreadyOnSecondScreen = LocalSecondScreenDialogWindowType.current != null
+        // Route from the main display to the lower display. When already inside
+        // the Presentation, keep the dialog in that window instead of publishing
+        // a second full-screen settings workspace.
         if (!embedded && hasExternalDisplay && !alreadyOnSecondScreen) {
             val secondScreenContent: @Composable () -> Unit = {
                 ContainerConfigDialog(
@@ -374,7 +371,7 @@ fun ContainerConfigDialog(
                     mediaIconUrl = mediaIconUrl,
                     gameId = gameId,
                     appId = appId,
-                    embedded = true,
+                    embedded = false,
                 )
             }
             SideEffect {
@@ -488,6 +485,7 @@ fun ContainerConfigDialog(
         val installedLists = availability?.installed
 
         val isBionicVariant = config.containerVariant.equals(Container.BIONIC, ignoreCase = true)
+        val isAndroidPlatform = config.platform.equals(Container.PLATFORM_ANDROID, ignoreCase = true)
         val manifestDownloadMessage = if (manifestDownloadLabel.isNotEmpty()) {
             stringResource(R.string.manifest_downloading_item, manifestDownloadLabel)
         } else {
@@ -1291,6 +1289,8 @@ fun ContainerConfigDialog(
             gpuExtensions = gpuExtensions,
             inspectionMode = inspectionMode,
             isBionicVariant = isBionicVariant,
+            isAndroidPlatform = isAndroidPlatform,
+            hasAndroidVersion = hasAndroidVersion,
             nonDeletableDriveLetters = nonDeletableDriveLetters,
             availableDriveLetters = availableDriveLetters,
             launchManifestInstall = { entry, label, isDriver, expectedType, onInstalled ->
@@ -1332,14 +1332,25 @@ fun ContainerConfigDialog(
             onConfirmClick = onDismissRequest,
         )
 
+        val useTabStrip = embedded || LocalSecondScreenDialogWindowType.current != null ||
+            LocalConfiguration.current.orientation != Configuration.ORIENTATION_LANDSCAPE
+
         val configurationContent: @Composable () -> Unit = {
-                val scrollState = rememberScrollState()
                 var selectedTab by rememberSaveable { mutableIntStateOf(0) }
+                // Each tab owns its own scroll position; sharing one state left
+                // users mid-content after switching tabs.
+                val scrollState = remember(selectedTab) { ScrollState(0) }
                 var searchActive by rememberSaveable { mutableStateOf(false) }
-                var searchQuery by rememberSaveable { mutableStateOf("") }
+                 var searchQuery by rememberSaveable { mutableStateOf("") }
                 val closeSearch: () -> Unit = {
                     searchActive = false
                     searchQuery = ""
+                }
+                 // Lowest-priority back: close the dialog through the unsaved-changes
+                 // gate. Higher-priority BackHandlers (search, confirm overlay)
+                // are registered later and win when enabled.
+                 BackHandler(enabled = !searchActive && !dismissDialogState.visible) {
+                    onDismissCheck()
                 }
                 BackHandler(enabled = searchActive, onBack = closeSearch)
                 val tabs = listOf(
@@ -1372,12 +1383,33 @@ fun ContainerConfigDialog(
                     matchesContainerConfigTab(tabs[index], tabKeywords[index], searchQuery)
                 }
                 val visibleTabIndices = filteredTabIndices.ifEmpty { tabs.indices.toList() }
-                LaunchedEffect(visibleTabIndices) {
-                    if (selectedTab !in visibleTabIndices) selectedTab = visibleTabIndices.first()
+                val firstVisibleTab = visibleTabIndices.firstOrNull()
+                LaunchedEffect(searchQuery, visibleTabIndices.size, firstVisibleTab) {
+                    if (firstVisibleTab != null && selectedTab !in visibleTabIndices) {
+                        selectedTab = firstVisibleTab
+                    }
                 }
 
                 Scaffold(
-                    modifier = Modifier.fillMaxSize(),
+                     // Shoulder-button tab cycling lives on the whole dialog so it
+                     // fires no matter where focus sits (top bar, category nav, content).
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .onPreviewKeyEvent { event ->
+                            if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                            val currentIndex = visibleTabIndices.indexOf(selectedTab).coerceAtLeast(0)
+                            when (event.key) {
+                                Key.ButtonR1, Key.ButtonR2 -> {
+                                    selectedTab = visibleTabIndices[(currentIndex + 1) % visibleTabIndices.size]
+                                    true
+                                }
+                                Key.ButtonL1, Key.ButtonL2 -> {
+                                    selectedTab = visibleTabIndices[(currentIndex - 1 + visibleTabIndices.size) % visibleTabIndices.size]
+                                    true
+                                }
+                                else -> false
+                            }
+                        },
                     topBar = {
                         CenterAlignedTopAppBar(
                             title = {
@@ -1415,11 +1447,8 @@ fun ContainerConfigDialog(
                     // Let controller shoulder buttons cycle through the tabs: R1/R2
                     // forward, L1/L2 back (both wrap). The handler lives on the content
                     // container (not a focusable wrapper, which would break up/down
-                    // traversal), so it fires whenever focus is anywhere in the tabs or
-                    // content below.
-                    val isCompactWidth = LocalConfiguration.current.screenWidthDp < 600
-                    val categoryRailWidth = if (isCompactWidth) 156.dp else 228.dp
-
+                     // traversal), so it fires whenever focus is anywhere in the tabs or
+                     // content below. Category navigation stays visible in every layout.
                     @Composable
                     fun tabContent() {
                         if (searchQuery.isNotBlank() && filteredTabIndices.isEmpty()) {
@@ -1453,22 +1482,7 @@ fun ContainerConfigDialog(
                         }
                     }
 
-                    val layoutModifier = Modifier
-                        .onPreviewKeyEvent { event ->
-                            if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-                            val currentIndex = visibleTabIndices.indexOf(selectedTab).coerceAtLeast(0)
-                            when (event.key) {
-                                Key.ButtonR1, Key.ButtonR2 -> {
-                                    selectedTab = visibleTabIndices[(currentIndex + 1) % visibleTabIndices.size]
-                                    true
-                                }
-                                Key.ButtonL1, Key.ButtonL2 -> {
-                                    selectedTab = visibleTabIndices[(currentIndex - 1 + visibleTabIndices.size) % visibleTabIndices.size]
-                                    true
-                                }
-                                else -> false
-                            }
-                        }
+                    val contentModifier = Modifier
                         .padding(
                             top = paddingValues.calculateTopPadding(),
                             bottom = 32.dp + paddingValues.calculateBottomPadding(),
@@ -1477,62 +1491,83 @@ fun ContainerConfigDialog(
                         )
                         .fillMaxSize()
 
-                    if (isCompactWidth) {
-                        // Dual-screen lower display / narrow portrait: categories move to a
-                        // horizontal strip on top, content takes the full width below.
-                        Column(modifier = layoutModifier) {
+                    // Highest-priority back: the unsaved-changes confirm overlay
+                    // closes back to the editor (keep editing), never discards.
+                    BackHandler(enabled = dismissDialogState.visible) {
+                        dismissDialogState = MessageDialogState(visible = false)
+                    }
+
+                     if (useTabStrip) {
+                         // Dual-screen and portrait layouts keep category navigation
+                         // visible above content. No hidden drawer or burger action.
+                         Column(
+                             modifier = Modifier
+                                 .fillMaxSize()
+                                .padding(top = paddingValues.calculateTopPadding()),
+                        ) {
                             GcdsStrip(
                                 items = visibleTabIndices,
                                 selectedItem = selectedTab,
                                 label = { tabs[it] },
                                 onSelected = { selectedTab = it },
-                                requestInitialFocus = true,
                                 modifier = Modifier.fillMaxWidth(),
                             )
                             Column(
                                 modifier = Modifier
-                                    .padding(horizontal = 12.dp)
-                                    .verticalScroll(scrollState)
-                                    .weight(1f),
+                                    .weight(1f)
+                                    .padding(
+                                        bottom = 32.dp + paddingValues.calculateBottomPadding(),
+                                        start = paddingValues.calculateStartPadding(LayoutDirection.Ltr),
+                                        end = paddingValues.calculateEndPadding(LayoutDirection.Ltr),
+                                    ),
                             ) {
-                                tabContent()
-                            }
-                        }
-                    } else {
-                    Row(
-                        modifier = layoutModifier,
-                    ) {
-                        GcdsRail(
-                            items = visibleTabIndices,
-                            selectedItem = selectedTab,
-                            label = { tabs[it] },
-                            onSelected = { selectedTab = it },
-                            footer = stringResource(R.string.container_config_console_controls_hint),
-                    footerHints = listOf(
-                        GamepadHint(listOf(GamepadButton.LB, GamepadButton.RB), R.string.hint_categories),
-                        GamepadHint(GamepadButton.A, R.string.action_select),
-                        GamepadHint(GamepadButton.B, R.string.back),
-                    ),
-                            requestInitialFocus = true,
-                            modifier = Modifier
-                                .width(categoryRailWidth)
-                                .fillMaxSize(),
-                        )
-                        Column(
-                            modifier = Modifier
-                                .padding(horizontal = 22.dp)
-                                .verticalScroll(scrollState)
-                                .weight(1f),
-                        ) {
-                            tabContent()
-                        }
-                    }
-                    }
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(horizontal = 22.dp)
+                                        .verticalScroll(scrollState),
+                                ) {
+                                    tabContent()
+                                 }
+                             }
+                         }
+                     } else {
+                         // Landscape single-screen layout keeps the rail visible
+                         // beside content. It is never hidden behind a menu.
+                         Row(modifier = contentModifier) {
+                             GcdsRail(
+                                 items = visibleTabIndices,
+                                 selectedItem = selectedTab,
+                                 label = { tabs[it] },
+                                 onSelected = { selectedTab = it },
+                                 footer = stringResource(R.string.container_config_console_controls_hint),
+                                 footerHints = listOf(
+                                     GamepadHint(GamepadButton.A, R.string.action_select),
+                                     GamepadHint(GamepadButton.B, R.string.back),
+                                 ),
+                                 requestInitialFocus = true,
+                                 compact = true,
+                                 modifier = Modifier.width(220.dp),
+                             )
+                             Column(
+                                 modifier = Modifier
+                                     .weight(1f)
+                                     .padding(horizontal = 22.dp)
+                                     .verticalScroll(scrollState),
+                             ) {
+                                 tabContent()
+                             }
+                         }
+                     }
                 }
             }
 
         if (embedded) {
-            Box(modifier = Modifier.fillMaxSize()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 1.dp, max = 900.dp),
+            ) {
                 configurationContent()
                 EmbeddedContainerOverlay(
                     dismissState = dismissDialogState,
@@ -1616,12 +1651,15 @@ private fun EmbeddedContainerOverlay(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
                         ) {
-                            TextButton(onClick = onKeepEditing) {
-                                Text(dismissState.dismissBtnText)
-                            }
-                            TextButton(onClick = onDiscard) {
-                                Text(dismissState.confirmBtnText)
-                            }
+                            ConsoleDialogButton(
+                                text = dismissState.dismissBtnText,
+                                onClick = onKeepEditing,
+                            )
+                            ConsoleDialogButton(
+                                text = dismissState.confirmBtnText,
+                                onClick = onDiscard,
+                                isPrimary = true,
+                            )
                         }
                     }
                 }
@@ -1693,11 +1731,18 @@ internal fun ExecutablePathDropdown(
     value: String,
     onValueChange: (String) -> Unit,
     containerData: ContainerData,
+    enabled: Boolean = true,
 ) {
     var expanded by remember { mutableStateOf(false) }
     var executables by remember { mutableStateOf<List<String>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
     val context = LocalContext.current
+
+    // Otherwise a stale `expanded = true` from before this field was disabled would keep the
+    // menu open (and its items selectable) even though it's now greyed out.
+    LaunchedEffect(enabled) {
+        if (!enabled) expanded = false
+    }
 
     // Load executables from A: drive when component is first created
     LaunchedEffect(containerData.drives) {
@@ -1709,14 +1754,15 @@ internal fun ExecutablePathDropdown(
     }
 
     ExposedDropdownMenuBox(
-        expanded = expanded,
-        onExpandedChange = { expanded = it },
+        expanded = expanded && enabled,
+        onExpandedChange = { if (enabled) expanded = it },
         modifier = modifier
     ) {
         NoExtractOutlinedTextField(
             value = value,
             onValueChange = onValueChange,
             readOnly = true,
+            enabled = enabled,
             label = { Text(stringResource(R.string.container_config_executable_path)) },
             placeholder = { Text(stringResource(R.string.container_config_executable_path_placeholder)) },
             trailingIcon = {
@@ -1733,7 +1779,7 @@ internal fun ExecutablePathDropdown(
                 // so the anchor never opens via controller. Intercept it here and toggle
                 // the menu. (Up/down focus-escape is handled in NoExtractOutlinedTextField.)
                 .onPreviewKeyEvent { event ->
-                    if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                    if (event.type != KeyEventType.KeyDown || !enabled) return@onPreviewKeyEvent false
                     when (event.key) {
                         Key.DirectionCenter, Key.Enter, Key.NumPadEnter, Key.Spacebar, Key.ButtonA -> {
                             expanded = !expanded
@@ -1747,7 +1793,7 @@ internal fun ExecutablePathDropdown(
 
         if (!isLoading && executables.isNotEmpty()) {
             ExposedDropdownMenu(
-                expanded = expanded,
+                expanded = expanded && enabled,
                 onDismissRequest = { expanded = false }
             ) {
                 executables.forEach { executable ->

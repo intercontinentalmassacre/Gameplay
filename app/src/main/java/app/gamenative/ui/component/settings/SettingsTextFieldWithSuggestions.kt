@@ -3,6 +3,7 @@ package app.gamenative.ui.component.settings
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ViewList
 import androidx.compose.material3.DropdownMenu
@@ -23,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import com.alorma.compose.settings.ui.base.internal.LocalSettingsGroupEnabled
 import com.alorma.compose.settings.ui.base.internal.SettingsTileColors
 import com.alorma.compose.settings.ui.base.internal.SettingsTileDefaults
@@ -52,6 +54,7 @@ fun SettingsTextFieldWithSuggestions(
 
     SettingsTileScaffold(
         modifier = Modifier
+            .padding(vertical = 4.dp)
             .clickable(enabled = enabled, onClick = { focusRequester.requestFocus() })
             .then(modifier),
         enabled = enabled,

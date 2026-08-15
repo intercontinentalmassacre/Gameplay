@@ -135,12 +135,26 @@ object ContainerFilesDownloader {
      */
     private fun loadContainerFilesManifest(context: Context): ContainerFilesManifest {
         return try {
-            val manifestJson = context.assets.open(CONTAINER_FILES_MANIFEST_FILE).bufferedReader().use { it.readText() }
+            val manifestJson = context.assets
+                .open(CONTAINER_FILES_MANIFEST_FILE)
+                .bufferedReader()
+                .use { it.readText() }
+                .removePrefix("\uFEFF")
+                .trimStart()
             json.decodeFromString<ContainerFilesManifest>(manifestJson)
         } catch (e: Exception) {
             Timber.e(e, "Failed to load $CONTAINER_FILES_MANIFEST_FILE")
             throw Exception("Failed to load container files manifest: ${e.message}", e)
         }
+    }
+
+    /**
+     * UI-facing variant of [loadContainerFilesManifest] that swallows asset
+     * parse errors and returns `null` instead of throwing, so the Downloads
+     * screen degrades gracefully on builds that ship without the manifest.
+     */
+    fun loadManifestForUi(context: Context): ContainerFilesManifest? {
+        return runCatching { loadContainerFilesManifest(context) }.getOrNull()
     }
 
     /**

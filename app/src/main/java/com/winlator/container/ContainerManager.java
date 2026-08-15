@@ -2,6 +2,9 @@ package com.winlator.container;
 
 import android.content.Context;
 import android.os.Handler;
+// Protected compatibility boundary: shared-base behavior is opt-in and only used while
+// materializing new containers; existing containers keep their original files.
+import app.gamenative.PrefManager;
 import app.gamenative.PluviaApp;
 import android.util.Log;
 
@@ -226,6 +229,7 @@ public class ContainerManager {
         dstContainer.setDesktopTheme(srcContainer.getDesktopTheme());
         dstContainer.setRcfileId(srcContainer.getRCFileId());
         dstContainer.setWineVersion(srcContainer.getWineVersion());
+        dstContainer.setPlatform(srcContainer.getPlatform());
         dstContainer.saveData();
 
         containers.add(dstContainer);
@@ -334,11 +338,12 @@ public class ContainerManager {
         for (int i = 0; i < dlnames.length(); i++) {
             String dlname = dlnames.getString(i);
             File dstFile = new File(containerDir, ".wine/drive_c/windows/"+dstName+"/"+dlname);
+            if (dstFile.exists()) continue;
             if (onExtractFileListener != null) {
                 dstFile = onExtractFileListener.onExtractFile(dstFile, 0);
                 if (dstFile == null) continue;
             }
-            FileUtils.copy(new File(srcDir, dlname), dstFile);
+            linkOrCopyCommonDll(new File(srcDir, dlname), dstFile, containerDir);
         }
     }
 
@@ -359,8 +364,24 @@ public class ContainerManager {
                 dstFile = onExtractFileListener.onExtractFile(dstFile, 0);
                 if (dstFile == null) continue;
             }
-            Log.d("Extraction", "copying " + file + " to " + dstFile);
-            FileUtils.copy(file, dstFile);
+            linkOrCopyCommonDll(file, dstFile, containerDir);
+        }
+    }
+
+    private void linkOrCopyCommonDll(File source, File destination, File containerDir) {
+        if (PrefManager.INSTANCE.getSharedContainerBase() &&
+                !new File(containerDir, ".container").exists()) {
+            if (!source.exists()) {
+                Log.d("Extraction", "skip symlink, source missing: " + source);
+            } else {
+                Log.d("Extraction", "symlinking immutable common DLL " + source + " to " + destination);
+                if (FileUtils.symlink(source, destination)) return;
+                Log.w("Extraction", "Symlink failed; falling back to copy for " + destination);
+            }
+        }
+        Log.d("Extraction", "copying " + source + " to " + destination);
+        if (!FileUtils.copy(source, destination)) {
+            Log.e("Extraction", "Failed to materialize common DLL: " + destination);
         }
     }
 
@@ -379,6 +400,91 @@ public class ContainerManager {
         } else {
             Log.d("Extraction", "Using downloaded file for container_pattern_common: " + componentFile.getAbsolutePath());
             return TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, componentFile, containerDir, onExtractFileListener);
+        }
+    }
+
+    /**
+     * Extracts DirectAudio driver files (winedirectaudio.drv and winedirectaudio.so)
+     * from the bundled directaudio-20260812.tzst archive into the Wine installation,
+     * then copies the .drv to the container's system32 directory.
+     *
+     * Files are placed at:
+     * - imageFs/opt/wine/lib/wine/aarch64-windows/winedirectaudio.drv (source)
+     * - imageFs/opt/wine/lib/wine/aarch64-unix/winedirectaudio.so (stays here)
+     * - containerDir/.wine/drive_c/windows/system32/winedirectaudio.drv (copied)
+     *
+     * @param imageFs The ImageFs instance to get the Wine installation path
+     * @param containerDir The container root directory
+     * @return true if extraction succeeded, false otherwise
+     */
+    public boolean extractDirectAudio(ImageFs imageFs, File containerDir) {
+        try {
+            // Extract the archive to a temporary directory
+            File tempDir = new File(context.getCacheDir(), "directaudio_temp");
+            if (tempDir.exists()) {
+                FileUtils.delete(tempDir);
+            }
+            if (!tempDir.mkdirs()) {
+                Log.e("ContainerManager", "Failed to create temp directory for directaudio");
+                return false;
+            }
+
+            boolean extracted = TarCompressorUtils.extract(
+                TarCompressorUtils.Type.ZSTD,
+                context.getAssets(),
+                "directaudio-20260812.tzst",
+                tempDir,
+                null
+            );
+
+            if (!extracted) {
+                Log.e("ContainerManager", "Failed to extract directaudio archive");
+                FileUtils.delete(tempDir);
+                return false;
+            }
+
+            // Source files from extracted archive (files are in root of archive)
+            File drvSrc = new File(tempDir, "winedirectaudio.drv");
+            File soSrc = new File(tempDir, "winedirectaudio.so");
+
+            if (!drvSrc.exists() || !soSrc.exists()) {
+                Log.e("ContainerManager", "DirectAudio files not found in archive");
+                FileUtils.delete(tempDir);
+                return false;
+            }
+
+            // Destination directories
+            File wineLibDir = new File(imageFs.getWinePath(), "lib/wine");
+            File aarch64WindowsDir = new File(wineLibDir, "aarch64-windows");
+            File aarch64UnixDir = new File(wineLibDir, "aarch64-unix");
+            File system32Dir = new File(containerDir, ".wine/drive_c/windows/system32");
+
+            aarch64WindowsDir.mkdirs();
+            aarch64UnixDir.mkdirs();
+            system32Dir.mkdirs();
+
+            // Copy files to their destinations
+            File drvWineDest = new File(aarch64WindowsDir, "winedirectaudio.drv");
+            File soWineDest = new File(aarch64UnixDir, "winedirectaudio.so");
+            File drvSystem32Dest = new File(system32Dir, "winedirectaudio.drv");
+
+            boolean success = FileUtils.copy(drvSrc, drvWineDest) &&
+                            FileUtils.copy(soSrc, soWineDest) &&
+                            FileUtils.copy(drvSrc, drvSystem32Dest);
+
+            // Clean up temp directory
+            FileUtils.delete(tempDir);
+
+            if (success) {
+                Log.d("ContainerManager", "DirectAudio driver installed successfully");
+            } else {
+                Log.e("ContainerManager", "Failed to copy DirectAudio files");
+            }
+
+            return success;
+        } catch (Exception e) {
+            Log.e("ContainerManager", "Error extracting DirectAudio: " + e.getMessage());
+            return false;
         }
     }
 

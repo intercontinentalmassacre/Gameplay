@@ -38,10 +38,12 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PrivacyTip
 import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import app.gamenative.ui.component.Button
+import app.gamenative.ui.component.ConsoleIconButton
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -340,26 +342,10 @@ private fun UserLoginScreenContent(
     val alreadyOnSecondScreen = LocalSecondScreenDialogWindowType.current != null
 
     if (!embedded && hasExternalDisplay && !alreadyOnSecondScreen) {
-        val lowerScreenContent: @Composable () -> Unit = {
-            UserLoginScreenContent(
-                snackBarHostState = snackBarHostState,
-                connectionState = connectionState,
+        val upperScreenContent: @Composable () -> Unit = {
+            UpperScreenLoginContent(
                 userLoginState = userLoginState,
-                onUsername = onUsername,
-                onPassword = onPassword,
-                onShowLoginScreen = onShowLoginScreen,
-                onRememberSession = onRememberSession,
-                onCredentialLogin = onCredentialLogin,
-                onTwoFactorLogin = onTwoFactorLogin,
                 onQrRetry = onQrRetry,
-                onSetTwoFactor = onSetTwoFactor,
-                onUseGuardTotp = onUseGuardTotp,
-                onRetryConnection = onRetryConnection,
-                onContinueOffline = onContinueOffline,
-                onLaunchGog = onLaunchGog,
-                onLaunchEpic = onLaunchEpic,
-                onLaunchAmazon = onLaunchAmazon,
-                embedded = true,
             )
         }
         SideEffect {
@@ -367,19 +353,35 @@ private fun UserLoginScreenContent(
                 DsHomeSecondScreen.Model(
                     owner = DsHomeSecondScreen.Owner.DIALOG,
                     mode = DsHomeSecondScreen.Mode.SETTINGS,
-                    settingsContent = lowerScreenContent,
+                    settingsContent = upperScreenContent,
                 ),
             )
         }
         DisposableEffect(Unit) {
             onDispose { DsHomeSecondScreen.clear(DsHomeSecondScreen.Owner.DIALOG) }
         }
-        DualLoginStage()
+        // Main/lower display: credentials form only, no QR, no scrolling.
+        // Upper display owns QR + onboarding so the action surface stays focused.
+        LowerScreenLoginContent(
+            connectionState = connectionState,
+            userLoginState = userLoginState,
+            onUsername = onUsername,
+            onPassword = onPassword,
+            onRememberSession = onRememberSession,
+            onCredentialLogin = onCredentialLogin,
+            onTwoFactorLogin = onTwoFactorLogin,
+            onSetTwoFactor = onSetTwoFactor,
+            onUseGuardTotp = onUseGuardTotp,
+            onRetryConnection = onRetryConnection,
+            onContinueOffline = onContinueOffline,
+            onLaunchGog = onLaunchGog,
+            onLaunchEpic = onLaunchEpic,
+            onLaunchAmazon = onLaunchAmazon,
+        )
         return
     }
 
     val primaryColor = MaterialTheme.colorScheme.primary
-    val tertiaryColor = MaterialTheme.colorScheme.tertiary
 
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
@@ -407,26 +409,18 @@ private fun UserLoginScreenContent(
                 // Logo
                 Text(
                     text = stringResource(R.string.login_app_name),
-                    style = MaterialTheme.typography.headlineSmall.copy(
-                        fontWeight = FontWeight.Bold,
-                        brush = Brush.horizontalGradient(
-                            colors = listOf(primaryColor, tertiaryColor),
-                        ),
-                    ),
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = primaryColor,
                 )
 
-                // Privacy Policy Button
+                // Privacy Policy icon button
                 val uriHandler = LocalUriHandler.current
-                TextButton(
+                ConsoleIconButton(
                     onClick = { uriHandler.openUri(Constants.Misc.PRIVACY_LINK) },
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.surfaceVariant),
-                    shape = RoundedCornerShape(8.dp),
-                ) {
-                    Text(
-                        text = stringResource(R.string.login_privacy_policy),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+                    icon = Icons.Default.PrivacyTip,
+                    contentDescription = stringResource(R.string.login_privacy_policy),
+                )
             }
 
             // Main Content
@@ -456,7 +450,6 @@ private fun UserLoginScreenContent(
                         if (!embedded && userLoginState.loginScreen != LoginScreen.TWO_FACTOR) {
                             LoginOnboardingHero(
                                 primaryColor = primaryColor,
-                                tertiaryColor = tertiaryColor,
                             )
                             Spacer(modifier = Modifier.height(12.dp))
                         }
@@ -470,17 +463,6 @@ private fun UserLoginScreenContent(
                             border = BorderStroke(1.dp, primaryColor.copy(alpha = 0.2f)),
                             shape = RoundedCornerShape(16.dp),
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(2.dp)
-                                    .background(
-                                        brush = Brush.horizontalGradient(
-                                            colors = listOf(primaryColor, tertiaryColor, primaryColor),
-                                        ),
-                                    ),
-                            )
-
                             val scrollState = rememberScrollState()
                             BoxWithConstraints(
                                 modifier = Modifier
@@ -659,53 +641,7 @@ private fun UserLoginScreenContent(
 }
 
 @Composable
-private fun DualLoginStage() {
-    val primaryColor = MaterialTheme.colorScheme.primary
-    val tertiaryColor = MaterialTheme.colorScheme.tertiary
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .padding(32.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Column(
-            modifier = Modifier.widthIn(max = 760.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Text(
-                text = stringResource(R.string.login_app_name),
-                style = MaterialTheme.typography.displaySmall.copy(
-                    fontWeight = FontWeight.Bold,
-                    brush = Brush.horizontalGradient(listOf(primaryColor, tertiaryColor)),
-                ),
-            )
-            Spacer(modifier = Modifier.height(28.dp))
-            LoginOnboardingHero(
-                primaryColor = primaryColor,
-                tertiaryColor = tertiaryColor,
-            )
-            Spacer(modifier = Modifier.height(20.dp))
-            Text(
-                text = stringResource(R.string.login_onboarding_sign_in_title),
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.SemiBold,
-                textAlign = TextAlign.Center,
-            )
-            Text(
-                text = stringResource(R.string.login_onboarding_sign_in_subtitle),
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(top = 8.dp),
-            )
-        }
-    }
-}
-
-@Composable
-private fun LoginOnboardingHero(primaryColor: Color, tertiaryColor: Color) {
+private fun LoginOnboardingHero(primaryColor: Color) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -738,36 +674,263 @@ private fun LoginOnboardingHero(primaryColor: Color, tertiaryColor: Color) {
                 }
             }
             Spacer(modifier = Modifier.height(14.dp))
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                LoginOnboardingStep("1", stringResource(R.string.login_onboarding_step_connect), primaryColor)
-                LoginOnboardingStep("2", stringResource(R.string.login_onboarding_step_tune), tertiaryColor)
-                LoginOnboardingStep("3", stringResource(R.string.login_onboarding_step_play), primaryColor)
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                LoginOnboardingStep(stringResource(R.string.login_onboarding_step_connect))
+                LoginOnboardingStep(stringResource(R.string.login_onboarding_step_tune))
+                LoginOnboardingStep(stringResource(R.string.login_onboarding_step_play))
             }
         }
     }
 }
 
 @Composable
-private fun LoginOnboardingStep(number: String, label: String, accent: Color) {
-    Surface(
-        color = accent.copy(alpha = 0.12f),
-        shape = RoundedCornerShape(50),
+private fun LoginOnboardingStep(label: String) {
+    Text(
+        text = label,
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.fillMaxWidth(),
+    )
+}
+
+@Composable
+private fun UpperScreenLoginContent(
+    userLoginState: UserLoginState,
+    onQrRetry: () -> Unit,
+) {
+    val primaryColor = MaterialTheme.colorScheme.primary
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(horizontal = 32.dp, vertical = 24.dp),
+        contentAlignment = Alignment.Center,
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
+        Column(
+            modifier = Modifier.widthIn(max = 720.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(
-                text = number,
-                style = MaterialTheme.typography.labelLarge,
-                color = accent,
+                text = stringResource(R.string.login_app_name),
+                style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
+                color = primaryColor,
             )
+            Spacer(modifier = Modifier.height(16.dp))
+            LoginOnboardingHero(
+                primaryColor = primaryColor,
+            )
+            Spacer(modifier = Modifier.height(20.dp))
             Text(
-                text = label,
-                style = MaterialTheme.typography.labelLarge,
-                modifier = Modifier.padding(start = 5.dp),
+                text = stringResource(R.string.login_qr),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
             )
+            Spacer(modifier = Modifier.height(10.dp))
+            QRCodeLogin(
+                modifier = Modifier.fillMaxWidth(),
+                isQrFailed = userLoginState.isQrFailed,
+                qrCode = userLoginState.qrCode,
+                onQrRetry = onQrRetry,
+            )
+        }
+    }
+}
+
+@Composable
+private fun LowerScreenLoginContent(
+    connectionState: ConnectionState,
+    userLoginState: UserLoginState,
+    onUsername: (String) -> Unit,
+    onPassword: (String) -> Unit,
+    onRememberSession: (Boolean) -> Unit,
+    onCredentialLogin: () -> Unit,
+    onTwoFactorLogin: () -> Unit,
+    onSetTwoFactor: (String) -> Unit,
+    onUseGuardTotp: () -> Unit,
+    onRetryConnection: () -> Unit,
+    onContinueOffline: () -> Unit,
+    onLaunchGog: () -> Unit,
+    onLaunchEpic: () -> Unit,
+    onLaunchAmazon: () -> Unit,
+) {
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val snackBarHostState = remember { SnackbarHostState() }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .imePadding(),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding())
+                .focusGroup(),
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(R.string.login_app_name),
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = primaryColor,
+                )
+                val uriHandler = LocalUriHandler.current
+                TextButton(
+                    onClick = { uriHandler.openUri(Constants.Misc.PRIVACY_LINK) },
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.surfaceVariant),
+                    shape = RoundedCornerShape(8.dp),
+                ) {
+                    Text(
+                        text = stringResource(R.string.login_privacy_policy),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                contentAlignment = Alignment.Center,
+            ) {
+                SnackbarHost(
+                    hostState = snackBarHostState,
+                    modifier = Modifier.align(Alignment.BottomCenter),
+                )
+
+                if (userLoginState.isLoggingIn.not() &&
+                    userLoginState.loginResult != LoginResult.Success
+                ) {
+                    Card(
+                        modifier = Modifier
+                            .padding(horizontal = 16.dp)
+                            .fillMaxWidth()
+                            .widthIn(max = 520.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.95f),
+                        ),
+                        border = BorderStroke(1.dp, primaryColor.copy(alpha = 0.2f)),
+                        shape = RoundedCornerShape(16.dp),
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .padding(horizontal = 24.dp, vertical = 20.dp)
+                                .fillMaxWidth(),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            if (userLoginState.loginScreen == LoginScreen.TWO_FACTOR) {
+                                TwoFactorAuthScreenContent(
+                                    userLoginState = userLoginState,
+                                    message = when {
+                                        userLoginState.previousCodeIncorrect ->
+                                            stringResource(R.string.steam_2fa_incorrect)
+                                        userLoginState.loginResult == LoginResult.DeviceAuth ->
+                                            stringResource(R.string.steam_2fa_device)
+                                        userLoginState.loginResult == LoginResult.DeviceConfirm ->
+                                            stringResource(R.string.steam_2fa_confirmation)
+                                        userLoginState.loginResult == LoginResult.EmailAuth ->
+                                            stringResource(
+                                                R.string.steam_2fa_email,
+                                                userLoginState.email ?: "...",
+                                            )
+                                        else -> ""
+                                    },
+                                    onSetTwoFactor = onSetTwoFactor,
+                                    onUseGuardTotp = onUseGuardTotp,
+                                    onLogin = onTwoFactorLogin,
+                                )
+                            } else {
+                                Text(
+                                    text = stringResource(R.string.login_onboarding_sign_in_title),
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                                Text(
+                                    text = stringResource(R.string.login_onboarding_sign_in_subtitle),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 4.dp, bottom = 16.dp),
+                                )
+                                CredentialsForm(
+                                    connectionState = connectionState,
+                                    username = userLoginState.username,
+                                    onUsername = onUsername,
+                                    password = userLoginState.password,
+                                    onPassword = onPassword,
+                                    rememberSession = userLoginState.rememberSession,
+                                    onRememberSession = onRememberSession,
+                                    onLoginBtnClick = onCredentialLogin,
+                                    onRetryConnection = onRetryConnection,
+                                    onContinueOffline = onContinueOffline,
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    LoadingScreen()
+                }
+            }
+
+            if (userLoginState.isLoggingIn.not() &&
+                userLoginState.loginResult != LoginResult.Success
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                        .padding(top = 12.dp, bottom = 8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Text(
+                        text = stringResource(R.string.login_or_sign_in_with),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    FlowRow(horizontalArrangement = Arrangement.Center) {
+                        TextButton(onClick = onLaunchEpic) {
+                            Text(
+                                text = "Epic",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                        TextButton(onClick = onLaunchGog) {
+                            Text(
+                                text = "GOG",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                        TextButton(onClick = onLaunchAmazon) {
+                            Text(
+                                text = "Amazon",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                        TextButton(onClick = onContinueOffline) {
+                            Text(
+                                text = stringResource(R.string.login_skip_login),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }

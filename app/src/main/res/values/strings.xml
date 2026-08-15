@@ -116,6 +116,9 @@
     <string name="game_players_now">%1$s playing now</string>
     <string name="game_updates_title">Updates</string>
     <string name="ds_home_icon_size_action">Icon size</string>
+    <string name="ds_home_layout_grid">Grid</string>
+    <string name="ds_home_layout_flow">Cover Flow</string>
+    <string name="ds_home_layout_wall">Cover Wall</string>
     <string name="hint_categories">Categories</string>
     <string name="downloads_overview_subtitle">Track active, paused, and resumable downloads</string>
     <string name="downloads_cancel_confirm">Cancel download and delete files for %1$s?</string>
@@ -269,6 +272,12 @@
     <string name="input_controls">On-screen Controller</string>
     <string name="edit_controls">Edit On-screen Controller</string>
     <string name="edit_physical_controller">Edit Physical Controller</string>
+    <string name="sc_edit_root">Steam Controller</string>
+    <string name="sc_edit_bindings">Buttons &amp; Bindings</string>
+    <string name="sc_edit_labels">Menu Labels</string>
+    <string name="sc_edit_layout">Overlay Layout</string>
+    <string name="sc_edit_keyboard">Keyboard Layout</string>
+    <string name="sc_edit_configs">Manage Configs</string>
     <string name="controller_disconnected">Disconnected</string>
     <string name="reset_onscreen_controls">Reset On-Screen Controls</string>
     <string name="open_navigation_menu">Open Navigation Menu</string>
@@ -745,6 +754,7 @@
     <string name="system_hub_destinations_section">Library and system</string>
     <string name="system_hub_connections_section">Connected services</string>
     <string name="system_hub_connected">Connected</string>
+    <string name="system_hub_connected_as">Connected as %1$s</string>
     <string name="system_hub_not_connected">Not connected</string>
     <string name="system_hub_offline">Offline</string>
     <string name="system_hub_steam_action_description">Connect Steam and refresh your library.</string>
@@ -803,6 +813,7 @@
     <string name="filter_five_star_device">5-star reviews on device</string>
     <string name="filter_five_star_gpu">5-star reviews on GPU</string>
     <string name="filter_proven_gpu">Proven on your GPU</string>
+    <string name="app_filter_android">Android version available</string>
 
     <!-- Login & Connection -->
     <string name="connecting_to_steam">Connecting to Steam…</string>
@@ -848,6 +859,14 @@
     <string name="value">Value</string>
     <string name="no_more_known_variables">No more known variables</string>
     <string name="container_variant">Container Variant</string>
+    <string name="container_platform">Version</string>
+    <string name="container_platform_description">Choose whether to download the Windows version (runs via Wine/Proton) or the native Android version, when the game offers one.</string>
+    <string name="container_platform_normal">Normal (Windows)</string>
+    <string name="container_platform_android">Android</string>
+    <string name="container_platform_switch_reinstalling">Switching version — removing the current install and fetching the new one…</string>
+    <string name="android_game_install_started">Installing the Android version — press Play again once it\'s installed.</string>
+    <string name="android_game_launch_failed">Couldn\'t install or launch the Android version of this game.</string>
+    <string name="android_game_uninstall_cancelled">Uninstall was cancelled — the app is still installed, nothing was deleted.</string>
     <string name="wine_version">Wine Version</string>
     <string name="exec_arguments">Exec Arguments</string>
     <string name="exec_arguments_example">Example: -dx11</string>
@@ -969,6 +988,12 @@
     <string name="shooter_mode_toggle_description">Auto-replace stick elements with dynamic joysticks</string>
     <string name="shooter_mode_on">Enable Mouse</string>
     <string name="shooter_mode_off">Enable Sticks</string>
+    <!-- Vibration Settings -->
+    <string name="vibration_mode">Vibration Mode</string>
+    <string name="vibration_intensity">Vibration Intensity</string>
+    <string name="vibration_mode_option_off">Off</string>
+    <string name="vibration_mode_option_controller">Controller</string>
+    <string name="vibration_mode_option_device">Device</string>
     <!-- Gesture Settings Dialog -->
     <string name="gesture_settings_title">Touch Gesture Settings</string>
     <string name="gesture_section_single_finger">Single Finger</string>
@@ -1088,6 +1113,13 @@
     <string name="driver_manager">Driver Manager</string>
     <string name="select_a_driver">Select a driver</string>
     <string name="import_zip_from_device">Import ZIP from device</string>
+    <string name="settings_get_driver_title">Get Driver</string>
+    <string name="settings_get_driver_subtitle">Browse trusted driver repositories and install a graphics driver</string>
+    <string name="settings_manage_drivers_title">Manage Drivers</string>
+    <string name="settings_manage_drivers_subtitle">Remove or inspect installed driver packages</string>
+    <string name="driver_snackbar_installed">Driver installed: %s</string>
+    <string name="driver_snackbar_install_failed">Driver installation failed</string>
+    <string name="driver_snackbar_import_error">Could not import driver: %s</string>
 
     <!-- Contents Manager -->
     <string name="contents_manager">Contents Manager</string>
@@ -1141,6 +1173,8 @@
     <string name="settings_emulation_default_config_dialog_title">Default Container Config</string>
     <string name="settings_emulation_auto_apply_known_config_title">Auto-apply known config</string>
     <string name="settings_emulation_auto_apply_known_config_subtitle">Automatically apply recommended settings for Steam games on first launch</string>
+    <string name="settings_emulation_shared_container_base_title">Shared container base</string>
+    <string name="settings_emulation_shared_container_base_subtitle">Link immutable Wine DLLs for new containers to reduce storage. Experimental; existing containers are unchanged.</string>
     <string name="settings_emulation_box64_presets_title">Box64 Presets</string>
     <string name="settings_emulation_box64_presets_subtitle">View, modify, and create Box64 presets</string>
     <string name="settings_emulation_driver_manager_title">Driver Manager</string>
@@ -1207,6 +1241,10 @@
     <string name="settings_interface_hide_statusbar_subtitle">Hide Android status bar in game list, settings, etc. App will restart when changed.</string>
     <string name="settings_interface_swap_face_buttons_title">Swap face buttons</string>
     <string name="settings_interface_swap_face_buttons_subtitle">Swap A↔B and X↔Y button icons</string>
+    <string name="settings_interface_steam_controller_title">Steam Controller (2026)</string>
+    <string name="settings_interface_steam_controller_subtitle">Connect a paired Steam Controller over Bluetooth when a game starts. Off unless you own one.</string>
+    <string name="settings_interface_steam_controller_denied">Steam Controller support needs the Bluetooth (Nearby devices) permission.</string>
+    <string name="settings_interface_steam_controller_denied_forever">Android won\'t ask again — turn on "Nearby devices" for GameNative in app permissions.</string>
     <string name="settings_interface_warn_before_exit_title">Warn before exiting</string>
     <string name="settings_interface_warn_before_exit_subtitle">Require double back press to exit — first press shows a warning</string>
     <string name="settings_interface_second_screen_group">Second screen</string>
@@ -1248,6 +1286,53 @@
     <string name="downloads_status_failed">Failed</string>
     <string name="downloads_summary">%1$d active • %2$d resumable • %3$d finished</string>
 
+    <!-- Downloads: Containers pre-fetch -->
+    <string name="downloads_containers_section_title">Containers</string>
+    <string name="downloads_containers_subtitle">Pre-fetch container files so your first game install is faster</string>
+    <string name="downloads_containers_status_ready">Ready</string>
+    <string name="downloads_containers_status_downloading">Downloading</string>
+    <string name="downloads_containers_status_paused">Paused</string>
+    <string name="downloads_containers_status_failed">Failed</string>
+    <string name="downloads_containers_status_not_downloaded">Not downloaded</string>
+    <string name="downloads_containers_size_unknown">—</string>
+    <string name="downloads_containers_total_size">%1$s on disk • %2$d of %3$d ready</string>
+    <string name="downloads_containers_selection_summary">%1$d of %2$d selected • %3$d active</string>
+    <string name="downloads_containers_selected_action">%1$d components selected</string>
+    <string name="downloads_containers_category_patterns">Container patterns</string>
+    <string name="downloads_containers_category_proton">Wine / Proton</string>
+    <string name="downloads_containers_category_dxvk">DXVK</string>
+    <string name="downloads_containers_category_vkd3d">VKD3D</string>
+    <string name="downloads_containers_category_box64">Box64</string>
+    <string name="downloads_containers_category_fexcore">FEXCore</string>
+    <string name="downloads_containers_category_other">Other components</string>
+    <string name="downloads_containers_download_all">Download all</string>
+    <string name="downloads_containers_prefetch_selected">Pre-fetch selected</string>
+    <string name="downloads_containers_select_all">Select all</string>
+    <string name="downloads_containers_clear_selection">Clear selection</string>
+    <string name="downloads_containers_pause_all">Pause all</string>
+    <string name="downloads_containers_clear_all">Remove all</string>
+    <string name="downloads_containers_clear_confirm_title">Remove all containers?</string>
+    <string name="downloads_containers_clear_confirm_message">This deletes %1$s of cached container files. They will re-download automatically on the next game install.</string>
+    <string name="downloads_containers_action_download">Download</string>
+    <string name="downloads_containers_action_pause">Pause</string>
+    <string name="downloads_containers_action_resume">Resume</string>
+    <string name="downloads_containers_action_remove">Remove</string>
+    <string name="downloads_containers_legacy_unavailable">Container files come bundled with this build; no download required.</string>
+    <string name="downloads_containers_bundled_runtime_description">Bundled runtime available for container configuration. No separate download required.</string>
+    <string name="downloads_containers_empty">No container files in this build</string>
+
+    <!-- Container display names -->
+    <string name="container_file_extras">Runtime extras</string>
+    <string name="container_file_extras_desc">Common Windows runtime files shared by every container</string>
+    <string name="container_file_container_pattern_common">Common container pattern</string>
+    <string name="container_file_container_pattern_common_desc">Base Wine/Proton layout, fonts, and registry templates</string>
+    <string name="container_file_container_pattern_gamenative">GameNative container pattern</string>
+    <string name="container_file_container_pattern_gamenative_desc">GameNative-specific overlays and drivers</string>
+    <string name="container_file_proton_9_0_x86_64">Proton 9.0 (x86_64)</string>
+    <string name="container_file_proton_9_0_x86_64_desc">Proton binaries for x86_64 devices</string>
+    <string name="container_file_proton_9_0_arm64ec">Proton 9.0 (arm64ec)</string>
+    <string name="container_file_proton_9_0_arm64ec_desc">Proton binaries for arm64ec translation</string>
+
     <!-- Settings: Storage Manager -->
     <string name="settings_storage_title">Storage</string>
     <string name="settings_storage_manage_title">Storage Manager</string>
@@ -1258,6 +1343,10 @@
     <string name="storage_calculating">%1$s: Calculating…</string>
     <string name="container_storage_title">Container &amp; Storage Manager</string>
     <string name="container_storage_subtitle">Review game and container storage, including installed games without containers</string>
+    <string name="container_storage_path_label">On disk</string>
+    <string name="container_storage_path_copy">Copy path</string>
+    <string name="container_storage_path_copied">Path copied</string>
+    <string name="container_storage_uninstall_note">Containers inside the app data directory are removed automatically when you uninstall Gameplay. Containers on external storage or the D: drive (Downloads) survive uninstall and must be deleted manually.</string>
     <string name="container_storage_summary">%1$d items • %2$s</string>
     <string name="container_storage_empty">No storage items found</string>
     <string name="container_storage_loading">Scanning storage…</string>
@@ -2539,7 +2628,8 @@
     <string name="radial_menu_keyboard">Keyboard</string>
     <string name="radial_menu_weapon">Weapon %1$d</string>
     <string name="console_back_hint">B  Back</string>
-    <string name="container_config_console_controls_hint">L1/R1  Categories   ·   A  Select   ·   B  Back</string>
+    <string name="container_config_console_controls_hint">L1/L2/R1/R2  Categories   ·   A  Select   ·   B  Back</string>
+    <string name="container_config_open_categories">Open categories</string>
     <string name="installer_select_executable_title">Choose the game executable for %1$s</string>
     <string name="installer_completion_failed_title">Could not finish installing %1$s</string>
     <string name="installer_completed_message">%1$s is ready to play</string>
@@ -2569,9 +2659,45 @@
     <string name="driver_repository_loading">Loading available drivers…</string>
     <string name="driver_repository_available">Available drivers</string>
     <string name="driver_repository_empty">This source has no compatible ZIP packages.</string>
+    <string name="driver_repository_no_sources">No compatible sources found for this GPU.</string>
     <string name="driver_import_local_title">Import from this device</string>
     <string name="driver_importing">Importing driver…</string>
     <string name="driver_installed_title">Installed custom drivers</string>
+    <string name="adreno_target_a6xx">Adreno 6xx</string>
+    <string name="adreno_target_a7xx">Adreno 7xx</string>
+    <string name="adreno_target_a710_a720_a722">Adreno 710/720/722</string>
+    <string name="adreno_target_a8xx">Adreno 8xx (8 Elite)</string>
+    <string name="adreno_target_generic">Generic / unknown GPU</string>
+    <string name="driver_category_turnip_stable">Stable Turnip</string>
+    <string name="driver_category_turnip_stable_desc">Vendored stable Mesa Turnip releases — the safest baseline.</string>
+    <string name="driver_category_turnip_bleeding_edge">Bleeding edge</string>
+    <string name="driver_category_turnip_bleeding_edge_desc">Latest Mesa commits, rebuilt on every push. May regress.</string>
+    <string name="driver_category_turnip_community">Community</string>
+    <string name="driver_category_turnip_community_desc">Community-maintained Turnip forks and one-off builds.</string>
+    <string name="driver_category_adreno_packaged">Qualcomm Adreno</string>
+    <string name="driver_category_adreno_packaged_desc">Generic AdrenoTools-compatible Qualcomm packages.</string>
+    <string name="driver_category_wrapper">Wrapper</string>
+    <string name="driver_category_wrapper_desc">Bionic Vulkan wrapper (Mesa Vulkan ICD + adrenotools hooks).</string>
+    <string name="driver_category_support_count">%1$d source(s)</string>
+    <string name="driver_detected_gpu">Detected GPU: %1$s</string>
+    <string name="driver_detected_gpu_with_renderer">Detected GPU: %1$s (%2$s)</string>
+    <string name="get_driver_no_gpu">No Adreno GPU detected — grabbing generic packages.</string>
+    <string name="get_driver_change_source">Change source</string>
+    <string name="get_driver_recommended">Recommended</string>
+    <string name="get_driver_show_older">Show all versions</string>
+    <string name="driver_action_retry">Retry</string>
+    <string name="driver_action_cancel">Cancel download</string>
+    <string name="driver_action_delete">Delete driver</string>
+    <string name="driver_snackbar_download_error">Could not download driver: %1$s</string>
+    <string name="driver_snackbar_remove_error">Could not remove driver: %1$s</string>
+    <string name="driver_snackbar_removed">Driver removed</string>
+    <string name="driver_installed_badge">Installed</string>
+    <string name="driver_installed_version">Version %1$s</string>
+    <string name="driver_unknown_error">Unknown error</string>
+    <string name="manage_active_driver_card">Active driver</string>
+    <string name="manage_no_drivers">No custom drivers installed.</string>
+    <string name="manage_no_drivers_action">Get one from the store</string>
+    <string name="manage_action_add_driver">Add driver</string>
     <string name="game_options_title_for_game">Settings · %1$s</string>
     <string name="game_options_quick_actions_description">Start the container or create a launcher shortcut.</string>
     <string name="game_options_game_management_description">Installed files, add-ons, branches, Workshop items and mods.</string>
