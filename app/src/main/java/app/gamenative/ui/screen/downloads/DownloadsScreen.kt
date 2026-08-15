@@ -8,6 +8,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -40,11 +41,14 @@ import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.ButtonDefaults
 import app.gamenative.ui.component.FilledTonalButton
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -287,9 +291,8 @@ fun HomeDownloadsScreen(
                             onPause = viewModel::onPauseContainer,
                             onResume = viewModel::onResumeContainer,
                             onRemove = viewModel::onRemoveContainer,
-                            onDownloadAll = viewModel::onDownloadAllContainers,
-                            onPauseAll = viewModel::onPauseAllContainers,
-                            onClearAll = viewModel::onClearAllContainers,
+                            onToggleSelection = viewModel::onToggleContainerSelection,
+                            onPrefetchSelected = viewModel::onPrefetchSelectedContainers,
                             modifier = Modifier
                                 .fillMaxSize()
                                 .padding(20.dp),
@@ -831,15 +834,19 @@ private fun ContainerFilesContent(
     onPause: (String) -> Unit,
     onResume: (String) -> Unit,
     onRemove: (String) -> Unit,
-    onDownloadAll: () -> Unit,
-    onPauseAll: () -> Unit,
-    onClearAll: () -> Unit,
+    onToggleSelection: (String) -> Unit,
+    onPrefetchSelected: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
-    val items = remember(state.containers) { state.containers.values.toList() }
+    var collapsedCategories by rememberSaveable { mutableStateOf(emptyList<String>()) }
+    val items = remember(state.containers) {
+        state.containers.values.sortedWith(compareBy({ it.presentationCategory }, { it.displayName ?: it.componentId }))
+    }
     val readyCount = items.count { it.isReady }
     val activeCount = items.count { it.isActive }
+    val selectedCount = items.count { it.selected }
+    val selectedDownloadCount = items.count { it.selected && it.canDownload }
     val totalBytes = remember(items) {
         items.sumOf { it.bytesDownloaded ?: 0L }
     }
@@ -863,41 +870,19 @@ private fun ContainerFilesContent(
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = stringResource(
+                    R.string.downloads_containers_selection_summary,
+                    selectedCount,
+                    items.size,
+                    activeCount,
+                ),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
+            )
             Spacer(modifier = Modifier.height(10.dp))
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
-            Spacer(modifier = Modifier.height(16.dp))
-        }
-
-        if (items.isNotEmpty()) {
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                DownloadsToolbarButton(
-                    text = stringResource(R.string.downloads_containers_download_all),
-                    icon = Icons.Default.CloudDownload,
-                    onClick = onDownloadAll,
-                    enabled = items.any { it.canDownload },
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                )
-                DownloadsToolbarButton(
-                    text = stringResource(R.string.downloads_containers_pause_all),
-                    icon = Icons.Default.Pause,
-                    onClick = onPauseAll,
-                    enabled = activeCount > 0,
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                DownloadsToolbarButton(
-                    text = stringResource(R.string.downloads_containers_clear_all),
-                    icon = Icons.Default.Delete,
-                    onClick = onClearAll,
-                    enabled = readyCount > 0 || activeCount > 0,
-                    containerColor = MaterialTheme.colorScheme.errorContainer,
-                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                )
-            }
             Spacer(modifier = Modifier.height(16.dp))
         }
 
@@ -913,19 +898,104 @@ private fun ContainerFilesContent(
                 )
             }
         } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                contentPadding = PaddingValues(bottom = 24.dp),
-            ) {
-                items(items = items, key = { it.uniqueId }) { item ->
-                    ContainerFileCard(
-                        item = item,
-                        onDownload = { onDownload(item.componentId) },
-                        onPause = { onPause(item.componentId) },
-                        onResume = { onResume(item.componentId) },
-                        onRemove = { onRemove(item.componentId) },
-                    )
+            val groups = remember(items) {
+                items.groupBy { it.presentationCategory }.toList()
+            }
+            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    contentPadding = PaddingValues(bottom = if (selectedDownloadCount > 0) 88.dp else 24.dp),
+                ) {
+                    groups.forEach { (category, group) ->
+                        val expanded = category !in collapsedCategories
+                        item(key = "category-$category") {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 4.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable {
+                                            collapsedCategories = if (expanded) {
+                                                collapsedCategories + category
+                                            } else {
+                                                collapsedCategories - category
+                                            }
+                                        }
+                                        .focusable(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                )
+                                {
+                                    Icon(
+                                        imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                    )
+                                    Text(
+                                        text = categoryTitle(category),
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.SemiBold,
+                                        modifier = Modifier.padding(start = 4.dp),
+                                    )
+                                }
+                                Text(
+                                    text = group.size.toString(),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                        if (expanded) {
+                            items(items = group, key = { it.uniqueId }) { item ->
+                                ContainerFileCard(
+                                    item = item,
+                                    onToggleSelection = { onToggleSelection(item.uniqueId) },
+                                    onDownload = { onDownload(item.uniqueId) },
+                                    onPause = { onPause(item.uniqueId) },
+                                    onResume = { onResume(item.uniqueId) },
+                                    onRemove = { onRemove(item.uniqueId) },
+                                )
+                            }
+                        }
+                    }
+                }
+                if (selectedDownloadCount > 0) {
+                    Surface(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth()
+                            .padding(8.dp),
+                        color = MaterialTheme.colorScheme.secondaryContainer,
+                        shape = RoundedCornerShape(12.dp),
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                        ) {
+                            Text(
+                                text = stringResource(
+                                    R.string.downloads_containers_selected_action,
+                                    selectedDownloadCount,
+                                ),
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            )
+                            DownloadsToolbarButton(
+                                text = stringResource(R.string.downloads_containers_prefetch_selected),
+                                icon = Icons.Default.CloudDownload,
+                                onClick = onPrefetchSelected,
+                                enabled = true,
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary,
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -933,8 +1003,22 @@ private fun ContainerFilesContent(
 }
 
 @Composable
+private fun categoryTitle(category: String): String = stringResource(
+    when (category) {
+        "container" -> R.string.downloads_containers_category_patterns
+        "proton", "wine" -> R.string.downloads_containers_category_proton
+        "dxvk" -> R.string.downloads_containers_category_dxvk
+        "vkd3d" -> R.string.downloads_containers_category_vkd3d
+        "box64", "wowbox64" -> R.string.downloads_containers_category_box64
+        "fexcore" -> R.string.downloads_containers_category_fexcore
+        else -> R.string.downloads_containers_category_other
+    },
+)
+
+@Composable
 private fun ContainerFileCard(
     item: ContainerFileItemState,
+    onToggleSelection: () -> Unit,
     onDownload: () -> Unit,
     onPause: () -> Unit,
     onResume: () -> Unit,
@@ -958,13 +1042,27 @@ private fun ContainerFileCard(
     }
     val sizeText = item.bytesDownloaded?.takeIf { it > 0L }?.let {
         Formatter.formatFileSize(context, it)
+    } ?: item.expectedSizeBytes?.takeIf { it > 0L }?.let {
+        Formatter.formatFileSize(context, it)
     } ?: stringResource(R.string.downloads_containers_size_unknown)
+    val itemName = item.displayName ?: stringResource(item.nameResId)
+    val itemDescription = item.displayDescription ?: stringResource(item.descriptionResId)
 
     GcdsCard(
         modifier = Modifier.fillMaxWidth(),
         containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.Top,
+        ) {
+            Checkbox(
+                    checked = item.selected,
+                    enabled = item.selectable,
+                    onCheckedChange = { onToggleSelection() },
+                modifier = Modifier.padding(top = 12.dp, start = 8.dp),
+            )
+            Column(modifier = Modifier.weight(1f).padding(16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -972,7 +1070,7 @@ private fun ContainerFileCard(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = stringResource(item.nameResId),
+                        text = itemName,
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 2,
@@ -980,7 +1078,7 @@ private fun ContainerFileCard(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = stringResource(item.descriptionResId),
+                        text = itemDescription,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 3,
@@ -1047,6 +1145,7 @@ private fun ContainerFileCard(
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
+            }
             }
         }
     }

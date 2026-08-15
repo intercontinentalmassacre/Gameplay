@@ -131,8 +131,14 @@ object PrefManager {
     fun getBoolean(key: String, defaultValue: Boolean): Boolean =
         getPref(booleanPreferencesKey(key), defaultValue)
 
+    fun setBoolean(key: String, value: Boolean): Unit =
+        setPref(booleanPreferencesKey(key), value)
+
     fun getString(key: String, defaultValue: String): String =
         getPref(stringPreferencesKey(key), defaultValue)
+
+    fun setString(key: String, value: String): Unit =
+        setPref(stringPreferencesKey(key), value)
 
     fun getFloat(key: String, defaultValue: Float): Float =
         getPref(floatPreferencesKey(key), defaultValue)
@@ -148,6 +154,12 @@ object PrefManager {
     @Suppress("SameParameterValue")
     private fun <T> setPref(key: Preferences.Key<T>, value: T) {
         scope.launch {
+            dataStore.edit { pref -> pref[key] = value }
+        }
+    }
+
+    private fun <T> setPrefBlocking(key: Preferences.Key<T>, value: T) {
+        runBlocking {
             dataStore.edit { pref -> pref[key] = value }
         }
     }
@@ -1515,6 +1527,12 @@ object PrefManager {
     var autoApplyKnownConfig: Boolean
         get() = getPref(AUTO_APPLY_KNOWN_CONFIG, true)
         set(value) = setPref(AUTO_APPLY_KNOWN_CONFIG, value)
+
+    // Opt-in shared immutable Wine DLLs for newly created containers only.
+    private val SHARED_CONTAINER_BASE = booleanPreferencesKey("shared_container_base")
+    var sharedContainerBase: Boolean
+        get() = getPref(SHARED_CONTAINER_BASE, false)
+        set(value) = setPrefBlocking(SHARED_CONTAINER_BASE, value)
 
     // Game compatibility cache (JSON string)
     private val GAME_COMPATIBILITY_CACHE = stringPreferencesKey("game_compatibility_cache")

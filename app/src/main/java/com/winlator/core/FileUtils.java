@@ -131,17 +131,33 @@ public abstract class FileUtils {
         return false;
     }
 
-    public static void symlink(File linkTarget, File linkFile) {
-        symlink(linkTarget.getAbsolutePath(), linkFile.getAbsolutePath());
+    public static boolean symlink(File linkTarget, File linkFile) {
+        return symlink(linkTarget.getAbsolutePath(), linkFile.getAbsolutePath());
     }
 
-    public static void symlink(String linkTarget, String linkFile) {
+    public static boolean symlink(String linkTarget, String linkFile) {
+        File destination = new File(linkFile);
+        File backup = new File(linkFile + ".symlink-backup-" + System.nanoTime());
+        boolean backedUp = false;
         try {
-            (new File(linkFile)).delete();
+            if (destination.exists() || Files.isSymbolicLink(destination.toPath())) {
+                if (!destination.renameTo(backup)) {
+                    Log.e("FileUtils", "Failed to stage existing symlink destination: " + linkFile);
+                    return false;
+                }
+                backedUp = true;
+            }
             Os.symlink(linkTarget, linkFile);
+            if (backedUp) backup.delete();
+            return Files.isSymbolicLink(destination.toPath());
         }
         catch (ErrnoException e) {
             Log.e("FileUtils", "Failed to symlink: " + e);
+            destination.delete();
+            if (backedUp && !backup.renameTo(destination)) {
+                Log.e("FileUtils", "Failed to restore symlink destination: " + linkFile);
+            }
+            return false;
         }
     }
 

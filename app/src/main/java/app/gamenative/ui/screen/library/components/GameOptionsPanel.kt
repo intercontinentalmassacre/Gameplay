@@ -170,7 +170,7 @@ fun GameOptionsPanel(
             // compactDisplay means "occupy the companion workspace", not
             // "pretend that workspace is narrow". The actual content width
             // decides whether categories use a strip or a rail.
-            val useCompactLayout = maxWidth < 600.dp
+            val useCompactLayout = compactDisplay || maxWidth < 600.dp
             val categoryLabels = mapOf(
                 OptionCategory.QUICK_ACTIONS to stringResource(R.string.game_options_quick_actions),
                 OptionCategory.GAME_MANAGEMENT to stringResource(R.string.game_options_game_management),

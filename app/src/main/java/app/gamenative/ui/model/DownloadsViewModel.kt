@@ -1,9 +1,11 @@
 package app.gamenative.ui.model
 
 import android.content.Context
+import android.os.Build
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.gamenative.BuildConfig
+import app.gamenative.PrefManager
 import app.gamenative.PluviaApp
 import app.gamenative.R
 import app.gamenative.data.DownloadInfo
@@ -30,7 +32,12 @@ import app.gamenative.ui.data.DownloadItemStatus
 import app.gamenative.ui.data.DownloadsState
 import app.gamenative.utils.ContainerUtils
 import app.gamenative.utils.CustomGameScanner
+import app.gamenative.utils.ManifestContentTypes
+import app.gamenative.utils.ManifestEntry
+import app.gamenative.utils.ManifestInstaller
+import app.gamenative.utils.ManifestRepository
 import app.gamenative.utils.downloader.ContainerFilesDownloader
+import com.winlator.contents.ContentProfile
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.LinkedHashMap
@@ -102,6 +109,14 @@ class DownloadsViewModel @Inject constructor(
     private val containerJobs = ConcurrentHashMap<String, ContainerJob>()
     private val containerPaused = ConcurrentHashMap.newKeySet<String>()
     private val containerFailures = ConcurrentHashMap<String, String>()
+    private val selectedContainerIds = ConcurrentHashMap.newKeySet<String>()
+    private var containerSelectionInitialized = false
+    private val manifestEntries = ConcurrentHashMap<String, ManifestEntry>()
+
+    private companion object {
+        const val PREFETCH_SELECTION_KEY = "container_prefetch_selected_ids"
+        const val PREFETCH_SELECTION_INITIALIZED_KEY = "container_prefetch_selection_initialized"
+    }
 
     @Volatile
     private var lastTrackedDownloads: Map<String, DownloadItemState> = emptyMap()
@@ -119,6 +134,7 @@ class DownloadsViewModel @Inject constructor(
     }
 
     init {
+        loadContainerSelection()
         PluviaApp.events.on<AndroidEvent.DownloadStatusChanged, Unit>(onDownloadStatusChanged)
         PluviaApp.events.on<AndroidEvent.LibraryInstallStatusChanged, Unit>(onLibraryInstallStatusChanged)
         PluviaApp.events.on<AndroidEvent.PostInstallSyncStatusChanged, Unit>(onPostInstallSyncStatusChanged)
@@ -147,6 +163,44 @@ class DownloadsViewModel @Inject constructor(
 
     private fun scheduleRefreshDownloads() {
         refreshRequests.tryEmit(Unit)
+    }
+
+    private fun loadContainerSelection() {
+        containerSelectionInitialized = PrefManager.getBoolean(PREFETCH_SELECTION_INITIALIZED_KEY, false)
+        if (containerSelectionInitialized) {
+            selectedContainerIds += PrefManager.getString(PREFETCH_SELECTION_KEY, "")
+                .split(',')
+                .map(String::trim)
+                .filter(String::isNotEmpty)
+        }
+    }
+
+    private fun persistContainerSelection() {
+        PrefManager.setString(PREFETCH_SELECTION_KEY, selectedContainerIds.sorted().joinToString(","))
+        PrefManager.setBoolean(PREFETCH_SELECTION_INITIALIZED_KEY, true)
+        containerSelectionInitialized = true
+    }
+
+    private fun defaultContainerSelection(componentIds: List<String>): Set<String> {
+        val common = setOf("extras", "container_pattern_common", "container_pattern_gamenative")
+        val runtime = if (Build.SUPPORTED_ABIS.any { it.contains("arm64") }) {
+            "proton-9.0-arm64ec_container_pattern"
+        } else {
+            "proton-9.0-x86_64_container_pattern"
+        }
+        return componentIds.filter { it in common || it == runtime }
+            .map { "container:$it" }
+            .toSet()
+    }
+
+    private fun updateContainerSelectionState() {
+        _state.update { state ->
+            state.copy(
+                containers = state.containers.mapValues { (_, item) ->
+                    item.copy(selected = item.uniqueId in selectedContainerIds)
+                },
+            )
+        }
     }
 
     private fun clearObservedDownloads() {
@@ -811,17 +865,19 @@ class DownloadsViewModel @Inject constructor(
         sizeBytes: Long,
     ): ContainerFileItemState {
         val (nameResId, descResId) = displayNamesFor(componentId)
-        val hasActiveJob = containerJobs.containsKey(componentId)
-        val paused = containerPaused.contains(componentId)
-        val failure = containerFailures[componentId]
+        val key = "container:$componentId"
+        val hasActiveJob = containerJobs.containsKey(key)
+        val paused = containerPaused.contains(key)
+        val failure = containerFailures[key]
 
         return when {
             hasActiveJob -> {
-                val progress = containerJobs[componentId]?.lastProgress ?: 0f
+                val progress = containerJobs[key]?.lastProgress ?: 0f
                 ContainerFileItemState(
                     componentId = componentId,
                     nameResId = nameResId,
                     descriptionResId = descResId,
+                    selected = "container:$componentId" in selectedContainerIds,
                     progress = progress,
                     bytesDownloaded = (sizeBytes * progress).toLong(),
                     status = ContainerFileStatus.DOWNLOADING,
@@ -832,6 +888,7 @@ class DownloadsViewModel @Inject constructor(
                 componentId = componentId,
                 nameResId = nameResId,
                 descriptionResId = descResId,
+                selected = "container:$componentId" in selectedContainerIds,
                 progress = containerJobs[componentId]?.lastProgress,
                 bytesDownloaded = null,
                 status = ContainerFileStatus.PAUSED,
@@ -841,6 +898,7 @@ class DownloadsViewModel @Inject constructor(
                 componentId = componentId,
                 nameResId = nameResId,
                 descriptionResId = descResId,
+                selected = "container:$componentId" in selectedContainerIds,
                 progress = 1f,
                 bytesDownloaded = sizeBytes,
                 status = ContainerFileStatus.READY,
@@ -850,6 +908,7 @@ class DownloadsViewModel @Inject constructor(
                 componentId = componentId,
                 nameResId = nameResId,
                 descriptionResId = descResId,
+                selected = "container:$componentId" in selectedContainerIds,
                 progress = null,
                 bytesDownloaded = null,
                 status = ContainerFileStatus.FAILED,
@@ -859,6 +918,115 @@ class DownloadsViewModel @Inject constructor(
                 componentId = componentId,
                 nameResId = nameResId,
                 descriptionResId = descResId,
+                selected = "container:$componentId" in selectedContainerIds,
+                progress = null,
+                bytesDownloaded = null,
+                status = ContainerFileStatus.NOT_DOWNLOADED,
+                statusMessage = appContext.getString(R.string.downloads_containers_status_not_downloaded),
+            )
+        }.copy(
+            displayName = appContext.getString(nameResId),
+            displayDescription = appContext.getString(descResId),
+        )
+    }
+
+    private fun manifestKey(category: String, entry: ManifestEntry): String = "$category:${entry.id}"
+
+    private fun manifestContentType(category: String): ContentProfile.ContentType = when (category) {
+        ManifestContentTypes.DXVK -> ContentProfile.ContentType.CONTENT_TYPE_DXVK
+        ManifestContentTypes.VKD3D -> ContentProfile.ContentType.CONTENT_TYPE_VKD3D
+        ManifestContentTypes.BOX64 -> ContentProfile.ContentType.CONTENT_TYPE_BOX64
+        ManifestContentTypes.WOWBOX64 -> ContentProfile.ContentType.CONTENT_TYPE_WOWBOX64
+        ManifestContentTypes.FEXCORE -> ContentProfile.ContentType.CONTENT_TYPE_FEXCORE
+        ManifestContentTypes.WINE -> ContentProfile.ContentType.CONTENT_TYPE_WINE
+        ManifestContentTypes.PROTON -> ContentProfile.ContentType.CONTENT_TYPE_PROTON
+        else -> throw IllegalArgumentException("Unsupported prefetch content type: $category")
+    }
+
+    private fun prefetchMarker(key: String): java.io.File {
+        val safeKey = key.replace(Regex("[^A-Za-z0-9_.-]"), "_")
+        return java.io.File(appContext.filesDir, "assets/prefetch/$safeKey.ready")
+    }
+
+    private fun resolveManifestStatus(
+        category: String,
+        entry: ManifestEntry,
+    ): ContainerFileItemState {
+        val key = manifestKey(category, entry)
+        val job = containerJobs[key]
+        val failure = containerFailures[key]
+        val selected = key in selectedContainerIds
+        val displayDescription = listOfNotNull(
+            category.uppercase(),
+            entry.variant?.takeIf { it.isNotBlank() },
+            entry.arch?.takeIf { it.isNotBlank() },
+        ).joinToString(" • ")
+        return when {
+            job != null -> ContainerFileItemState(
+                componentId = entry.id,
+                nameResId = R.string.downloads_containers_section_title,
+                descriptionResId = R.string.downloads_containers_subtitle,
+                selected = selected,
+                category = category,
+                displayName = entry.name,
+                displayDescription = displayDescription,
+                expectedSizeBytes = entry.sizeBytes,
+                progress = job.lastProgress,
+                bytesDownloaded = entry.sizeBytes?.let { (it * job.lastProgress).toLong() },
+                status = ContainerFileStatus.DOWNLOADING,
+                statusMessage = null,
+            )
+            key in containerPaused -> ContainerFileItemState(
+                componentId = entry.id,
+                nameResId = R.string.downloads_containers_section_title,
+                descriptionResId = R.string.downloads_containers_subtitle,
+                selected = selected,
+                category = category,
+                displayName = entry.name,
+                displayDescription = displayDescription,
+                expectedSizeBytes = entry.sizeBytes,
+                progress = null,
+                bytesDownloaded = null,
+                status = ContainerFileStatus.PAUSED,
+                statusMessage = appContext.getString(R.string.downloads_containers_status_paused),
+            )
+            prefetchMarker(key).isFile -> ContainerFileItemState(
+                componentId = entry.id,
+                nameResId = R.string.downloads_containers_section_title,
+                descriptionResId = R.string.downloads_containers_subtitle,
+                selected = selected,
+                category = category,
+                displayName = entry.name,
+                displayDescription = displayDescription,
+                expectedSizeBytes = entry.sizeBytes,
+                progress = 1f,
+                bytesDownloaded = entry.sizeBytes,
+                status = ContainerFileStatus.READY,
+                statusMessage = appContext.getString(R.string.downloads_containers_status_ready),
+            )
+            failure != null -> ContainerFileItemState(
+                componentId = entry.id,
+                nameResId = R.string.downloads_containers_section_title,
+                descriptionResId = R.string.downloads_containers_subtitle,
+                selected = selected,
+                category = category,
+                displayName = entry.name,
+                displayDescription = displayDescription,
+                expectedSizeBytes = entry.sizeBytes,
+                progress = null,
+                bytesDownloaded = null,
+                status = ContainerFileStatus.FAILED,
+                statusMessage = failure,
+            )
+            else -> ContainerFileItemState(
+                componentId = entry.id,
+                nameResId = R.string.downloads_containers_section_title,
+                descriptionResId = R.string.downloads_containers_subtitle,
+                selected = selected,
+                category = category,
+                displayName = entry.name,
+                displayDescription = displayDescription,
+                expectedSizeBytes = entry.sizeBytes,
                 progress = null,
                 bytesDownloaded = null,
                 status = ContainerFileStatus.NOT_DOWNLOADED,
@@ -876,6 +1044,10 @@ class DownloadsViewModel @Inject constructor(
             val knownIds = knownContainerComponentIds()
             val knownSet = knownIds.toSet()
             val manifestIds = manifest?.components?.map { it.id } ?: emptyList()
+            if (!containerSelectionInitialized && manifestIds.isNotEmpty()) {
+                selectedContainerIds += defaultContainerSelection(manifestIds)
+                persistContainerSelection()
+            }
             // Surface known components first, then any new manifest entries
             // the codebase hasn't learned a display name for yet.
             val orderedIds = (knownIds.filter { it in manifestIds || manifest == null } +
@@ -885,7 +1057,27 @@ class DownloadsViewModel @Inject constructor(
             for (id in orderedIds) {
                 val file = java.io.File(cacheDir, "$id.tzst")
                 val exists = file.isFile && file.length() > 0L
-                items[id] = resolveContainerStatus(id, exists, file.length())
+                items["container:$id"] = resolveContainerStatus(id, exists, file.length())
+            }
+
+            val catalog = runCatching { ManifestRepository.loadManifest(appContext, preferRemote = true) }.getOrNull()
+            manifestEntries.clear()
+            catalog?.items
+                ?.filterKeys { it in ManifestContentTypes.ALL && it != ManifestContentTypes.DRIVER }
+                ?.forEach { (category, entries) ->
+                    entries.forEach { entry ->
+                        val key = manifestKey(category, entry)
+                        manifestEntries[key] = entry
+                        items[key] = resolveManifestStatus(category, entry)
+                    }
+                }
+
+            addBundledRuntimeOptions(items)
+
+            if (!containerSelectionInitialized && items.isNotEmpty()) {
+                selectedContainerIds += defaultContainerSelection(orderedIds)
+                persistContainerSelection()
+                items.replaceAll { _, item -> item.copy(selected = item.uniqueId in selectedContainerIds) }
             }
 
             _state.update { current -> current.copy(containers = items) }
@@ -894,78 +1086,166 @@ class DownloadsViewModel @Inject constructor(
         }
     }
 
-    fun onDownloadContainer(componentId: String) {
+    fun onDownloadContainer(prefetchKey: String) {
         if (BuildConfig.MODERN_ANDROID.not()) return
-        if (containerJobs.containsKey(componentId)) return
-        containerPaused.remove(componentId)
-        containerFailures.remove(componentId)
+        val category = prefetchKey.substringBefore(':')
+        val componentId = prefetchKey.substringAfter(':', missingDelimiterValue = "")
+        if (category != "container") {
+            onDownloadManifest(prefetchKey)
+            return
+        }
+        if (componentId.isBlank() || containerJobs.containsKey(prefetchKey)) return
+        containerPaused.remove(prefetchKey)
+        containerFailures.remove(prefetchKey)
 
         val job = viewModelScope.launch(Dispatchers.IO) {
             try {
                 ContainerFilesDownloader.ensureContainerFileAvailable(appContext, componentId) { progress ->
-                    containerJobs[componentId]?.lastProgress = progress
-                    viewModelScope.launch(Dispatchers.Default) {
-                        // Lightweight refresh; the next refreshRequest pass will
-                        // re-walk the cache and pick the file size up too.
-                        val current = _state.value.containers[componentId] ?: return@launch
-                        _state.update { state ->
-                            val merged = LinkedHashMap(state.containers)
-                            merged[componentId] = current.copy(
-                                progress = progress,
-                                bytesDownloaded = current.bytesDownloaded,
-                                status = if (progress >= 1f) {
-                                    ContainerFileStatus.READY
-                                } else {
-                                    ContainerFileStatus.DOWNLOADING
-                                },
-                            )
-                            state.copy(containers = merged)
-                        }
-                    }
+                    containerJobs[prefetchKey]?.lastProgress = progress
+                    updatePrefetchProgress(prefetchKey, progress)
                 }
-                containerFailures.remove(componentId)
+                containerFailures.remove(prefetchKey)
             } catch (e: Exception) {
-                containerFailures[componentId] = e.message ?: e.javaClass.simpleName
+                containerFailures[prefetchKey] = e.message ?: e.javaClass.simpleName
                 Timber.tag("DownloadsViewModel").w(e, "Container download failed: $componentId")
             } finally {
-                containerJobs.remove(componentId)
+                containerJobs.remove(prefetchKey)
                 scheduleRefreshDownloads()
             }
         }
-        containerJobs[componentId] = ContainerJob(job)
+        containerJobs[prefetchKey] = ContainerJob(job)
         scheduleRefreshDownloads()
     }
 
-    fun onPauseContainer(componentId: String) {
-        val job = containerJobs.remove(componentId) ?: return
+    private fun addBundledRuntimeOptions(items: LinkedHashMap<String, ContainerFileItemState>) {
+        val bundledFexVersions = appContext.resources
+            .getStringArray(R.array.fexcore_version_entries)
+            .toList()
+
+        bundledFexVersions.forEach { version ->
+            val key = "fexcore:$version"
+            if (items.containsKey(key)) return@forEach
+            items[key] = ContainerFileItemState(
+                componentId = version,
+                nameResId = R.string.downloads_containers_section_title,
+                descriptionResId = R.string.downloads_containers_subtitle,
+                selected = false,
+                selectable = false,
+                category = ManifestContentTypes.FEXCORE,
+                displayName = "FEXCore $version",
+                displayDescription = appContext.getString(R.string.downloads_containers_bundled_runtime_description),
+                progress = null,
+                bytesDownloaded = 0L,
+                status = ContainerFileStatus.READY,
+                statusMessage = appContext.getString(R.string.downloads_containers_status_ready),
+            )
+        }
+    }
+
+    private fun updatePrefetchProgress(prefetchKey: String, progress: Float) {
+        _state.update { state ->
+            val current = state.containers[prefetchKey] ?: return@update state
+            val merged = LinkedHashMap(state.containers)
+            merged[prefetchKey] = current.copy(
+                progress = progress,
+                bytesDownloaded = current.expectedSizeBytes?.let { (it * progress).toLong() },
+                status = if (progress >= 1f) ContainerFileStatus.READY else ContainerFileStatus.DOWNLOADING,
+            )
+            state.copy(containers = merged)
+        }
+    }
+
+    private fun onDownloadManifest(prefetchKey: String) {
+        val entry = manifestEntries[prefetchKey] ?: return
+        if (containerJobs.containsKey(prefetchKey)) return
+        containerPaused.remove(prefetchKey)
+        containerFailures.remove(prefetchKey)
+        val category = prefetchKey.substringBefore(':')
+
+        val job = viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val result = ManifestInstaller.downloadAndInstallContent(
+                    context = appContext,
+                    entry = entry,
+                    expectedType = manifestContentType(category),
+                    onProgress = { progress ->
+                        containerJobs[prefetchKey]?.lastProgress = progress
+                        updatePrefetchProgress(prefetchKey, progress)
+                    },
+                )
+                check(result.success) { result.message }
+                prefetchMarker(prefetchKey).apply {
+                    parentFile?.mkdirs()
+                    writeText(entry.sha256 ?: entry.name)
+                }
+                containerFailures.remove(prefetchKey)
+            } catch (e: Exception) {
+                containerFailures[prefetchKey] = e.message ?: e.javaClass.simpleName
+                Timber.tag("DownloadsViewModel").w(e, "Manifest prefetch failed: $prefetchKey")
+            } finally {
+                containerJobs.remove(prefetchKey)
+                scheduleRefreshDownloads()
+            }
+        }
+        containerJobs[prefetchKey] = ContainerJob(job)
+        scheduleRefreshDownloads()
+    }
+
+    fun onToggleContainerSelection(prefetchKey: String) {
+        if (!selectedContainerIds.add(prefetchKey)) selectedContainerIds.remove(prefetchKey)
+        persistContainerSelection()
+        updateContainerSelectionState()
+    }
+
+    fun onSelectAllContainers() {
+        selectedContainerIds += _state.value.containers.values
+            .filter { it.selectable }
+            .map { it.uniqueId }
+        persistContainerSelection()
+        updateContainerSelectionState()
+    }
+
+    fun onClearContainerSelection() {
+        selectedContainerIds.clear()
+        persistContainerSelection()
+        updateContainerSelectionState()
+    }
+
+    fun onPrefetchSelectedContainers() {
+        _state.value.containers.values
+            .filter { it.selected && it.canDownload }
+            .forEach { onDownloadContainer(it.uniqueId) }
+    }
+
+    fun onPauseContainer(prefetchKey: String) {
+        val job = containerJobs.remove(prefetchKey) ?: return
         job.job.cancel()
-        containerPaused.add(componentId)
+        containerPaused.add(prefetchKey)
         scheduleRefreshDownloads()
     }
 
-    fun onResumeContainer(componentId: String) {
-        containerPaused.remove(componentId)
-        containerFailures.remove(componentId)
-        onDownloadContainer(componentId)
+    fun onResumeContainer(prefetchKey: String) {
+        containerPaused.remove(prefetchKey)
+        containerFailures.remove(prefetchKey)
+        onDownloadContainer(prefetchKey)
     }
 
-    fun onRemoveContainer(componentId: String) {
+    fun onRemoveContainer(prefetchKey: String) {
+        if (!prefetchKey.startsWith("container:")) return
+        val componentId = prefetchKey.substringAfter(':')
         val cacheDir = java.io.File(appContext.filesDir, ContainerFilesDownloader.CONTAINER_FILES_CACHE_DIR)
         runCatching {
             java.io.File(cacheDir, "$componentId.tzst").delete()
         }
-        containerPaused.remove(componentId)
-        containerFailures.remove(componentId)
+        containerPaused.remove(prefetchKey)
+        containerFailures.remove(prefetchKey)
         scheduleRefreshDownloads()
     }
 
     fun onDownloadAllContainers() {
-        knownContainerComponentIds().forEach { id ->
-            val current = _state.value.containers[id]
-            if (current != null && current.canDownload) {
-                onDownloadContainer(id)
-            }
-        }
+        _state.value.containers.values
+            .filter { it.category == "container" && it.canDownload }
+            .forEach { onDownloadContainer(it.uniqueId) }
     }
 
     fun onPauseAllContainers() {

@@ -2,6 +2,7 @@ package app.gamenative.ui.gcds
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -11,6 +12,9 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import app.gamenative.ui.component.GamepadHint
+
+/** Forces category strips for companion/dual-screen settings workspaces. */
+val LocalForceCategoryStrip = staticCompositionLocalOf { false }
 
 /**
  * One information architecture with two native arrangements:
@@ -53,7 +57,7 @@ fun <T> GcdsAdaptiveCategoryLayout(
             }
         },
     ) {
-        if (maxWidth < compactBreakpoint) {
+        if (LocalForceCategoryStrip.current || maxWidth < compactBreakpoint) {
             Column(modifier = Modifier.fillMaxSize()) {
                 GcdsStrip(
                     items = items,

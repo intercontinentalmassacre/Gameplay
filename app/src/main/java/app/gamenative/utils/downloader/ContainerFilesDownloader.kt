@@ -135,7 +135,12 @@ object ContainerFilesDownloader {
      */
     private fun loadContainerFilesManifest(context: Context): ContainerFilesManifest {
         return try {
-            val manifestJson = context.assets.open(CONTAINER_FILES_MANIFEST_FILE).bufferedReader().use { it.readText() }
+            val manifestJson = context.assets
+                .open(CONTAINER_FILES_MANIFEST_FILE)
+                .bufferedReader()
+                .use { it.readText() }
+                .removePrefix("\uFEFF")
+                .trimStart()
             json.decodeFromString<ContainerFilesManifest>(manifestJson)
         } catch (e: Exception) {
             Timber.e(e, "Failed to load $CONTAINER_FILES_MANIFEST_FILE")

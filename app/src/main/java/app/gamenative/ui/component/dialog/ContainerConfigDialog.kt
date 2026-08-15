@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
@@ -31,7 +32,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ViewList
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.outlined.AddCircleOutline
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -52,8 +52,6 @@ import androidx.compose.material3.Scaffold
 import app.gamenative.ui.component.Slider
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.ModalDrawerSheet
-import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -65,8 +63,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.material3.DrawerValue
-import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -104,9 +100,7 @@ import app.gamenative.ui.component.settings.SettingsListDropdown
 import app.gamenative.ui.components.rememberCustomGameFolderPicker
 import app.gamenative.ui.components.requestPermissionsForPath
 import app.gamenative.ui.theme.PluviaTheme
-import app.gamenative.ui.component.ConsoleCategoryRail
 import app.gamenative.ui.gcds.GcdsRail
-import app.gamenative.ui.component.ConsoleCategoryStrip
 import app.gamenative.ui.gcds.GcdsStrip
 import app.gamenative.ui.component.GamepadHint
 import app.gamenative.ui.component.GamepadButton
@@ -357,13 +351,11 @@ fun ContainerConfigDialog(
 ) {
     if (visible) {
         val hasExternalDisplay = rememberHasExternalDisplay()
-        // Always hand off to the lower display when one exists, even when the
-        // dialog opens from content that is already hosted there (e.g. settings
-        // workspace). The re-published DIALOG owner outranks SETTINGS, so the
-        // lower screen swaps to the embedded config and back to settings on
-        // close. Guarded by !embedded so the recursive embedded render never
-        // republishes.
-        if (!embedded && hasExternalDisplay) {
+        val alreadyOnSecondScreen = LocalSecondScreenDialogWindowType.current != null
+        // Route from the main display to the lower display. When already inside
+        // the Presentation, keep the dialog in that window instead of publishing
+        // a second full-screen settings workspace.
+        if (!embedded && hasExternalDisplay && !alreadyOnSecondScreen) {
             val secondScreenContent: @Composable () -> Unit = {
                 ContainerConfigDialog(
                     visible = true,
@@ -379,7 +371,7 @@ fun ContainerConfigDialog(
                     mediaIconUrl = mediaIconUrl,
                     gameId = gameId,
                     appId = appId,
-                    embedded = true,
+                    embedded = false,
                 )
             }
             SideEffect {
@@ -1340,23 +1332,24 @@ fun ContainerConfigDialog(
             onConfirmClick = onDismissRequest,
         )
 
+        val useTabStrip = embedded || LocalSecondScreenDialogWindowType.current != null ||
+            LocalConfiguration.current.orientation != Configuration.ORIENTATION_LANDSCAPE
+
         val configurationContent: @Composable () -> Unit = {
                 var selectedTab by rememberSaveable { mutableIntStateOf(0) }
                 // Each tab owns its own scroll position; sharing one state left
                 // users mid-content after switching tabs.
                 val scrollState = remember(selectedTab) { ScrollState(0) }
                 var searchActive by rememberSaveable { mutableStateOf(false) }
-                val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
-                val drawerScope = rememberCoroutineScope()
-                var searchQuery by rememberSaveable { mutableStateOf("") }
+                 var searchQuery by rememberSaveable { mutableStateOf("") }
                 val closeSearch: () -> Unit = {
                     searchActive = false
                     searchQuery = ""
                 }
-                // Lowest-priority back: close the dialog through the unsaved-changes
-                // gate. Higher-priority BackHandlers (search, drawer, confirm overlay)
+                 // Lowest-priority back: close the dialog through the unsaved-changes
+                 // gate. Higher-priority BackHandlers (search, confirm overlay)
                 // are registered later and win when enabled.
-                BackHandler(enabled = !searchActive && !drawerState.isOpen && !dismissDialogState.visible) {
+                 BackHandler(enabled = !searchActive && !dismissDialogState.visible) {
                     onDismissCheck()
                 }
                 BackHandler(enabled = searchActive, onBack = closeSearch)
@@ -1398,8 +1391,8 @@ fun ContainerConfigDialog(
                 }
 
                 Scaffold(
-                    // Shoulder-button tab cycling lives on the whole dialog so it
-                    // fires no matter where focus sits (top bar, drawer, content).
+                     // Shoulder-button tab cycling lives on the whole dialog so it
+                     // fires no matter where focus sits (top bar, category nav, content).
                     modifier = Modifier
                         .fillMaxSize()
                         .onPreviewKeyEvent { event ->
@@ -1434,13 +1427,6 @@ fun ContainerConfigDialog(
                                 )
                             },
                             actions = {
-                                if (!embedded) {
-                                    ConsoleIconButton(
-                                        onClick = { drawerScope.launch { drawerState.open() } },
-                                        icon = Icons.Default.Menu,
-                                        contentDescription = stringResource(R.string.container_config_open_categories),
-                                    )
-                                }
                                 SettingsSearchToggle(
                                     active = searchActive,
                                     query = searchQuery,
@@ -1461,9 +1447,8 @@ fun ContainerConfigDialog(
                     // Let controller shoulder buttons cycle through the tabs: R1/R2
                     // forward, L1/L2 back (both wrap). The handler lives on the content
                     // container (not a focusable wrapper, which would break up/down
-                    // traversal), so it fires whenever focus is anywhere in the tabs or
-                    // content below. Works whether the category drawer is open or not,
-                    // so controller users never have to open the drawer to switch tabs.
+                     // traversal), so it fires whenever focus is anywhere in the tabs or
+                     // content below. Category navigation stays visible in every layout.
                     @Composable
                     fun tabContent() {
                         if (searchQuery.isNotBlank() && filteredTabIndices.isEmpty()) {
@@ -1506,24 +1491,18 @@ fun ContainerConfigDialog(
                         )
                         .fillMaxSize()
 
-                    if (!embedded) {
-                        BackHandler(enabled = drawerState.isOpen) {
-                            drawerScope.launch { drawerState.close() }
-                        }
-                    }
                     // Highest-priority back: the unsaved-changes confirm overlay
                     // closes back to the editor (keep editing), never discards.
                     BackHandler(enabled = dismissDialogState.visible) {
                         dismissDialogState = MessageDialogState(visible = false)
                     }
 
-                    if (embedded) {
-                        // Lower display: categories are a horizontal strip above the
-                        // content (same as the in-game settings workspace), never a
-                        // burger-drawer. No burger, no drawer, no drawer-back.
-                        Column(
-                            modifier = Modifier
-                                .fillMaxSize()
+                     if (useTabStrip) {
+                         // Dual-screen and portrait layouts keep category navigation
+                         // visible above content. No hidden drawer or burger action.
+                         Column(
+                             modifier = Modifier
+                                 .fillMaxSize()
                                 .padding(top = paddingValues.calculateTopPadding()),
                         ) {
                             GcdsStrip(
@@ -1549,52 +1528,46 @@ fun ContainerConfigDialog(
                                         .verticalScroll(scrollState),
                                 ) {
                                     tabContent()
-                                }
-                            }
-                        }
-                    } else {
-                        ModalNavigationDrawer(
-                            drawerState = drawerState,
-                            drawerContent = {
-                                ModalDrawerSheet {
-                                    GcdsRail(
-                                        items = visibleTabIndices,
-                                        selectedItem = selectedTab,
-                                        label = { tabs[it] },
-                                        onSelected = {
-                                            selectedTab = it
-                                            drawerScope.launch { drawerState.close() }
-                                        },
-                                        footer = stringResource(R.string.container_config_console_controls_hint),
-                                        footerHints = listOf(
-                                            GamepadHint(GamepadButton.A, R.string.action_select),
-                                            GamepadHint(GamepadButton.B, R.string.back),
-                                        ),
-                                        requestInitialFocus = drawerState.isOpen,
-                                        compact = true,
-                                        modifier = Modifier.fillMaxSize(),
-                                    )
-                                }
-                            },
-                            content = {
-                                Column(modifier = contentModifier) {
-                                    Column(
-                                        modifier = Modifier
-                                            .padding(horizontal = 22.dp)
-                                            .verticalScroll(scrollState)
-                                            .weight(1f),
-                                    ) {
-                                        tabContent()
-                                    }
-                                }
-                            },
-                        )
-                    }
+                                 }
+                             }
+                         }
+                     } else {
+                         // Landscape single-screen layout keeps the rail visible
+                         // beside content. It is never hidden behind a menu.
+                         Row(modifier = contentModifier) {
+                             GcdsRail(
+                                 items = visibleTabIndices,
+                                 selectedItem = selectedTab,
+                                 label = { tabs[it] },
+                                 onSelected = { selectedTab = it },
+                                 footer = stringResource(R.string.container_config_console_controls_hint),
+                                 footerHints = listOf(
+                                     GamepadHint(GamepadButton.A, R.string.action_select),
+                                     GamepadHint(GamepadButton.B, R.string.back),
+                                 ),
+                                 requestInitialFocus = true,
+                                 compact = true,
+                                 modifier = Modifier.width(220.dp),
+                             )
+                             Column(
+                                 modifier = Modifier
+                                     .weight(1f)
+                                     .padding(horizontal = 22.dp)
+                                     .verticalScroll(scrollState),
+                             ) {
+                                 tabContent()
+                             }
+                         }
+                     }
                 }
             }
 
         if (embedded) {
-            Box(modifier = Modifier.fillMaxSize()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 1.dp, max = 900.dp),
+            ) {
                 configurationContent()
                 EmbeddedContainerOverlay(
                     dismissState = dismissDialogState,
