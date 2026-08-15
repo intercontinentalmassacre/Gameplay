@@ -60,6 +60,7 @@ import app.gamenative.utils.CaseInsensitiveFileSystem
 import app.gamenative.utils.ContainerUtils
 import app.gamenative.utils.FileUtils
 import app.gamenative.utils.LicenseSerializer
+import app.gamenative.utils.LsfgVkManager
 import app.gamenative.utils.MarkerUtils
 import app.gamenative.utils.Net
 import app.gamenative.utils.SteamUtils
@@ -2265,7 +2266,11 @@ class SteamService : Service(), IChallengeUrlChanged {
                     val appId = downloadInfo.gameId
                     val steamId = userSteamId
                     val containerId = "${GameSource.STEAM.name}_$appId"
-                    if (steamId != null && !ContainerUtils.isLocalSavesOnly(svc.applicationContext, containerId)) {
+                    // Lossless Scaling is a utility whose DLL is copied into a
+                    // game's container. It has no game saves and must not gain
+                    // a standalone Wine container during post-install sync.
+                    val isLosslessScaling = appId == LsfgVkManager.LOSSLESS_SCALING_APP_ID
+                    if (!isLosslessScaling && steamId != null && !ContainerUtils.isLocalSavesOnly(svc.applicationContext, containerId)) {
                         downloadInfo.setPostInstallSyncing(true)
                         downloadInfo.updateStatusMessage("Syncing saves...")
                         PluviaApp.events.emit(AndroidEvent.PostInstallSyncStatusChanged(appId, true))
@@ -2292,6 +2297,8 @@ class SteamService : Service(), IChallengeUrlChanged {
                             downloadInfo.updateStatusMessage(null)
                             PluviaApp.events.emit(AndroidEvent.PostInstallSyncStatusChanged(appId, false))
                         }
+                    } else if (isLosslessScaling) {
+                        PluviaApp.events.emit(AndroidEvent.PostInstallSyncStatusChanged(appId, false))
                     }
 
                     // Android platform: the download itself doesn't put the game on the device —
