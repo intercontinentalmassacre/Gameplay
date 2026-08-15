@@ -2428,6 +2428,9 @@ Ubuntu RootFs - releases.ubuntu.com/focal</string>
     <string name="custom_games_zero_folders">Найдено 0 папок</string>
     <string name="disc_image_portable_added">%1$s был извлечён и добавлен в вашу библиотеку</string>
     <string name="ds_home_icon_size_action">Размер значка</string>
+    <string name="ds_home_layout_grid">Сетка</string>
+    <string name="ds_home_layout_flow">Cover Flow</string>
+    <string name="ds_home_layout_wall">Cover Wall</string>
     <string name="face_buttons">Кнопки лица</string>
     <string name="family_shared">Семейно общее</string>
     <string name="game_players_now">Сейчас играет: %1$s</string>

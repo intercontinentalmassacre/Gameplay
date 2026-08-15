@@ -2264,6 +2264,9 @@
     <string name="downloads_stage_description">Trasferimenti, avanzamento delle installazioni e gestione dello spazio.</string>
     <string name="downloads_stage_navigation_hint">Gestisci i download sullo schermo inferiore</string>
     <string name="ds_home_icon_size_action">Dimensione icone</string>
+    <string name="ds_home_layout_grid">Griglia</string>
+    <string name="ds_home_layout_flow">Cover Flow</string>
+    <string name="ds_home_layout_wall">Cover Wall</string>
     <string name="external_display_input">Input del display esterno</string>
     <string name="external_display_input_subtitle">Scegli come deve comportarsi un display di presentazione collegato</string>
     <string name="external_display_mode_hybrid">Ibrido (touchpad + pulsante tastiera)</string>

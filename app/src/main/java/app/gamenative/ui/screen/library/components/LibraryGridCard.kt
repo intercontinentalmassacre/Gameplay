@@ -73,6 +73,7 @@ import app.gamenative.ui.theme.motionSpec
 import app.gamenative.ui.util.ListItemImage
 import app.gamenative.utils.CustomGameScanner
 import app.gamenative.utils.CustomMediaUtils
+import app.gamenative.utils.CoverCache
 import com.skydoves.landscapist.ImageOptions
 import com.skydoves.landscapist.coil.CoilImage
 import java.io.File
@@ -600,6 +601,13 @@ internal fun getGridImageUrl(
         null
     }
 
+    // 0. Persistent on-device cover cache (works offline, no network).
+    val cachedUri = CoverCache.fileUri(appInfo.appId, when (paneType) {
+        PaneType.GRID_CAPSULE, PaneType.INSTALLED_COMPACT -> CoverCache.Type.GRID_CAPSULE
+        PaneType.GRID_HERO -> CoverCache.Type.GRID_HERO
+        else -> CoverCache.Type.HEADER
+    })
+
     val baseUrls = when (appInfo.gameSource) {
         GameSource.CUSTOM_GAME -> {
             val primary = when (paneType) {
@@ -666,7 +674,9 @@ internal fun getGridImageUrl(
         }
     }
 
-    return if (customMediaUri != null) {
+    return if (cachedUri != null) {
+        GridImageUrls(primary = cachedUri)
+    } else if (customMediaUri != null) {
         GridImageUrls(primary = customMediaUri.toString(), fallback = baseUrls.primary)
     } else {
         baseUrls

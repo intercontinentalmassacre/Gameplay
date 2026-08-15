@@ -54,6 +54,7 @@ object LsfgVkManager {
     const val EXTRA_MULTIPLIER = "lsfgMultiplier"
     const val EXTRA_FLOW_SCALE = "lsfgFlowScale"
     const val EXTRA_PERFORMANCE_MODE = "lsfgPerformanceMode"
+    const val EXTRA_PRESENT_MODE = "lsfgPresentMode"
 
     // Environment variables consumed by the bundled lsfg-vk layer
     // Native v1 wire protocol identifier. This is not user-facing branding:
@@ -115,6 +116,13 @@ object LsfgVkManager {
     /** Get whether performance mode is enabled (default true). */
     fun performanceMode(container: Container): Boolean =
         parseBool(container.getExtra(EXTRA_PERFORMANCE_MODE, "true"))
+
+    /** Present mode used by LSFG while generated frames are being paced. */
+    fun presentMode(container: Container): String =
+        container.getExtra(EXTRA_PRESENT_MODE, "mailbox")
+            .lowercase(Locale.ENGLISH)
+            .takeIf { it == "fifo" || it == "mailbox" }
+            ?: "mailbox"
 
     /**
      * True only after the native layer has generated, copied, and successfully
@@ -251,6 +259,7 @@ object LsfgVkManager {
                 multiplier = savedMultiplier.coerceIn(2, 4),
                 flowScale = flowScale(container),
                 performanceMode = performanceMode(container) && frameGenActive,
+                presentMode = presentMode(container),
             )
             val ok = FileUtils.writeString(configFile, configText)
             if (ok && configFile.exists()) {
@@ -362,6 +371,7 @@ object LsfgVkManager {
         multiplier: Int,
         flowScale: Float,
         performanceMode: Boolean,
+        presentMode: String = "mailbox",
     ): String = buildString {
         appendLine("version = 1")
         appendLine()
@@ -378,7 +388,7 @@ object LsfgVkManager {
         appendLine("flow_scale = ${formatFlowScale(flowScale)}")
         appendLine("performance_mode = ${if (performanceMode && enabled) "true" else "false"}")
         appendLine("hdr_mode = false")
-        appendLine("experimental_present_mode = ${tomlString("fifo")}")
+        appendLine("experimental_present_mode = ${tomlString(if (enabled) presentMode else "fifo")}")
     }
 
     private fun tomlString(value: String): String = buildString {
@@ -450,6 +460,7 @@ object LsfgVkManager {
                 multiplier = multiplier,
                 flowScale = flowScale,
                 performanceMode = performanceMode,
+                presentMode = presentMode(container),
             )
 
             val ok = FileUtils.writeString(configFile, configText)

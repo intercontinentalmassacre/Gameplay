@@ -693,7 +693,7 @@ var win32AppWorkarounds: Win32AppWorkarounds? by remember { mutableStateOf(null)
             ?.setFrameRateLimit(limit)
         xServerView?.getxServer()
             ?.getExtension<PresentExtension>(PresentExtension.MAJOR_OPCODE.toInt())
-            ?.setEagerIdleRelease(LsfgVkManager.isArmed(container))
+            ?.setEagerIdleRelease(false)
     }
 
     fun effectiveFpsLimit(): Int =
@@ -826,7 +826,12 @@ var win32AppWorkarounds: Win32AppWorkarounds? by remember { mutableStateOf(null)
         val hud = PerformanceHudView(
             context = context,
             fpsProvider = {
-                frameRating?.currentFPS ?: 0f
+                val baseFps = frameRating?.currentFPS ?: 0f
+                if (isLsfgAvailable && lsfgMultiplier >= 2) {
+                    baseFps * lsfgMultiplier
+                } else {
+                    baseFps
+                }
             },
             initialConfig = performanceHudConfig,
             initialCompactMode = PrefManager.performanceHudCompactMode,

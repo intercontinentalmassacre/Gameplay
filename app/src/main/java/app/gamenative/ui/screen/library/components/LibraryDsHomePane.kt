@@ -27,6 +27,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -37,6 +38,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -66,6 +68,7 @@ import app.gamenative.utils.SteamGridDBIconProvider
 import com.skydoves.landscapist.ImageOptions
 import com.skydoves.landscapist.coil.CoilImage
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 /**
@@ -73,6 +76,25 @@ import kotlinx.coroutines.withContext
  * a big hero card of the focused game on top and a grid of small square
  * game icons below. Y cycles the icon scale (S/M/L).
  */
+internal val DsContentBottomPadding = 72.dp
+
+/**
+ * Single source for the Y-cycled DS-home icon scale. The lower (second)
+ * display runs its own geometry so its cells fit the physical panel.
+ */
+internal fun dsHomeCellMinSize(scaleStep: Int, lowerDisplay: Boolean = false): androidx.compose.ui.unit.Dp {
+    val (small, medium, large) = if (lowerDisplay) {
+        Triple(96.dp, 116.dp, 144.dp)
+    } else {
+        Triple(72.dp, 96.dp, 128.dp)
+    }
+    return when (scaleStep) {
+        0 -> small
+        2 -> large
+        else -> medium
+    }
+}
+
 @Composable
 internal fun LibraryDsHomePane(
     state: LibraryState,
@@ -101,11 +123,7 @@ internal fun LibraryDsHomePane(
             }
     }
 
-    val cellMinSize = when (scaleStep) {
-        0 -> 72.dp
-        2 -> 128.dp
-        else -> 96.dp
-    }
+    val cellMinSize = dsHomeCellMinSize(scaleStep, lowerDisplay = false)
 
     Column(modifier = modifier.fillMaxSize()) {
         DsHeroCard(
@@ -153,7 +171,8 @@ internal fun DsGameGrid(
     cellAspectRatio: Float = 1f,
     preferSquareIcon: Boolean = true,
     installProgressByAppId: Map<String, InstallProgress> = emptyMap(),
-    contentPadding: PaddingValues = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 72.dp),
+    contentPadding: PaddingValues = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = DsContentBottomPadding),
+    labelStyle: TextStyle? = null,
     modifier: Modifier = Modifier,
 ) {
     LazyVerticalGrid(
@@ -177,7 +196,7 @@ internal fun DsGameGrid(
             key = { index -> items[index].appId },
         ) { index ->
             val item = items[index]
-DsGameCell(
+            DsGameCell(
                 item = item,
                 onClick = { onNavigate(item.appId) },
                 onFocused = { onFocusedIndexChanged(index) },
@@ -186,6 +205,7 @@ DsGameCell(
                 cellAspectRatio = cellAspectRatio,
                 preferSquareIcon = preferSquareIcon,
                 installProgress = installProgressByAppId[item.appId],
+                labelStyle = labelStyle,
                 focusRequester = if (firstItemFocusRequester != null && index == focusTargetIndex) {
                     firstItemFocusRequester
                 } else {
@@ -206,10 +226,20 @@ internal fun DsHeroCard(
 ) {
     val context = LocalContext.current
     val interactionSource = remember { MutableInteractionSource() }
-    val shape = RoundedCornerShape(12.dp)
+    val shape = RoundedCornerShape(PluviaTheme.tokens.cornerLg)
+
+    // Crossfade only on a settled selection: rapid D-pad steps swap the hero
+    // per keystroke and strobe. Hold the previous item until focus sits still.
+    var settledItem by remember { mutableStateOf(item) }
+    LaunchedEffect(item) {
+        if (item != settledItem) {
+            delay(180)
+            settledItem = item
+        }
+    }
 
     Crossfade(
-        targetState = item,
+        targetState = settledItem,
         animationSpec = motionSpec(tween(PluviaTheme.tokens.motionNormalMs)),
         label = "ds_hero_fade",
         modifier = modifier.padding(horizontal = 16.dp, vertical = 10.dp),
@@ -270,7 +300,7 @@ internal fun DsHeroCard(
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.SemiBold,
                     color = Color.White,
-                    maxLines = 1,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier
                         .align(Alignment.BottomStart)
@@ -302,12 +332,13 @@ private fun DsGameCell(
     preferSquareIcon: Boolean = true,
     installProgress: InstallProgress? = null,
     focusRequester: FocusRequester? = null,
+    labelStyle: TextStyle? = null,
 ) {
     val context = LocalContext.current
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
     val isActive = isFocused || selected
-    val shape = RoundedCornerShape(10.dp)
+    val shape = RoundedCornerShape(PluviaTheme.tokens.cornerMd)
     // Focus scale: fast ease-out, no spring overshoot (console feel); snaps under reduced motion.
     val scale by animateFloatAsState(
         targetValue = if (isActive) 1.06f else 1f,
@@ -382,11 +413,11 @@ private fun DsGameCell(
                             colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.84f)),
                         ),
                     )
-                    .padding(start = 9.dp, end = 9.dp, top = 18.dp, bottom = 8.dp),
+                    .padding(start = 9.dp, end = 9.dp, top = 18.dp, bottom = 10.dp),
             ) {
                 Text(
                     text = item.name,
-                    style = MaterialTheme.typography.labelMedium,
+                    style = labelStyle ?: MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = Color.White,
                     maxLines = 1,

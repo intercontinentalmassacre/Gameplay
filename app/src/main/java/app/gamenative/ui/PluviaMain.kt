@@ -621,11 +621,11 @@ fun PluviaMain(
                                     val isCurrentlyOffline = navController.currentBackStackEntry
                                         ?.arguments?.getBoolean("offline") ?: false
                                     if (isCurrentlyOffline) {
-                                        navController.navigate(PluviaScreen.Home.route + "?offline=false") {
-                                            popUpTo(PluviaScreen.Home.route + "?offline={offline}") {
-                                                inclusive = true
-                                            }
-                                        }
+                                        // Do not replace the Home back-stack entry just because Steam
+                                        // connected after an offline start. Replacing it destroys the
+                                        // LibraryViewModel and produces a visible black flash while the
+                                        // whole library is created again.
+                                        viewModel.setOffline(false)
                                     }
                                 }
                             }
@@ -1567,7 +1567,13 @@ fun PluviaMain(
                         },
                     ),
                 ) { backStackEntry ->
-                    val isOffline = backStackEntry.arguments?.getBoolean("offline") ?: false
+                    val routeIsOffline = backStackEntry.arguments?.getBoolean("offline") ?: false
+                    // The route selects the initial mode only. Keeping the live value in the
+                    // ViewModel lets Steam change from offline to online without recreating Home.
+                    LaunchedEffect(routeIsOffline) {
+                        viewModel.setOffline(routeIsOffline)
+                    }
+                    val isOffline by viewModel.isOffline.collectAsStateWithLifecycle()
 
                     // Show update/crash/support dialogs when Home is first displayed
                     // Skip when offline with Steam credentials (avoid flash when Steam reconnects)

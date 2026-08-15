@@ -2214,6 +2214,9 @@
     <string name="downloads_stage_description">Übertragungen, Installationsfortschritt und Speicherverwaltung.</string>
     <string name="downloads_stage_navigation_hint">Downloads auf dem unteren Bildschirm verwalten</string>
     <string name="ds_home_icon_size_action">Symbolgröße</string>
+    <string name="ds_home_layout_grid">Raster</string>
+    <string name="ds_home_layout_flow">Cover Flow</string>
+    <string name="ds_home_layout_wall">Cover Wall</string>
     <string name="game_players_now">%1$s spielen gerade</string>
     <string name="game_runtime_directx">DirectX-Layer</string>
     <string name="game_runtime_driver">Grafiktreiber</string>

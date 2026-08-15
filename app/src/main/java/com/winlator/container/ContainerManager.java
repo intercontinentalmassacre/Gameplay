@@ -338,6 +338,7 @@ public class ContainerManager {
         for (int i = 0; i < dlnames.length(); i++) {
             String dlname = dlnames.getString(i);
             File dstFile = new File(containerDir, ".wine/drive_c/windows/"+dstName+"/"+dlname);
+            if (dstFile.exists()) continue;
             if (onExtractFileListener != null) {
                 dstFile = onExtractFileListener.onExtractFile(dstFile, 0);
                 if (dstFile == null) continue;
@@ -370,9 +371,13 @@ public class ContainerManager {
     private void linkOrCopyCommonDll(File source, File destination, File containerDir) {
         if (PrefManager.INSTANCE.getSharedContainerBase() &&
                 !new File(containerDir, ".container").exists()) {
-            Log.d("Extraction", "symlinking immutable common DLL " + source + " to " + destination);
-            if (FileUtils.symlink(source, destination)) return;
-            Log.w("Extraction", "Symlink failed; falling back to copy for " + destination);
+            if (!source.exists()) {
+                Log.d("Extraction", "skip symlink, source missing: " + source);
+            } else {
+                Log.d("Extraction", "symlinking immutable common DLL " + source + " to " + destination);
+                if (FileUtils.symlink(source, destination)) return;
+                Log.w("Extraction", "Symlink failed; falling back to copy for " + destination);
+            }
         }
         Log.d("Extraction", "copying " + source + " to " + destination);
         if (!FileUtils.copy(source, destination)) {

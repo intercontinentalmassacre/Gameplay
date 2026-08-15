@@ -116,6 +116,9 @@
     <string name="game_players_now">%1$s playing now</string>
     <string name="game_updates_title">Updates</string>
     <string name="ds_home_icon_size_action">Icon size</string>
+    <string name="ds_home_layout_grid">Grid</string>
+    <string name="ds_home_layout_flow">Cover Flow</string>
+    <string name="ds_home_layout_wall">Cover Wall</string>
     <string name="hint_categories">Categories</string>
     <string name="downloads_overview_subtitle">Track active, paused, and resumable downloads</string>
     <string name="downloads_cancel_confirm">Cancel download and delete files for %1$s?</string>
@@ -751,6 +754,7 @@
     <string name="system_hub_destinations_section">Library and system</string>
     <string name="system_hub_connections_section">Connected services</string>
     <string name="system_hub_connected">Connected</string>
+    <string name="system_hub_connected_as">Connected as %1$s</string>
     <string name="system_hub_not_connected">Not connected</string>
     <string name="system_hub_offline">Offline</string>
     <string name="system_hub_steam_action_description">Connect Steam and refresh your library.</string>

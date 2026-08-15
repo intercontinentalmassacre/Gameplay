@@ -36,6 +36,21 @@ object GameImageUtils {
         val appId = libraryItem.appId
         val gameId = libraryItem.gameId
 
+        // 0. Persistent on-device cover cache (works offline, no network).
+        if (appId.isNotEmpty()) {
+            val cached = when (imageType) {
+                "hero", "grid_hero" -> CoverCache.fileUri(appId, CoverCache.Type.GRID_HERO)
+                    ?: CoverCache.fileUri(appId, CoverCache.Type.HERO)
+                "capsule", "grid_capsule" -> CoverCache.fileUri(appId, CoverCache.Type.GRID_CAPSULE)
+                    ?: CoverCache.fileUri(appId, CoverCache.Type.CAPSULE)
+                "header" -> CoverCache.fileUri(appId, CoverCache.Type.HEADER)
+                "logo" -> CoverCache.fileUri(appId, CoverCache.Type.LOGO)
+                "icon" -> CoverCache.fileUri(appId, CoverCache.Type.ICON)
+                else -> null
+            }
+            if (cached != null) return cached
+        }
+
         // 1. Check custom media first (only if we have a valid gameId)
         if (gameId != 0) {
             val customUri = when (imageType) {

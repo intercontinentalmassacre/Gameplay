@@ -451,6 +451,12 @@ object ContainerStorageManager {
                 GameSource.CUSTOM_GAME -> Result.failure(UnsupportedOperationException("Custom games are not supported"))
             }
 
+            // Drop any cached cover for this game so the home grid and
+            // backdrops stop referencing the removed library entry.
+            runCatching {
+                app.gamenative.utils.CoverCache.evict(gameId.toString())
+            }
+
             if (result.isSuccess) {
                 Timber.tag("ContainerStorageManager").i("Uninstall game+container succeeded for %s", entry.containerId)
             } else {

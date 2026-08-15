@@ -2231,6 +2231,9 @@
     <string name="downloads_stage_description">転送、インストールの進行状況、ストレージ管理。</string>
     <string name="downloads_stage_navigation_hint">下の画面でダウンロードを管理</string>
     <string name="ds_home_icon_size_action">アイコンサイズ</string>
+    <string name="ds_home_layout_grid">グリッド</string>
+    <string name="ds_home_layout_flow">Cover Flow</string>
+    <string name="ds_home_layout_wall">Cover Wall</string>
     <string name="epic_offline_mode">Epic オフラインモード</string>
     <string name="epic_offline_mode_description">Epic ゲームをオフラインモードで起動</string>
     <string name="frontend_sync_clear_confirm_message">以前のディレクトリから .%1$s ファイルを削除しますか?</string>

@@ -4,8 +4,13 @@ import android.content.Context;
 import android.util.Log;
 
 import com.winlator.core.FileUtils;
+import com.winlator.contents.ContentProfile;
+import com.winlator.contents.ContentsManager;
+
+import org.json.JSONObject;
 
 import java.io.File;
+import java.nio.file.Files;
 
 public final class ImageFSLegacyMigrator {
     private ImageFSLegacyMigrator() {}
@@ -22,7 +27,90 @@ public final class ImageFSLegacyMigrator {
         }
         ImageFsInstaller.ensureSharedHomeRoot(context, legacyImageFsRoot);
         ImageFsInstaller.ensureProtonVersionSymlink(context, legacyImageFsRoot, wineVersion);
+        repairLegacyCommonDllLinks(context);
         return true;
+    }
+
+    /**
+     * Old prefixes can retain common Wine DLL symlinks into /opt/wine after the
+     * Wine runtime was moved to imagefs_shared/proton. Those links become
+     * dangling once the legacy directory disappears and Wine then fails before
+     * it can load kernel32.dll. Repair only links with that exact old target;
+     * regular files and user overrides remain untouched.
+     */
+    private static void repairLegacyCommonDllLinks(Context context) {
+        File sharedHome = new File(ImageFs.getImageFsSharedDir(context), "home");
+        File[] containerHomes = sharedHome.listFiles(file ->
+                file.isDirectory() && file.getName().startsWith("xuser-"));
+        if (containerHomes == null) return;
+
+        ContentsManager contentsManager = new ContentsManager(context);
+        contentsManager.syncContents();
+        for (File containerHome : containerHomes) {
+            String wineVersion = readContainerWineVersion(containerHome);
+            if (!wineVersion.startsWith("proton-")) continue;
+
+            File protonDir = resolveInstalledProtonDir(context, contentsManager, wineVersion);
+            if (!protonDir.isDirectory()) continue;
+
+            boolean arm64ec = wineVersion.contains("arm64ec");
+            repairLegacyDllDirectory(
+                    new File(containerHome, ".wine/drive_c/windows/system32"),
+                    new File(protonDir, "lib/wine/" + (arm64ec ? "aarch64-windows" : "x86_64-windows"))
+            );
+            repairLegacyDllDirectory(
+                    new File(containerHome, ".wine/drive_c/windows/syswow64"),
+                    new File(protonDir, "lib/wine/i386-windows")
+            );
+        }
+    }
+
+    private static String readContainerWineVersion(File containerHome) {
+        try {
+            String json = FileUtils.readString(new File(containerHome, ".container"));
+            return new JSONObject(json).optString("wineVersion", "");
+        } catch (Exception exception) {
+            Log.w("ImageFSLegacyMigrator", "Unable to read container config: " + containerHome.getName(), exception);
+            return "";
+        }
+    }
+
+    private static File resolveInstalledProtonDir(Context context, ContentsManager contentsManager, String wineVersion) {
+        ContentProfile profile = contentsManager.getProfileByEntryName(wineVersion);
+        if (profile != null && (profile.type == ContentProfile.ContentType.CONTENT_TYPE_WINE
+                || profile.type == ContentProfile.ContentType.CONTENT_TYPE_PROTON)) {
+            return ContentsManager.getInstallDir(context, profile);
+        }
+        return new File(ImageFs.getSharedProtonDir(context), wineVersion);
+    }
+
+    private static void repairLegacyDllDirectory(File destinationDir, File sourceDir) {
+        File[] files = destinationDir.listFiles();
+        if (files == null || !sourceDir.isDirectory()) return;
+
+        for (File destination : files) {
+            if (!Files.isSymbolicLink(destination.toPath())) continue;
+            String linkTarget = FileUtils.readSymlink(destination);
+            if (linkTarget == null || !linkTarget.contains("/opt/wine/")) continue;
+
+            File source = new File(sourceDir, destination.getName());
+            if (!source.isFile()) {
+                // Modern Proton intentionally no longer ships every DLL from the
+                // old /opt/wine runtime. Leaving an old link here makes Wine see
+                // a non-existent override instead of its current built-in DLL.
+                if (FileUtils.delete(destination)) {
+                    Log.i("ImageFSLegacyMigrator", "Removed obsolete DLL link: " + destination.getName());
+                } else {
+                    Log.e("ImageFSLegacyMigrator", "Failed to remove obsolete DLL link: " + destination.getAbsolutePath());
+                }
+                continue;
+            }
+            if (!FileUtils.delete(destination) || !FileUtils.symlink(source, destination)) {
+                Log.e("ImageFSLegacyMigrator", "Failed to repair DLL link: " + destination.getAbsolutePath());
+                continue;
+            }
+            Log.i("ImageFSLegacyMigrator", "Repaired DLL link: " + destination.getName());
+        }
     }
 
     /**

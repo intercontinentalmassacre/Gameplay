@@ -105,6 +105,20 @@ class PluviaApp : Application() {
             runCatching { app.gamenative.utils.DriveDTempCleanup.sweep() }
         }
 
+        // Prune cover cache for any app no longer in the library. Cheap O(n)
+        // scan; runs once per app start.
+        appScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching {
+                val ids = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    app.gamenative.service.SteamService.instance?.appDao
+                        ?.getAllOwnedAppsAsList()
+                        ?.map { it.id.toString() }
+                        ?.toSet()
+                } ?: return@runCatching
+                app.gamenative.utils.CoverCache.pruneOrphans(ids)
+            }
+        }
+
         // Clear any stale temporary config overrides from previous app sessions
         try {
             IntentLaunchManager.clearAllTemporaryOverrides()
@@ -186,6 +200,8 @@ class PluviaApp : Application() {
 
         @Volatile
         private var instance: PluviaApp? = null
+
+        fun get(): PluviaApp? = instance
 
         @Volatile
         private var cachedPhysicalDisplaySize: Pair<Int, Int>? = null
