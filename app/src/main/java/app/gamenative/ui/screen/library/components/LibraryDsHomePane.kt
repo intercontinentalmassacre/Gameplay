@@ -57,6 +57,7 @@ import androidx.compose.ui.unit.dp
 import app.gamenative.PrefManager
 import app.gamenative.data.GameSource
 import app.gamenative.data.LibraryItem
+import app.gamenative.service.SteamService
 import app.gamenative.ui.component.focusRing
 import app.gamenative.ui.gcds.GcdsHero
 import app.gamenative.ui.data.LibraryState
@@ -64,6 +65,7 @@ import app.gamenative.ui.data.InstallProgress
 import app.gamenative.ui.enums.PaneType
 import app.gamenative.ui.theme.PluviaTheme
 import app.gamenative.ui.theme.motionSpec
+import app.gamenative.utils.GameImageUtils
 import app.gamenative.utils.SteamGridDBIconProvider
 import com.skydoves.landscapist.ImageOptions
 import com.skydoves.landscapist.coil.CoilImage
@@ -221,6 +223,7 @@ internal fun DsHeroCard(
     item: LibraryItem?,
     onClick: () -> Unit,
     interactive: Boolean = true,
+    preferLogo: Boolean = PrefManager.dualScreenHeroUseLogo,
     installProgress: InstallProgress? = null,
     modifier: Modifier = Modifier,
 ) {
@@ -295,17 +298,48 @@ internal fun DsHeroCard(
                             ),
                         ),
                 )
-                Text(
-                    text = target.name,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color.White,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                )
+                // The upper library display had ignored the logo preference and
+                // always rendered a text title. Resolve the same media chain used
+                // by the game card: local cache, custom media, then SteamGridDB.
+                val logoUrl by produceState<String?>(
+                    initialValue = null,
+                    key1 = target.appId,
+                    key2 = preferLogo,
+                ) {
+                    value = withContext(Dispatchers.IO) {
+                        GameImageUtils.getGameImage(
+                            libraryItem = target,
+                            imageType = "logo",
+                            steamUrl = if (target.gameSource == GameSource.STEAM) {
+                                SteamService.getAppInfoOf(target.gameId)?.getLogoUrl()
+                            } else {
+                                null
+                            },
+                        )
+                    }
+                }
+                if (preferLogo && !logoUrl.isNullOrBlank()) {
+                    CoilImage(
+                        imageModel = { logoUrl },
+                        imageOptions = ImageOptions(contentScale = ContentScale.Fit),
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .padding(horizontal = 16.dp, vertical = 12.dp)
+                            .width(280.dp),
+                    )
+                } else {
+                    Text(
+                        text = target.name,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                    )
+                }
 
                 installProgress?.let { progress ->
                     InstallProgressOverlay(

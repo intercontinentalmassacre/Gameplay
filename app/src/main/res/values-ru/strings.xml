@@ -527,6 +527,14 @@
     <string name="game_feedback_game_run">Как работала игра?</string>
     <string name="game_feedback_issues_question">Выберите проблемы, которые вы встретили:</string>
     <string name="game_information">Информация об игре</string>
+    <string name="status_network_online">Сеть подключена</string>
+    <string name="status_network_offline">Нет подключения к интернету</string>
+    <string name="status_battery">Заряд батареи: %1$d процентов</string>
+    <string name="steam_feature_controller_full">Полная поддержка контроллера</string>
+    <string name="steam_feature_controller_partial">Частичная поддержка контроллера</string>
+    <string name="steam_feature_achievements">Достижений Steam: %1$d</string>
+    <string name="steam_feature_cloud">Steam Cloud</string>
+    <string name="steam_feature_workshop">Мастерская Steam</string>
     <string name="game_not_installed_message">%s не установлена. Пожалуйста, установите игру перед запуском.</string>
     <string name="intent_launch_failed">Не удалось запустить игру: недействительный ярлык запуска</string>
     <string name="intent_launch_steam_pending">Игра запустится после подключения к Steam</string>

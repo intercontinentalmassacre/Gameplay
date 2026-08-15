@@ -39,7 +39,7 @@ class ImageFsInstallerTest {
         mockkStatic(FileUtils::class)
         try {
             every { FileUtils.isSymlink(any()) } returns false
-            every { FileUtils.symlink(any<String>(), any<String>()) } returns Unit
+            every { FileUtils.symlink(any<String>(), any<String>()) } returns true
 
             invokeEnsureSharedHomeRoot(context, rootDir)
 
@@ -61,7 +61,7 @@ class ImageFsInstallerTest {
         mockkStatic(FileUtils::class)
         try {
             every { FileUtils.isSymlink(imageFsHome) } returns true
-            every { FileUtils.symlink(any<String>(), any<String>()) } returns Unit
+            every { FileUtils.symlink(any<String>(), any<String>()) } returns true
 
             invokeEnsureSharedHomeRoot(context, rootDir)
 
@@ -96,7 +96,7 @@ class ImageFsInstallerTest {
         mockkStatic(FileUtils::class)
         try {
             every { FileUtils.isSymlink(any()) } returns false
-            every { FileUtils.symlink(any<String>(), any<String>()) } returns Unit
+            every { FileUtils.symlink(any<String>(), any<String>()) } returns true
 
             invokeEnsureSharedHomeRoot(context, rootDir)
 
@@ -118,7 +118,7 @@ class ImageFsInstallerTest {
 
         mockkStatic(FileUtils::class)
         try {
-            every { FileUtils.symlink(any<String>(), any<String>()) } returns Unit
+            every { FileUtils.symlink(any<String>(), any<String>()) } returns true
             every { FileUtils.delete(any<File>()) } returns true
             every { FileUtils.isSymlink(any<File>()) } returns false
 
@@ -160,6 +160,7 @@ class ImageFsInstallerTest {
                     linkFile.delete()
                 }
                 Files.createSymbolicLink(linkFile.toPath(), File(linkTarget).toPath())
+                true
             }
 
             ImageFsInstaller.ensureProtonVersionSymlink(context, rootDir, activeProtonVersion)
