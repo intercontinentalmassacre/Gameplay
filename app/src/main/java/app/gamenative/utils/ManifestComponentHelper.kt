@@ -165,7 +165,7 @@ object ManifestComponentHelper {
 
     suspend fun loadComponentAvailability(context: Context): ComponentAvailability = withContext(Dispatchers.IO) {
         val installed = loadInstalledContentLists(context)
-        val manifest = ManifestRepository.loadManifest(context)
+        val manifest = ManifestRepository.loadManifest(context, preferRemote = true)
         ComponentAvailability(
             manifest = manifest,
             installed = installed.installed,

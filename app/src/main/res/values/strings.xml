@@ -1169,6 +1169,8 @@
     <string name="settings_emulation_default_config_dialog_title">Default Container Config</string>
     <string name="settings_emulation_auto_apply_known_config_title">Auto-apply known config</string>
     <string name="settings_emulation_auto_apply_known_config_subtitle">Automatically apply recommended settings for Steam games on first launch</string>
+    <string name="settings_emulation_shared_container_base_title">Shared container base</string>
+    <string name="settings_emulation_shared_container_base_subtitle">Link immutable Wine DLLs for new containers to reduce storage. Experimental; existing containers are unchanged.</string>
     <string name="settings_emulation_box64_presets_title">Box64 Presets</string>
     <string name="settings_emulation_box64_presets_subtitle">View, modify, and create Box64 presets</string>
     <string name="settings_emulation_driver_manager_title">Driver Manager</string>
@@ -1290,7 +1292,19 @@
     <string name="downloads_containers_status_not_downloaded">Not downloaded</string>
     <string name="downloads_containers_size_unknown">—</string>
     <string name="downloads_containers_total_size">%1$s on disk • %2$d of %3$d ready</string>
+    <string name="downloads_containers_selection_summary">%1$d of %2$d selected • %3$d active</string>
+    <string name="downloads_containers_selected_action">%1$d components selected</string>
+    <string name="downloads_containers_category_patterns">Container patterns</string>
+    <string name="downloads_containers_category_proton">Wine / Proton</string>
+    <string name="downloads_containers_category_dxvk">DXVK</string>
+    <string name="downloads_containers_category_vkd3d">VKD3D</string>
+    <string name="downloads_containers_category_box64">Box64</string>
+    <string name="downloads_containers_category_fexcore">FEXCore</string>
+    <string name="downloads_containers_category_other">Other components</string>
     <string name="downloads_containers_download_all">Download all</string>
+    <string name="downloads_containers_prefetch_selected">Pre-fetch selected</string>
+    <string name="downloads_containers_select_all">Select all</string>
+    <string name="downloads_containers_clear_selection">Clear selection</string>
     <string name="downloads_containers_pause_all">Pause all</string>
     <string name="downloads_containers_clear_all">Remove all</string>
     <string name="downloads_containers_clear_confirm_title">Remove all containers?</string>
@@ -1300,6 +1314,7 @@
     <string name="downloads_containers_action_resume">Resume</string>
     <string name="downloads_containers_action_remove">Remove</string>
     <string name="downloads_containers_legacy_unavailable">Container files come bundled with this build; no download required.</string>
+    <string name="downloads_containers_bundled_runtime_description">Bundled runtime available for container configuration. No separate download required.</string>
     <string name="downloads_containers_empty">No container files in this build</string>
 
     <!-- Container display names -->

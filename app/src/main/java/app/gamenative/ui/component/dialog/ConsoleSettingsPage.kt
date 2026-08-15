@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.displayCutoutPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
@@ -16,6 +17,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.Alignment
@@ -27,7 +29,9 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import app.gamenative.R
 import app.gamenative.externaldisplay.DsHomeSecondScreen
+import app.gamenative.ui.gcds.LocalForceCategoryStrip
 import app.gamenative.utils.rememberHasExternalDisplay
+import timber.log.Timber
 
 /**
  * A settings destination presented as a complete console screen instead of a floating mobile modal.
@@ -45,6 +49,15 @@ fun ConsoleSettingsPage(
 
     val hasExternalDisplay = rememberHasExternalDisplay()
     val alreadyOnSecondScreen = LocalSecondScreenDialogWindowType.current != null
+    val renderEmbedded = embedded
+    Timber.tag("ConsoleSettingsPage").d(
+        "open title=%s embedded=%s external=%s secondScreen=%s renderEmbedded=%s",
+        title,
+        embedded,
+        hasExternalDisplay,
+        alreadyOnSecondScreen,
+        renderEmbedded,
+    )
     if (!embedded && hasExternalDisplay && !alreadyOnSecondScreen) {
         val secondScreenContent: @Composable () -> Unit = {
             ConsoleSettingsPage(
@@ -57,6 +70,7 @@ fun ConsoleSettingsPage(
             )
         }
         SideEffect {
+            Timber.tag("ConsoleSettingsPage").d("publish dialog to second screen: %s", title)
             DsHomeSecondScreen.publish(
                 DsHomeSecondScreen.Model(
                     owner = DsHomeSecondScreen.Owner.DIALOG,
@@ -75,6 +89,7 @@ fun ConsoleSettingsPage(
     val pageContent: @Composable () -> Unit = {
         Scaffold(
             modifier = Modifier
+                .then(if (renderEmbedded) Modifier.heightIn(max = 900.dp) else Modifier)
                 .fillMaxSize()
                 .statusBarsPadding()
                 .displayCutoutPadding(),
@@ -116,12 +131,16 @@ fun ConsoleSettingsPage(
                     .padding(horizontal = 18.dp, vertical = 12.dp),
                 contentAlignment = Alignment.TopStart,
             ) {
-                Box(modifier = Modifier.fillMaxSize()) { content() }
+                Box(modifier = Modifier.fillMaxSize()) {
+                    CompositionLocalProvider(LocalForceCategoryStrip provides renderEmbedded) {
+                        content()
+                    }
+                }
             }
         }
     }
 
-    if (embedded) {
+    if (renderEmbedded) {
         pageContent()
     } else {
         Dialog(

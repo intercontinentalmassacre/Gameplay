@@ -18,7 +18,6 @@ import app.gamenative.sync.FrontendSyncManager
 import app.gamenative.ui.screen.xserver.RadialMenuCoordinator
 import app.gamenative.utils.ContainerMigrator
 import app.gamenative.utils.IntentLaunchManager
-import app.gamenative.utils.downloader.ContainerFilesDownloader
 import java.io.File
 import javax.inject.Inject
 import kotlinx.coroutines.runBlocking
@@ -99,11 +98,6 @@ class PluviaApp : Application() {
                 onProgressUpdate = null,
                 onComplete = null
             )
-        }
-
-        // Preload all container files in the background
-        appScope.launch {
-            ContainerFilesDownloader.preloadAllContainerFiles(applicationContext)
         }
 
         // Sweep redist self-extractor leftovers (random hex dirs) from Downloads

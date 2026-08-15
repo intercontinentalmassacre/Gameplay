@@ -3,18 +3,23 @@ package app.gamenative.ui.screen.settings
 import android.content.Context
 import android.content.res.Configuration
 import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -42,6 +47,7 @@ import app.gamenative.drivers.preferredCategoryFor
 import app.gamenative.service.SteamService
 import app.gamenative.ui.theme.PluviaTheme
 import app.gamenative.ui.component.dialog.AlertDialog
+import app.gamenative.ui.component.dialog.ConsoleSettingsPage
 import app.gamenative.ui.component.DropdownMenuItem
 import app.gamenative.ui.util.SnackbarManager
 import app.gamenative.utils.BrightnessManager
@@ -125,6 +131,23 @@ fun GetDriverDialog(
     var showOlder by remember { mutableStateOf(false) }
     var showSourcePicker by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        if (uri != null) {
+            scope.launch(Dispatchers.IO) {
+                val result = handlePickedUri(ctx, uri)
+                withContext(Dispatchers.Main) {
+                    if (result.installed) {
+                        diskInstalled = runCatching {
+                            AdrenotoolsManager(ctx).enumarateInstalledDrivers()
+                        }.getOrDefault(emptyList())
+                    }
+                    SnackbarManager.show(result.userMessage)
+                }
+            }
+        }
+    }
 
     // Fetch only the selected source. Bounded GitHub API use. Re-runs on retry.
     LaunchedEffect(selectedRepository.id, retryTrigger) {
@@ -214,11 +237,33 @@ fun GetDriverDialog(
         }
     }
 
-    AlertDialog(
+    ConsoleSettingsPage(
+        visible = true,
+        title = stringResource(R.string.settings_get_driver_title),
         onDismissRequest = onDismiss,
-        title = { Text(text = stringResource(R.string.settings_get_driver_title)) },
-        text = {
-            BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        actions = {
+            val installedUnion = remember(installedThisSession.toList(), diskInstalled) {
+                (installedThisSession + diskInstalled).toSet()
+            }
+            val target = remotePackages.firstOrNull { it.id == selectedDriverId }
+                ?: pickRecommended(remotePackages, installedUnion)
+            val canDownload = !isLoadingManifest && target != null && !isDownloading && !isInstalling
+            Button(
+                onClick = {
+                    val pkg = target ?: return@Button
+                    downloadAndInstallDriver(pkg)
+                },
+                enabled = canDownload,
+            ) {
+                Text(stringResource(R.string.download))
+            }
+        },
+    ) {
+            BoxWithConstraints(
+                modifier = Modifier
+                    .heightIn(min = 1.dp, max = 900.dp)
+                    .fillMaxWidth(),
+            ) {
                 val isWide = maxWidth >= 600.dp
                 Column(
                     modifier = Modifier
@@ -478,34 +523,30 @@ fun GetDriverDialog(
                             }
                         }
                     }
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
+                    Text(
+                        text = stringResource(R.string.driver_import_local_title),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Medium,
+                    )
+                    TextButton(
+                        onClick = {
+                            importLauncher.launch(arrayOf("application/zip", "application/octet-stream", "*/*"))
+                        },
+                        modifier = Modifier.padding(top = 4.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.FileUpload,
+                            contentDescription = null,
+                        )
+                        Text(
+                            text = stringResource(R.string.import_zip_from_device),
+                            modifier = Modifier.padding(start = 8.dp),
+                        )
+                    }
                 }
             }
-        },
-        confirmButton = {
-            // Prefer the user's explicit PackagePicker selection; fall back to
-            // the GPU-aware recommendation when nothing is picked yet.
-            val installedUnion = remember(installedThisSession.toList(), diskInstalled) {
-                (installedThisSession + diskInstalled).toSet()
-            }
-            val target = remotePackages.firstOrNull { it.id == selectedDriverId }
-                ?: pickRecommended(remotePackages, installedUnion)
-            val canDownload = !isLoadingManifest && target != null && !isDownloading && !isInstalling
-            Button(
-                onClick = {
-                    val pkg = target ?: return@Button
-                    downloadAndInstallDriver(pkg)
-                },
-                enabled = canDownload,
-            ) {
-                Text(stringResource(R.string.download))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.cancel))
-            }
-        },
-    )
+    }
 
     if (showSourcePicker) {
         AlertDialog(

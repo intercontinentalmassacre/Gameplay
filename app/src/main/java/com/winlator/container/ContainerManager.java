@@ -2,6 +2,9 @@ package com.winlator.container;
 
 import android.content.Context;
 import android.os.Handler;
+// Protected compatibility boundary: shared-base behavior is opt-in and only used while
+// materializing new containers; existing containers keep their original files.
+import app.gamenative.PrefManager;
 import app.gamenative.PluviaApp;
 import android.util.Log;
 
@@ -339,7 +342,7 @@ public class ContainerManager {
                 dstFile = onExtractFileListener.onExtractFile(dstFile, 0);
                 if (dstFile == null) continue;
             }
-            FileUtils.copy(new File(srcDir, dlname), dstFile);
+            linkOrCopyCommonDll(new File(srcDir, dlname), dstFile, containerDir);
         }
     }
 
@@ -360,8 +363,20 @@ public class ContainerManager {
                 dstFile = onExtractFileListener.onExtractFile(dstFile, 0);
                 if (dstFile == null) continue;
             }
-            Log.d("Extraction", "copying " + file + " to " + dstFile);
-            FileUtils.copy(file, dstFile);
+            linkOrCopyCommonDll(file, dstFile, containerDir);
+        }
+    }
+
+    private void linkOrCopyCommonDll(File source, File destination, File containerDir) {
+        if (PrefManager.INSTANCE.getSharedContainerBase() &&
+                !new File(containerDir, ".container").exists()) {
+            Log.d("Extraction", "symlinking immutable common DLL " + source + " to " + destination);
+            if (FileUtils.symlink(source, destination)) return;
+            Log.w("Extraction", "Symlink failed; falling back to copy for " + destination);
+        }
+        Log.d("Extraction", "copying " + source + " to " + destination);
+        if (!FileUtils.copy(source, destination)) {
+            Log.e("Extraction", "Failed to materialize common DLL: " + destination);
         }
     }
 
