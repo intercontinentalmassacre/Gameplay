@@ -53,7 +53,7 @@ fun ConsoleIconButton(
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
-    val shape = RoundedCornerShape(10.dp)
+    val shape = RoundedCornerShape(0.dp)
 
     Box(
         modifier = modifier

@@ -621,11 +621,11 @@ fun PluviaMain(
                                     val isCurrentlyOffline = navController.currentBackStackEntry
                                         ?.arguments?.getBoolean("offline") ?: false
                                     if (isCurrentlyOffline) {
-                                        navController.navigate(PluviaScreen.Home.route + "?offline=false") {
-                                            popUpTo(PluviaScreen.Home.route + "?offline={offline}") {
-                                                inclusive = true
-                                            }
-                                        }
+                                        // Do not replace the Home back-stack entry just because Steam
+                                        // connected after an offline start. Replacing it destroys the
+                                        // LibraryViewModel and produces a visible black flash while the
+                                        // whole library is created again.
+                                        viewModel.setOffline(false)
                                     }
                                 }
                             }
@@ -1567,7 +1567,13 @@ fun PluviaMain(
                         },
                     ),
                 ) { backStackEntry ->
-                    val isOffline = backStackEntry.arguments?.getBoolean("offline") ?: false
+                    val routeIsOffline = backStackEntry.arguments?.getBoolean("offline") ?: false
+                    // The route selects the initial mode only. Keeping the live value in the
+                    // ViewModel lets Steam change from offline to online without recreating Home.
+                    LaunchedEffect(routeIsOffline) {
+                        viewModel.setOffline(routeIsOffline)
+                    }
+                    val isOffline by viewModel.isOffline.collectAsStateWithLifecycle()
 
                     // Show update/crash/support dialogs when Home is first displayed
                     // Skip when offline with Steam credentials (avoid flash when Steam reconnects)
@@ -1719,7 +1725,6 @@ fun PluviaMain(
                         appId = state.launchedAppId,
                         bootToContainer = state.bootToContainer,
                         testGraphics = state.testGraphics,
-                        diagnostics = state.diagnostics,
                         isOffline = xServerIsOffline,
                         registerBackAction = { cb ->
                             Timber.d("registerBackAction called: $cb")
@@ -1918,10 +1923,32 @@ fun preLaunchApp(
         // create container if it does not already exist
         // TODO: combine somehow with container creation in HomeLibraryAppScreen
         val containerManager = ContainerManager(context)
+
+        // If a container already exists and is set to the Android platform, short-circuit before
+        // any Wine-specific setup below. getOrCreateContainer() can extract a Wine container
+        // pattern when creating a brand-new container, which a native Android launch neither
+        // needs nor should be able to fail because of.
+        if (containerManager.hasContainer(appId)) {
+            val existing = containerManager.getContainerById(appId)
+            if (existing?.platform.equals(Container.PLATFORM_ANDROID, ignoreCase = true)) {
+                setLoadingDialogVisible(false)
+                onSuccess(context, appId)
+                return@launch
+            }
+        }
+
         val container = if (useTemporaryOverride) {
             ContainerUtils.getOrCreateContainerWithOverride(context, appId)
         } else {
             ContainerUtils.getOrCreateContainer(context, appId)
+        }
+
+        // Native Android (Steam Frame / Lepton) build: no Wine/Proton container, no manifest
+        // components to resolve — skip straight to launch.
+        if (container.platform.equals(Container.PLATFORM_ANDROID, ignoreCase = true)) {
+            setLoadingDialogVisible(false)
+            onSuccess(context, appId)
+            return@launch
         }
 
         // Clear session metadata on every launch to ensure fresh values

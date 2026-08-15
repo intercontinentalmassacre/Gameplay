@@ -35,6 +35,7 @@ import app.gamenative.service.SteamService
 import app.gamenative.service.amazon.AmazonArtwork
 import app.gamenative.service.amazon.AmazonService
 import app.gamenative.service.epic.EpicService
+import app.gamenative.service.epic.EpicManager
 import app.gamenative.service.gog.GOGService
 import app.gamenative.steam.SteamCollectionFilter
 import app.gamenative.ui.data.LibraryState
@@ -101,6 +102,7 @@ class LibraryViewModel @Inject constructor(
     private val gogGameDao: GOGGameDao,
     private val epicGameDao: EpicGameDao,
     private val amazonGameDao: AmazonGameDao,
+    private val epicManager: EpicManager,
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
 
@@ -151,6 +153,9 @@ class LibraryViewModel @Inject constructor(
 
     // Complete and unfiltered app list
     private var appList: List<SteamApp> = emptyList()
+    // Store DAOs emit independently. Do not expose a partial GOG/Epic list as
+    // the initial library while the primary Steam library is still loading.
+    @Volatile private var hasReceivedSteamLibrary = false
     private var gogGameList: List<GOGGame> = emptyList()
     private var epicGameList: List<EpicGame> = emptyList()
     private var amazonGameList: List<AmazonGame> = emptyList()
@@ -254,6 +259,7 @@ class LibraryViewModel @Inject constructor(
                 }
                 .collect { apps ->
                     Timber.tag("LibraryViewModel").d("Collecting ${apps.size} apps")
+                    hasReceivedSteamLibrary = true
                     // Check if the list has actually changed before triggering a re-filter
                     if (appList != apps) {
                         appList = apps
@@ -516,6 +522,12 @@ class LibraryViewModel @Inject constructor(
                 if (app.gamenative.service.gog.GOGService.hasStoredCredentials(context)) {
                     Timber.tag("LibraryViewModel").i("Triggering GOG library refresh")
                     app.gamenative.service.gog.GOGService.triggerLibrarySync(context)
+                }
+                if (EpicService.hasStoredCredentials(context)) {
+                    Timber.tag("LibraryViewModel").i("Triggering Epic library refresh")
+                    epicManager.refreshLibrary(context).onFailure { error ->
+                        Timber.tag("LibraryViewModel").e(error, "Failed to refresh Epic library")
+                    }
                 }
                 if (AmazonService.hasStoredCredentials(context)) {
                     Timber.tag("LibraryViewModel").i("Triggering Amazon library refresh")
@@ -1015,6 +1027,15 @@ class LibraryViewModel @Inject constructor(
                         true
                     }
                 }
+                .filter { item ->
+                    // item.depots is already deserialized in memory on the SteamApp we just
+                    // loaded, so this check is free — no per-item DB lookup.
+                    if (currentState.appInfoSortType.contains(AppFilter.ANDROID)) {
+                        item.depots.values.any { it.isAndroidCompatible }
+                    } else {
+                        true
+                    }
+                }
                 .toList()
 
             val explicitInstalledOnly = currentState.appInfoSortType.contains(AppFilter.INSTALLED)
@@ -1385,12 +1406,17 @@ class LibraryViewModel @Inject constructor(
             // sources can't match it — keep them out of the combined list (and their tab counts).
             val steamCollectionSelected = allowedSteamAppIds != null
 
+            // The Android depot feature only exists for Steam apps (it's a Steam Frame / Lepton
+            // concept), so the other sources can never match this filter either.
+            val androidFilterActive = currentState.appInfoSortType.contains(AppFilter.ANDROID)
+            val excludeNonSteam = steamCollectionSelected || androidFilterActive
+
             val combined = buildList {
                 if (includeSteam) addAll(steamEntries)
-                if (includeOpen && !steamCollectionSelected) addAll(customEntries)
-                if (includeGOG && !steamCollectionSelected) addAll(gogEntries)
-                if (includeEpic && !steamCollectionSelected) addAll(epicEntries)
-                if (includeAmazon && !steamCollectionSelected) addAll(amazonEntries)
+                if (includeOpen && !excludeNonSteam) addAll(customEntries)
+                if (includeGOG && !excludeNonSteam) addAll(gogEntries)
+                if (includeEpic && !excludeNonSteam) addAll(epicEntries)
+                if (includeAmazon && !excludeNonSteam) addAll(amazonEntries)
             }.map { entry -> entry.copy(item = enrichWithSiblings(entry.item)) }
                 .sortedWith(sortComparator).mapIndexed { idx, entry ->
                 entry.item.copy(index = idx, isInstalled = entry.isInstalled)
@@ -1435,15 +1461,17 @@ class LibraryViewModel @Inject constructor(
             // Fetch compatibility for current page games
             fetchCompatibilityForPage(pagedList.map { it.name })
 
-            // The first filter pass can complete while the store DAOs have not
-            // emitted yet (empty list -> "no results" flash). Hold the loading
-            // flag until data arrives or the grace period elapses.
-            val completesInitialLoad = pagedList.isNotEmpty() ||
+            // Store DAOs emit independently. Epic/GOG can arrive before Steam,
+            // which previously painted a partial library and then replaced it a
+            // moment later. Keep the loading surface stable until Steam has
+            // emitted once (or the grace period expires for offline accounts).
+            val completesInitialLoad = hasReceivedSteamLibrary ||
                 System.currentTimeMillis() - initialLoadStartMs > INITIAL_LOAD_GRACE_MS
 
             _state.update {
+                val holdInitialContent = !it.hasCompletedInitialLoad && !completesInitialLoad
                 it.copy(
-                    appInfoList = pagedList,
+                    appInfoList = if (holdInitialContent) it.appInfoList else pagedList,
                     currentPaginationPage = paginationPage + 1, // visual display is not 0 indexed
                     lastPaginationPage = lastPageInCurrentFilter + 1,
                     totalAppsInFilter = totalFound,

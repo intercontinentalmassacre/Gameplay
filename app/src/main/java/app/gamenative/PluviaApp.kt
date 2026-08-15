@@ -18,7 +18,6 @@ import app.gamenative.sync.FrontendSyncManager
 import app.gamenative.ui.screen.xserver.RadialMenuCoordinator
 import app.gamenative.utils.ContainerMigrator
 import app.gamenative.utils.IntentLaunchManager
-import app.gamenative.utils.downloader.ContainerFilesDownloader
 import java.io.File
 import javax.inject.Inject
 import kotlinx.coroutines.runBlocking
@@ -50,6 +49,16 @@ class PluviaApp : Application() {
     override fun onCreate() {
         super.onCreate()
         instance = this
+
+        // Must be set before any class triggers System.loadLibrary("evshim"):
+        // its constructor resolves the gamepad shm dir from EVSHIM_BASE_PATH at
+        // load time, and the fallback in evshim.c only knows the stock package
+        // id, which is another package's private dir in id-suffixed builds (.dev).
+        try {
+            android.system.Os.setenv("EVSHIM_BASE_PATH", filesDir.path, true)
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to set EVSHIM_BASE_PATH")
+        }
 
         preloadSystemLibraries()
 
@@ -91,14 +100,23 @@ class PluviaApp : Application() {
             )
         }
 
-        // Preload all container files in the background
-        appScope.launch {
-            ContainerFilesDownloader.preloadAllContainerFiles(applicationContext)
-        }
-
         // Sweep redist self-extractor leftovers (random hex dirs) from Downloads
         appScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             runCatching { app.gamenative.utils.DriveDTempCleanup.sweep() }
+        }
+
+        // Prune cover cache for any app no longer in the library. Cheap O(n)
+        // scan; runs once per app start.
+        appScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching {
+                val ids = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    app.gamenative.service.SteamService.instance?.appDao
+                        ?.getAllOwnedAppsAsList()
+                        ?.map { it.id.toString() }
+                        ?.toSet()
+                } ?: return@runCatching
+                app.gamenative.utils.CoverCache.pruneOrphans(ids)
+            }
         }
 
         // Clear any stale temporary config overrides from previous app sessions
@@ -182,6 +200,8 @@ class PluviaApp : Application() {
 
         @Volatile
         private var instance: PluviaApp? = null
+
+        fun get(): PluviaApp? = instance
 
         @Volatile
         private var cachedPhysicalDisplaySize: Pair<Int, Int>? = null

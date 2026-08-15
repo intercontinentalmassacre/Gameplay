@@ -3,7 +3,6 @@ package app.gamenative.ui.screen.library.components
 import android.content.res.Configuration
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -49,9 +48,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import app.gamenative.BuildConfig
 import app.gamenative.PrefManager
 import app.gamenative.R
 import app.gamenative.data.SteamCollection
+import app.gamenative.ui.component.OptionGroup
 import app.gamenative.ui.component.OptionListItem
 import app.gamenative.ui.component.OptionRadioItem
 import app.gamenative.ui.component.OptionSectionHeader
@@ -97,13 +98,7 @@ fun LibraryOptionsPanel(
                 .padding(top = 8.dp, bottom = 20.dp),
         ) {
                         OptionSectionHeader(text = stringResource(R.string.options_sort_by))
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .focusGroup()
-                                .padding(horizontal = 8.dp),
-                            verticalArrangement = Arrangement.spacedBy(2.dp)
-                        ) {
+                        OptionGroup {
                             SortOption.entries.forEachIndexed { index, option ->
                                 OptionRadioItem(
                                     text = stringResource(option.displayTextRes),
@@ -119,13 +114,7 @@ fun LibraryOptionsPanel(
                         Spacer(modifier = Modifier.height(20.dp))
 
                         OptionSectionHeader(text = stringResource(R.string.library_app_type))
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .focusGroup()
-                                .padding(horizontal = 8.dp),
-                            verticalArrangement = Arrangement.spacedBy(2.dp)
-                        ) {
+                        OptionGroup {
                             AppFilter.entries.forEach { appFilter ->
                                 if (appFilter in listOf(
                                         AppFilter.GAME,
@@ -148,25 +137,25 @@ fun LibraryOptionsPanel(
                         Spacer(modifier = Modifier.height(20.dp))
 
                         OptionSectionHeader(text = stringResource(R.string.library_app_status))
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .focusGroup()
-                                .padding(horizontal = 8.dp),
-                            verticalArrangement = Arrangement.spacedBy(2.dp)
-                        ) {
+                        OptionGroup {
+                            // Modern/ModernXr builds can't install a native Android build (Horizon
+                            // Store compliance strips the install-package permissions), so this
+                            // filter would just hide games with nothing wrong with them there.
+                            val statusFilters = remember {
+                                buildList {
+                                    add(AppFilter.INSTALLED)
+                                    add(AppFilter.SHARED)
+                                    add(AppFilter.COMPATIBLE)
+                                    add(AppFilter.EXPIRED)
+                                    add(AppFilter.PLAYABLE)
+                                    add(AppFilter.FIVE_STAR)
+                                    add(AppFilter.FIVE_STAR_GPU)
+                                    add(AppFilter.PROVEN_GPU)
+                                    if (!BuildConfig.MODERN_ANDROID) add(AppFilter.ANDROID)
+                                }
+                            }
                             AppFilter.entries.forEach { appFilter ->
-                                if (appFilter in listOf(
-                                        AppFilter.INSTALLED,
-                                        AppFilter.SHARED,
-                                        AppFilter.COMPATIBLE,
-                                        AppFilter.EXPIRED,
-                                        AppFilter.PLAYABLE,
-                                        AppFilter.FIVE_STAR,
-                                        AppFilter.FIVE_STAR_GPU,
-                                        AppFilter.PROVEN_GPU,
-                                    )
-                                ) {
+                                if (appFilter in statusFilters) {
                                     OptionListItem(
                                         text = stringResource(appFilter.displayTextRes),
                                         selected = selectedFilters.contains(appFilter),
@@ -252,13 +241,7 @@ fun LibraryOptionsPanel(
                                             }
                                         }
                                         else -> {
-                                            Column(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .focusGroup()
-                                                    .padding(horizontal = 8.dp),
-                                                verticalArrangement = Arrangement.spacedBy(2.dp),
-                                            ) {
+                                            OptionGroup {
                                                 steamCollections.sortedBy { it.name.lowercase() }.forEach { collection ->
                                                     OptionListItem(
                                                         text = collection.name,

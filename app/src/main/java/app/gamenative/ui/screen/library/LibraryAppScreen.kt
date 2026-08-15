@@ -1080,6 +1080,7 @@ private fun AppScreenBelowHeroContent(
     otherSources: List<GameSource>,
     onSourceClick: (GameSource) -> Unit,
     newsItems: List<app.gamenative.utils.SteamNewsService.NewsItem>,
+    storeDetails: app.gamenative.utils.SteamStoreDetails.Details?,
 ) {
     val context = LocalContext.current
     Column(
@@ -1094,6 +1095,11 @@ private fun AppScreenBelowHeroContent(
                 bottom = 96.dp,
             ),
     ) {
+        storeDetails?.let { details ->
+            SteamStoreOverview(details = details)
+            Spacer(modifier = Modifier.height(26.dp))
+        }
+
         // Update available banner
         if (isUpdatePending) {
             Surface(
@@ -1317,6 +1323,71 @@ private fun AppScreenBelowHeroContent(
         if (newsItems.isNotEmpty()) {
             Spacer(modifier = Modifier.height(16.dp))
             GameUpdatesSection(newsItems)
+        }
+    }
+}
+
+/** Store metadata that makes a library item read like a console game page. */
+@Composable
+private fun SteamStoreOverview(details: app.gamenative.utils.SteamStoreDetails.Details) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        if (details.shortDescription.isNotBlank()) {
+            Text(
+                text = details.shortDescription,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 4,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+
+        val facts = buildList {
+            details.metacriticScore?.let { add("Metacritic $it") }
+            details.controllerSupport?.let { add(it) }
+            addAll(details.categories.take(2))
+        }
+        if (details.genres.isNotEmpty() || facts.isNotEmpty()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                (details.genres + facts).distinct().take(7).forEach { label ->
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    ) {
+                        Text(
+                            text = label,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            maxLines = 1,
+                        )
+                    }
+                }
+            }
+        }
+
+        if (details.screenshots.isNotEmpty()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                details.screenshots.take(6).forEach { screenshot ->
+                    CoilImage(
+                        imageModel = { screenshot },
+                        imageOptions = ImageOptions(contentScale = ContentScale.Crop),
+                        modifier = Modifier
+                            .width(232.dp)
+                            .height(130.dp)
+                            .clip(RoundedCornerShape(8.dp)),
+                    )
+                }
+            }
         }
     }
 }
@@ -1858,6 +1929,7 @@ private fun AppScreenSecondScreenCard(
     onSourceClick: (GameSource) -> Unit,
     onUpdateClick: () -> Unit,
     newsItems: List<app.gamenative.utils.SteamNewsService.NewsItem>,
+    storeDetails: app.gamenative.utils.SteamStoreDetails.Details?,
     runtime: AppScreenRuntimeState,
     network: AppScreenNetworkState,
     optionsMenu: List<AppMenuOption>,
@@ -1998,6 +2070,7 @@ private fun AppScreenSecondScreenCard(
                 otherSources = otherSources,
                 onSourceClick = onSourceClick,
                 newsItems = newsItems,
+                storeDetails = storeDetails,
             )
         }
 
@@ -2087,6 +2160,9 @@ internal fun AppScreenContent(
         mutableStateOf<List<app.gamenative.utils.SteamNewsService.NewsItem>>(emptyList())
     }
     var trailerUrl by remember(displayInfo.appId) { mutableStateOf<String?>(null) }
+    var storeDetails by remember(displayInfo.appId) {
+        mutableStateOf<app.gamenative.utils.SteamStoreDetails.Details?>(null)
+    }
     LaunchedEffect(displayInfo.appId) {
         if (gameSource == GameSource.STEAM) {
             launch(Dispatchers.IO) {
@@ -2100,6 +2176,9 @@ internal fun AppScreenContent(
             }
             launch(Dispatchers.IO) {
                 trailerUrl = app.gamenative.utils.SteamVideoTrailers.fetchTrailerUrl(displayInfo.gameId)
+            }
+            launch(Dispatchers.IO) {
+                storeDetails = app.gamenative.utils.SteamStoreDetails.fetch(displayInfo.gameId)
             }
         }
     }
@@ -2134,6 +2213,7 @@ internal fun AppScreenContent(
                         onSourceClick = onSourceClick,
                         onUpdateClick = onUpdateClick,
                         newsItems = newsItems,
+                        storeDetails = storeDetails,
                         runtime = runtime,
                         network = network,
                         optionsMenu = optionsMenu,
@@ -2320,6 +2400,7 @@ internal fun AppScreenContent(
                     otherSources = otherSources,
                     onSourceClick = onSourceClick,
                     newsItems = newsItems,
+                    storeDetails = storeDetails,
                 )
             }
 

@@ -71,6 +71,7 @@ import app.gamenative.enums.AppTheme
 import app.gamenative.externaldisplay.DsHomeSecondScreen
 import app.gamenative.ui.component.ConsoleCategoryRail
 import app.gamenative.ui.gcds.GcdsRail
+import app.gamenative.ui.gcds.GcdsStrip
 import app.gamenative.ui.gcds.GcdsAdaptiveCategoryLayout
 import app.gamenative.ui.component.GamepadAction
 import app.gamenative.ui.component.GamepadActionBar
@@ -524,31 +525,23 @@ private fun DualSettingsWorkspace(
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
             )
 
-            GcdsAdaptiveCategoryLayout(
+            GcdsStrip(
                 items = categories,
                 selectedItem = selectedCategory,
                 label = { stringResource(it.titleRes) },
                 onSelected = onSelectedCategory,
-                footer = stringResource(R.string.container_config_console_controls_hint),
-                footerHints = listOf(
-                    GamepadHint(listOf(GamepadButton.LB, GamepadButton.RB), R.string.hint_categories),
-                    GamepadHint(GamepadButton.A, R.string.action_select),
-                    GamepadHint(GamepadButton.B, R.string.back),
-                ),
-                railWidth = 204.dp,
-                // Categories remain directly touchable, but the controller
-                // changes them with LB/RB. D-pad stays in the setting rows.
-                categoriesFocusable = false,
+                controllerFocusable = false,
                 requestInitialFocus = false,
                 focusRequestKey = controllerFocusEpoch,
-                modifier = Modifier.weight(1f).fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .verticalScroll(scrollState)
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
             ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .verticalScroll(scrollState)
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                ) {
                 if (searchActive && searchQuery.isNotBlank()) {
                     val results = filterSettings(
                         entries = settingsSearchEntries,
@@ -586,7 +579,6 @@ private fun DualSettingsWorkspace(
                         onCustomThemeEnabled = onCustomThemeEnabled,
                         onClearCustomTheme = onClearCustomTheme,
                     )
-                }
                 }
             }
         }

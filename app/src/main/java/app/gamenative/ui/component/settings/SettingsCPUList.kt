@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ListItemDefaults
@@ -43,7 +44,7 @@ fun SettingsCPUList(
     action: @Composable (() -> Unit)? = null,
 ) {
     SettingsTileScaffold(
-        modifier = modifier,
+        modifier = modifier.padding(vertical = 4.dp),
         enabled = enabled,
         title = title,
         icon = icon,

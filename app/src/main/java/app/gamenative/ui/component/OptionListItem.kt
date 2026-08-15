@@ -3,16 +3,17 @@ package app.gamenative.ui.component
 import android.content.res.Configuration
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -36,7 +37,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
@@ -47,7 +47,6 @@ import app.gamenative.ui.theme.PluviaTheme
 import app.gamenative.ui.theme.motionSpec
 
 private data class OptionItemStyle(
-    val scale: Float,
     val backgroundColor: Color,
     val borderColor: Color,
     val borderWidth: androidx.compose.ui.unit.Dp,
@@ -60,12 +59,6 @@ private fun rememberOptionItemStyle(
     selected: Boolean,
     labelPrefix: String,
 ): OptionItemStyle {
-    val scale by animateFloatAsState(
-        targetValue = if (isFocused) 1.04f else 1f,
-        animationSpec = motionSpec(tween(PluviaTheme.tokens.motionFastMs)),
-        label = "${labelPrefix}Scale",
-    )
-
     val backgroundColor by animateColorAsState(
         targetValue = when {
             isFocused && selected -> MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
@@ -100,7 +93,6 @@ private fun rememberOptionItemStyle(
     )
 
     return OptionItemStyle(
-        scale = scale,
         backgroundColor = backgroundColor,
         borderColor = borderColor,
         borderWidth = borderWidth,
@@ -129,12 +121,11 @@ fun OptionListItem(
 
     Box(
         modifier = modifier
-            .scale(style.scale)
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(0.dp))
             .background(style.backgroundColor)
             .then(
                 if (isFocused) {
-                    Modifier.border(style.borderWidth, style.borderColor, RoundedCornerShape(12.dp))
+                    Modifier.border(style.borderWidth, style.borderColor, RoundedCornerShape(0.dp))
                 } else Modifier
             )
             .focusRequester(focusRequester)
@@ -213,12 +204,11 @@ fun OptionRadioItem(
 
     Box(
         modifier = modifier
-            .scale(style.scale)
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(0.dp))
             .background(style.backgroundColor)
             .then(
                 if (isFocused) {
-                    Modifier.border(style.borderWidth, style.borderColor, RoundedCornerShape(12.dp))
+                    Modifier.border(style.borderWidth, style.borderColor, RoundedCornerShape(0.dp))
                 } else Modifier
             )
             .focusRequester(focusRequester)
@@ -284,6 +274,28 @@ fun OptionSectionHeader(
     )
 }
 
+@Composable
+fun OptionGroup(
+    modifier: Modifier = Modifier,
+    focusableGroup: Boolean = true,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        shape = RoundedCornerShape(12.dp),
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(vertical = 8.dp)
+                .then(if (focusableGroup) Modifier.focusGroup() else Modifier),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            content()
+        }
+    }
+}
+
 @Preview(uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
 private fun Preview_OptionListItem() {
@@ -291,40 +303,44 @@ private fun Preview_OptionListItem() {
         Surface(color = MaterialTheme.colorScheme.surface) {
             Column(
                 modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 OptionSectionHeader(text = "Sort By")
-                OptionRadioItem(
-                    text = "Installed First",
-                    selected = true,
-                    onClick = {},
-                    icon = Icons.Default.Download
-                )
-                OptionRadioItem(
-                    text = "Name (A-Z)",
-                    selected = false,
-                    onClick = {},
-                    icon = Icons.Default.SortByAlpha
-                )
+                OptionGroup {
+                    OptionRadioItem(
+                        text = "Installed First",
+                        selected = true,
+                        onClick = {},
+                        icon = Icons.Default.Download
+                    )
+                    OptionRadioItem(
+                        text = "Name (A-Z)",
+                        selected = false,
+                        onClick = {},
+                        icon = Icons.Default.SortByAlpha
+                    )
+                }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
                 OptionSectionHeader(text = "Filter By Type")
-                OptionListItem(
-                    text = "Games",
-                    selected = true,
-                    onClick = {},
-                )
-                OptionListItem(
-                    text = "Applications",
-                    selected = false,
-                    onClick = {},
-                )
-                OptionListItem(
-                    text = "Tools",
-                    selected = true,
-                    onClick = {},
-                )
+                OptionGroup {
+                    OptionListItem(
+                        text = "Games",
+                        selected = true,
+                        onClick = {},
+                    )
+                    OptionListItem(
+                        text = "Applications",
+                        selected = false,
+                        onClick = {},
+                    )
+                    OptionListItem(
+                        text = "Tools",
+                        selected = true,
+                        onClick = {},
+                    )
+                }
             }
         }
     }

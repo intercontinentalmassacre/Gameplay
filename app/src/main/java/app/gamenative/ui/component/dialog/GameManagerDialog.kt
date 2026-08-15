@@ -136,7 +136,7 @@ fun GameManagerDialog(
         allDownloadableApps.clear()
 
         // Get Downloadable Depots
-        val allPossibleDownloadableDepots = SteamService.getDownloadableDepots(gameId)
+        val allPossibleDownloadableDepots = SteamService.getDownloadableDepots(gameId, wantAndroid = SteamService.isAndroidPlatform(gameId))
         downloadableDepots.putAll(allPossibleDownloadableDepots)
 
         // Get Optional DLC IDs

@@ -39,7 +39,8 @@ fun CrashLogDialog(
     onSave: () -> Unit,
     onDismissRequest: () -> Unit,
 ) {
-    if (visible) {
+    val hostActive = rememberHostActivityActive()
+    if (visible && hostActive) {
         val scrollState = rememberScrollState()
 
         Dialog(

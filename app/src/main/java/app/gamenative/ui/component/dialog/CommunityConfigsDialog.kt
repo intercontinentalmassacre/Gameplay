@@ -696,7 +696,7 @@ private fun CommunityConfigListItem(
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
-    val itemShape = RoundedCornerShape(12.dp)
+    val itemShape = RoundedCornerShape(0.dp)
     val performance = buildList {
         add(stringResource(R.string.community_config_rating_value, run.rating))
         run.averageFps?.let {

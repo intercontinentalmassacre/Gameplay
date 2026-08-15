@@ -50,14 +50,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Gamepad
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -137,12 +136,15 @@ import app.gamenative.ui.data.shouldLoadNextLibraryPage
 import app.gamenative.ui.enums.LibraryTab
 import app.gamenative.ui.enums.PaneType
 import app.gamenative.ui.screen.library.components.DsGameGrid
+import app.gamenative.ui.screen.library.components.DsContentBottomPadding
+import app.gamenative.ui.screen.library.components.dsHomeCellMinSize
 import app.gamenative.ui.screen.library.components.AppItem
 import app.gamenative.ui.screen.library.components.GameSourceIcon
 import app.gamenative.ui.screen.library.components.GridImageUrls
 import app.gamenative.ui.screen.library.components.LibraryDynamicBackdrop
 import app.gamenative.ui.screen.library.components.getGridImageUrl
 import app.gamenative.ui.theme.PluviaTheme
+import app.gamenative.ui.theme.isReduceMotionEnabled
 import app.gamenative.ui.widget.PerformanceHudView
 import app.gamenative.utils.rememberExternalDisplay
 import com.skydoves.landscapist.ImageOptions
@@ -160,6 +162,7 @@ import kotlin.math.abs
 import timber.log.Timber
 
 private const val CONTROLLER_AXIS_REPEAT_MS = 220L
+private const val COVER_FLOW_MAX_TILT_DEGREES = 12f
 
 /**
  * Bridge between the main-screen library state and the second-display
@@ -305,6 +308,13 @@ object DsHomeSecondScreen {
 
     fun publishPresentationWindow(token: IBinder?, type: Int?) {
         Timber.d("publishPresentationWindow token=$token type=$type (was token=$presentationWindowToken type=$presentationWindowType)")
+        // Skip the Compose-state write when the value did not change; the
+        // post-attached republish from DsHomePresentationHost used to fire
+        // twice (once on show, once after the window token became available)
+        // and each write triggered a recomposition of every consumer of the
+        // second-screen dialog locals. Dialogs that were already open would
+        // re-evaluate secondScreenDialogProperties() and flash.
+        if (presentationWindowToken == token && presentationWindowType == type) return
         presentationWindowToken = token
         presentationWindowType = type
     }
@@ -595,6 +605,12 @@ class DsHomePresentation(
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         DsHomeSecondScreen.attachPresentation(this)
+        // Match the host Surface background so the Presentation window does not
+        // flash its default (black) window background between show() and the
+        // Compose tree drawing its first frame.
+        window?.setBackgroundDrawable(
+            android.graphics.drawable.ColorDrawable(android.graphics.Color.BLACK),
+        )
         updateInputMode(DsHomeSecondScreen.model?.mode ?: DsHomeSecondScreen.Mode.DETAILS)
         // A Presentation window is TYPE_PRESENTATION (2037). Compose Dialog()
         // creates its own window; its LayoutParams type (2037 via
@@ -983,20 +999,25 @@ class DsHomePresentation(
                 it()
                 return true
             }
-            if (keyCode == KeyEvent.KEYCODE_BUTTON_B) {
-                currentModel.onBack()
-                return true
-            }
         }
-        if (keyCode == KeyEvent.KEYCODE_BACK) {
-            if (currentModel?.mode == DsHomeSecondScreen.Mode.SETTINGS) {
-                currentModel.onBack()
-                return true
-            }
+        if (keyCode == KeyEvent.KEYCODE_BACK || keyCode == KeyEvent.KEYCODE_BUTTON_B) {
             if (event.action == KeyEvent.ACTION_DOWN) {
-                val handledInCompose = composeView.dispatchKeyEvent(event)
+                // Never short-circuit settings layers: the focused tree may have
+                // enabled BackHandlers (drawer, search, unsaved-changes confirm)
+                // that must run first. Fall back to the dispatcher, then to the
+                // published model back, only when nothing in composition handled it.
+                val backEvent = if (keyCode == KeyEvent.KEYCODE_BACK) {
+                    event
+                } else {
+                    event.withKeyCode(KeyEvent.KEYCODE_BACK)
+                }
+                val handledInCompose = composeView.dispatchKeyEvent(backEvent)
                 if (!handledInCompose) {
-                    presentationLifecycleOwner.onBackPressedDispatcher.onBackPressed()
+                    if (presentationLifecycleOwner.onBackPressedDispatcher.hasEnabledCallbacks()) {
+                        presentationLifecycleOwner.onBackPressedDispatcher.onBackPressed()
+                    } else {
+                        currentModel?.onBack()
+                    }
                 }
             }
             return true
@@ -1026,15 +1047,11 @@ private fun DsHomeSecondScreenGrid(model: DsHomeSecondScreen.Model) {
     var controllerSelectedIndex by remember(model.currentTab) {
         mutableIntStateOf(model.focusedIndex.coerceIn(0, model.items.lastIndex.coerceAtLeast(0)))
     }
-    val cellMinSize = when (scaleStep) {
-        0 -> 96.dp
-        2 -> 144.dp
-        else -> 116.dp
-    }
+    val cellMinSize = dsHomeCellMinSize(scaleStep, lowerDisplay = true)
     LaunchedEffect(model.currentTab) {
         gridState.scrollToItem(0)
     }
-    LaunchedEffect(model.focusedIndex, model.items.size) {
+    LaunchedEffect(model.focusedIndex, model.items.isEmpty()) {
         if (model.focusedIndex in model.items.indices) {
             controllerSelectedIndex = model.focusedIndex
             if (PrefManager.dsHomeNavMode == 0) gridState.animateScrollToItem(model.focusedIndex)
@@ -1055,7 +1072,7 @@ private fun DsHomeSecondScreenGrid(model: DsHomeSecondScreen.Model) {
     // sticks instead of being stolen back by the main display.
     val windowInfo = LocalWindowInfo.current
     val controllerFocusEpoch = DsHomeSecondScreen.controllerFocusEpoch
-    LaunchedEffect(model.items.size, model.currentTab, model.focusedIndex, controllerFocusEpoch) {
+    LaunchedEffect(model.items.isEmpty(), model.currentTab, model.focusedIndex, controllerFocusEpoch) {
         if (model.items.isEmpty()) return@LaunchedEffect
         withTimeoutOrNull(2_000) {
             snapshotFlow { windowInfo.isWindowFocused }
@@ -1083,7 +1100,8 @@ private fun DsHomeSecondScreenGrid(model: DsHomeSecondScreen.Model) {
     }
     DisposableEffect(model, navMode, scaleStep) {
         val handler: (Int) -> Boolean = { keyCode ->
-            when (keyCode) {
+            if (model.isSearching) false
+            else when (keyCode) {
                 KeyEvent.KEYCODE_BUTTON_L1,
                 KeyEvent.KEYCODE_BUTTON_L2,
                 -> {
@@ -1155,6 +1173,8 @@ private fun DsHomeSecondScreenGrid(model: DsHomeSecondScreen.Model) {
         GamepadAction(GamepadButton.A, app.gamenative.R.string.action_select),
         GamepadAction(GamepadButton.SELECT, app.gamenative.R.string.options, model.onOptions),
         GamepadAction(GamepadButton.Y, app.gamenative.R.string.search, model.onSearchToggle),
+        GamepadAction(GamepadButton.X, app.gamenative.R.string.action_add_game, model.onAddGame),
+        GamepadAction(GamepadButton.START, app.gamenative.R.string.system_hub_open, model.onSystemMenu),
         GamepadAction(GamepadButton.B, app.gamenative.R.string.menu, model.onQuickActions),
     )
 
@@ -1163,6 +1183,7 @@ private fun DsHomeSecondScreenGrid(model: DsHomeSecondScreen.Model) {
             .fillMaxSize()
             .onPreviewKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                if (model.isSearching) return@onPreviewKeyEvent false
                 when (event.key) {
                     Key.ButtonL1, Key.ButtonL2 -> {
                         model.onPreviousTab?.let {
@@ -1201,10 +1222,13 @@ private fun DsHomeSecondScreenGrid(model: DsHomeSecondScreen.Model) {
             },
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            DualLibraryHeader(model, onLayoutCycle = cycleNavMode)
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f))
+            DualLibraryHeader(
+                model = model,
+                onLayoutCycle = cycleNavMode,
+            )
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
 
-            Box(modifier = Modifier.weight(1f)) {
+            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                 when {
                     model.isLoading && model.items.isEmpty() -> {
                         CircularProgressIndicator(
@@ -1263,7 +1287,8 @@ private fun DsHomeSecondScreenGrid(model: DsHomeSecondScreen.Model) {
                         showLabels = true,
                         cellAspectRatio = 0.76f,
                         preferSquareIcon = false,
-                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 68.dp),
+                        labelStyle = MaterialTheme.typography.labelLarge,
+                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = DsContentBottomPadding),
                         modifier = Modifier.fillMaxSize(),
                     )
                 }
@@ -1276,12 +1301,16 @@ private fun DsHomeSecondScreenGrid(model: DsHomeSecondScreen.Model) {
             visible = !model.isSearching,
             forceVisible = true,
             compact = true,
+            scale = 1.25f,
         )
     }
 }
 
 @Composable
-private fun DualLibraryHeader(model: DsHomeSecondScreen.Model, onLayoutCycle: (() -> Unit)? = null) {
+private fun DualLibraryHeader(
+    model: DsHomeSecondScreen.Model,
+    onLayoutCycle: (() -> Unit)? = null,
+) {
     val layoutCycle = onLayoutCycle ?: model.onLayoutCycle
     if (model.isSearching) {
         // Keep the text local: the model is republished from the main-display composition
@@ -1346,20 +1375,20 @@ private fun DualLibraryHeader(model: DsHomeSecondScreen.Model, onLayoutCycle: ((
         if (model.lastPage > 1) {
             Text(
                 text = "${model.currentPage.coerceAtMost(model.lastPage)} / ${model.lastPage}",
-                style = MaterialTheme.typography.labelMedium,
+                style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
             )
         }
         Spacer(modifier = Modifier.weight(1f))
+        IconButton(onClick = model.onRefresh) {
+            Icon(
+                Icons.Default.Refresh,
+                contentDescription = stringResource(app.gamenative.R.string.action_refresh),
+            )
+        }
         IconButton(onClick = layoutCycle) {
             Icon(Icons.Default.GridView, contentDescription = stringResource(app.gamenative.R.string.ds_home_icon_size_action))
-        }
-        IconButton(onClick = model.onSearchToggle) {
-            Icon(Icons.Default.Search, contentDescription = stringResource(app.gamenative.R.string.search))
-        }
-        IconButton(onClick = model.onOptions) {
-            Icon(Icons.Default.Tune, contentDescription = stringResource(app.gamenative.R.string.options))
         }
         IconButton(onClick = model.onSystemMenu) {
             Icon(
@@ -1369,9 +1398,6 @@ private fun DualLibraryHeader(model: DsHomeSecondScreen.Model, onLayoutCycle: ((
         }
         IconButton(onClick = model.onOpenSettings) {
             Icon(Icons.Default.Settings, contentDescription = stringResource(app.gamenative.R.string.settings_title))
-        }
-        IconButton(onClick = model.onAddGame) {
-            Icon(Icons.Default.Add, contentDescription = stringResource(app.gamenative.R.string.action_add_game))
         }
     }
 }
@@ -1403,7 +1429,7 @@ private fun DsHomeSecondScreenList(
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 68.dp),
+        contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 8.dp, bottom = DsContentBottomPadding),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         itemsIndexed(model.items, key = { _, item -> item.appId }) { index, item ->
@@ -1429,7 +1455,7 @@ private fun DualLibraryListRow(
     val context = LocalContext.current
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
-    val shape = RoundedCornerShape(10.dp)
+    val shape = RoundedCornerShape(PluviaTheme.tokens.cornerMd)
     val imageUrls by produceState(initialValue = GridImageUrls("", ""), key1 = item.appId) {
         value = withContext(Dispatchers.IO) { getGridImageUrl(context, item, PaneType.GRID_CAPSULE) }
     }
@@ -1438,7 +1464,7 @@ private fun DualLibraryListRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(72.dp)
+            .height(80.dp)
             .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
             .onFocusChanged { if (it.isFocused) onFocused() }
             .clip(shape)
@@ -1460,9 +1486,9 @@ private fun DualLibraryListRow(
     ) {
         Surface(
             modifier = Modifier
-                .width(96.dp)
-                .height(60.dp),
-            shape = RoundedCornerShape(7.dp),
+                .width(104.dp)
+                .height(64.dp),
+            shape = RoundedCornerShape(PluviaTheme.tokens.cornerSm),
             color = MaterialTheme.colorScheme.surfaceContainerHighest,
         ) {
             if (imageUrl.isNotEmpty()) {
@@ -1476,18 +1502,18 @@ private fun DualLibraryListRow(
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text(
                 text = item.name,
-                style = MaterialTheme.typography.titleSmall,
+                style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
-                GameSourceIcon(gameSource = item.gameSource, iconSize = 15, alignmentBoxSize = 20)
+                GameSourceIcon(gameSource = item.gameSource, iconSize = 18, alignmentBoxSize = 24)
                 if (item.sizeBytes > 0) {
                     Text(
                         text = formatBytes(item.sizeBytes),
-                        style = MaterialTheme.typography.labelSmall,
+                        style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(start = 8.dp),
                     )
@@ -1511,6 +1537,7 @@ private fun DsHomeCoverFlowPane(
 ) {
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
+    val reduceMotion = isReduceMotionEnabled()
 
     LaunchedEffect(model.currentTab, model.focusedIndex) {
         if (model.items.isNotEmpty()) {
@@ -1607,9 +1634,9 @@ private fun DsHomeCoverFlowPane(
                 flingBehavior = rememberSnapFlingBehavior(lazyListState = listState),
                 horizontalArrangement = Arrangement.spacedBy(itemSpacing),
                 verticalAlignment = Alignment.CenterVertically,
-                contentPadding = PaddingValues(start = sidePadding, end = sidePadding, bottom = 68.dp),
+                contentPadding = PaddingValues(start = sidePadding, end = sidePadding, bottom = DsContentBottomPadding),
             ) {
-                itemsIndexed(model.items, key = { _, item -> item.appId }) { index, item ->
+                    itemsIndexed(model.items, key = { _, item -> item.appId }) { index, item ->
                     val tiltInputState = remember(index) {
                         derivedStateOf {
                             val layoutInfo = listState.layoutInfo
@@ -1640,8 +1667,17 @@ private fun DsHomeCoverFlowPane(
                             normalizedDistance > 0.03f -> -1f
                             else -> 0f
                         }
-                        val tiltAngle = (30.061367f * distanceInSteps.coerceAtMost(1.2f)).coerceAtMost(36f)
+                        // Perspective tilt is decorative. Flat covers under reduced
+                        // motion; otherwise a clamped, named tilt so the ring never
+                        // becomes a 3D showpiece.
+                        val tiltAngle = if (reduceMotion) {
+                            0f
+                        } else {
+                            (COVER_FLOW_MAX_TILT_DEGREES * distanceInSteps.coerceAtMost(1.2f))
+                                .coerceAtMost(COVER_FLOW_MAX_TILT_DEGREES)
+                        }
                         val scale = when {
+                            reduceMotion -> 1f
                             distanceInSteps <= 1f -> 1.04f + (0.91f - 1.04f) * distanceInSteps
                             distanceInSteps <= 2f -> 0.91f + (0.86f - 0.91f) * (distanceInSteps - 1f)
                             else -> 0.8f
@@ -1859,7 +1895,7 @@ private fun DsHomeCoverWallPane(
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 68.dp),
+        contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 8.dp, bottom = DsContentBottomPadding),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         itemsIndexed(model.items, key = { _, item -> item.appId }) { index, item ->
@@ -1883,7 +1919,7 @@ private fun DsCoverWallRow(
     val context = LocalContext.current
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
-    val shape = RoundedCornerShape(12.dp)
+    val shape = RoundedCornerShape(PluviaTheme.tokens.cornerMd)
     val imageUrls by produceState(initialValue = GridImageUrls("", ""), key1 = item.appId) {
         value = withContext(Dispatchers.IO) { getGridImageUrl(context, item, PaneType.GRID_HERO) }
     }
@@ -1947,11 +1983,22 @@ private fun DsCoverWallRow(
 private fun DsHomeSecondScreenDetails(model: DsHomeSecondScreen.Model) {
     val item = model.focusedItem
     if (item == null) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Default.Gamepad,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(40.dp),
+            )
             Text(
                 text = stringResource(app.gamenative.R.string.second_screen_no_game_selected),
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 12.dp),
             )
         }
         return
@@ -1973,7 +2020,10 @@ private fun DsHomeSecondScreenDetails(model: DsHomeSecondScreen.Model) {
                 .fillMaxWidth()
                 .weight(1f)
                 .background(MaterialTheme.colorScheme.surfaceContainerLow)
-                .clip(RoundedCornerShape(bottomStart = 16.dp, bottomEnd = 16.dp)),
+                .clip(RoundedCornerShape(
+                    bottomStart = PluviaTheme.tokens.cornerLg,
+                    bottomEnd = PluviaTheme.tokens.cornerLg,
+                )),
         ) {
             if (imageUrl.isNotEmpty()) {
                 CoilImage(
@@ -2041,7 +2091,7 @@ private fun DsHomeSecondScreenDetails(model: DsHomeSecondScreen.Model) {
             if (item.sizeBytes > 0) {
                 Text(
                     text = formatBytes(item.sizeBytes),
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -2051,9 +2101,10 @@ private fun DsHomeSecondScreenDetails(model: DsHomeSecondScreen.Model) {
 
 private fun formatBytes(bytes: Long): String {
     if (bytes <= 0) return ""
-    val kb = bytes / 1024.0
-    if (kb < 1024.0) return String.format("%.1f MB", kb / 1024.0)
-    return String.format("%.1f GB", kb / 1024.0 / 1024.0)
+    val mb = bytes / 1024.0 / 1024.0
+    if (mb < 1.0) return "< 1 MB"
+    if (mb < 1024.0) return String.format("%.1f MB", mb)
+    return String.format("%.1f GB", mb / 1024.0)
 }
 
 @Composable
@@ -2079,7 +2130,7 @@ private fun SecondScreenGamePanel(
                 onClick = model.onShowMenu,
             )
         }
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
         Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
             if (showMenu) {
                 model.menuContent?.invoke()
@@ -2100,8 +2151,8 @@ private fun RowScope.InGamePanelTab(
         onClick = onClick,
         modifier = Modifier
             .weight(1f)
-            .height(48.dp),
-        shape = RoundedCornerShape(16.dp),
+            .height(52.dp),
+        shape = RoundedCornerShape(PluviaTheme.tokens.cornerLg),
         color = if (selected) {
             MaterialTheme.colorScheme.secondaryContainer
         } else {
@@ -2116,7 +2167,7 @@ private fun RowScope.InGamePanelTab(
         Box(contentAlignment = Alignment.Center) {
             Text(
                 text = text,
-                style = MaterialTheme.typography.titleSmall,
+                style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -2131,7 +2182,7 @@ private fun SecondScreenGameDashboard(model: DsHomeSecondScreen.Model) {
         modifier = Modifier
             .fillMaxSize()
             .padding(20.dp),
-        shape = RoundedCornerShape(24.dp),
+        shape = RoundedCornerShape(PluviaTheme.tokens.cornerLg),
         color = MaterialTheme.colorScheme.surfaceContainerLow,
     ) {
         Row(
@@ -2143,7 +2194,7 @@ private fun SecondScreenGameDashboard(model: DsHomeSecondScreen.Model) {
                 modifier = Modifier
                     .width(128.dp)
                     .height(184.dp),
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(PluviaTheme.tokens.cornerLg),
                 color = MaterialTheme.colorScheme.surfaceContainerHighest,
             ) {
                 if (model.dashboardImageUrl.isNotBlank()) {
@@ -2261,7 +2312,10 @@ fun DsHomePresentationHost() {
                     type = presentation.window?.attributes?.type,
                 )
                 // decorView.windowToken is null until the presentation window is
-                // attached; re-publish once attached so dialogs get a valid token
+                // attached; re-publish once attached so dialogs get a valid token.
+                // publishPresentationWindow short-circuits when the value did not
+                // change, so this only fires a recomposition when the token was
+                // actually null at show time and is now non-null.
                 presentation.window?.decorView?.post {
                     DsHomeSecondScreen.publishPresentationWindow(
                         token = presentation.window?.decorView?.windowToken,

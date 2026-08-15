@@ -59,6 +59,8 @@ import androidx.compose.runtime.setValue
 import app.gamenative.MainActivity
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.input.pointer.PointerIcon
@@ -111,6 +113,10 @@ import app.gamenative.ui.component.QuickMenuAction
 import app.gamenative.ui.gcds.GcdsQuickMenu
 import app.gamenative.ui.gcds.GcdsQuickMenuRole
 import app.gamenative.ui.component.SteamInviteState
+import app.gamenative.ui.component.dialog.ScConfigManagerDialog
+import app.gamenative.ui.component.dialog.ScOverlayEditorDialog
+import app.gamenative.ui.component.dialog.ScOverlayTarget
+import app.gamenative.ui.component.dialog.SteamControllerBindingEditorDialog
 import app.gamenative.ui.component.layers.LocalLayerController
 import app.gamenative.ui.component.parseBooleanExtra
 import app.gamenative.ui.component.parsePositiveFpsLimit
@@ -379,7 +385,9 @@ fun XServerScreen(
     appId: String,
     bootToContainer: Boolean,
     testGraphics: Boolean = false,
-    diagnostics: Boolean = false,
+    // NOTE: `diagnostics` is intentionally NOT a parameter here — read it via PrefManager.wrapperDiagnostics at the
+    // setupXEnvironment call below. Adding a parameter to this (very large) composable pushed the method past ART's
+    // bytecode-verifier limit — a VerifyError / crash on every game launch. Keep new inputs out of this signature.
     isOffline: Boolean = false,
     registerBackAction: ( ( ) -> Unit ) -> Unit,
     navigateBack: () -> Unit,
@@ -508,17 +516,18 @@ fun XServerScreen(
     var swapInputOverlay: SwapInputOverlayView? by remember { mutableStateOf(null) }
     var imeInputReceiver: app.gamenative.externaldisplay.IMEInputReceiver? by remember { mutableStateOf(null) }
 
-    var win32AppWorkarounds: Win32AppWorkarounds? by remember { mutableStateOf(null) }
+var win32AppWorkarounds: Win32AppWorkarounds? by remember { mutableStateOf(null) }
     var physicalControllerHandler: PhysicalControllerHandler? by remember { mutableStateOf(null) }
+    var tritonMapper: app.gamenative.steamcontroller.TritonMapper? by remember { mutableStateOf(null) }
     var exitWatchJob: Job? by remember { mutableStateOf(null) }
     val keyboardEscMenuHandler = rememberKeyboardEscMenuHandler()
 
     DisposableEffect(Unit) {
         onDispose {
-            PluviaApp.radialMenuCoordinator?.detach()
-            PluviaApp.radialMenuCoordinator = null
             physicalControllerHandler?.cleanup()
             physicalControllerHandler = null
+            tritonMapper?.stop()
+            tritonMapper = null
             exitWatchJob?.cancel()
             exitWatchJob = null
             keyboardEscMenuHandler.cancel()
@@ -535,6 +544,16 @@ fun XServerScreen(
     var showElementEditor by remember { mutableStateOf(false) }
     var elementToEdit by remember { mutableStateOf<com.winlator.inputcontrols.ControlElement?>(null) }
     var showPhysicalControllerDialog by remember { mutableStateOf(false) }
+    // Steam Controller in-game live editors (shown from the QuickMenu CONTROLLER tab when an SC is connected).
+    var showScRoot by remember { mutableStateOf(false) }
+    var showScBindings by remember { mutableStateOf(false) }
+    var showScLayout by remember { mutableStateOf(false) }
+    var showScKeyboard by remember { mutableStateOf(false) }
+    var showScConfigs by remember { mutableStateOf(false) }
+    // When a sub-editor is opened from the SC root hub, closing it (B / Back) should return to the hub — one level
+    // at a time — instead of resuming the game. This flag records "came from the hub" so the sub-editor's dismiss
+    // reopens the hub rather than calling scEditorDismiss (which would drop straight back to the game).
+    var scReturnToRoot by remember { mutableStateOf(false) }
     var showPlayingBlockedDialog by rememberSaveable { mutableStateOf(false) }
     var playingBlockedRemoteName by rememberSaveable { mutableStateOf<String?>(null) }
     var showTouchGestureDialog by remember { mutableStateOf(false) }
@@ -674,7 +693,7 @@ fun XServerScreen(
             ?.setFrameRateLimit(limit)
         xServerView?.getxServer()
             ?.getExtension<PresentExtension>(PresentExtension.MAJOR_OPCODE.toInt())
-            ?.setEagerIdleRelease(LsfgVkManager.isArmed(container))
+            ?.setEagerIdleRelease(false)
     }
 
     fun effectiveFpsLimit(): Int =
@@ -807,7 +826,12 @@ fun XServerScreen(
         val hud = PerformanceHudView(
             context = context,
             fpsProvider = {
-                frameRating?.currentFPS ?: 0f
+                val baseFps = frameRating?.currentFPS ?: 0f
+                if (isLsfgAvailable && lsfgMultiplier >= 2) {
+                    baseFps * lsfgMultiplier
+                } else {
+                    baseFps
+                }
             },
             initialConfig = performanceHudConfig,
             initialCompactMode = PrefManager.performanceHudCompactMode,
@@ -839,6 +863,10 @@ fun XServerScreen(
             Timber.d("Skipping overlay suspend due to suspend policy=never")
             return
         }
+        // Stop the X-server key auto-repeat (a main-thread Handler) BEFORE suspending the guest. Otherwise, if a key
+        // is still "held" when the guest is SIGSTOPped, the auto-repeat's next blocking ClientSocket.write to the
+        // non-draining guest hangs the UI thread -> ANR (seen when opening the SC editor with a key still down).
+        runCatching { xServerView?.getxServer()?.inputDeviceManager?.onGuestSuspended() }
         PluviaApp.xEnvironment?.onPause()
         PluviaApp.isOverlayPaused = true
     }
@@ -1338,6 +1366,12 @@ fun XServerScreen(
                 )
                 true
             }
+
+            // Steam Controller live editors: open the editor; on close they persist + call tritonMapper.reload()
+            // so the change applies to the running game with no relaunch.
+            QuickMenuAction.SC_ROOT -> { keepPausedForEditor = true; showScRoot = true; true }
+            QuickMenuAction.SC_BINDINGS -> { keepPausedForEditor = true; showScBindings = true; true }
+            QuickMenuAction.SC_LAYOUT -> { keepPausedForEditor = true; showScLayout = true; true }
 
             QuickMenuAction.PERFORMANCE_HUD -> {
                 val enabled = !isPerformanceHudEnabled
@@ -2124,6 +2158,12 @@ fun XServerScreen(
                             }
                             handler.setPreferredInputApi(PreferredInputApi.values()[container.inputType])
                             handler.setDInputMapperType(container.dinputMapperType)
+                            handler.setVibrationMode(
+                                PrefManager.normalizeVibrationModeInput(
+                                    container.getExtra("vibrationMode", "controller"),
+                                ),
+                            )
+                            handler.setVibrationIntensity(container.getExtra("vibrationIntensity", "100").toIntOrNull() ?: 100)
                             if (container.isDisableMouseInput()) {
                                 PluviaApp.touchpadView?.setTouchscreenMouseDisabled(true)
                             } else if (container.isTouchscreenMode()) {
@@ -2232,7 +2272,7 @@ fun XServerScreen(
                                 appId,
                                 bootToContainer,
                                 testGraphics,
-                                diagnostics,
+                                PrefManager.wrapperDiagnostics,
                                 xServerState,
                                 envVars,
                                 container,
@@ -2352,13 +2392,130 @@ fun XServerScreen(
                         onRadialMenuButtonStateChanged = radialMenuCoordinator?.let { coordinator ->
                             { isDown, commit -> coordinator.onRadialMenuButtonStateChanged(isDown, commit) }
                         },
-                        onRadialMenuVectorChanged = radialMenuCoordinator?.let { it::onRadialMenuVectorChanged },
-                    )
-                    radialMenuCoordinator?.bindPhysicalControllerHandler(physicalControllerHandler)
+                            onRadialMenuVectorChanged = radialMenuCoordinator?.let { it::onRadialMenuVectorChanged },
+                        )
+                        radialMenuCoordinator?.bindPhysicalControllerHandler(physicalControllerHandler)
 
-                    // Store profile for auto-show logic
-                    loadedProfile = targetProfile
-                }
+                        // Steam Controller (2026 "Triton") driver over BLE. Opt-in (Settings) and only once the
+                        // Bluetooth permissions are actually granted, so anyone without the hardware pays nothing: no
+                        // BLE scan, no overlay views, no rumble tap — and no chance of a permission throw reaching this
+                        // block, which sits outside the launch try. Loads this container's per-game ScConfig (action
+                        // sets / layers / mode-shift) if one exists, else TritonMapper's default profile.
+                        tritonMapper?.stop()
+                        if (PrefManager.steamControllerEnabled &&
+                            app.gamenative.steamcontroller.TritonBle.hasPermissions(context)
+                        ) runCatching {
+                            val scConfig = app.gamenative.steamcontroller.ScConfigStore.forKey(
+                                context, appId,
+                            )
+                            // Step-6 menu HUD overlay (radial/touch ring/grid). Added above the game render; fail-safe so a
+                            // UI issue can't block the controller. Falls back to a no-op overlay if attach fails.
+                            val scMenuOverlay = runCatching {
+                                app.gamenative.steamcontroller.ScMenuOverlayView(context).also { ov ->
+                                    // Resolve each menu's placement/size at draw time, per-menu (keyed by appId + menuId),
+                                    // falling back to the whole-HUD per-game/global placement. reload() refreshes it live.
+                                    ov.gameKey = appId
+                                    gameHost.addView(
+                                        ov,
+                                        FrameLayout.LayoutParams(
+                                            ViewGroup.LayoutParams.MATCH_PARENT,
+                                            ViewGroup.LayoutParams.MATCH_PARENT,
+                                        ),
+                                    )
+                                }
+                            }.getOrNull() ?: app.gamenative.steamcontroller.NoOpScMenuOverlay
+                            // Split-trackpad on-screen keyboard overlay (toggled by SHOW_KEYBOARD / the Steam button).
+                            val scKeyboardOverlay = runCatching {
+                                app.gamenative.steamcontroller.ScKeyboardOverlayView(context).also { kv ->
+                                    kv.setLayout(app.gamenative.steamcontroller.ScOverlayStore.forKeyboard(context, appId))
+                                    gameHost.addView(
+                                        kv,
+                                        FrameLayout.LayoutParams(
+                                            ViewGroup.LayoutParams.MATCH_PARENT,
+                                            ViewGroup.LayoutParams.MATCH_PARENT,
+                                        ),
+                                    )
+                                }
+                            }.getOrNull() ?: app.gamenative.steamcontroller.NoOpScKeyboardOverlay
+                            // Bridge: lets the BLE controller open + navigate the QuickMenu / in-game editors. The Triton
+                            // isn't an Android input device, so we open the menu via the same back action physical pads use
+                            // and inject focus-nav keys (DPAD/CENTER) / a back-press into Compose on the main thread.
+                            val scMainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+                            val scCursor = app.gamenative.ui.component.dialog.ScCursorController(context)
+                            val scUiBridge = object : app.gamenative.steamcontroller.ScUiBridge {
+                                override fun isMenuCapturing(): Boolean =
+                                    showQuickMenu || keepPausedForEditor || showElementEditor || isEditMode
+                                override fun openQuickMenu() {
+                                    scMainHandler.post { if (!showQuickMenu) gameBack() }
+                                }
+                                override fun moveCursor(dx: Int, dy: Int) {
+                                    scMainHandler.post {
+                                        // Only draw the nav cursor while a menu/editor is capturing; otherwise a stray move
+                                        // (or a leftover dot) must not attach to the game view. Detach on any out-of-capture move.
+                                        if (!isMenuCapturing()) { scCursor.detach(); return@post }
+                                        scCursor.move(app.gamenative.ui.component.dialog.ScNavDialogStack.topView() ?: view, dx, dy)
+                                    }
+                                }
+                                override fun cursorTap() {
+                                    scMainHandler.post {
+                                        if (!isMenuCapturing()) { scCursor.detach(); return@post }
+                                        scCursor.tap(app.gamenative.ui.component.dialog.ScNavDialogStack.topView() ?: view)
+                                    }
+                                }
+                                override fun hideCursor() { scMainHandler.post { scCursor.detach() } }
+                                override fun nav(key: app.gamenative.steamcontroller.ScNavKey) {
+                                    scMainHandler.post {
+                                        val act = context as? ComponentActivity ?: return@post
+                                        val now = android.os.SystemClock.uptimeMillis()
+                                        // SC settings dialogs each live in their OWN window (Compose Dialog/AlertDialog), so
+                                        // nav events must go to the top open dialog's view, not the main Compose view. Falls
+                                        // back to the main view (`view`) for the QuickMenu, which is in the main window.
+                                        val target = app.gamenative.ui.component.dialog.ScNavDialogStack.topView() ?: view
+                                        if (key == app.gamenative.steamcontroller.ScNavKey.BACK) {
+                                            // Close the top dialog via its own dismiss (a synthetic KEYCODE_BACK does NOT reach
+                                            // a Compose dialog's onDismissRequest); fall back to the activity back for the menu.
+                                            if (!app.gamenative.ui.component.dialog.ScNavDialogStack.back()) {
+                                                act.onBackPressedDispatcher.onBackPressed()
+                                            }
+                                            return@post
+                                        }
+                                        val code = when (key) {
+                                            app.gamenative.steamcontroller.ScNavKey.UP -> KeyEvent.KEYCODE_DPAD_UP
+                                            app.gamenative.steamcontroller.ScNavKey.DOWN -> KeyEvent.KEYCODE_DPAD_DOWN
+                                            app.gamenative.steamcontroller.ScNavKey.LEFT -> KeyEvent.KEYCODE_DPAD_LEFT
+                                            app.gamenative.steamcontroller.ScNavKey.RIGHT -> KeyEvent.KEYCODE_DPAD_RIGHT
+                                            // Bumpers -> tab prev/next; the command picker listens for L1/R1 to flip tabs.
+                                            app.gamenative.steamcontroller.ScNavKey.TAB_PREV -> KeyEvent.KEYCODE_BUTTON_L1
+                                            app.gamenative.steamcontroller.ScNavKey.TAB_NEXT -> KeyEvent.KEYCODE_BUTTON_R1
+                                            app.gamenative.steamcontroller.ScNavKey.HELP -> KeyEvent.KEYCODE_BUTTON_Y // Y = Help
+                                            app.gamenative.steamcontroller.ScNavKey.CLOSE -> KeyEvent.KEYCODE_BUTTON_START // Start = close editor
+                                            // Triggers -> zoom in/out; the overlay placement editor listens for these to resize.
+                                            app.gamenative.steamcontroller.ScNavKey.ZOOM_IN -> KeyEvent.KEYCODE_ZOOM_IN
+                                            app.gamenative.steamcontroller.ScNavKey.ZOOM_OUT -> KeyEvent.KEYCODE_ZOOM_OUT
+                                            else -> KeyEvent.KEYCODE_DPAD_CENTER  // SELECT
+                                        }
+                                        // Compose's focus system does its own DPAD focus traversal + DPAD_CENTER activation,
+                                        // independent of Android View focus (unlike Activity.dispatchKeyEvent, which routes to
+                                        // the focused game SurfaceView and never reaches Compose).
+                                        target.dispatchKeyEvent(KeyEvent(now, now, KeyEvent.ACTION_DOWN, code, 0))
+                                        target.dispatchKeyEvent(KeyEvent(now, now, KeyEvent.ACTION_UP, code, 0))
+                                    }
+                                }
+                            }
+                            tritonMapper = app.gamenative.steamcontroller.TritonMapper(
+                                context,
+                                xServerView.getxServer(),
+                                scConfig,
+                                scMenuOverlay,
+                                scKeyboardOverlay,
+                                configKey = appId,
+                                uiBridge = scUiBridge,
+                            ).also { it.start() }
+                        }.onFailure { Timber.e(it, "Steam Controller startup failed; continuing without it") }
+
+                        // Store profile for auto-show logic
+                        loadedProfile = targetProfile
+                    }
 
                 // Set overlay opacity from preferences if needed
                 val opacity = PrefManager.getFloat("controls_opacity", InputControlsView.DEFAULT_OVERLAY_OPACITY)
@@ -2695,6 +2852,7 @@ fun XServerScreen(
             onFpsLimiterEnabledChanged = ::applyFpsLimiterEnabled,
             onFpsLimiterChanged = ::applyFpsLimiterTarget,
             hasPhysicalController = hasPhysicalController,
+            isSteamControllerLive = tritonMapper?.transportReady == true,
             isTouchscreenModeActive = container.isTouchscreenMode,
             onTouchGestureSettingsClick = { showTouchGestureDialog = true },
             isShooterModeActive = container.isShooterMode,
@@ -2726,6 +2884,13 @@ fun XServerScreen(
                     } else if (shouldForceResumeOnMenuClose) {
                         forceResumeIfSuspended()
                         shouldForceResumeOnMenuClose = false
+                    } else if (tritonMapper?.transportReady == true && !keepPausedForEditor && !isExiting.get()) {
+                        // A BLE Steam Controller can't press the manual-resume button (it isn't an Android input
+                        // device), so closing the menu with it would otherwise leave the game stuck paused. The
+                        // controller user closing the menu = ready to play, so resume regardless of manual policy.
+                        // Skip while exiting - EXIT_GAME already resumed + began teardown; a second onResume() here
+                        // (fired by the close animation) races the teardown and can freeze the app.
+                        forceResumeIfSuspended()
                     } else if (!keepPausedForEditor) {
                         resumeIfAllowedAfterOverlay()
                     }
@@ -2931,6 +3096,32 @@ fun XServerScreen(
         }
     }
 
+    // Steam Controller live editors (from the QuickMenu CONTROLLER tab). Each persists via ScConfigStore /
+    // ScTuningStore and calls tritonMapper.reload() so the change applies to the running game with no relaunch.
+    val scEditorDismiss: () -> Unit = {
+        keepPausedForEditor = false
+        runCatching { tritonMapper?.reload() }
+        // A BLE Steam Controller can't press the manual-resume button, so force-resume for SC sessions (otherwise
+        // closing an editor in manual-suspend policy would leave the game stuck paused).
+        if (tritonMapper?.transportReady == true) forceResumeIfSuspended() else resumeIfAllowedAfterOverlay()
+    }
+    // The SC live-editor dialogs (hub + sub-editors) are extracted into their own composable: XServerScreen is a huge
+    // function and was at the ART bytecode verifier's size limit (a VerifyError crashes launch when it grows), so
+    // editor UI must live outside this method.
+    ScLiveEditorDialogs(
+        appId = appId,
+        tritonMapper = tritonMapper,
+        showScRoot = showScRoot, onShowScRoot = { showScRoot = it },
+        showScBindings = showScBindings, onShowScBindings = { showScBindings = it },
+        showScLayout = showScLayout, onShowScLayout = { showScLayout = it },
+        showScKeyboard = showScKeyboard, onShowScKeyboard = { showScKeyboard = it },
+        showScConfigs = showScConfigs, onShowScConfigs = { showScConfigs = it },
+        scReturnToRoot = scReturnToRoot, onScReturnToRoot = { scReturnToRoot = it },
+        onFullDismiss = scEditorDismiss,
+        // Back from the SC hub returns to the QuickMenu (not the game): keep paused, show the QuickMenu again.
+        onRootBack = { keepPausedForEditor = false; showQuickMenu = true },
+    )
+
     // var ranSetup by rememberSaveable { mutableStateOf(false) }
     // LaunchedEffect(lifecycleOwner) {
     //     if (!ranSetup) {
@@ -2939,6 +3130,87 @@ fun XServerScreen(
     //
     //     }
     // }
+}
+
+/**
+ * The Steam Controller live-editor dialogs surfaced from the in-game QuickMenu: a single root hub that lists the
+ * editors (Bindings / Labels / Touchpad / Overlay) plus the sub-editor dialogs themselves. Extracted out of the
+ * giant [XServerScreen] composable because that method sits at the ART bytecode verifier's size limit — growing it
+ * (e.g. adding controller-nav focus handling here) trips a `VerifyError` that crashes on launch.
+ *
+ * Navigation model: opening a sub-editor from the hub sets [scReturnToRoot]; the sub-editor's dismiss then reopens
+ * the hub (back ONE level, staying paused + applying edits live) instead of resuming the game via [onFullDismiss].
+ * The hub itself requests initial focus so d-pad/stick nav has a starting control (otherwise the list looks
+ * un-navigable and must be touch-picked).
+ */
+@Composable
+private fun ScLiveEditorDialogs(
+    appId: String,
+    tritonMapper: app.gamenative.steamcontroller.TritonMapper?,
+    showScRoot: Boolean, onShowScRoot: (Boolean) -> Unit,
+    showScBindings: Boolean, onShowScBindings: (Boolean) -> Unit,
+    showScLayout: Boolean, onShowScLayout: (Boolean) -> Unit,
+    showScKeyboard: Boolean, onShowScKeyboard: (Boolean) -> Unit,
+    showScConfigs: Boolean, onShowScConfigs: (Boolean) -> Unit,
+    scReturnToRoot: Boolean, onScReturnToRoot: (Boolean) -> Unit,
+    onFullDismiss: () -> Unit,
+    /** Back from the ROOT hub → reopen the QuickMenu (not resume the game). */
+    onRootBack: () -> Unit,
+) {
+    // Close a sub-editor opened from the SC root hub: if we came from the hub, reopen it (back ONE level, stay
+    // paused, apply edits live); otherwise (opened directly) fall through to the full resume.
+    val scSubEditorDismiss: (close: () -> Unit) -> Unit = { close ->
+        close()
+        if (scReturnToRoot) {
+            onScReturnToRoot(false)
+            runCatching { tritonMapper?.reload() }
+            onShowScRoot(true)
+        } else {
+            onFullDismiss()
+        }
+    }
+    if (showScRoot) {
+        // The hub items (label + the action that opens that sub-editor). Each opens its editor with scReturnToRoot=true
+        // so B comes back here one level at a time. Rendered by [ScRootMenuDialog] so the hub shares the bindings
+        // editor's look (gradient selection ring, purple selected text, oval Back chip) and its controller nav.
+        val items: List<Pair<String, () -> Unit>> = listOf(
+            stringResource(R.string.sc_edit_configs) to { onShowScRoot(false); onScReturnToRoot(true); onShowScConfigs(true) },
+            stringResource(R.string.sc_edit_bindings) to { onShowScRoot(false); onScReturnToRoot(true); onShowScBindings(true) },
+            stringResource(R.string.sc_edit_layout) to { onShowScRoot(false); onScReturnToRoot(true); onShowScLayout(true) },
+            stringResource(R.string.sc_edit_keyboard) to { onShowScRoot(false); onScReturnToRoot(true); onShowScKeyboard(true) },
+        )
+        app.gamenative.ui.component.dialog.ScRootMenuDialog(
+            title = stringResource(R.string.sc_edit_root),
+            items = items,
+            onBack = { onShowScRoot(false); onRootBack() },
+        )
+    }
+    if (showScBindings) {
+        SteamControllerBindingEditorDialog(containerId = appId, onDismiss = { scSubEditorDismiss { onShowScBindings(false) } })
+    }
+    if (showScLayout) {
+        ScOverlayEditorDialog(
+            storeKey = appId,
+            isShared = false,
+            target = ScOverlayTarget.MENU,
+            onDismiss = { scSubEditorDismiss { onShowScLayout(false) } },
+        )
+    }
+    if (showScKeyboard) {
+        ScOverlayEditorDialog(
+            storeKey = appId,
+            isShared = false,
+            target = ScOverlayTarget.KEYBOARD,
+            onDismiss = { scSubEditorDismiss { onShowScKeyboard(false) } },
+        )
+    }
+    if (showScConfigs) {
+        ScConfigManagerDialog(
+            storeKey = appId,
+            onChanged = { runCatching { tritonMapper?.reload() } },
+            onDismiss = { scSubEditorDismiss { onShowScConfigs(false) } },
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -4945,10 +5217,16 @@ private fun extractx86_64InputDlls(context: Context, container: Container) {
     val imageFs = ImageFs.find(context)
     val wineVersion: String? = container.getWineVersion()
     Log.d("XServerDisplayActivity", "x86_64 Input DLL Extraction Verification: Container Wine version: " + wineVersion)
-    if ("proton-9.0-x86_64" == wineVersion) {
+    if (wineVersion != null && wineVersion.contains("x86_64")) {
         val wineFolder: File = File(imageFs.getWinePath() + "/lib/wine/")
-        Log.d("XServerDisplayActivity", "Extracting input dlls to " + wineFolder.getPath())
-    } else Log.d("XServerDisplayActivity", "Wine version is not proton-9.0-x86_64, skipping input dlls extraction")
+        Log.d("XServerDisplayActivity", "Wine version is x86_64. Extracting input dlls to " + wineFolder.getPath())
+        val success: Boolean = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, context.assets, inputAsset, wineFolder)
+        if (!success) {
+            Log.d("XServerDisplayActivity", "Failed to extract input dlls")
+        }
+    } else {
+        Log.d("XServerDisplayActivity", "Wine version is not x86_64, skipping input dlls extraction")
+    }
 }
 
 private suspend fun setupWineSystemFiles(
@@ -4992,7 +5270,7 @@ private suspend fun setupWineSystemFiles(
     }
 
     // Always refresh components files
-    refreshComponentsFiles(context)
+    refreshComponentsFiles(context, container, imageFs, containerManager)
 
     // Normalize dxwrapper for state (dxvk includes version for extraction switch)
     if (xServerState.value.dxwrapper == "dxvk") {
@@ -5150,7 +5428,12 @@ private suspend fun applyGeneralPatches(
     WinlatorPrefManager.putString("current_box64_version", "")
 }
 
-private fun refreshComponentsFiles(context: Context) {
+private fun refreshComponentsFiles(
+    context: Context,
+    container: Container,
+    imageFs: ImageFs,
+    containerManager: ContainerManager
+) {
     val extractionPairs = listOf(
         "pulseaudio-gamenative-20260612.tzst" to File(context.filesDir, "pulseaudio")
     )
@@ -5160,6 +5443,14 @@ private fun refreshComponentsFiles(context: Context) {
         context.assets,
         TarCompressorUtils.Type.ZSTD
     )
+
+    // Extract DirectAudio driver files if the container uses DirectAudio
+    if (container.audioDriver == "directaudio") {
+        val containerDir = container.rootDir
+        if (!containerManager.extractDirectAudio(imageFs, containerDir)) {
+            Log.e("XServerScreen", "Failed to extract DirectAudio driver files")
+        }
+    }
 }
 
 /**
@@ -5994,6 +6285,8 @@ private fun changeWineAudioDriver(audioDriver: String, container: Container, ima
                 registryEditor.setStringValue("Software\\Wine\\Drivers", "Audio", "alsa")
             } else if (audioDriver == "pulseaudio") {
                 registryEditor.setStringValue("Software\\Wine\\Drivers", "Audio", "pulse")
+            } else if (audioDriver == "directaudio") {
+                registryEditor.setStringValue("Software\\Wine\\Drivers", "Audio", "directaudio")
             } else if (audioDriver == "disabled") {
                 registryEditor.setStringValue("Software\\Wine\\Drivers", "Audio", "")
             }

@@ -5,6 +5,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
@@ -62,10 +63,30 @@ fun SettingsGroupEmulation() {
             )
         }
 
-        var showDriverManager by rememberSaveable { mutableStateOf(false) }
-        if (showDriverManager) {
-            // Lazy-load dialog composable to avoid cyclic imports
-            DriverManagerDialog(open = showDriverManager, onDismiss = { showDriverManager = false })
+        var showGetDriver by rememberSaveable { mutableStateOf(false) }
+        if (showGetDriver) {
+            GetDriverDialog(
+                open = showGetDriver,
+                onDismiss = { showGetDriver = false },
+            )
+        }
+
+        var showManageDrivers by rememberSaveable { mutableStateOf(false) }
+        if (showManageDrivers) {
+            // Map the default container's graphicsDriver field to the adrenotools
+            // driver id it represents. Empty string = no active card shown.
+            val activeDriverId = remember {
+                ContainerUtils.getDefaultContainerData().graphicsDriver.takeIf { it.isNotEmpty() }
+            }
+            ManageDriversDialog(
+                open = showManageDrivers,
+                onDismiss = { showManageDrivers = false },
+                onAddDriver = {
+                    showManageDrivers = false
+                    showGetDriver = true
+                },
+                activeDriverId = activeDriverId,
+            )
         }
 
         var showContentsManager by rememberSaveable { mutableStateOf(false) }
@@ -102,6 +123,17 @@ fun SettingsGroupEmulation() {
                 PrefManager.autoApplyKnownConfig = it
             },
         )
+        var sharedContainerBase by rememberSaveable { mutableStateOf(PrefManager.sharedContainerBase) }
+        SettingsSwitch(
+            colors = settingsTileColorsAlt(),
+            state = sharedContainerBase,
+            title = { Text(text = stringResource(R.string.settings_emulation_shared_container_base_title)) },
+            subtitle = { Text(text = stringResource(R.string.settings_emulation_shared_container_base_subtitle)) },
+            onCheckedChange = {
+                sharedContainerBase = it
+                PrefManager.sharedContainerBase = it
+            },
+        )
         SettingsMenuLink(
             colors = settingsTileColors(),
             title = { Text(text = stringResource(R.string.settings_emulation_box64_presets_title)) },
@@ -116,9 +148,15 @@ fun SettingsGroupEmulation() {
         )
         SettingsMenuLink(
             colors = settingsTileColors(),
-            title = { Text(text = stringResource(R.string.settings_emulation_driver_manager_title)) },
-            subtitle = { Text(text = stringResource(R.string.settings_emulation_driver_manager_subtitle)) },
-            onClick = { showDriverManager = true },
+            title = { Text(text = stringResource(R.string.settings_get_driver_title)) },
+            subtitle = { Text(text = stringResource(R.string.settings_get_driver_subtitle)) },
+            onClick = { showGetDriver = true },
+        )
+        SettingsMenuLink(
+            colors = settingsTileColors(),
+            title = { Text(text = stringResource(R.string.settings_manage_drivers_title)) },
+            subtitle = { Text(text = stringResource(R.string.settings_manage_drivers_subtitle)) },
+            onClick = { showManageDrivers = true },
         )
         SettingsMenuLink(
             colors = settingsTileColors(),

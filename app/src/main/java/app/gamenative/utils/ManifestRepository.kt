@@ -17,8 +17,8 @@ object ManifestRepository {
     private const val MANIFEST_URL = "https://raw.githubusercontent.com/intercontinentalmassacre/Gameplay/refs/heads/main/manifest.json"
     private val json = Json { ignoreUnknownKeys = true }
 
-    suspend fun loadManifest(context: Context): ManifestData {
-        if (BuildConfig.DEBUG) {
+    suspend fun loadManifest(context: Context, preferRemote: Boolean = false): ManifestData {
+        if (BuildConfig.DEBUG && !preferRemote) {
             readLocalManifest(context)?.let {
                 Timber.i("ManifestRepository: using local debug manifest")
                 return it
@@ -30,7 +30,7 @@ object ManifestRepository {
         val lastFetchedAt = PrefManager.componentManifestFetchedAt
         val isStale = System.currentTimeMillis() - lastFetchedAt >= ONE_DAY_MS
 
-        if (cachedJson.isNotEmpty() && !isStale) {
+        if (cachedJson.isNotEmpty() && !isStale && !preferRemote) {
             return cachedManifest
         }
 
@@ -45,6 +45,12 @@ object ManifestRepository {
             }
         }
 
+        if (BuildConfig.DEBUG) {
+            readLocalManifest(context)?.let {
+                Timber.i("ManifestRepository: remote unavailable, using local debug manifest")
+                return it
+            }
+        }
         return cachedManifest
     }
 
@@ -69,11 +75,12 @@ object ManifestRepository {
     fun parseManifest(jsonString: String?): ManifestData? {
         if (jsonString.isNullOrBlank()) return null
         return try {
-            val root = json.parseToJsonElement(jsonString).jsonObject
+            val normalized = jsonString.removePrefix("\uFEFF").trimStart()
+            val root = json.parseToJsonElement(normalized).jsonObject
             when (val schemaVersion = root["schemaVersion"]?.jsonPrimitive?.intOrNull ?: 1) {
-                1 -> json.decodeFromString<ManifestData>(jsonString)
+                1 -> json.decodeFromString<ManifestData>(normalized)
                 2 -> {
-                    val catalog = json.decodeFromString<ComponentCatalogDocument>(jsonString)
+                    val catalog = json.decodeFromString<ComponentCatalogDocument>(normalized)
                     val errors = ComponentCatalogValidator.validate(catalog)
                     require(errors.isEmpty()) { errors.joinToString(separator = "; ") }
                     catalog.toManifestData()

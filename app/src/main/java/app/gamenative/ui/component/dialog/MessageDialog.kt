@@ -87,14 +87,15 @@ fun MessageDialog(
                 ),
             )
         }
-        DisposableEffect(Unit) {
+DisposableEffect(Unit) {
             onDispose { DsHomeSecondScreen.clear(DsHomeSecondScreen.Owner.DIALOG) }
         }
         return
     }
 
+    val hostActive = rememberHostActivityActive()
     when {
-        visible -> {
+        visible && hostActive -> {
             val confirmFocusRequester = remember { FocusRequester() }
             val dismissFocusRequester = remember { FocusRequester() }
 

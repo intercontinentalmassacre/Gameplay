@@ -225,7 +225,7 @@ fun ConsoleMenuActionItem(
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val focused by interactionSource.collectIsFocusedAsState()
-    val shape = RoundedCornerShape(10.dp)
+    val shape = RoundedCornerShape(0.dp)
     Row(
         modifier = modifier
             .fillMaxWidth()

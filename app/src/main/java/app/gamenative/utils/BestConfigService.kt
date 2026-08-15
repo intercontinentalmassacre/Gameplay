@@ -754,13 +754,6 @@ object BestConfigService {
 
                 val containerVariant = originalJson.optString("containerVariant", "")
 
-                // glibc is not supported on the modern flavor — reject the entire config so neither
-                // server best-config responses nor JSON imports can switch a container to glibc.
-                if (BuildConfig.MODERN_ANDROID && containerVariant.equals(Container.GLIBC, ignoreCase = true)) {
-                    Timber.tag("BestConfigService").w("Rejecting glibc containerVariant on modern flavor")
-                    return ParsedConfigResult(emptyMap())
-                }
-
                 if (!originalJson.has("wineVersion") || originalJson.isNull("wineVersion")) {
                     if (containerVariant.equals(Container.GLIBC, ignoreCase = true)) {
                         originalJson.put("wineVersion", "wine-9.2-x86_64")

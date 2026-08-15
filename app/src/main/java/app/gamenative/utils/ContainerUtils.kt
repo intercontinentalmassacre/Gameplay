@@ -190,6 +190,8 @@ object ContainerUtils {
             sharpnessEffect = PrefManager.sharpnessEffect,
             sharpnessLevel = PrefManager.sharpnessLevel,
             sharpnessDenoise = PrefManager.sharpnessDenoise,
+            vibrationMode = PrefManager.vibrationMode,
+            vibrationIntensity = PrefManager.vibrationIntensity,
         )
     }
 
@@ -257,6 +259,8 @@ object ContainerUtils {
         PrefManager.sharpnessEffect = containerData.sharpnessEffect
         PrefManager.sharpnessLevel = containerData.sharpnessLevel
         PrefManager.sharpnessDenoise = containerData.sharpnessDenoise
+        PrefManager.vibrationMode = containerData.vibrationMode
+        PrefManager.vibrationIntensity = containerData.vibrationIntensity
     }
 
     fun toContainerData(container: Container): ContainerData {
@@ -344,6 +348,7 @@ object ContainerUtils {
             box64Preset = container.box64Preset,
             desktopTheme = container.desktopTheme,
             containerVariant = container.containerVariant,
+            platform = container.platform,
             wineVersion = container.wineVersion,
             emulator = container.emulator,
             fexcoreVersion = container.fexCoreVersion,
@@ -379,6 +384,11 @@ object ContainerUtils {
             sharpnessEffect = container.getExtra("sharpnessEffect", "None"),
             sharpnessLevel = container.getExtra("sharpnessLevel", "100").toIntOrNull() ?: 100,
             sharpnessDenoise = container.getExtra("sharpnessDenoise", "100").toIntOrNull() ?: 100,
+            vibrationMode = PrefManager.normalizeVibrationModeInput(
+                container.getExtra("vibrationMode", "controller"),
+            ),
+            vibrationIntensity = (container.getExtra("vibrationIntensity", "100").toIntOrNull() ?: 100)
+                .coerceIn(0, 100),
             // LSFG Vulkan frame generation
             lsfgEnabled = container.getExtra(LsfgVkManager.EXTRA_ARMED, "false").toBoolean(),
         )
@@ -537,6 +547,7 @@ object ContainerUtils {
         container.desktopTheme = containerData.desktopTheme
         container.graphicsDriverVersion = containerData.graphicsDriverVersion
         container.containerVariant = containerData.containerVariant
+        container.platform = containerData.platform
         container.wineVersion = containerData.wineVersion
         container.emulator = containerData.emulator
         container.fexCoreVersion = containerData.fexcoreVersion
@@ -562,6 +573,14 @@ object ContainerUtils {
         container.putExtra("sharpnessEffect", containerData.sharpnessEffect)
         container.putExtra("sharpnessLevel", containerData.sharpnessLevel.toString())
         container.putExtra("sharpnessDenoise", containerData.sharpnessDenoise.toString())
+        container.putExtra(
+            "vibrationMode",
+            PrefManager.normalizeVibrationModeInput(containerData.vibrationMode),
+        )
+        container.putExtra(
+            "vibrationIntensity",
+            containerData.vibrationIntensity.coerceIn(0, 100).toString(),
+        )
         // LSFG Vulkan frame generation
         container.putExtra(LsfgVkManager.EXTRA_ARMED, containerData.lsfgEnabled.toString())
         try {
@@ -940,6 +959,8 @@ object ContainerUtils {
                 portraitMode = PrefManager.portraitMode,
                 externalDisplayMode = PrefManager.externalDisplayInputMode,
                 externalDisplaySwap = PrefManager.externalDisplaySwap,
+                vibrationMode = PrefManager.vibrationMode,
+                vibrationIntensity = PrefManager.vibrationIntensity,
             )
         }
 
@@ -1124,8 +1145,12 @@ object ContainerUtils {
         return if (containerManager.hasContainer(appId)) {
             val container = containerManager.getContainerById(appId)
 
-            // Apply temporary override if present (without saving to disk)
-            if (IntentLaunchManager.hasTemporaryOverride(appId)) {
+            // Temporary overrides only carry Wine/Winlator settings (graphics driver, dxwrapper,
+            // etc.) and applyToContainer() unconditionally writes to .wine/user.reg — a native
+            // Android container never has a .wine folder, so skip overrides entirely there rather
+            // than risk that write failing before AndroidGameLauncher ever runs.
+            val isAndroidContainer = container.platform.equals(Container.PLATFORM_ANDROID, ignoreCase = true)
+            if (!isAndroidContainer && IntentLaunchManager.hasTemporaryOverride(appId)) {
                 val overrideConfig = IntentLaunchManager.getTemporaryOverride(appId)
                 if (overrideConfig != null) {
                     // Backup original config before applying override (if not already backed up)
