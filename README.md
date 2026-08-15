@@ -30,6 +30,14 @@ The goal is a complete Android console environment for Windows games—not a col
 
 Release status and support scope are tracked through GitHub Releases and Issues.
 
+## Version 0.2 highlights
+
+- A rebuilt console library with richer Steam game details, improved cover-art selection, controller-friendly cards, and an installed-games-first landing experience.
+- Manual library refresh for Steam, GOG, Epic, and Amazon, plus connected-account identity in the system hub.
+- A more capable dual-screen companion: library controls, quick actions, downloads, settings, and game-card details can live on the secondary display without interrupting the primary one.
+- Stronger launch reliability for migrated containers, including repair of obsolete Wine/Proton links created by older storage layouts.
+- Native Android platform integration, modern storage handling, downloadable container payloads, refreshed driver management, and expanded Steam Controller configuration.
+
 ## Current capabilities
 
 ### Games and installation
@@ -65,6 +73,8 @@ Windows software runs through an isolated container that combines a Wine/Proton-
 - Use installed games as the primary home library instead of a recommendations feed.
 - Display Steam achievements in Gameplay's console-oriented game screen.
 - Preserve GOG, Epic, and Amazon library support from the upstream codebase.
+- Refresh connected storefront libraries from the library header; newly purchased titles appear without restarting the app.
+- Show the connected identity for supported storefronts in the system hub.
 - Sort, filter, search, and select views through controller-friendly library options.
 - Track game time against launch configurations; the running game is reported to Steam and session statistics are persisted into container metadata.
 
