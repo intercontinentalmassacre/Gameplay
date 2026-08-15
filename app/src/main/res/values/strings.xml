@@ -743,6 +743,14 @@
     <string name="download_failed_try_again">Download failed. Please try again.</string>
     <string name="update_available">Update Available</string>
     <string name="game_information">Game Information</string>
+    <string name="status_network_online">Network connected</string>
+    <string name="status_network_offline">No internet connection</string>
+    <string name="status_battery">Battery %1$d percent</string>
+    <string name="steam_feature_controller_full">Full controller support</string>
+    <string name="steam_feature_controller_partial">Partial controller support</string>
+    <string name="steam_feature_achievements">%1$d Steam achievements</string>
+    <string name="steam_feature_cloud">Steam Cloud</string>
+    <string name="steam_feature_workshop">Steam Workshop</string>
     <string name="status">Status</string>
     <string name="status_online">Online</string>
     <string name="status_away">Away</string>

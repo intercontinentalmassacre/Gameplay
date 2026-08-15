@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.displayCutoutPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.union
@@ -99,6 +100,7 @@ import app.gamenative.ui.component.GamepadActionBar
 import app.gamenative.ui.component.GamepadButton
 import app.gamenative.ui.component.LibraryActions
 import app.gamenative.ui.component.DualScreenAmbientStage
+import app.gamenative.ui.component.ConsoleStatusIndicators
 import app.gamenative.ui.component.layers.LocalLayerController
 import app.gamenative.ui.component.dialog.ContainerConfigDialog
 import app.gamenative.ui.component.dialog.LoadingDialog
@@ -1847,6 +1849,23 @@ private fun LibraryScreenContent(
                 } else {
                     folderPicker.launchPicker()
                 }
+            },
+        )
+
+        // On a dual-screen device this composable is the upper display. Keep the
+        // passive system chrome in its conventional top-right corner there; the
+        // controller hints remain on the lower display. Single-display library
+        // keeps status beside its bottom controller chrome.
+        ConsoleStatusIndicators(
+            modifier = if (hasExternalDisplay) {
+                Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = 14.dp, end = 20.dp)
+            } else {
+                Modifier
+                    .align(Alignment.BottomStart)
+                    .navigationBarsPadding()
+                    .padding(start = 24.dp, bottom = 12.dp)
             },
         )
     }

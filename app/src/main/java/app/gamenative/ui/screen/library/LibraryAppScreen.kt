@@ -59,7 +59,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.AddToHomeScreen
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.ContentCopy
@@ -371,6 +370,64 @@ private fun ActionIconButton(
             contentDescription = contentDescription,
             tint = if (onHero) Color.White else MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.size(24.dp),
+        )
+    }
+}
+
+/** A named management action: recognisable on touch screens, fast on a pad. */
+@Composable
+private fun ConsoleSecondaryActionButton(
+    icon: ImageVector,
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    onHero: Boolean = true,
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isFocused by interactionSource.collectIsFocusedAsState()
+    val shape = RoundedCornerShape(8.dp)
+    val scale by animateFloatAsState(
+        targetValue = if (isFocused) 1.015f else 1f,
+        animationSpec = motionSpec(tween(durationMillis = 160, easing = FastOutSlowInEasing)),
+        label = "consoleSecondaryActionScale",
+    )
+
+    Row(
+        modifier = modifier
+            .heightIn(min = 52.dp)
+            .scale(scale)
+            .clip(shape)
+            .background(
+                when {
+                    onHero && isFocused -> Color.White.copy(alpha = 0.22f)
+                    onHero -> Color.Black.copy(alpha = 0.28f)
+                    isFocused -> MaterialTheme.colorScheme.surfaceContainerHighest
+                    else -> MaterialTheme.colorScheme.surfaceContainerHigh
+                },
+            )
+            .focusRing(interactionSource, shape, width = 2.dp)
+            .selectable(
+                selected = isFocused,
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick,
+            )
+            .padding(horizontal = 18.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = if (onHero) Color.White else MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.size(21.dp),
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = if (onHero) Color.White else MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
         )
     }
 }
@@ -1330,6 +1387,27 @@ private fun AppScreenBelowHeroContent(
 /** Store metadata that makes a library item read like a console game page. */
 @Composable
 private fun SteamStoreOverview(details: app.gamenative.utils.SteamStoreDetails.Details) {
+    val controllerLabel = when (details.controllerSupport?.lowercase(Locale.ROOT)) {
+        "full" -> stringResource(R.string.steam_feature_controller_full)
+        "partial" -> stringResource(R.string.steam_feature_controller_partial)
+        else -> null
+    }
+    val achievementLabel = details.achievementCount?.let {
+        stringResource(R.string.steam_feature_achievements, it)
+    }
+    val cloudLabel = stringResource(R.string.steam_feature_cloud)
+    val workshopLabel = stringResource(R.string.steam_feature_workshop)
+    val steamFeatures = buildList {
+        controllerLabel?.let(::add)
+        achievementLabel?.let(::add)
+        if (details.categories.any { it.equals("Steam Cloud", ignoreCase = true) }) {
+            add(cloudLabel)
+        }
+        if (details.categories.any { it.contains("Steam Workshop", ignoreCase = true) }) {
+            add(workshopLabel)
+        }
+    }
+
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (details.shortDescription.isNotBlank()) {
             Text(
@@ -1343,8 +1421,15 @@ private fun SteamStoreOverview(details: app.gamenative.utils.SteamStoreDetails.D
 
         val facts = buildList {
             details.metacriticScore?.let { add("Metacritic $it") }
-            details.controllerSupport?.let { add(it) }
-            addAll(details.categories.take(2))
+            addAll(steamFeatures)
+            addAll(
+                details.categories.filterNot { category ->
+                    category.equals("Steam Cloud", ignoreCase = true) ||
+                        category.contains("Steam Workshop", ignoreCase = true) ||
+                        category.contains("controller support", ignoreCase = true) ||
+                        category.contains("Steam Achievements", ignoreCase = true)
+                }.take(2),
+            )
         }
         if (details.genres.isNotEmpty() || facts.isNotEmpty()) {
             Row(
@@ -1424,6 +1509,8 @@ private fun AppScreenHeroSection(
     contentScrollState: ScrollState? = null,
     minimalHero: Boolean = false,
     preferLogo: Boolean = true,
+    isUpdatePending: Boolean = false,
+    onUpdateClick: () -> Unit = {},
 ) {
     Box(
         modifier = Modifier
@@ -1550,6 +1637,8 @@ private fun AppScreenHeroSection(
                     achievements = achievements,
                     reviewScore = reviewScore,
                     playerCount = playerCount,
+                    isUpdatePending = isUpdatePending,
+                    onUpdateClick = onUpdateClick,
                 )
             }
         }
@@ -1557,10 +1646,9 @@ private fun AppScreenHeroSection(
 }
 
 /**
- * Integrated action bar overlaid on the hero: primary action button,
- * secondary action icons, runtime summary, compatibility status and
- * community stat chips. Rendered on the hero (single display) or on the
- * second display's card (dual display), where there is enough height.
+ * Console-style command rail overlaid on the hero. The primary action stays
+ * visually dominant; management actions and runtime details remain available,
+ * but no longer compete with starting the game as a launcher-like card.
  */
 @Composable
 private fun AppScreenActionBar(
@@ -1582,11 +1670,10 @@ private fun AppScreenActionBar(
     achievements: List<Achievement>?,
     reviewScore: app.gamenative.utils.SteamReviewScore.Score?,
     playerCount: Int?,
+    isUpdatePending: Boolean = false,
+    onUpdateClick: () -> Unit = {},
     onHero: Boolean = true,
 ) {
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-
     @Composable
     fun PrimaryAction(modifier: Modifier = Modifier) {
         if (isDownloading || hasPartialDownload) {
@@ -1625,9 +1712,9 @@ private fun AppScreenActionBar(
 
     @Composable
     fun SecondaryActions() {
-        ActionIconButton(
+        ConsoleSecondaryActionButton(
             icon = Icons.Default.Settings,
-            contentDescription = stringResource(R.string.options),
+            label = stringResource(R.string.options),
             onClick = { runtime.optionsMenuVisible = true },
             onHero = onHero,
         )
@@ -1639,39 +1726,6 @@ private fun AppScreenActionBar(
                 onHero = onHero,
             )
         }
-        ActionIconButton(
-            icon = Icons.AutoMirrored.Filled.AddToHomeScreen,
-            contentDescription = stringResource(R.string.action_add_to_home),
-            onClick = {
-                scope.launch(Dispatchers.IO) {
-                    try {
-                        app.gamenative.utils.createPinnedShortcut(
-                            context = context,
-                            gameId = displayInfo.gameId,
-                            label = displayInfo.name,
-                            gameSource = ContainerUtils.extractGameSourceFromContainerId(displayInfo.appId),
-                            iconUrl = displayInfo.capsuleUrl ?: displayInfo.iconUrl,
-                        )
-                        app.gamenative.ui.util.SnackbarManager.show(
-                            context.getString(R.string.base_app_shortcut_created),
-                        )
-                    } catch (e: Exception) {
-                        app.gamenative.ui.util.SnackbarManager.show(
-                            context.getString(R.string.base_app_shortcut_failed, e.message ?: ""),
-                        )
-                    }
-                }
-            },
-            onHero = onHero,
-        )
-        if (isInstalled || hasPartialDownload || hasLeftoverInstall) {
-            ActionIconButton(
-                icon = Icons.Default.Delete,
-                contentDescription = if (isInstalled || hasLeftoverInstall) stringResource(R.string.uninstall) else stringResource(R.string.delete_app),
-                onClick = onDeleteDownloadClick,
-                onHero = onHero,
-            )
-        }
     }
 
     Spacer(modifier = Modifier.height(16.dp))
@@ -1679,13 +1733,7 @@ private fun AppScreenActionBar(
     Column(
         modifier = Modifier
             .widthIn(max = 820.dp)
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .background(
-                if (onHero) Color.Black.copy(alpha = 0.42f)
-                else MaterialTheme.colorScheme.surfaceContainerLow,
-            )
-            .padding(if (onHero) 12.dp else 16.dp),
+            .fillMaxWidth(),
     ) {
         if (!onHero && isPortrait) {
             Column(
@@ -1748,15 +1796,56 @@ private fun AppScreenActionBar(
             }
         }
 
+        // An update should be as visible as the primary game command, not hidden
+        // in a lower information card or inside the options panel.
+        if (isUpdatePending) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 12.dp),
+                shape = RoundedCornerShape(10.dp),
+                color = if (onHero) Color.Black.copy(alpha = 0.30f)
+                else MaterialTheme.colorScheme.primaryContainer,
+            ) {
+                Row(
+                    modifier = Modifier.padding(start = 12.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.CloudDownload,
+                        contentDescription = null,
+                        tint = if (onHero) Color.White else MaterialTheme.colorScheme.onPrimaryContainer,
+                    )
+                    Text(
+                        text = stringResource(R.string.update_available),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = if (onHero) Color.White else MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Button(
+                        onClick = onUpdateClick,
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (onHero) Color.White else MaterialTheme.colorScheme.primary,
+                            contentColor = if (onHero) Color.Black else MaterialTheme.colorScheme.onPrimary,
+                        ),
+                    ) {
+                        Text(stringResource(R.string.update_now))
+                    }
+                }
+            }
+        }
+
         if (runtimeConfig != null) {
             HorizontalDivider(
-                modifier = Modifier.padding(top = 10.dp),
+                modifier = Modifier.padding(top = 18.dp),
                 color = if (onHero) Color.White.copy(alpha = 0.14f)
                 else MaterialTheme.colorScheme.outlineVariant,
             )
             GameRuntimeSummary(
                 config = runtimeConfig,
-                modifier = Modifier.padding(top = 10.dp),
+                modifier = Modifier.padding(top = 12.dp),
                 onHero = onHero,
                 sizeText = displayInfo.sizeOnDisk ?: displayInfo.sizeFromStore,
                 playtimeText = displayInfo.playtimeText,
@@ -2055,6 +2144,8 @@ private fun AppScreenSecondScreenCard(
                     achievements = achievements,
                     reviewScore = reviewScore,
                     playerCount = playerCount,
+                    isUpdatePending = isUpdatePending,
+                    onUpdateClick = onUpdateClick,
                     onHero = false,
                 )
             }
@@ -2352,6 +2443,8 @@ internal fun AppScreenContent(
                     contentScrollState = mainHeroScroll,
                     minimalHero = true,
                     preferLogo = PrefManager.dualScreenHeroUseLogo,
+                    isUpdatePending = isUpdatePending,
+                    onUpdateClick = onUpdateClick,
                 )
             }
         } else {
@@ -2387,6 +2480,8 @@ internal fun AppScreenContent(
                     achievements = achievements,
                     reviewScore = reviewScore,
                     playerCount = playerCount,
+                    isUpdatePending = isUpdatePending,
+                    onUpdateClick = onUpdateClick,
                 )
 
                 AppScreenBelowHeroContent(

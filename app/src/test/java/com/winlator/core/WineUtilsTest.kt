@@ -5,10 +5,8 @@ import androidx.test.core.app.ApplicationProvider
 import com.winlator.container.Container
 import com.winlator.xenvironment.ImageFs
 import io.mockk.every
-import io.mockk.just
 import io.mockk.mockk
 import io.mockk.mockkStatic
-import io.mockk.runs
 import io.mockk.unmockkAll
 import io.mockk.verify
 import org.junit.After
@@ -55,7 +53,7 @@ class WineUtilsTest {
         every { imageFs.rootDir } returns nonCanonicalRoot
 
         mockkStatic(FileUtils::class)
-        every { FileUtils.symlink(any<String>(), any<String>()) } just runs
+        every { FileUtils.symlink(any<String>(), any<String>()) } returns true
 
         WineUtils.createDosdevicesSymlinks(context, container)
 

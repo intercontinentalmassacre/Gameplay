@@ -3,6 +3,7 @@ package app.gamenative.ui.screen.library
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -256,8 +257,9 @@ private fun AchievementHeader(
     total: Int,
     onBack: () -> Unit,
 ) {
+    val progress = unlocked.toFloat() / total.coerceAtLeast(1)
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 16.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
@@ -269,7 +271,7 @@ private fun AchievementHeader(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = stringResource(R.string.achievements),
-                style = MaterialTheme.typography.headlineSmall,
+                style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.SemiBold,
             )
             Text(
@@ -280,12 +282,27 @@ private fun AchievementHeader(
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        Text(
-            text = stringResource(R.string.achievements_count, unlocked, total),
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.primary,
-        )
+        Column(
+            modifier = Modifier.width(250.dp),
+            horizontalAlignment = Alignment.End,
+        ) {
+            Text(
+                text = stringResource(R.string.achievements_count, unlocked, total),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Spacer(Modifier.height(8.dp))
+            LinearProgressIndicator(
+                progress = { progress },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(5.dp)
+                    .clip(RoundedCornerShape(3.dp)),
+                color = PluviaTheme.colors.statusInstalled,
+                trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+            )
+        }
     }
 }
 
@@ -298,8 +315,9 @@ private fun AchievementFilters(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 12.dp).focusGroup(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        AchievementFilter.entries.forEachIndexed { index, item ->
+        AchievementFilter.entries.forEach { item ->
             val interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+            val isFocused by interactionSource.collectIsFocusedAsState()
             val label = when (item) {
                 AchievementFilter.ALL -> stringResource(R.string.achievements_filter_all)
                 AchievementFilter.UNLOCKED -> stringResource(R.string.achievements_filter_unlocked)
@@ -307,16 +325,35 @@ private fun AchievementFilters(
             }
             Box(
                 modifier = Modifier
+                    .height(48.dp)
                     .clip(RoundedCornerShape(8.dp))
                     .background(
-                        if (filter == item) MaterialTheme.colorScheme.primaryContainer
-                        else MaterialTheme.colorScheme.surfaceContainerLow,
+                        if (isFocused) MaterialTheme.colorScheme.surfaceContainerHigh
+                        else Color.Transparent,
                     )
                     .focusRing(interactionSource, RoundedCornerShape(8.dp), width = 2.dp)
                     .selectable(filter == item, interactionSource, null) { onFilter(item) }
-                    .padding(horizontal = 18.dp, vertical = 11.dp),
+                    .padding(horizontal = 18.dp, vertical = 10.dp),
+                contentAlignment = Alignment.Center,
             ) {
-                Text(label, style = MaterialTheme.typography.labelLarge)
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = if (filter == item) FontWeight.SemiBold else FontWeight.Medium,
+                        color = if (filter == item) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Box(
+                        modifier = Modifier
+                            .width(22.dp)
+                            .height(2.dp)
+                            .background(
+                                if (filter == item) MaterialTheme.colorScheme.primary else Color.Transparent,
+                                RoundedCornerShape(1.dp),
+                            ),
+                    )
+                }
             }
         }
     }
