@@ -44,9 +44,20 @@ public class Container {
     public static final String DEFAULT_SCREEN_SIZE = DEFAULT_SCREEN_SIZE_16_9;
     public static final String DEFAULT_GRAPHICS_DRIVER = DefaultVersion.DEFAULT_GRAPHICS_DRIVER;
     public static final String DEFAULT_AUDIO_DRIVER = "pulseaudio";
+    public static final String AUDIO_DRIVER_GNAUDIO = "gnaudio";
     public static final String DEFAULT_EMULATOR = "FEXCore";
     public static final String DEFAULT_DXWRAPPER = "dxvk";
     public static final String DEFAULT_DISPLAY_RENDERER = "vulkan";
+    public static final String DISPLAY_SERVER_X11 = "x11";
+    public static final String DISPLAY_SERVER_GAMESCOPE = "gamescope";
+
+    public static boolean isGamescopeSupported(int sdkInt) {
+        return sdkInt >= 29;
+    }
+
+    public static boolean isX11Display(String variant, String displayServer) {
+        return !BIONIC.equalsIgnoreCase(variant) || !DISPLAY_SERVER_GAMESCOPE.equalsIgnoreCase(displayServer);
+    }
     public static final String DEFAULT_DDRAWRAPPER = "none";
     public static final String DEFAULT_DXWRAPPERCONFIG = "version=" + DefaultVersion.DXVK + ",framerate=0,maxDeviceMemory=0,async=" + DefaultVersion.ASYNC + ",asyncCache=" + DefaultVersion.ASYNC_CACHE + ",vkd3dVersion=" + DefaultVersion.VKD3D + ",vkd3dLevel=12_1" + ",ddrawrapper=" + Container.DEFAULT_DDRAWRAPPER + ",csmt=3" + ",gpuName=NVIDIA GeForce GTX 480" + ",videoMemorySize=2048" + ",strict_shader_math=1" + ",OffscreenRenderingMode=fbo" + ",renderer=gl";;
     public static final String DEFAULT_GRAPHICSDRIVERCONFIG = "vulkanVersion=1.3" + ",version=" + DefaultVersion.WRAPPER + ",blacklistedExtensions=" + ",maxDeviceMemory=0" + ",presentMode=mailbox" + ",syncFrame=0" + ",disablePresentWait=0" + ",resourceType=auto" + ",bcnEmulation=auto" + ",bcnEmulationType=compute" + ",bcnEmulationCache=0" + ",gpuName=Device";
@@ -63,13 +74,14 @@ public class Container {
     };
     public static final String DEFAULT_DRIVES = "D:"+Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)+"E:/data/data/" + BuildConfig.APPLICATION_ID + "/storage";
     public static final String DEFAULT_VARIANT = DefaultVersion.VARIANT;
-    public static final String DEFAULT_WINE_VERSION = DefaultVersion.WINE_VERSION;
+    public static final String DEFAULT_WINE_VERSION = WineInfo.MAIN_WINE_VERSION.identifier();
     public static final byte STARTUP_SELECTION_NORMAL = 0;
     public static final byte STARTUP_SELECTION_ESSENTIAL = 1;
     public static final byte STARTUP_SELECTION_AGGRESSIVE = 2;
 
     // Process suspend policy for runtime behavior while in-game.
     public static final String SUSPEND_POLICY_AUTO = "auto";
+    public static final String SUSPEND_POLICY_RECLAIM = "reclaim";
     public static final String SUSPEND_POLICY_NEVER = "never";
     public static final String SUSPEND_POLICY_MANUAL = "manual";
 
@@ -93,12 +105,16 @@ public class Container {
     private String graphicsDriverConfig = DEFAULT_GRAPHICSDRIVERCONFIG;
     private String rendererPresentMode = "fifo";
     private String displayRenderer = Container.DEFAULT_DISPLAY_RENDERER;
+    private String displayServer = DISPLAY_SERVER_X11;
+    private boolean hdrEnabled;
     private boolean sfCompatMode = true;
     private String wincomponents = DEFAULT_WINCOMPONENTS;
     private String audioDriver = DEFAULT_AUDIO_DRIVER;
     private boolean pulseaudioLowLatency = false;
+    private boolean gnaudioLowLatency = false;
     private String drives = DEFAULT_DRIVES;
-    private String wineVersion = WineInfo.MAIN_WINE_VERSION.identifier();
+    private String wineVersion = resolveWineVersion(DefaultVersion.VARIANT, null);
+    private boolean repairedWineVersion;
     private boolean showFPS;
     private boolean launchRealSteam;
     private boolean launchBionicSteam;
@@ -176,7 +192,7 @@ public class Container {
 
     private boolean portraitMode = false;
 
-    private String containerVariant = DEFAULT_VARIANT;
+    private String containerVariant = DefaultVersion.VARIANT;
 
     private String platform = PLATFORM_WINDOWS;
 
@@ -282,6 +298,16 @@ public class Container {
 
     public String getDisplayRenderer() { return displayRenderer; }
 
+    public String getDisplayServer() { return displayServer; }
+
+    public void setDisplayServer(String value) {
+        displayServer = DISPLAY_SERVER_GAMESCOPE.equalsIgnoreCase(value) ? DISPLAY_SERVER_GAMESCOPE : DISPLAY_SERVER_X11;
+    }
+
+    public boolean isHdrEnabled() { return hdrEnabled; }
+
+    public void setHdrEnabled(boolean enabled) { hdrEnabled = enabled; }
+
     public void setDisplayRenderer(String v) { this.displayRenderer = v; }
 
     public boolean getSfCompatMode() { return sfCompatMode; }
@@ -303,6 +329,10 @@ public class Container {
     public void setAudioDriver(String audioDriver) {
         this.audioDriver = audioDriver;
     }
+
+    public boolean getGnaudioLowLatency() { return gnaudioLowLatency; }
+
+    public void setGnaudioLowLatency(boolean value) { gnaudioLowLatency = value; }
 
     public boolean getPulseaudioLowLatency() {
         return pulseaudioLowLatency;
@@ -588,6 +618,19 @@ public class Container {
         sessionMetadata = null;
     }
 
+    public static String resolveWineVersion(String variant, String wineVersion) {
+        boolean bionic = BIONIC.equalsIgnoreCase(variant);
+        if (bionic && WineInfo.isMainWineVersion(wineVersion)) return DefaultVersion.BIONIC_WINE_VERSION;
+        if (wineVersion == null || wineVersion.trim().isEmpty()) {
+            return bionic ? DefaultVersion.BIONIC_WINE_VERSION : DEFAULT_WINE_VERSION;
+        }
+        return wineVersion;
+    }
+
+    public boolean hasRepairedWineVersion() {
+        return repairedWineVersion;
+    }
+
     public String getWineVersion() {
         return wineVersion;
     }
@@ -706,11 +749,14 @@ public class Container {
             if (!graphicsDriverConfig.isEmpty()) data.put("graphicsDriverConfig", graphicsDriverConfig);
             data.put("rendererPresentMode", rendererPresentMode);
             data.put("displayRendererMode", displayRenderer);
+            data.put("displayServer", displayServer);
+            data.put("hdrEnabled", hdrEnabled);
             data.put("sfCompatMode", sfCompatMode);
             data.put("dxwrapper", dxwrapper);
             if (!dxwrapperConfig.isEmpty()) data.put("dxwrapperConfig", dxwrapperConfig);
             data.put("audioDriver", audioDriver);
             data.put("pulseaudioLowLatency", pulseaudioLowLatency);
+            data.put("gnaudioLowLatency", gnaudioLowLatency);
             data.put("wincomponents", wincomponents);
             data.put("drives", drives);
             data.put("showFPS", showFPS);
@@ -785,7 +831,7 @@ public class Container {
             data.put("suspendPolicy", suspendPolicy);
             data.put("portraitMode", portraitMode);
 
-            if (!WineInfo.isMainWineVersion(wineVersion)) data.put("wineVersion", wineVersion);
+            data.put("wineVersion", wineVersion);
             FileUtils.writeString(getConfigFile(), data.toString());
         }
         catch (JSONException e) {
@@ -794,7 +840,6 @@ public class Container {
     }
 
     public void loadData(JSONObject data) throws JSONException {
-        wineVersion = WineInfo.MAIN_WINE_VERSION.identifier();
         dxwrapperConfig = "";
         checkObsoleteOrMissingProperties(data);
 
@@ -827,6 +872,12 @@ public class Container {
                     break;
                 case "rendererPresentMode" :
                     setRendererPresentMode(data.getString(key));
+                    break;
+                case "displayServer" :
+                    setDisplayServer(data.optString(key, DISPLAY_SERVER_X11));
+                    break;
+                case "hdrEnabled" :
+                    setHdrEnabled(data.optBoolean(key, false));
                     break;
                 case "displayRendererMode" :
                     setDisplayRenderer(data.getString(key));
@@ -920,6 +971,9 @@ public class Container {
                 case "audioDriver" :
                     setAudioDriver(data.getString(key));
                     break;
+                case "gnaudioLowLatency" :
+                    setGnaudioLowLatency(data.optBoolean(key, false));
+                    break;
                 case "pulseaudioLowLatency" :
                     setPulseaudioLowLatency(data.getBoolean(key));
                     break;
@@ -1010,6 +1064,17 @@ public class Container {
             }
         }
 
+        String storedWine = data.optString("wineVersion", "");
+        if (!data.has("containerVariant") && storedWine.isEmpty()) {
+            // A legacy parameterless container predates explicit runtime variants.
+            containerVariant = GLIBC;
+        }
+        wineVersion = resolveWineVersion(containerVariant, storedWine);
+        repairedWineVersion = BIONIC.equalsIgnoreCase(containerVariant) && !wineVersion.equals(storedWine);
+        if (repairedWineVersion && !getExtra("appVersion").isEmpty()) {
+            if (getExtra("appliedContainerVariant").isEmpty()) putExtra("appliedContainerVariant", containerVariant);
+            if (getExtra("appliedWineVersion").isEmpty()) putExtra("appliedWineVersion", DEFAULT_WINE_VERSION);
+        }
     }
 
     public static void checkObsoleteOrMissingProperties(JSONObject data) {
@@ -1124,6 +1189,8 @@ public class Container {
     public static String normalizeSuspendPolicy(String suspendPolicy) {
         String normalized = (suspendPolicy == null) ? "" : suspendPolicy.toLowerCase(Locale.ROOT);
         switch (normalized) {
+            case SUSPEND_POLICY_RECLAIM:
+                return SUSPEND_POLICY_RECLAIM;
             case SUSPEND_POLICY_NEVER:
                 return SUSPEND_POLICY_NEVER;
             case SUSPEND_POLICY_MANUAL:

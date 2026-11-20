@@ -15,6 +15,18 @@ object PreLaunchSetup {
         val onComplete: () -> Unit,
     )
 
+    fun hasPendingSteps(
+        container: Container,
+        appId: String,
+        gameSource: GameSource,
+        containerVariantChanged: Boolean,
+    ): Boolean {
+        if (PreInstallSteps.hasPendingSteps(container, appId, gameSource, containerVariantChanged)) return true
+        return gameSource == GameSource.STEAM && collectInstallScriptCommands(
+            container, appId, container.screenSize, applyRegistry = false,
+        ).isNotEmpty()
+    }
+
     fun buildChain(
         container: Container,
         appId: String,
@@ -48,6 +60,7 @@ object PreLaunchSetup {
         container: Container,
         appId: String,
         screenInfo: String,
+        applyRegistry: Boolean = true,
     ): List<ChainedCommand> {
         return try {
             val numericGameId = ContainerUtils.extractGameIdFromContainerId(appId)
@@ -67,8 +80,10 @@ object PreLaunchSetup {
             )
             if (scripts.isEmpty()) return emptyList()
 
-            Timber.tag("InstallScript").i("Applying registry keys from ${scripts.size} install script(s)")
-            InstallScriptExecutor.applyRegistryKeys(container, scripts, container.language)
+            if (applyRegistry) {
+                Timber.tag("InstallScript").i("Applying registry keys from ${scripts.size} install script(s)")
+                InstallScriptExecutor.applyRegistryKeys(container, scripts, container.language)
+            }
 
             InstallScriptExecutor.getRunProcessCommands(
                 container = container,

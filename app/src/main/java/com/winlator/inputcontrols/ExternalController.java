@@ -249,6 +249,11 @@ public class ExternalController {
 
     public boolean updateStateFromMotionEvent(MotionEvent event) {
         if (isJoystickDevice(event)) {
+            int side = JoyCon.side(event.getDevice());
+            if (side >= 0) {
+                JoyCon.readStick(state, event, side);
+                return true;
+            }
             if (triggerType == TRIGGER_IS_AXIS)
                 processTriggerButton(event);
             else if (triggerType == TRIGGER_IS_BUTTON && isXboxController())
@@ -263,18 +268,19 @@ public class ExternalController {
 
     public boolean updateStateFromKeyEvent(KeyEvent event) {
         boolean z = false;
+        boolean digitalTriggers = triggerType == TRIGGER_IS_BUTTON || JoyCon.side(event.getDevice()) >= 0;
         boolean pressed = event.getAction() == KeyEvent.ACTION_DOWN;
         int keyCode = event.getKeyCode();
         int buttonIdx = getButtonIdxByKeyCode(keyCode);
         if (buttonIdx != -1) {
             if (buttonIdx == IDX_BUTTON_L2) {
-                if (triggerType == TRIGGER_IS_BUTTON) {
+                if (digitalTriggers) {
                     state.triggerL = pressed ? 1.0f : 0f;
                     state.setPressed(buttonIdx, pressed);
                 } else
                     return true;
             } else if (buttonIdx == IDX_BUTTON_R2) {
-                if (triggerType == TRIGGER_IS_BUTTON) {
+                if (digitalTriggers) {
                     state.triggerR = pressed ? 1.0f : 0f;
                     state.setPressed(buttonIdx, pressed);
                 } else
@@ -363,6 +369,7 @@ public class ExternalController {
     public static boolean isGameController(InputDevice device) {
         if (device == null) return false;
         if (device.isVirtual()) return false;
+        if (JoyCon.side(device) >= 0) return ControllerManager.isGameController(device);
 
         boolean isGamepad = device.supportsSource(InputDevice.SOURCE_GAMEPAD);
         boolean isJoystick = device.supportsSource(InputDevice.SOURCE_JOYSTICK);

@@ -75,6 +75,21 @@ class ContainerConfigRuntimeTest {
     }
 
     @Test
+    fun `gamescope is opt-in and changing display settings requires restart`() {
+        val old = baseConfig()
+        assertEquals("x11", old.displayServer)
+        assertFalse(old.gamescopeExperimental)
+        for (updated in listOf(
+            old.copy(displayServer = "gamescope"),
+            old.copy(hdrEnabled = true),
+            old.copy(gamescopeOutputResolution = "device"),
+            old.copy(gamescopeExperimental = true),
+        )) {
+            assertTrue(ContainerConfigRuntime.requiresRestart(old, updated))
+        }
+    }
+
+    @Test
     fun `runtime changes require restart`() {
         val old = baseConfig()
 

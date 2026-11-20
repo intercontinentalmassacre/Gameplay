@@ -1,5 +1,7 @@
 package app.gamenative.ui.component.dialog
 
+import app.gamenative.audio.GameNativeAudio
+
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -42,6 +44,7 @@ import com.winlator.container.Container
 import com.winlator.container.ContainerData
 import com.winlator.core.DefaultVersion
 import com.winlator.core.KeyValueSet
+import com.winlator.core.PausedGameMemory
 import com.winlator.core.StringUtils
 import com.winlator.contents.ContentProfile
 import com.winlator.xenvironment.components.PulseAudioComponent
@@ -62,6 +65,9 @@ private fun isDirectAudioSupported(wineVersion: String, containerVariant: String
  * for the given wine version and variant, returns "pulseaudio" instead.
  */
 private fun getValidatedAudioDriver(config: ContainerData): String {
+    if (config.audioDriver == Container.AUDIO_DRIVER_GNAUDIO && !GameNativeAudio.isSupported(config.containerVariant)) {
+        return Container.DEFAULT_AUDIO_DRIVER
+    }
     return if (config.audioDriver == "directaudio" && !isDirectAudioSupported(config.wineVersion, config.containerVariant)) {
         "pulseaudio"
     } else {
@@ -79,14 +85,17 @@ fun GeneralTabContent(
     val graphicsDrivers = state.graphicsDrivers.value
     val glibcWineEntries = state.glibcWineEntries.value
     val bionicWineEntries = state.bionicWineEntries.value
-    val suspendBehaviorEntries = listOf(
-        stringResource(R.string.suspend_behavior_manual),
-        stringResource(R.string.suspend_behavior_auto),
-        stringResource(R.string.suspend_behavior_never),
-    )
+    val reclaimAvailable = remember { PausedGameMemory.isSupported() }
+    val suspendBehaviorEntries = buildList {
+        add(stringResource(R.string.suspend_behavior_manual))
+        add(stringResource(R.string.suspend_behavior_auto))
+        add(stringResource(R.string.suspend_behavior_never))
+        if (reclaimAvailable) add(stringResource(R.string.suspend_behavior_reclaim))
+    }
     val suspendBehaviorIndex = when {
         config.suspendPolicy.equals(Container.SUSPEND_POLICY_MANUAL, ignoreCase = true) -> 0
         config.suspendPolicy.equals(Container.SUSPEND_POLICY_NEVER, ignoreCase = true) -> 2
+        reclaimAvailable && config.suspendPolicy.equals(Container.SUSPEND_POLICY_RECLAIM, ignoreCase = true) -> 3
         else -> 1
     }
 
@@ -397,7 +406,7 @@ fun GeneralTabContent(
             onItemSelected = {
                 val selectedDriver = StringUtils.parseIdentifier(state.audioDrivers[it])
                 // If DirectAudio is selected but wine version is not Proton 11 or variant is not bionic, revert to PulseAudio
-                if (selectedDriver == "directaudio" && !isDirectAudioSupported(config.wineVersion, config.containerVariant)) {
+                if (getValidatedAudioDriver(config.copy(audioDriver = selectedDriver)) != selectedDriver) {
                     val pulseaudioIndex = state.audioDrivers.indexOfFirst {
                         StringUtils.parseIdentifier(it) == "pulseaudio"
                     }.coerceAtLeast(0)
@@ -415,6 +424,14 @@ fun GeneralTabContent(
                 title = { Text(text = stringResource(R.string.pulseaudio_low_latency)) },
                 state = config.pulseaudioLowLatency,
                 onCheckedChange = { state.config.value = config.copy(pulseaudioLowLatency = it) },
+            )
+        }
+        if (config.audioDriver == Container.AUDIO_DRIVER_GNAUDIO) {
+            SettingsSwitch(
+                colors = settingsTileColorsAlt(),
+                title = { Text(stringResource(R.string.gnaudio_low_latency)) },
+                state = config.gnaudioLowLatency,
+                onCheckedChange = { state.config.value = config.copy(gnaudioLowLatency = it) },
             )
         }
         SettingsSwitch(
@@ -512,6 +529,7 @@ fun GeneralTabContent(
                     0 -> Container.SUSPEND_POLICY_MANUAL
                     1 -> Container.SUSPEND_POLICY_AUTO
                     2 -> Container.SUSPEND_POLICY_NEVER
+                    3 -> Container.SUSPEND_POLICY_RECLAIM
                     else -> Container.SUSPEND_POLICY_MANUAL
                 }
                 state.config.value = config.copy(suspendPolicy = policy)

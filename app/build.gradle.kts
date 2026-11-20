@@ -28,12 +28,6 @@ room {
     schemaDirectory("$projectDir/schemas")
 }
 
-// Debug-only: package the repo's manifest.json so debug builds read it locally (never in release).
-val copyDebugManifest by tasks.registering(Copy::class) {
-    from(rootProject.file("manifest.json"))
-    into(layout.buildDirectory.dir("generated/debugManifest"))
-}
-
 android {
     namespace = "app.gamenative"
     compileSdk = 36
@@ -61,8 +55,8 @@ android {
         buildConfigField("boolean", "XR_BUILD", "false")
         buildConfigField("boolean", "MODERN_XR", "false")
 
-        versionCode = 23
-        versionName = "0.2"
+        versionCode = 24
+        versionName = "0.4"
 
         buildConfigField("boolean", "GOLD", "false")
         fun secret(name: String) =
@@ -245,14 +239,14 @@ android {
         getByName("legacy") {
             java.srcDir("src/nonXr/java")
             assets {
-                srcDirs("src/legacy/assets", "src/main/assets")
+                srcDirs("src/legacy/assets")
             }
         }
         getByName("legacyXr") {
             java.srcDir("src/nonXr/java")
             manifest.srcFile("src/legacy/AndroidManifest.xml")
             assets {
-                srcDirs("src/legacy/assets", "src/main/assets")
+                srcDirs("src/legacy/assets")
             }
             jniLibs {
                 srcDirs("src/legacy/jniLibs")
@@ -261,20 +255,17 @@ android {
         getByName("modern") {
             java.srcDir("src/nonXr/java")
             assets {
-                srcDirs("src/modern/assets", "src/main/assets")
+                srcDirs("src/modern/assets")
             }
         }
         getByName("modernXr") {
             java.srcDir("src/nonXr/java")
             assets {
-                srcDirs("src/modern/assets", "src/main/assets")
+                srcDirs("src/modern/assets")
             }
             jniLibs {
                 srcDirs("src/modern/jniLibs")
             }
-        }
-        getByName("debug") {
-            assets.srcDir(copyDebugManifest)
         }
     }
 
@@ -337,8 +328,9 @@ dependencies {
     // JavaSteam
     val localBuild = false // Change to 'true' needed when building JavaSteam manually
     if (localBuild) {
-        implementation(files("../../JavaSteam/build/libs/javasteam-1.8.0.1-22-SNAPSHOT.jar"))
-        implementation(files("../../JavaSteam/javasteam-depotdownloader/build/libs/javasteam-depotdownloader-1.8.0.1-22-SNAPSHOT.jar"))
+        val javaSteamVersion = libs.versions.javasteam.get()
+        implementation(files("../../JavaSteam/build/libs/javasteam-$javaSteamVersion.jar"))
+        implementation(files("../../JavaSteam/javasteam-depotdownloader/build/libs/javasteam-depotdownloader-$javaSteamVersion.jar"))
         implementation(libs.bundles.javasteam.dev)
     } else {
         implementation(libs.javasteam) {

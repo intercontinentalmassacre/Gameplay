@@ -87,9 +87,17 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          awk -v version="${RELEASE_TAG#v}" '
+            /^## / { if (found) exit; found = ($2 == version); next }
+            found { print }
+          ' CHANGELOG.md > release-assets/notes.md
+          notes=(--generate-notes)
+          if grep -q '[^[:space:]]' release-assets/notes.md; then
+            notes=(--notes-file release-assets/notes.md)
+          fi
           gh release create "$RELEASE_TAG" \
             release-assets/Gameplay-modern-release.apk \
             release-assets/Gameplay-modern-release.json \
             release-assets/SHA256SUMS.txt \
             --title "Gameplay ${{ steps.assets.outputs.version_name }}" \
-            --generate-notes
+            "${notes[@]}"

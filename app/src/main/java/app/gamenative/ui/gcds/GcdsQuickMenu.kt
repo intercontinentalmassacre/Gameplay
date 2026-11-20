@@ -149,6 +149,7 @@ fun GcdsQuickMenu(
     onDownloadsResumeAll: () -> Unit = {},
     onDownloadsCancelAll: () -> Unit = {},
     onDownloadsClearFinished: () -> Unit = {},
+    isGamescopeSession: Boolean = false,
 ) {
     when (role) {
         GcdsQuickMenuRole.GAME -> GcdsGameQuickMenu(
@@ -188,6 +189,7 @@ fun GcdsQuickMenu(
             onLsfgPerformanceModeChanged = onLsfgPerformanceModeChanged,
             onAnimationComplete = onAnimationComplete,
             onRequestOpen = onRequestOpen,
+            isGamescopeSession = isGamescopeSession,
             modifier = modifier,
         )
 
@@ -266,6 +268,7 @@ private fun GcdsGameQuickMenu(
     onLsfgPerformanceModeChanged: (Boolean) -> Unit = {},
     onAnimationComplete: (Boolean) -> Unit = {},
     onRequestOpen: () -> Unit = {},
+    isGamescopeSession: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val hasExternalDisplay = rememberHasExternalDisplay()
@@ -366,6 +369,7 @@ hasPhysicalController = hasPhysicalController,
                         // is reported by the outer effect below.
                         onAnimationComplete = {},
                         onRequestOpen = onRequestOpen,
+                        isGamescopeSession = isGamescopeSession,
                         fullScreen = true,
                         modifier = Modifier.fillMaxSize(),
                     )
@@ -437,6 +441,7 @@ hasPhysicalController = hasPhysicalController,
                 }
             },
             onRequestOpen = onRequestOpen,
+            isGamescopeSession = isGamescopeSession,
             modifier = modifier,
         )
     }

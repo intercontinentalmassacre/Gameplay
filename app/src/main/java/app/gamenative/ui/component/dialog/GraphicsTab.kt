@@ -1,5 +1,6 @@
 package app.gamenative.ui.component.dialog
 
+import android.os.Build
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
@@ -8,14 +9,22 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.unit.dp
 import app.gamenative.R
+import app.gamenative.display.GamescopeSettings
+import app.gamenative.display.GamescopeExperiment
+import app.gamenative.display.GamescopePayload
+import app.gamenative.externaldisplay.findGamePresentationDisplay
 import app.gamenative.ui.component.settings.SettingsListDropdown
 import app.gamenative.ui.component.settings.SettingsListDropdownSearchable
+import app.gamenative.ui.component.settings.SettingsMenuLink
 import app.gamenative.ui.component.settings.SettingsMultiListDropdown
 import app.gamenative.ui.theme.settingsTileColors
 import app.gamenative.ui.theme.settingsTileColorsAlt
@@ -58,9 +67,10 @@ fun GraphicsTabContent(state: ContainerConfigState, default: Boolean = false) {
                     val manifestEntry = state.wrapperManifestById[selectedId]
                     if (isManifestNotInstalled && manifestEntry != null) {
                         state.launchManifestDriverInstall(manifestEntry) {
-                            val cfg = KeyValueSet(config.graphicsDriverConfig)
-                            cfg.put("version", state.wrapperOptions.labels[idx])
-                            state.config.value = config.copy(graphicsDriverConfig = cfg.toString())
+                            val current = state.config.value
+                            val cfg = KeyValueSet(current.graphicsDriverConfig)
+                            cfg.put("version", selectedId)
+                            state.config.value = current.copy(graphicsDriverConfig = cfg.toString())
                         }
                         return@SettingsListDropdownSearchable
                     }
@@ -70,6 +80,13 @@ fun GraphicsTabContent(state: ContainerConfigState, default: Boolean = false) {
                     state.config.value = config.copy(graphicsDriverConfig = cfg.toString())
                 },
             )
+            if (!default) {
+                SettingsMenuLink(
+                    colors = settingsTileColorsAlt(),
+                    title = { Text(stringResource(R.string.import_zip_from_device)) },
+                    onClick = state.launchLocalDriverImport,
+                )
+            }
             // Wrapper-gamenative only: BCn transcoder (CPU/GPU) and texture quality (low/high).
             // Both are stored in graphicsDriverConfig and turned into WRAPPER_* env vars on boot.
             if (config.graphicsDriver.equals("wrapper-gamenative", ignoreCase = true)) {
@@ -103,6 +120,9 @@ fun GraphicsTabContent(state: ContainerConfigState, default: Boolean = false) {
                         state.config.value = config.copy(graphicsDriverConfig = cfg.toString())
                     },
                 )
+            }
+            if (Container.isGamescopeSupported(Build.VERSION.SDK_INT)) {
+                GamescopeDisplaySettings(state)
             }
             DxWrapperSection(state)
             // Bionic: Vulkan version reported by the wrapper to the guest (WRAPPER_VK_VERSION)
@@ -188,16 +208,18 @@ fun GraphicsTabContent(state: ContainerConfigState, default: Boolean = false) {
                     state.config.value = config.copy(graphicsDriverConfig = cfg.toString())
                 },
             )
-            SettingsListDropdown(
-                colors = settingsTileColors(),
-                title = { Text(text = stringResource(R.string.renderer_present_modes)) },
-                value = state.rendererPresentModeIndex.value.coerceIn(0, state.rendererPresentModes.lastIndex.coerceAtLeast(0)),
-                items = state.rendererPresentModes,
-                onItemSelected = { idx ->
-                    state.rendererPresentModeIndex.value = idx
-                    state.config.value = config.copy(rendererPresentMode = state.rendererPresentModes[idx])
-                },
-            )
+            if (Container.isX11Display(config.containerVariant, config.displayServer)) {
+                SettingsListDropdown(
+                    colors = settingsTileColors(),
+                    title = { Text(text = stringResource(R.string.renderer_present_modes)) },
+                    value = state.rendererPresentModeIndex.value.coerceIn(0, state.rendererPresentModes.lastIndex.coerceAtLeast(0)),
+                    items = state.rendererPresentModes,
+                    onItemSelected = { idx ->
+                        state.rendererPresentModeIndex.value = idx
+                        state.config.value = config.copy(rendererPresentMode = state.rendererPresentModes[idx])
+                    },
+                )
+            }
             SettingsListDropdown(
                 colors = settingsTileColors(),
                 title = { Text(text = stringResource(R.string.resource_type)) },
@@ -399,29 +421,94 @@ fun GraphicsTabContent(state: ContainerConfigState, default: Boolean = false) {
 }
 
 @Composable
-private fun DxWrapperSection(state: ContainerConfigState) {
+private fun GamescopeDisplaySettings(state: ContainerConfigState) {
     val config = state.config.value
+    val servers = listOf(Container.DISPLAY_SERVER_X11, Container.DISPLAY_SERVER_GAMESCOPE)
     SettingsListDropdown(
-        colors = settingsTileColorsAlt(),
-        title = { Text(text = stringResource(R.string.display_renderer)) },
-        value = state.displayRendererIndex.value,
-        items = state.displayRenderers,
-        onItemSelected = {
-            state.displayRendererIndex.value = it
-            state.config.value = config.copy(displayRenderer = StringUtils.parseIdentifier(state.displayRenderers[it]))
+        colors = settingsTileColors(),
+        title = { Text(stringResource(R.string.display_server)) },
+        value = servers.indexOf(config.displayServer).coerceAtLeast(0),
+        items = listOf(stringResource(R.string.display_server_x11), stringResource(R.string.display_server_gamescope)),
+        onItemSelected = { index -> state.config.value = state.config.value.copy(displayServer = servers[index]) },
+    )
+    if (Container.isX11Display(config.containerVariant, config.displayServer)) return
+    if (state.isPerContainer) {
+        val context = LocalContext.current
+        val experiment by produceState<GamescopeExperiment?>(null, context) {
+            value = GamescopePayload.availableExperiment(context)
+        }
+        experiment?.let { mode ->
+            SettingsSwitch(
+                colors = settingsTileColorsAlt(),
+                title = { Text(stringResource(R.string.gamescope_experimental)) },
+                subtitle = {
+                    Text(stringResource(
+                        if (mode == GamescopeExperiment.GL) R.string.gamescope_experimental_gl_description
+                        else R.string.gamescope_experimental_cap_description,
+                    ))
+                },
+                state = config.gamescopeExperimental,
+                onCheckedChange = { state.config.value = state.config.value.copy(gamescopeExperimental = it) },
+            )
+        }
+    }
+
+    val resolutions = stringArrayResource(R.array.screen_size_entries).drop(1).reversed()
+    val resolutionValues = listOf(
+        GamescopeSettings.OUTPUT_RESOLUTION_OFF,
+        GamescopeSettings.OUTPUT_RESOLUTION_DEVICE,
+    ) + resolutions.map { it.substringBefore(' ') }
+    SettingsListDropdown(
+        colors = settingsTileColors(),
+        title = { Text(stringResource(R.string.gamescope_output_resolution)) },
+        value = resolutionValues.indexOf(config.gamescopeOutputResolution).coerceAtLeast(0),
+        items = listOf(
+            stringResource(R.string.disabled),
+            stringResource(R.string.gamescope_output_resolution_device),
+        ) + resolutions,
+        onItemSelected = { index ->
+            state.config.value = state.config.value.copy(gamescopeOutputResolution = resolutionValues[index])
         },
     )
-    // Show color correction toggle only for ASurfaceRenderer (SurfaceFlinger)
-    if (StringUtils.parseIdentifier(state.displayRenderers.getOrNull(state.displayRendererIndex.value).orEmpty()) == "surfaceflinger") {
+
+    val targetDisplay = if (config.externalDisplaySwap) findGamePresentationDisplay(LocalContext.current) else null
+    if (GamescopeSettings.hdrCapabilities(targetDisplay) != null) {
         SettingsSwitch(
             colors = settingsTileColorsAlt(),
-            title = { Text(text = stringResource(R.string.sf_compat_mode)) },
-            subtitle = { Text(text = stringResource(R.string.sf_compat_mode_description)) },
-            state = config.sfCompatMode,
-            onCheckedChange = {
-                state.config.value = config.copy(sfCompatMode = it)
+            title = { Text(stringResource(R.string.gamescope_hdr)) },
+            subtitle = { Text(stringResource(R.string.gamescope_hdr_description)) },
+            state = config.hdrEnabled,
+            onCheckedChange = { state.config.value = state.config.value.copy(hdrEnabled = it) },
+        )
+    }
+}
+
+@Composable
+private fun DxWrapperSection(state: ContainerConfigState) {
+    val config = state.config.value
+    if (Container.isX11Display(config.containerVariant, config.displayServer)) {
+        SettingsListDropdown(
+            colors = settingsTileColorsAlt(),
+            title = { Text(text = stringResource(R.string.display_renderer)) },
+            value = state.displayRendererIndex.value,
+            items = state.displayRenderers,
+            onItemSelected = {
+                state.displayRendererIndex.value = it
+                state.config.value = config.copy(displayRenderer = StringUtils.parseIdentifier(state.displayRenderers[it]))
             },
         )
+        // Show color correction toggle only for ASurfaceRenderer (SurfaceFlinger)
+        if (StringUtils.parseIdentifier(state.displayRenderers.getOrNull(state.displayRendererIndex.value).orEmpty()) == "surfaceflinger") {
+            SettingsSwitch(
+                colors = settingsTileColorsAlt(),
+                title = { Text(text = stringResource(R.string.sf_compat_mode)) },
+                subtitle = { Text(text = stringResource(R.string.sf_compat_mode_description)) },
+                state = config.sfCompatMode,
+                onCheckedChange = {
+                    state.config.value = config.copy(sfCompatMode = it)
+                },
+            )
+        }
     }
     SettingsListDropdown(
         colors = settingsTileColors(),

@@ -52,6 +52,7 @@ data class DownloadItemState(
 }
 
 data class CancelConfirmation(
+    val keepsInstalledGame: Boolean,
     val appId: String,
     val gameSource: GameSource,
     val gameName: String,

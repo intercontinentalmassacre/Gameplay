@@ -2,6 +2,7 @@ package app.gamenative.localgames
 
 import android.content.Context
 import android.net.Uri
+import android.os.Process
 import android.provider.OpenableColumns
 import app.gamenative.utils.CustomGameScanner
 import java.io.File
@@ -14,7 +15,7 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 
 /**
- * Imports one portable Windows executable selected through Android's Storage Access Framework.
+ * Imports one portable game selected through Android's Storage Access Framework.
  *
  * A SAF URI cannot be mounted as the container's A: drive, so the selected file is copied into
  * the app-managed CustomGames directory first. The copied game then follows the same custom-game
@@ -47,10 +48,14 @@ object LocalGameImporter {
             val sourceName = queryDisplayName(context, sourceUri)
                 ?: return@withContext ImportResult.Rejected("The selected file has no usable name")
 
-            if (!sourceName.endsWith(".exe", ignoreCase = true)) {
-                return@withContext ImportResult.Rejected("Choose a Windows .exe file to import as a portable game")
+            val isWindowsExe = sourceName.endsWith(".exe", ignoreCase = true)
+            if (!isWindowsExe && !sourceName.endsWith(".AppImage", ignoreCase = true)) {
+                return@withContext ImportResult.Rejected("Choose a Windows EXE or an ARM64 Linux AppImage")
             }
-            if (likelyInstallerName.matches(sourceName.substringBeforeLast('.'))) {
+            if (!isWindowsExe && !Process.is64Bit()) {
+                return@withContext ImportResult.Rejected("AppImage games require the ARM64 version of Gameplay")
+            }
+            if (isWindowsExe && likelyInstallerName.matches(sourceName.substringBeforeLast('.'))) {
                 return@withContext ImportResult.Rejected(
                     "This looks like an installer. Installer containers are not available yet.",
                 )

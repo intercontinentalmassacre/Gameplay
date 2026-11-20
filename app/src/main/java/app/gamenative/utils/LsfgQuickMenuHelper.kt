@@ -26,7 +26,12 @@ object LsfgQuickMenuHelper {
     fun sanitizeFlowScale(flowScale: Float): Float =
         flowScale.coerceIn(0.25f, 1.0f)
 
-    fun applySettings(container: Container, settings: Settings) {
+    @JvmStatic
+    fun applyDrmSettings(container: Container) {
+        LsfgVkManager.applyDrmRuntime(container, readSettings(container), LsfgVkManager.gamescopeFpsLimit(container))
+    }
+
+    fun applySettings(container: Container, settings: Settings, isX11Display: Boolean = true, fpsLimit: Int? = null) {
         val multiplier = sanitizeMultiplier(settings.multiplier)
         val flowScale = sanitizeFlowScale(settings.flowScale)
 
@@ -34,6 +39,15 @@ object LsfgQuickMenuHelper {
         container.putExtra(LsfgVkManager.EXTRA_FLOW_SCALE, String.format(Locale.US, "%.2f", flowScale))
         container.putExtra(LsfgVkManager.EXTRA_PERFORMANCE_MODE, settings.performanceMode.toString())
         container.saveData()
+
+        if (!isX11Display) {
+            LsfgVkManager.applyDrmRuntime(
+                container,
+                Settings(multiplier, flowScale, settings.performanceMode),
+                fpsLimit ?: LsfgVkManager.gamescopeFpsLimit(container),
+            )
+            return
+        }
 
         val effectiveEnabled = multiplier >= 2
         val effectiveMultiplier = if (effectiveEnabled) multiplier else 2

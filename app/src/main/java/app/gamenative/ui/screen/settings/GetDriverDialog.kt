@@ -163,7 +163,7 @@ fun GetDriverDialog(
         }
         isLoadingManifest = true
         try {
-            remotePackages = DriverRepositoryCatalog.fetchPackages(selectedRepository)
+            remotePackages = DriverRepositoryCatalog.fetchPackages(ctx, selectedRepository)
             if (remotePackages.isEmpty()) {
                 manifestError = ctx.getString(R.string.driver_repository_empty)
             }
@@ -199,7 +199,7 @@ fun GetDriverDialog(
                 val res = withContext(Dispatchers.IO) { handlePickedUri(ctx, uri) }
                 withContext(Dispatchers.Main) {
                     if (res.installed) {
-                        installedThisSession.add(driverPackage.fileName)
+                        installedThisSession.add(driverPackage.installedId)
                         // Refresh disk list so pickRecommended sees the new install.
                         diskInstalled = runCatching {
                             AdrenotoolsManager(ctx).enumarateInstalledDrivers()
@@ -279,6 +279,7 @@ fun GetDriverDialog(
                             AdrenoTarget.A7XX -> R.string.adreno_target_a7xx
                             AdrenoTarget.A710_A720_A722 -> R.string.adreno_target_a710_a720_a722
                             AdrenoTarget.A8XX -> R.string.adreno_target_a8xx
+                            AdrenoTarget.MALI -> R.string.driver_category_mali
                             AdrenoTarget.GENERIC -> R.string.adreno_target_generic
                         }
                     )
@@ -406,7 +407,7 @@ fun GetDriverDialog(
                             val recommended = remember(remotePackages, installedUnion) {
                                 pickRecommended(remotePackages, installedUnion)
                             }
-                            val isRecommendedInstalled = recommended?.fileName in installedUnion
+                            val isRecommendedInstalled = recommended?.installedId in installedUnion
 
                             Text(
                                 text = stringResource(R.string.get_driver_recommended),
@@ -583,7 +584,7 @@ private fun PackagePicker(
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
         packages.forEach { pkg ->
-            val isInstalled = pkg.fileName in installedInSession
+            val isInstalled = pkg.installedId in installedInSession
             val isSelected = pkg.id == selectedId
             DropdownMenuItem(
                 text = {
@@ -652,7 +653,7 @@ private fun SourcePicker(
         visibleCategories.forEach { category ->
             val repos = DriverRepositoryCatalog.repositoriesByCategory(category)
             val totalCount = repos.size
-            val supportedCount = repos.count { detectedTarget in it.targets || AdrenoTarget.GENERIC in it.targets }
+            val supportedCount = repos.count { DriverRepositoryCatalog.supportsTarget(it, detectedTarget) }
             Column {
                 DropdownMenuItem(
                     text = {
@@ -725,6 +726,7 @@ private fun categoryLabel(category: DriverCategory): String = stringResource(
         DriverCategory.TURNIP_BLEEDING_EDGE -> R.string.driver_category_turnip_bleeding_edge
         DriverCategory.TURNIP_COMMUNITY -> R.string.driver_category_turnip_community
         DriverCategory.ADRENO_PACKAGED -> R.string.driver_category_adreno_packaged
+        DriverCategory.MALI -> R.string.driver_category_mali
         DriverCategory.WRAPPER -> R.string.driver_category_wrapper
     }
 )
@@ -736,6 +738,7 @@ private fun categoryDescription(category: DriverCategory): String = stringResour
         DriverCategory.TURNIP_BLEEDING_EDGE -> R.string.driver_category_turnip_bleeding_edge_desc
         DriverCategory.TURNIP_COMMUNITY -> R.string.driver_category_turnip_community_desc
         DriverCategory.ADRENO_PACKAGED -> R.string.driver_category_adreno_packaged_desc
+        DriverCategory.MALI -> R.string.driver_category_mali_desc
         DriverCategory.WRAPPER -> R.string.driver_category_wrapper_desc
     }
 )
@@ -749,7 +752,7 @@ private fun pickRecommended(
     packages: List<RemoteDriverPackage>,
     installed: Collection<String>,
 ): RemoteDriverPackage? = packages.firstOrNull { pkg ->
-    pkg.fileName !in installed
+    pkg.installedId !in installed
 } ?: packages.firstOrNull()
 
 private fun formatBytes(bytes: Long): String {

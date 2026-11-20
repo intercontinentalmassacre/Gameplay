@@ -7,6 +7,7 @@ package app.gamenative.localgames
  * particular Wine or Proton configuration.
  */
 enum class ExecutableKind {
+    ARM64_APPIMAGE,
     WINDOWS_16_NE,
     WINDOWS_32_PE,
     WINDOWS_64_PE,

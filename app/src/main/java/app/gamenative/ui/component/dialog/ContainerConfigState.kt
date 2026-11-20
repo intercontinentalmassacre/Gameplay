@@ -16,6 +16,7 @@ import com.winlator.fexcore.FEXCorePreset
  */
 class ContainerConfigState(
     val config: MutableState<ContainerData>,
+    val isPerContainer: Boolean = false,
     val graphicsDrivers: MutableState<MutableList<String>>,
     val bionicWineEntries: MutableState<List<String>>,
     val glibcWineEntries: MutableState<List<String>>,
@@ -134,6 +135,7 @@ class ContainerConfigState(
     val launchManifestInstall: (ManifestEntry, String, Boolean, ContentProfile.ContentType?, () -> Unit) -> Unit,
     val launchManifestContentInstall: (ManifestEntry, ContentProfile.ContentType, () -> Unit) -> Unit,
     val launchManifestDriverInstall: (ManifestEntry, () -> Unit) -> Unit,
+    val launchLocalDriverImport: () -> Unit,
     val launchSteamAppDownload: (Int, String, () -> Unit) -> Unit,
     val getStartupSelectionOptions: () -> List<String>,
     val launchFolderPicker: () -> Unit,

@@ -1,5 +1,8 @@
 package app.gamenative.ui.screen.xserver
 
+import com.winlator.inputcontrols.JoyCon
+import app.gamenative.audio.GameNativeAudio
+
 import android.app.Activity
 import android.content.Context
 import android.database.ContentObserver
@@ -99,6 +102,7 @@ import app.gamenative.data.ShooterModeConfig
 import app.gamenative.data.SteamApp
 import app.gamenative.events.AndroidEvent
 import app.gamenative.events.SteamEvent
+import app.gamenative.localgames.AppImageRuntime
 import app.gamenative.localgames.LocalContainerLaunch
 import app.gamenative.ui.enums.Orientation
 import java.util.EnumSet
@@ -134,6 +138,8 @@ import app.gamenative.utils.ExecutableSelectionUtils
 import app.gamenative.utils.LsfgQuickMenuHelper
 import app.gamenative.utils.LsfgVkManager
 import app.gamenative.utils.ManifestComponentHelper
+import app.gamenative.utils.ManifestContentTypes
+import app.gamenative.utils.ManifestRepository
 import app.gamenative.utils.launchdependencies.BionicSteamAssetsDependency
 import app.gamenative.utils.downloader.DXWrapperDownloader
 import app.gamenative.utils.downloader.GraphicsDriverDownloader
@@ -144,6 +150,7 @@ import app.gamenative.utils.SteamUtils
 import app.gamenative.utils.downloader.WinComponentDownloader
 import app.gamenative.utils.WineProcessSnapshotHelper
 import app.gamenative.utils.WfmInstaller
+import app.gamenative.utils.protonFixes.CommonControlsV6
 import com.winlator.alsaserver.ALSAClient
 import com.winlator.container.Container
 import com.winlator.container.ContainerData
@@ -160,6 +167,7 @@ import com.winlator.core.GPUHelper
 import com.winlator.core.GPUInformation
 import com.winlator.core.KeyValueSet
 import com.winlator.core.OnExtractFileListener
+import com.winlator.core.PausedGameMemory
 import com.winlator.core.ProcessHelper
 import com.winlator.core.TarCompressorUtils
 import com.winlator.core.Win32AppWorkarounds
@@ -181,6 +189,10 @@ import com.winlator.widget.TouchpadView
 import com.winlator.renderer.ASurfaceRenderer
 import com.winlator.renderer.GLRenderer
 import com.winlator.renderer.VulkanRenderer
+import app.gamenative.display.GameNativeDrm
+import app.gamenative.display.GamescopeCommandQueue
+import app.gamenative.display.GamescopeRuntime
+import app.gamenative.display.GamescopeServerComponent
 import com.winlator.widget.XServerRendererView
 import com.winlator.widget.XServerView
 import com.winlator.widget.XServerViewGL
@@ -474,7 +486,9 @@ fun XServerScreen(
             XServerState(
                 graphicsDriver = container.graphicsDriver,
                 graphicsDriverVersion = container.graphicsDriverVersion,
-                audioDriver = container.audioDriver,
+                audioDriver = if (container.audioDriver == Container.AUDIO_DRIVER_GNAUDIO &&
+                    !GameNativeAudio.isSupported(container.containerVariant)
+                ) Container.DEFAULT_AUDIO_DRIVER else container.audioDriver,
                 dxwrapper = container.dxWrapper,
                 dxwrapperConfig = DXVKHelper.parseConfig(container.dxWrapperConfig),
                 screenSize = container.screenSize,
@@ -647,6 +661,12 @@ var win32AppWorkarounds: Win32AppWorkarounds? by remember { mutableStateOf(null)
     var performanceHudDragOffsetY by remember { mutableStateOf(0f) }
     val performanceHudTouchSlop = ViewConfiguration.get(context).scaledTouchSlop.toFloat()
 
+    val appImageSession = !bootToContainer && !testGraphics && AppImageRuntime.selected(appId, container)
+    val isGamescopeSession = rememberSaveable(container.id, bootToContainer, testGraphics, appImageSession) {
+        !appImageSession && shouldLaunchGamescope(context, container, appId, bootToContainer || testGraphics)
+    }
+    if (isGamescopeSession) TrackGamescopeRefreshRate(xServerView as? View)
+
     fun persistPerformanceHudConfig(config: PerformanceHudConfig) {
         PrefManager.performanceHudShowFrameRate = config.showFrameRate
         PrefManager.performanceHudShowCpuUsage = config.showCpuUsage
@@ -687,6 +707,10 @@ var win32AppWorkarounds: Win32AppWorkarounds? by remember { mutableStateOf(null)
     }
 
     fun applyFpsLimiterToEngines(limit: Int) {
+        if (isGamescopeSession) {
+            GamescopeCommandQueue.setFpsLimit(limit)
+            return
+        }
         xServerView?.setFrameRateLimit(limit)
         xServerView?.getxServer()
             ?.getExtension<PresentExtension>(PresentExtension.MAJOR_OPCODE.toInt())
@@ -705,6 +729,7 @@ var win32AppWorkarounds: Win32AppWorkarounds? by remember { mutableStateOf(null)
         fpsLimiterEnabled = enabled
         applyFpsLimiterToEngines(effectiveFpsLimit())
         persistFpsLimiterState()
+        if (isGamescopeSession && isLsfgAvailable) LsfgQuickMenuHelper.applyDrmSettings(container)
     }
 
     fun applyFpsLimiterTarget(target: Int) {
@@ -714,12 +739,15 @@ var win32AppWorkarounds: Win32AppWorkarounds? by remember { mutableStateOf(null)
             applyFpsLimiterToEngines(effectiveFpsLimit())
         }
         persistFpsLimiterState()
+        if (isGamescopeSession && isLsfgAvailable) LsfgQuickMenuHelper.applyDrmSettings(container)
     }
 
     fun applyLsfgSettings() {
         LsfgQuickMenuHelper.applySettings(
             container,
             LsfgQuickMenuHelper.Settings(lsfgMultiplier, lsfgFlowScale, lsfgPerformanceMode),
+            isX11Display = !isGamescopeSession,
+            fpsLimit = if (fpsLimiterEnabled) fpsLimiterTarget else 0,
         )
     }
 
@@ -827,7 +855,7 @@ var win32AppWorkarounds: Win32AppWorkarounds? by remember { mutableStateOf(null)
             context = context,
             fpsProvider = {
                 val baseFps = frameRating?.currentFPS ?: 0f
-                if (isLsfgAvailable && lsfgMultiplier >= 2) {
+                if (!isGamescopeSession && isLsfgAvailable && lsfgMultiplier >= 2) {
                     baseFps * lsfgMultiplier
                 } else {
                     baseFps
@@ -1560,7 +1588,7 @@ var win32AppWorkarounds: Win32AppWorkarounds? by remember { mutableStateOf(null)
                 if (assignedSlot > 0) {
                     handled = winHandler.onKeyEvent(it.event)
                 } else {
-                    winHandler.setCurrentController(it.event.device.id)
+                    if (JoyCon.side(it.event.device) < 0) winHandler.setCurrentController(it.event.device.id)
                     handled = physicalControllerHandler?.onKeyEvent(it.event) == true
                     if (!handled) handled = PluviaApp.inputControlsView?.onKeyEvent(it.event) == true
                     // Final fallback to WinHandler passthrough
@@ -1613,7 +1641,7 @@ var win32AppWorkarounds: Win32AppWorkarounds? by remember { mutableStateOf(null)
                 if (assignedSlot > 0) {
                     handled = winHandler.onGenericMotionEvent(it.event)
                 } else {
-                    winHandler.setCurrentController(it.event.device.id)
+                    if (JoyCon.side(it.event.device) < 0) winHandler.setCurrentController(it.event.device.id)
                     handled = physicalControllerHandler?.onGenericMotionEvent(it.event!!) == true
                     if (!handled) handled = PluviaApp.inputControlsView?.onGenericMotionEvent(it.event) == true
                     // Final fallback to WinHandler passthrough
@@ -1902,21 +1930,25 @@ var win32AppWorkarounds: Win32AppWorkarounds? by remember { mutableStateOf(null)
             val existingXServer =
                 PluviaApp.xEnvironment
                     ?.getComponent<XServerComponent>(XServerComponent::class.java)
-                    ?.xServer
+                    ?.xServer ?: PluviaApp.xEnvironment?.getComponent(GamescopeServerComponent::class.java)?.xServer
             val xServerToUse = existingXServer ?: XServer(ScreenInfo(xServerState.value.screenSize), usrGlibc)
             // VirGL containers always need GL (shared EGL context for the
             // VirGL passthrough). Default to the legacy GL renderer for all
             // other containers as well. Uncheck the per-container useLegacyRenderer
             // setting to switch to the Vulkan renderer.
-            val useGLRenderer = container.graphicsDriver == "virgl" || container.displayRenderer.equals("gl", true)
+            val useGLRenderer = !isGamescopeSession && (container.graphicsDriver == "virgl" || container.displayRenderer.equals("gl", true))
             val xServerViewInstance: XServerRendererView = if (useGLRenderer) {
                 XServerViewGL(context, xServerToUse)
             } else {
-                XServerView(context, xServerToUse, container.displayRenderer)
+                if (isGamescopeSession) {
+                    createGamescopeView(context, xServerToUse, container).also { LsfgQuickMenuHelper.applyDrmSettings(container) }
+                } else {
+                    XServerView(context, xServerToUse, container.displayRenderer)
+                }
             }
             val xServerView = xServerViewInstance.apply {
                 xServerView = this
-                setFrameRateLimit(if (fpsLimiterEnabled) fpsLimiterTarget else 0)
+                if (!isGamescopeSession) setFrameRateLimit(if (fpsLimiterEnabled) fpsLimiterTarget else 0)
                 val renderer = this.renderer
                 if (!useGLRenderer && renderer is VulkanRenderer) {
                     val pm = container.rendererPresentMode.ifEmpty { "fifo" }
@@ -2147,8 +2179,30 @@ var win32AppWorkarounds: Win32AppWorkarounds? by remember { mutableStateOf(null)
                         Thread(r, "WineSetup-Thread").apply { isDaemon = false }
                     }
 
+                    fun pauseIfBackgrounded() {
+                        if (!PluviaApp.isActivityInForeground && !neverSuspend) {
+                            PluviaApp.xEnvironment?.onPause()
+                            if (manualResumeMode) {
+                                view.post {
+                                    PluviaApp.isOverlayPaused = true
+                                    Timber.d("Game paused after environment setup while app was backgrounded (manual resume required)")
+                                }
+                            } else {
+                                Timber.d("Game paused after environment setup while app was backgrounded")
+                            }
+                        }
+                    }
+
                     setupExecutor.submit {
                         try {
+                            if (appImageSession) {
+                                PluviaApp.xEnvironment = AppImageRuntime.start(context, container, getxServer()) { reason ->
+                                    onGameLaunchError?.invoke(reason)
+                                    view.post { SnackbarManager.show(reason) }
+                                }
+                                pauseIfBackgrounded()
+                                return@submit
+                            }
                             val containerManager = ContainerManager(context)
                             // Configure WinHandler with container's input API settings
                             val handler = getxServer().winHandler
@@ -2181,13 +2235,7 @@ var win32AppWorkarounds: Win32AppWorkarounds? by remember { mutableStateOf(null)
                             taskAffinityMask = ProcessHelper.getAffinityMask(container.getCPUList(true)).toShort().toInt()
                             taskAffinityMaskWoW64 = ProcessHelper.getAffinityMask(container.getCPUListWoW64(true)).toShort().toInt()
                             win32AppWorkarounds?.setTaskAffinityMasks(taskAffinityMask, taskAffinityMaskWoW64)
-                            val appliedVariantSeen = container.getExtra("appliedContainerVariant")
-                            val appliedWineVersionSeen = container.getExtra("appliedWineVersion")
-                            val markersAvail = appliedVariantSeen.isNotEmpty() && appliedWineVersionSeen.isNotEmpty()
-                            val variantMismatch = markersAvail && container.containerVariant != appliedVariantSeen
-                            val wineVersionMismatch = markersAvail && container.wineVersion != appliedWineVersionSeen
-                            val imgVersionMismatch = container.getExtra("imgVersion") != imageFs.getVersion().toString()
-                            containerVariantChanged = variantMismatch || wineVersionMismatch || imgVersionMismatch
+                            containerVariantChanged = hasContainerVariantChanged(container, imageFs)
                             firstTimeBoot = container.getExtra("appVersion").isEmpty() || containerVariantChanged
                             needsUnpacking = container.isNeedsUnpacking
                             Timber.i("First time boot: $firstTimeBoot")
@@ -2249,6 +2297,13 @@ var win32AppWorkarounds: Win32AppWorkarounds? by remember { mutableStateOf(null)
                                     onExtractFileListener,
                                 )
                             }
+                            val gamescopeRuntime = if (isGamescopeSession) {
+                                val runtime = prepareGamescopePayload(context, container)
+                                check((xServerViewInstance as XServerView).awaitGamescopeSurface()) {
+                                    context.getString(R.string.gamescope_surface_unavailable)
+                                }
+                                runtime
+                            } else null
                             extractArm64ecInputDLLs(context, container) // REQUIRED: Uses updated xinput1_3 main.c from x86_64 build, prevents crashes with 3+ players, avoids need for input shim dlls.
                             extractx86_64InputDlls(context, container)
 
@@ -2265,7 +2320,11 @@ var win32AppWorkarounds: Win32AppWorkarounds? by remember { mutableStateOf(null)
                                 )
                             }
 
-                            changeWineAudioDriver(xServerState.value.audioDriver, container, ImageFs.find(context))
+                            val audioImageFs = ImageFs.find(context)
+                            if (xServerState.value.audioDriver == Container.AUDIO_DRIVER_GNAUDIO) {
+                                GameNativeAudio.install(context, audioImageFs)
+                            }
+                            changeWineAudioDriver(xServerState.value.audioDriver, container, audioImageFs)
                             setImagefsContainerVariant(context, container)
                             PluviaApp.xEnvironment = setupXEnvironment(
                                 context,
@@ -2279,20 +2338,13 @@ var win32AppWorkarounds: Win32AppWorkarounds? by remember { mutableStateOf(null)
                                 appLaunchInfo,
                                 xServerView!!.getxServer(),
                                 containerVariantChanged,
+                                isGamescopeSession,
+                                (xServerViewInstance as? XServerView)?.gamescopeStartupDisplay,
+                                gamescopeRuntime,
                                 onGameLaunchError,
                                 isOffline
                             )
-                            if (!PluviaApp.isActivityInForeground && !neverSuspend) {
-                                PluviaApp.xEnvironment?.onPause()
-                                if (manualResumeMode) {
-                                    view.post {
-                                        PluviaApp.isOverlayPaused = true
-                                        Timber.d("Game paused after environment setup while app was backgrounded (manual resume required)")
-                                    }
-                                } else {
-                                    Timber.d("Game paused after environment setup while app was backgrounded")
-                                }
-                            }
+                            pauseIfBackgrounded()
                         } catch (e: Exception) {
                             Timber.e(e, "Error during wine setup operations")
                             try {
@@ -2300,8 +2352,21 @@ var win32AppWorkarounds: Win32AppWorkarounds? by remember { mutableStateOf(null)
                             } catch (cleanupEx: Exception) {
                                 Timber.e(cleanupEx, "Error cleaning up environment after setup failure")
                             }
+                            if (isGamescopeSession) (xServerViewInstance as XServerView).stopGamescope()
                             PluviaApp.xEnvironment = null
-                            onGameLaunchError?.invoke("Failed to setup wine: ${e.message}")
+                            if (isGamescopeSession || appImageSession) {
+                                val reason = e.localizedMessage ?: e.javaClass.simpleName
+                                val message = if (appImageSession) reason else context.getString(R.string.gamescope_launch_failed, reason)
+                                onGameLaunchError?.invoke(message)
+                                view.post {
+                                    if (PluviaApp.xServerView === xServerViewInstance) {
+                                        SnackbarManager.show(message)
+                                        exit(xServerViewInstance.getxServer().winHandler, null, currentAppInfo, container, appId, onExit, navigateBack)
+                                    }
+                                }
+                            } else {
+                                onGameLaunchError?.invoke("Failed to setup wine: ${e.message}")
+                            }
                         } finally {
                             setupExecutor.shutdown()
                         }
@@ -2672,7 +2737,8 @@ var win32AppWorkarounds: Win32AppWorkarounds? by remember { mutableStateOf(null)
             }
             frameRating = FrameRating(context)
             frameRating?.setVisibility(View.GONE)
-            xServerView.renderer.setFrameRating(frameRating)
+            if (isGamescopeSession) GameNativeDrm.setFrameRating(frameRating)
+            else xServerView.renderer.setFrameRating(frameRating)
 
             if (isPerformanceHudEnabled) {
                 frameLayout.post {
@@ -2701,6 +2767,7 @@ var win32AppWorkarounds: Win32AppWorkarounds? by remember { mutableStateOf(null)
             performanceHudHost = null
             shouldTrackDisplayedFrames.set(false)
 
+            if (isGamescopeSession && PluviaApp.xServerView === xServerView) GameNativeDrm.setFrameRating(null)
             val releaseBinding = view.tag as? XServerViewReleaseBinding
             releaseBinding?.let { binding ->
                 // Remove the WindowManager listener associated with the released AndroidView.
@@ -2821,6 +2888,7 @@ var win32AppWorkarounds: Win32AppWorkarounds? by remember { mutableStateOf(null)
 
         GcdsQuickMenu(
             role = GcdsQuickMenuRole.GAME,
+            isGamescopeSession = isGamescopeSession,
             isVisible = showQuickMenu,
             onDismiss = dismissOverlayMenu,
             onItemSelected = onQuickMenuItemSelected,
@@ -3809,6 +3877,7 @@ private fun shiftXEnvironmentToContext(
     xServer: XServer,
 ): XEnvironment {
     val environment = XEnvironment(context, xEnvironment.imageFs)
+    environment.pausedMemory = xEnvironment.pausedMemory
     val rootPath = xEnvironment.imageFs.rootDir.path
     xEnvironment.getComponent<SysVSharedMemoryComponent>(SysVSharedMemoryComponent::class.java).stop()
     val sysVSharedMemoryComponent = SysVSharedMemoryComponent(
@@ -3870,6 +3939,9 @@ private fun setupXEnvironment(
     appLaunchInfo: LaunchInfo?,
     xServer: XServer,
     containerVariantChanged: Boolean,
+    isGamescopeSession: Boolean,
+    gamescopeDisplay: Display?,
+    gamescopeRuntime: GamescopeRuntime?,
     onGameLaunchError: ((String) -> Unit)? = null,
     offline: Boolean = false
 ): XEnvironment {
@@ -3970,6 +4042,11 @@ private fun setupXEnvironment(
     }
 
     var gameExecutable = ""
+    (guestProgramLauncherComponent as? BionicProgramLauncherComponent)?.apply {
+        setGamescopeModeOverride(isGamescopeSession)
+        setGamescopeDisplay(gamescopeDisplay)
+        setGamescopeRuntime(gamescopeRuntime?.directory, gamescopeRuntime?.icdOverride)
+    }
     var allChainedCommands: List<PreLaunchSetup.ChainedCommand> = emptyList()
 
     if (container != null) {
@@ -4015,6 +4092,10 @@ private fun setupXEnvironment(
         guestProgramLauncherComponent.setSteamType(container.getSteamType())
 
         envVars.putAll(container.envVars)
+        if (isGamescopeSession) {
+            envVars.remove("MESA_VK_WSI_PRESENT_MODE")
+            envVars.remove("WRAPPER_MAX_IMAGE_COUNT")
+        }
         envVars.remove("DXVK_FRAME_RATE")
         envVars.remove("VKD3D_FRAME_RATE")
         if (!envVars.has("WINEESYNC")) envVars.put("WINEESYNC", "1")
@@ -4080,13 +4161,22 @@ private fun setupXEnvironment(
     }
 
     val environment = XEnvironment(context, imageFs)
+    if (container.suspendPolicy == Container.SUSPEND_POLICY_RECLAIM && PausedGameMemory.isSupported()) {
+        val reclaim = PausedGameMemory()
+        environment.pausedMemory = reclaim
+        envVars.put(PausedGameMemory.ENV_KEY, reclaim.sessionId)
+    }
     environment.addComponent(
         SysVSharedMemoryComponent(
             xServer,
             UnixSocketConfig.createSocket(rootPath, UnixSocketConfig.SYSVSHM_SERVER_PATH),
         ),
     )
-    environment.addComponent(XServerComponent(xServer, UnixSocketConfig.createSocket(rootPath, UnixSocketConfig.XSERVER_PATH)))
+    if (isGamescopeSession) {
+        environment.addComponent(GamescopeServerComponent(checkNotNull(gamescopeRuntime).directory, imageFs, container, xServer))
+    } else {
+        environment.addComponent(XServerComponent(xServer, UnixSocketConfig.createSocket(rootPath, UnixSocketConfig.XSERVER_PATH)))
+    }
     environment.addComponent(NetworkInfoUpdateComponent())
 
     if (!container.isLaunchRealSteam && !container.isLaunchBionicSteam) {
@@ -4100,7 +4190,10 @@ private fun setupXEnvironment(
     // environment.addComponent(SteamClientComponent(UnixSocketConfig.createSocket(SteamService.getAppDirPath(appId), "/steam_pipe")))
     // environment.addComponent(SteamClientComponent(UnixSocketConfig.createSocket(rootPath, UnixSocketConfig.STEAM_PIPE_PATH)))
 
-    if (xServerState.value.audioDriver == "alsa") {
+    if (xServerState.value.audioDriver == Container.AUDIO_DRIVER_GNAUDIO) {
+        envVars.put("ALSA_CONFIG_PATH", GameNativeAudio.configPath(imageFs))
+        envVars.put("GNAUDIO_LOW_LATENCY", if (container.gnaudioLowLatency) "1" else "0")
+    } else if (xServerState.value.audioDriver == "alsa") {
         envVars.put("ANDROID_ALSA_SERVER", imageFs.getRootDir().getPath() + UnixSocketConfig.ALSA_SERVER_PATH)
         envVars.put("ANDROID_ASERVER_USE_SHM", "true")
         val options = ALSAClient.Options.fromKeyValueSet(null)
@@ -4285,6 +4378,7 @@ private fun setupXEnvironment(
     try {
         app.gamenative.diagnostics.LaunchTrace.stage(app.gamenative.diagnostics.LaunchStage.WINE_BOOT)
         environment.startEnvironmentComponents()
+        if (isGamescopeSession) armGamescopeWindow(checkNotNull(gamescopeRuntime).directory, environment, guestProgramLauncherComponent)
     } catch (e: Exception) {
         Timber.e(e, "Failed to start environment components, cleaning up")
         app.gamenative.diagnostics.LaunchTrace.finish("failed")
@@ -5270,7 +5364,7 @@ private suspend fun setupWineSystemFiles(
     }
 
     // Always refresh components files
-    refreshComponentsFiles(context, container, imageFs, containerManager)
+    refreshComponentsFiles(context, container, imageFs, containerManager, xServerState.value.wineInfo)
 
     // Normalize dxwrapper for state (dxvk includes version for extraction switch)
     if (xServerState.value.dxwrapper == "dxvk") {
@@ -5369,6 +5463,7 @@ private suspend fun setupWineSystemFiles(
 
     WineStartMenuCreator.create(context, container)
     WineUtils.createDosdevicesSymlinks(context, container)
+    CommonControlsV6.ensureInstalled(context, container, xServerState.value.wineInfo)
 
     val startupSelection = container.startupSelection.toString()
     if (startupSelection != container.getExtra("startupSelection")) {
@@ -5413,10 +5508,14 @@ private suspend fun applyGeneralPatches(
         }
     } else {
         Timber.i("Extracting container_pattern_common.tzst")
-        containerManager.extractContainerPatternCommon(rootDir, onExtractFileListener)
+        check(containerManager.extractContainerPatternCommon(rootDir, onExtractFileListener)) {
+            "Could not extract common files for the Bionic container."
+        }
         Timber.i("Attempting to extract _container_pattern.tzst with wine version " + container.wineVersion)
     }
-    containerManager.extractContainerPatternFile(container.wineVersion, contentsManager, container.rootDir, onExtractFileListener)
+    check(containerManager.extractContainerPatternFile(container.wineVersion, contentsManager, container.rootDir, onExtractFileListener)) {
+        "Could not initialize the Wine prefix for ${container.wineVersion}."
+    }
     WineUtils.applySystemTweaks(context, wineInfo)
     container.putExtra("graphicsDriver", null)
     container.putExtra("desktopTheme", null)
@@ -5432,7 +5531,8 @@ private fun refreshComponentsFiles(
     context: Context,
     container: Container,
     imageFs: ImageFs,
-    containerManager: ContainerManager
+    containerManager: ContainerManager,
+    wineInfo: WineInfo,
 ) {
     val extractionPairs = listOf(
         "pulseaudio-gamenative-20260612.tzst" to File(context.filesDir, "pulseaudio")
@@ -5447,7 +5547,7 @@ private fun refreshComponentsFiles(
     // Extract DirectAudio driver files if the container uses DirectAudio
     if (container.audioDriver == "directaudio") {
         val containerDir = container.rootDir
-        if (!containerManager.extractDirectAudio(imageFs, containerDir)) {
+        if (!containerManager.extractDirectAudio(imageFs, containerDir, wineInfo)) {
             Log.e("XServerScreen", "Failed to extract DirectAudio driver files")
         }
     }
@@ -5950,19 +6050,12 @@ private suspend fun extractGraphicsDriverFiles(
             }
         }
     } else {
-        var adrenoToolsDriverId: String? = ""
-        val selectedDriverVersion: String?
         val graphicsDriverConfig = KeyValueSet(container.getGraphicsDriverConfig())
         val imageFs = ImageFs.find(context)
 
-        val currentWrapperVersion: String? = graphicsDriverConfig.get("version", DefaultVersion.WRAPPER)
+        val currentWrapperVersion = graphicsDriverConfig.get("version", DefaultVersion.WRAPPER)
+            .trim().ifEmpty { DefaultVersion.WRAPPER }
         val isAdrenotoolsTurnip: String? = graphicsDriverConfig.get("adrenotoolsTurnip", "1") // Default to "1"
-
-        selectedDriverVersion = currentWrapperVersion
-
-        adrenoToolsDriverId =
-            if (selectedDriverVersion!!.contains(DefaultVersion.WRAPPER)) DefaultVersion.WRAPPER else selectedDriverVersion
-        Log.d("GraphicsDriverExtraction", "Adrenotools DriverID: " + adrenoToolsDriverId)
 
         val rootDir: File? = imageFs.getRootDir()
 
@@ -6044,9 +6137,16 @@ private suspend fun extractGraphicsDriverFiles(
             }
         }
 
-        if (adrenoToolsDriverId !== "System") {
-            val adrenotoolsManager: AdrenotoolsManager = AdrenotoolsManager(context)
-            adrenotoolsManager.setDriverById(envVars, imageFs, adrenoToolsDriverId)
+        if (!currentWrapperVersion.equals(AdrenotoolsManager.SYSTEM_DRIVER_ID, ignoreCase = true)) {
+            val adrenotoolsManager = AdrenotoolsManager(context)
+            if (!adrenotoolsManager.setDriverById(envVars, imageFs, currentWrapperVersion)) {
+                // Older settings stored the catalog label instead of the installed package ID.
+                val entries = ManifestRepository.loadCachedOrBundledManifest(context).items[ManifestContentTypes.DRIVER].orEmpty()
+                val packageId = ManifestComponentHelper.findManifestEntryForVersion(currentWrapperVersion, entries)?.id
+                if (packageId == null || packageId == currentWrapperVersion ||
+                    !adrenotoolsManager.setDriverById(envVars, imageFs, packageId)
+                ) Timber.w("Graphics driver '%s' is unavailable. Using the system driver.", currentWrapperVersion)
+            }
         }
 
         var vulkanVersion = graphicsDriverConfig.get("vulkanVersion") ?: "1.0"
@@ -6281,7 +6381,7 @@ private fun changeWineAudioDriver(audioDriver: String, container: Container, ima
         val rootDir = imageFs.rootDir
         val userRegFile = File(rootDir, ImageFs.WINEPREFIX + "/user.reg")
         WineRegistryEditor(userRegFile).use { registryEditor ->
-            if (audioDriver == "alsa") {
+            if (audioDriver == "alsa" || audioDriver == Container.AUDIO_DRIVER_GNAUDIO) {
                 registryEditor.setStringValue("Software\\Wine\\Drivers", "Audio", "alsa")
             } else if (audioDriver == "pulseaudio") {
                 registryEditor.setStringValue("Software\\Wine\\Drivers", "Audio", "pulse")

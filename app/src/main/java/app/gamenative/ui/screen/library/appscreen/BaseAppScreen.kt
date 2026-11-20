@@ -1,6 +1,7 @@
 package app.gamenative.ui.screen.library.appscreen
 
 import android.content.Context
+import com.winlator.container.ContainerManager
 import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.ActivityResultLauncher
@@ -1467,10 +1468,10 @@ abstract class BaseAppScreen {
             }
         }
 
-        var showConfigDialog by androidx.compose.runtime.remember {
+        var showConfigDialog by androidx.compose.runtime.remember(appId) {
             androidx.compose.runtime.mutableStateOf(false)
         }
-        var containerData by androidx.compose.runtime.remember {
+        var containerData by androidx.compose.runtime.remember(appId) {
             androidx.compose.runtime.mutableStateOf(ContainerData())
         }
         var containerDataLoaded by remember(libraryItem.appId) { mutableStateOf(false) }
@@ -1478,25 +1479,37 @@ abstract class BaseAppScreen {
             mutableStateOf<ContainerData?>(null)
         }
 
-        val onEditContainer: () -> Unit = {
-            // loadContainerData() reads/parses the container's JSON off disk (and may create it
-            // on first access) — do that off the main thread so opening this dialog doesn't
-            // freeze the screen while it loads.
-            uiScope.launch {
-                val data = withContext(Dispatchers.IO) { loadContainerData(context, libraryItem) }
-                containerData = data
+        var openingConfig by remember(appId) { mutableStateOf(false) }
+        val onEditContainer: () -> Unit = { openingConfig = true }
+
+        LaunchedEffect(appId, openingConfig) {
+            if (!openingConfig) return@LaunchedEffect
+            try {
+                containerData = withContext(Dispatchers.IO) { loadContainerData(context, libraryItem) }
+                containerDataLoaded = true
                 showConfigDialog = true
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                Timber.w(error, "Could not open container settings for %s", appId)
+                SnackbarManager.show(context.getString(R.string.container_settings_load_failed))
+            } finally {
+                openingConfig = false
             }
         }
+        if (openingConfig) {
+            LoadingDialog(visible = true, onDismissRequest = { openingConfig = false },
+                progress = -1f, message = stringResource(R.string.working))
+        }
 
-        LaunchedEffect(libraryItem.appId, isInstalledState) {
-            if (isInstalledState) {
-                containerData = withContext(Dispatchers.IO) {
-                    loadContainerData(context, libraryItem)
-                }
+        LaunchedEffect(appId, isInstalledState) {
+            // Showing the game card may read an existing config, but must never provision a game.
+            val existing = if (isInstalledState) withContext(Dispatchers.IO) {
+                ContainerManager(context).getContainerById(appId)?.let(ContainerUtils::toContainerData)
+            } else null
+            if (existing != null && !openingConfig && !showConfigDialog) {
+                containerData = existing
                 containerDataLoaded = true
-            } else {
-                containerDataLoaded = false
             }
         }
 

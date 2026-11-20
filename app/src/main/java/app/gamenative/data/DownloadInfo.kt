@@ -67,6 +67,11 @@ data class DownloadInfo(
         unregisterFromQueue()
     }
 
+    suspend fun cancelAndJoin() {
+        cancel()
+        downloadJob?.join()
+    }
+
     fun wasAutoPaused(): Boolean = autoPaused
 
     fun consumeAutoPaused(): Boolean = synchronized(this) {

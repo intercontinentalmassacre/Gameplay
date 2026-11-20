@@ -121,6 +121,7 @@
     <string name="ds_home_layout_wall">Cover Wall</string>
     <string name="hint_categories">Categories</string>
     <string name="downloads_overview_subtitle">Track active, paused, and resumable downloads</string>
+    <string name="library_cancel_download_keep_game_message">Stop the download for %1$s? The installed game is kept.</string>
     <string name="downloads_cancel_confirm">Cancel download and delete files for %1$s?</string>
 
     <!-- Library Tabs -->
@@ -163,6 +164,7 @@
     <string name="custom_games_folders_found">%d folders found</string>
     <string name="custom_games_scan_description">Folders in these paths are scanned for .exe files and listed as custom games. This may slow down the app startup time.</string>
     <string name="custom_game_folder_picker_error">Failed to resolve folder path</string>
+    <string name="custom_game_folder_add_failed">Could not add this folder. In the folder picker, open the device storage and select the folder there.</string>
     <string name="container_config_drive_letter_missing">Drive letter is missing</string>
     <string name="container_config_invalid_drive_path">Invalid drive path</string>
     <string name="custom_game_exe_selection_title">Executable Selection Required</string>
@@ -788,9 +790,9 @@
     <string name="playtime">Playtime</string>
     <string name="add_custom_game_content_desc">Add custom game</string>
     <string name="add_custom_game_dialog_title">Add Custom Game</string>
-    <string name="add_custom_game_dialog_message">Choose how you want to add a Windows game. Installers get a new resumable container; portable games are copied into managed storage.</string>
+    <string name="add_custom_game_dialog_message">For Linux games, choose a Type 2 AppImage built for ARM64.</string>
     <string name="add_custom_game_install">Install a game</string>
-    <string name="add_custom_game_import_exe">Import portable EXE</string>
+    <string name="add_custom_game_import_exe">Import EXE or AppImage</string>
     <string name="add_custom_game_choose_folder">Choose existing folder</string>
     <string name="add_custom_game_dont_show_again">Don\'t show this dialog again</string>
     <string name="custom_game_importing">Importing game…</string>
@@ -2725,4 +2727,51 @@
     <string name="library_imported_game">Imported %1$s</string>
     <string name="library_starting_installer">Starting %1$s installer</string>
     <string name="settings_notification_icon_description">%1$s notification icon</string>
+
+    <string name="display_server">Display Server</string>
+    <string name="display_server_x11">X11</string>
+    <string name="display_server_gamescope">Gamescope</string>
+    <string name="gamescope_hdr">HDR Output (Beta)</string>
+    <string name="gamescope_hdr_description">Enable HDR output in Gamescope sessions</string>
+    <string name="gamescope_experimental">Experimental Gamescope</string>
+    <string name="gamescope_experimental_cap_description">Improve frame generation when the FPS cap leaves only part of the display refresh rate available.</string>
+    <string name="gamescope_experimental_gl_description">Use experimental OpenGL presentation and frame-generation pacing for this game.</string>
+    <string name="gamescope_tab_title">Gamescope</string>
+    <string name="gamescope_scaling_mode">Scaling Mode</string>
+    <string name="gamescope_scaler_auto">Auto</string>
+    <string name="gamescope_scaler_integer">Integer</string>
+    <string name="gamescope_scaler_fit">Fit</string>
+    <string name="gamescope_scaler_stretch">Stretch</string>
+    <string name="gamescope_scaler_fill">Fill</string>
+    <string name="gamescope_scaling_filter">Scaling Filter</string>
+    <string name="gamescope_filter_linear">Linear</string>
+    <string name="gamescope_filter_nearest">Nearest</string>
+    <string name="gamescope_filter_fsr">FSR</string>
+    <string name="gamescope_filter_nis">NIS</string>
+    <string name="gamescope_filter_integer">Integer</string>
+    <string name="gamescope_filter_sgsr">SGSR</string>
+    <string name="gamescope_scaling_sharpness">Sharpness</string>
+    <string name="gamescope_reset_default">Reset to Default</string>
+    <string name="gamescope_look">Color Effects</string>
+    <string name="gamescope_look_off">Off</string>
+    <string name="gamescope_output_resolution">Upscaling Resolution</string>
+    <string name="gamescope_output_resolution_device">Device\'s Resolution</string>
+    <string name="gamescope_reshade">ReShade Effects</string>
+    <string name="gamescope_look_grayscale">Grayscale</string>
+    <string name="gamescope_look_invertcolors">Invert Colors</string>
+    <string name="gamescope_look_invertbrightness">Invert Brightness</string>
+    <string name="gamescope_look_cb_deut">Deuteranopia</string>
+    <string name="gamescope_look_cb_prot">Protanopia</string>
+    <string name="gamescope_look_cb_trit">Tritanopia</string>
+    <string name="gamescope_lsfg_present_mode">Frame Generation Present Mode</string>
+    <string name="gamescope_preparing">Preparing Gamescope…</string>
+    <string name="gamescope_download_progress">Downloading Gamescope… %1$d%%</string>
+    <string name="gamescope_starting">Starting Gamescope…</string>
+    <string name="gamescope_launch_failed">Gamescope could not start. %1$s</string>
+    <string name="gamescope_surface_unavailable">The game display is unavailable.</string>
+    <string name="gnaudio_low_latency">GNAudio Low Latency Mode</string>
+    <string name="suspend_behavior_reclaim">Free memory and auto-resume</string>
+    <string name="driver_category_mali">Arm Mali</string>
+    <string name="driver_category_mali_desc">Vulkan drivers for Arm Mali GPUs with the kbase kernel driver.</string>
+    <string name="container_settings_load_failed">Could not open container settings. Try again.</string>
 </resources>

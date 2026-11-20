@@ -127,6 +127,7 @@ import app.gamenative.ui.util.PlatformLogoutCallbacks
 import app.gamenative.ui.util.SnackbarManager
 import app.gamenative.utils.BestConfigService
 import app.gamenative.utils.ContainerUtils
+import app.gamenative.localgames.AppImageRuntime
 import app.gamenative.utils.PlatformAuthUtils
 import app.gamenative.utils.PlatformOAuthHandlers
 import app.gamenative.utils.rememberHasExternalDisplay
@@ -156,6 +157,7 @@ import java.util.Locale
 import java.util.Date
 import java.util.EnumSet
 import kotlin.reflect.KFunction2
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.serialization.json.Json
@@ -406,10 +408,13 @@ fun PluviaMain(
             if (navController.currentDestination?.route?.startsWith(PluviaScreen.Home.route) != true) {
                 navController.navigate(PluviaScreen.Home.route + "?offline=false")
             }
-        } else {
+        } else if (navController.currentDestination?.route != PluviaScreen.XServer.route ||
+            viewModel.state.value.launchedAppId != resolvedAppId
+        ) {
         val requestedGameId = runCatching { ContainerUtils.extractGameIdFromContainerId(resolvedAppId) }.getOrNull()
         if (SteamService.keepAlive && requestedGameId != null && ActiveGameRegistry.get()?.appId == requestedGameId) {
             Timber.i("[PluviaMain]: Game $resolvedAppId already running; bringing XServer screen forward")
+            viewModel.setLaunchedAppId(resolvedAppId)
             if (navController.currentDestination?.route != PluviaScreen.XServer.route) {
                 navController.navigate(PluviaScreen.XServer.route)
             }
@@ -1720,9 +1725,13 @@ fun PluviaMain(
 
                 /** Game Screen **/
                 composable(route = PluviaScreen.XServer.route) {
+                    // Navigation can compose before the app ID StateFlow update reaches this frame.
+                    val appId = state.launchedAppId
+                    if (appId.isBlank()) return@composable
+
                     val xServerIsOffline by viewModel.isOffline.collectAsStateWithLifecycle()
                     XServerScreen(
-                        appId = state.launchedAppId,
+                        appId = appId,
                         bootToContainer = state.bootToContainer,
                         testGraphics = state.testGraphics,
                         isOffline = xServerIsOffline,
@@ -1748,10 +1757,10 @@ fun PluviaMain(
                             }
                         },
                         onWindowMapped = { context, window ->
-                            viewModel.onWindowMapped(context, window, state.launchedAppId)
+                            viewModel.onWindowMapped(context, window, appId)
                         },
                         onExit = { onComplete ->
-                            viewModel.exitSteamApp(context, state.launchedAppId, onComplete)
+                            viewModel.exitSteamApp(context, appId, onComplete)
                         },
                         onGameLaunchError = { error ->
                             viewModel.onGameLaunchError(error)
@@ -1911,6 +1920,21 @@ fun preLaunchApp(
     // TODO: add a way to cancel
     // TODO: add fail conditions
 
+    fun showSetupError(error: Exception) {
+        if (error is CancellationException) throw error
+        Timber.tag("preLaunchApp").e(error, "Could not prepare %s", appId)
+        setLoadingDialogVisible(false)
+        setMessageDialogState(
+            MessageDialogState(
+                visible = true,
+                type = DialogType.SYNC_FAIL,
+                title = context.getString(R.string.install_failed_title),
+                message = error.localizedMessage ?: context.getString(R.string.install_failed_message),
+                dismissBtnText = context.getString(R.string.ok),
+            ),
+        )
+    }
+
     val gameId = ContainerUtils.extractGameIdFromContainerId(appId)
 
     CoroutineScope(Dispatchers.IO).launch {
@@ -1937,10 +1961,15 @@ fun preLaunchApp(
             }
         }
 
-        val container = if (useTemporaryOverride) {
-            ContainerUtils.getOrCreateContainerWithOverride(context, appId)
-        } else {
-            ContainerUtils.getOrCreateContainer(context, appId)
+        val container = try {
+            if (useTemporaryOverride) {
+                ContainerUtils.getOrCreateContainerWithOverride(context, appId)
+            } else {
+                ContainerUtils.getOrCreateContainer(context, appId)
+            }
+        } catch (e: Exception) {
+            showSetupError(e)
+            return@launch
         }
 
         // Native Android (Steam Frame / Lepton) build: no Wine/Proton container, no manifest
@@ -1948,6 +1977,19 @@ fun preLaunchApp(
         if (container.platform.equals(Container.PLATFORM_ANDROID, ignoreCase = true)) {
             setLoadingDialogVisible(false)
             onSuccess(context, appId)
+            return@launch
+        }
+
+        if (!bootToContainer && AppImageRuntime.selected(appId, container)) {
+            try {
+                setLoadingMessage(context.getString(R.string.main_installing_glibc))
+                AppImageRuntime.prepare(context, container, setLoadingProgress)
+                container.clearSessionMetadata()
+                setLoadingDialogVisible(false)
+                onSuccess(context, appId)
+            } catch (error: Exception) {
+                showSetupError(error)
+            }
             return@launch
         }
 
@@ -2018,17 +2060,16 @@ fun preLaunchApp(
             )
             for (request in missingRequests) {
                 setLoadingMessage(context.getString(R.string.main_downloading_entry, request.entry.name))
-                try {
-                    ManifestInstaller.installManifestEntry(
-                        context, request.entry, request.isDriver, request.contentType,
-                    ) { progress -> setLoadingProgress(progress.coerceIn(0f, 1f)) }
-                } catch (e: Exception) {
-                    Timber.e(e, "Failed to install ${request.entry.name}, continuing")
+                val result = ManifestInstaller.installManifestEntry(
+                    context, request.entry, request.isDriver, request.contentType,
+                ) { progress -> setLoadingProgress(progress.coerceIn(0f, 1f)) }
+                if (!result.success) {
+                    showSetupError(IllegalStateException("${request.entry.name}: ${result.message}"))
+                    return@launch
                 }
             }
         } catch (e: Exception) {
-            Timber.e(e, "Failed to install manifest components")
-            setLoadingDialogVisible(false)
+            showSetupError(e)
             return@launch
         }
 
@@ -2131,10 +2172,14 @@ fun preLaunchApp(
             context.getString(R.string.main_installing_bionic)
         }
         setLoadingMessage(loadingMessage)
-        val imageFsInstallSuccess =
+        val imageFsInstallSuccess = try {
             ImageFsInstaller.installIfNeededFuture(context, context.assets, container) { progress ->
                 setLoadingProgress(progress / 100f)
             }.get()
+        } catch (e: Exception) {
+            showSetupError(e)
+            return@launch
+        }
 
         if (!imageFsInstallSuccess) {
             Timber.tag("preLaunchApp").e("ImageFS installation failed")

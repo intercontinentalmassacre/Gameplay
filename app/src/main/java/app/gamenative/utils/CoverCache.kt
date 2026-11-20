@@ -6,11 +6,6 @@ import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import timber.log.Timber
@@ -25,7 +20,7 @@ import timber.log.Timber
  *   2. CoverCache (this) — file:// on disk
  *   3. SteamGridDB / Steam CDN URLs
  *
- * Concurrency: network work is bounded by a single-thread executor; downloads
+ * Concurrency: network work is bounded by a two-thread executor; downloads
  * are de-duplicated by (appId, type) inside [inflight]. Disk writes go through
  * a temp file + atomic rename so partial files are never observed.
  *
@@ -48,7 +43,6 @@ object CoverCache {
     private const val TAG = "CoverCache"
     private const val SCHEME_FILE = "file://"
 
-    private val ioScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val executor = Executors.newFixedThreadPool(2) { r ->
         Thread(r, "CoverCache-IO").apply { isDaemon = true }
     }
@@ -106,9 +100,9 @@ object CoverCache {
         val existing = inflight.putIfAbsent(key, CompletableDeferred())
         if (existing != null) return
 
-        ioScope.launch {
+        executor.execute {
             val file = try {
-                withContext(Dispatchers.IO) { download(client, url, fileFor(appId, type)!!) }
+                download(client, url, fileFor(appId, type)!!)
             } catch (e: Exception) {
                 Timber.tag(TAG).w(e, "download failed appId=%s type=%s", appId, type)
                 null

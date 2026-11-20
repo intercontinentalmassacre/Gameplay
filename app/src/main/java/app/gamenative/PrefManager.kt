@@ -2,8 +2,10 @@ package app.gamenative
 
 import android.content.Context
 import androidx.compose.runtime.mutableStateOf
+import app.gamenative.display.GamescopeSettings
 import androidx.datastore.core.DataStore
 import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
+import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.byteArrayPreferencesKey
@@ -30,6 +32,8 @@ import java.util.EnumSet
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -54,8 +58,15 @@ object PrefManager {
 
     private lateinit var dataStore: DataStore<Preferences>
 
+    @Volatile private var preferences = emptyPreferences()
+    private val writeMutex = Mutex()
+
+    @Synchronized
     fun init(context: Context) {
-        dataStore = context.datastore
+        val store = context.datastore
+        if (::dataStore.isInitialized && dataStore === store) return
+        preferences = runBlocking { store.data.first() }
+        dataStore = store
 
         // Note: Should remove after a few release versions. we've moved to encrypted values.
         val oldPassword = stringPreferencesKey("password")
@@ -99,7 +110,7 @@ object PrefManager {
     fun clearPreferences() {
         dualScreenLauncherState.value = app.gamenative.utils.DualScreenDevice.isKnownDualScreenModel()
         scope.launch {
-            dataStore.edit { it.clear() }
+            updatePreferences { it.clear() }
         }
     }
 
@@ -111,7 +122,7 @@ object PrefManager {
      */
     fun clearSteamSessionPreferences() {
         scope.launch {
-            dataStore.edit { pref ->
+            updatePreferences { pref ->
                 pref.remove(USER_NAME_PLAIN)
                 pref.remove(USER_NAME_ENC)
                 pref.remove(ACCESS_TOKEN_ENC)
@@ -147,26 +158,31 @@ object PrefManager {
         setPref(floatPreferencesKey(key), value)
 
     @Suppress("SameParameterValue")
-    private fun <T> getPref(key: Preferences.Key<T>, defaultValue: T): T = runBlocking {
-        dataStore.data.first()[key] ?: defaultValue
+    private fun <T> getPref(key: Preferences.Key<T>, defaultValue: T): T = preferences[key] ?: defaultValue
+
+    // Publish committed writes in order. Rendering the library must never wait for DataStore I/O.
+    private suspend fun updatePreferences(change: (MutablePreferences) -> Unit) {
+        writeMutex.withLock {
+            preferences = dataStore.edit { change(it) }
+        }
     }
 
     @Suppress("SameParameterValue")
     private fun <T> setPref(key: Preferences.Key<T>, value: T) {
         scope.launch {
-            dataStore.edit { pref -> pref[key] = value }
+            updatePreferences { pref -> pref[key] = value }
         }
     }
 
     private fun <T> setPrefBlocking(key: Preferences.Key<T>, value: T) {
         runBlocking {
-            dataStore.edit { pref -> pref[key] = value }
+            updatePreferences { pref -> pref[key] = value }
         }
     }
 
     private fun <T> removePref(key: Preferences.Key<T>) {
         scope.launch {
-            dataStore.edit { pref -> pref.remove(key) }
+            updatePreferences { pref -> pref.remove(key) }
         }
     }
 
@@ -234,6 +250,27 @@ object PrefManager {
         get() = getPref(RENDERER_PRESENT_MODE, "fifo")
         set(value) {
             setPref(RENDERER_PRESENT_MODE, value)
+        }
+
+    private val DISPLAY_SERVER = stringPreferencesKey("display_server")
+    var displayServer: String
+        get() = getPref(DISPLAY_SERVER, Container.DISPLAY_SERVER_X11)
+        set(value) {
+            setPref(DISPLAY_SERVER, value)
+        }
+
+    private val GAMESCOPE_OUTPUT_RESOLUTION = stringPreferencesKey("gamescopeOutputResolution")
+    var gamescopeOutputResolution: String
+        get() = getPref(GAMESCOPE_OUTPUT_RESOLUTION, GamescopeSettings.OUTPUT_RESOLUTION_DEFAULT)
+        set(value) {
+            setPref(GAMESCOPE_OUTPUT_RESOLUTION, value)
+        }
+
+    private val HDR_ENABLED = booleanPreferencesKey("hdrEnabled")
+    var hdrEnabled: Boolean
+        get() = getPref(HDR_ENABLED, false)
+        set(value) {
+            setPref(HDR_ENABLED, value)
         }
 
     private val DISPLAY_RENDERER_MODE = stringPreferencesKey("display_renderer_mode")
@@ -312,14 +349,14 @@ object PrefManager {
 
     private val CONTAINER_VARIANT = stringPreferencesKey("container_variant")
     var containerVariant: String
-        get() = getPref(CONTAINER_VARIANT, Container.DEFAULT_VARIANT)
+        get() = getPref(CONTAINER_VARIANT, DefaultVersion.VARIANT)
         set(value) {
             setPref(CONTAINER_VARIANT, value)
         }
 
     private val WINE_VERSION = stringPreferencesKey("wine_version")
     var wineVersion: String
-        get() = getPref(WINE_VERSION, Container.DEFAULT_WINE_VERSION)
+        get() = Container.resolveWineVersion(containerVariant, getPref(WINE_VERSION, ""))
         set(value) {
             setPref(WINE_VERSION, value)
         }
@@ -379,6 +416,11 @@ object PrefManager {
         set(value) {
             setPref(AUDIO_DRIVER, value)
         }
+
+    private val GNAUDIO_LOW_LATENCY = booleanPreferencesKey("gnaudio_low_latency")
+    var gnaudioLowLatency: Boolean
+        get() = getPref(GNAUDIO_LOW_LATENCY, false)
+        set(value) { setPref(GNAUDIO_LOW_LATENCY, value) }
 
     private val PULSEAUDIO_LOW_LATENCY = booleanPreferencesKey("pulseaudio_low_latency")
     var pulseaudioLowLatency: Boolean
@@ -969,11 +1011,9 @@ object PrefManager {
     // Special: Because null value.
     private val CLIENT_ID = longPreferencesKey("client_id")
     var clientId: Long?
-        get() = runBlocking { dataStore.data.first()[CLIENT_ID] }
+        get() = preferences[CLIENT_ID]
         set(value) {
-            scope.launch {
-                dataStore.edit { pref -> pref[CLIENT_ID] = value!! }
-            }
+            if (value == null) removePref(CLIENT_ID) else setPref(CLIENT_ID, value)
         }
 
     private val LIBRARY_LAYOUT = intPreferencesKey("library_layout")

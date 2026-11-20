@@ -6,6 +6,8 @@ import app.gamenative.service.SteamService
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import org.apache.commons.compress.compressors.zstandard.ZstdCompressorInputStream
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
@@ -15,6 +17,7 @@ import java.io.BufferedInputStream
 import java.io.File
 import java.io.FileInputStream
 import java.io.IOException
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Utility for downloading container pattern files (extras, container patterns, proton patterns) from the manifest server.
@@ -26,6 +29,7 @@ object ContainerFilesDownloader {
     const val CONTAINER_FILES_CACHE_DIR = "assets/container_files"
 
     private val json = Json { ignoreUnknownKeys = true }
+    private val downloadLocks = ConcurrentHashMap<String, Mutex>()
 
     @Serializable
     data class ContainerFilesManifest(
@@ -65,42 +69,44 @@ object ContainerFilesDownloader {
             return@withContext null
         }
 
-        // Modern variant: download from server
-        // Check if already downloaded and cached
-        val destFile = File(context.filesDir, "$CONTAINER_FILES_CACHE_DIR/$componentId.tzst")
-        if (isValidCacheArchive(destFile)) {
-            Timber.d("Using cached container file: $componentId at ${destFile.absolutePath}")
-            return@withContext destFile
-        }
-        if (destFile.exists()) {
-            Timber.w("Removing invalid cached container file: ${destFile.absolutePath}")
-            destFile.delete()
-        }
-
-        // Download from server using local manifest
-        Timber.i("Downloading container file: $componentId from server")
-
-        destFile.parentFile?.mkdirs()
-
-        try {
-            SteamService.fetchFileWithFallback(
-                fileName = "container_files/${component.name}",
-                dest = destFile,
-                context = context,
-                onProgress = onProgress
-            )
-            if (!isValidCacheArchive(destFile)) {
-                destFile.delete()
-                throw IOException("Downloaded container file is not a readable tar.zstd archive")
+        downloadLocks.computeIfAbsent(componentId) { Mutex() }.withLock {
+            // Modern variant: download from server
+            // Check if already downloaded and cached
+            val destFile = File(context.filesDir, "$CONTAINER_FILES_CACHE_DIR/$componentId.tzst")
+            if (isValidCacheArchive(destFile)) {
+                Timber.d("Using cached container file: $componentId at ${destFile.absolutePath}")
+                return@withLock destFile
             }
-            Timber.i("Successfully downloaded container file: $componentId")
-        } catch (e: Exception) {
-            Timber.e(e, "Failed to download container file: $componentId")
-            destFile.delete()
-            throw e
-        }
+            if (destFile.exists()) {
+                Timber.w("Removing invalid cached container file: ${destFile.absolutePath}")
+                destFile.delete()
+            }
 
-        return@withContext destFile
+            // Download from server using local manifest
+            Timber.i("Downloading container file: $componentId from server")
+
+            destFile.parentFile?.mkdirs()
+
+            try {
+                SteamService.fetchFileWithFallback(
+                    fileName = "container_files/${component.name}",
+                    dest = destFile,
+                    context = context,
+                    onProgress = onProgress
+                )
+                if (!isValidCacheArchive(destFile)) {
+                    destFile.delete()
+                    throw IOException("Downloaded container file is not a readable tar.zstd archive")
+                }
+                Timber.i("Successfully downloaded container file: $componentId")
+            } catch (e: Exception) {
+                Timber.e(e, "Failed to download container file: $componentId")
+                destFile.delete()
+                throw e
+            }
+
+            return@withLock destFile
+        }
     }
 
     /** Reads the complete tar.zstd stream so truncated or arbitrary files are never reused. */
