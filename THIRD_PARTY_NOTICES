@@ -102,6 +102,31 @@ in the sense of GPL-3.0 §0 ("based on").
 
 ---
 
+## libgamenative_drm.so (GPL-3.0-or-later)
+
+**Component:** `libgamenative_drm.so`
+**Location:** `app/src/main/jniLibs/arm64-v8a/libgamenative_drm.so`
+**License:** GNU General Public License v3.0 or later.
+**Copyright:** Joshua Tam and GameNative Inc.
+**Source:** https://github.com/GameNative/gamenative-drm
+
+`libgamenative_drm.so` is the userspace DRM replacement developed for gamescope mode.
+It presents a DRM device to the compositor, publishes the composited frames to an
+Android `SurfaceControl` layer, and forwards injected input to the compositor's Wayland
+seat. The payload also ships the same project's guest Vulkan ICD shim
+(`lib/libadrenotools_gamescope.so`), built from revision
+`c77095f22ecba46202739127f9dd7df2dde5ac26`.
+
+The APK library comes from GameNative's Gamescope 20261116.1 update
+(`548c647c7d411be0ed6362bae2abe6b84157ee32`). The upstream source repository provides
+`tools/build-android.sh` to build the Android library and ICD shim, and
+`tools/build-gn-activate.sh` to build the payload's Windows activation helper.
+
+Gameplay also bundles an opt-in guest ICD built from the GameNative DRM source
+revision `8946b3080b8dcbf7b4eb72d3538596b0ae0187fb` (GPL-3.0-or-later).
+The library is shipped as `app/src/main/assets/gamescope-experimental/libadrenotools_gamescope-pr71.so`.
+Source and build details are in [docs/gamescope-experimental.md](docs/gamescope-experimental.md).
+
 ## Steam Client Bootstrap Shim (Source Withheld)
 
 **Component:** `libsteambootstrap.so`
@@ -342,6 +367,83 @@ for more details.
 
 Full license text: https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html
 
+## gamescope (Valve, with GameNative patches)
+
+**Component:** gamescope (the micro-compositor)
+**Author:** Valve Corporation
+**Source:** https://github.com/GameNative/gamescope/tree/1cf09581999630f08964cc6d174b09fda00b6690
+(20261116.1 Android build), https://github.com/ValveSoftware/gamescope (upstream)
+**License:** BSD 2-Clause
+
+The Gamescope display-server path in GameNative is built from Valve's gamescope
+with GameNative's own patches applied on top. The upstream project is licensed
+under the BSD 2-Clause licence, reproduced below.
+
+### License Text: BSD 2-Clause
+
+Copyright (c) 2013-2022, Valve Corporation
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice,
+   this list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+POSSIBILITY OF SUCH DAMAGE.
+
+## XWayland
+
+**Component:** `Xwayland`
+**Location:** the downloaded `gamescope-gamenative-20261116.1.tzst` payload (`bin/Xwayland`)
+**Source:** https://gitlab.freedesktop.org/xorg/xserver
+**License:** MIT
+
+The gamescope payload carries an XWayland built for Android from the X.Org server, which
+provides the X server wine's `winex11.drv` connects to in gamescope mode. Gameplay
+relocates the payload's compiled-in XWayland and xkbcomp data paths during installation
+to use its own application data directory. The X.Org
+server is distributed under the X.Org Foundation's standard MIT licence, reproduced below;
+the per-file copyright holders and the other MIT/X11-style notices that apply to parts of
+the server are listed in `COPYING` in that source tree.
+
+### License Text: MIT (X.Org)
+
+Copyright (c) The X.Org Foundation and the contributors listed in the xserver `COPYING` file
+
+Permission is hereby granted, free of charge, to any person obtaining a
+copy of this software and associated documentation files (the "Software"),
+to deal in the Software without restriction, including without limitation
+the rights to use, copy, modify, merge, publish, distribute, sublicense,
+and/or sell copies of the Software, and to permit persons to whom the
+Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice (including the next
+paragraph) shall be included in all copies or substantial portions of the
+Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
 ## Achievement Sound
 
 "Achievement sound from [Pixabay](https://pixabay.com), [Pixabay Content License](https://pixabay.com/service/license-summary/).
@@ -349,3 +451,98 @@ Full license text: https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html
 **Author**: [Vadim Makes Sound](https://pixabay.com/users/vadim_makes_sound-54823268/)
 **Sound**: [Source](https://pixabay.com/sound-effects/film-special-effects-achievement-badge-pop-sound-1-547860/)
 
+
+---
+
+## GNAudio
+
+**Component:** `libasound_module_pcm_gamenative.so` and the audio engine it contains
+**Location:** `app/src/main/assets/gamenative-audio-guest.tzst`, installed at runtime
+into the container image as `usr/lib/alsa-lib/libasound_module_pcm_gamenative.so` and
+`usr/share/alsa/gamenative.conf`
+**Source:** https://github.com/GameNative/gamenative-audio/tree/fae5e10ab9ca3983d982de4d0f89fe451577049e
+**License:** LGPL-2.1-or-later (GNU Lesser General Public License v2.1 or later)
+**Copyright:** (C) 2026 GameNative
+
+The payload is packed from the linked revision by `scripts/pack-alsa-asset.sh`,
+which rebuilds the plugin from source and writes the archive; running it reproduces the
+shipped payload from the same revision.
+The bundled archive is the artifact published in
+https://github.com/utkarshdalal/GameNative/pull/2476/commits/682ba12cb92d70bf6678a1c9f5ebe8bad6b3750e.
+Its SHA-256 is `c31153e6ddbfc14503d973a37917ee73629996553b7798d37fd9a5b0600877d8`.
+
+GNAudio is GameNative's audio engine and its ALSA plugin, written in Rust. It is a single shared object: the engine is a static dependency of the plugin, so
+there is nothing else to install, and no Wine-side driver, daemon, socket or helper
+process is involved. It is loaded by the container's libasound when a game plays audio,
+and delivers the stream to Android through `AAudio`.
+
+It is offered under the LGPL-2.1, and it is reached through a public, documented
+interface: libasound's ioplug PCM contract. The shared object is a separate file in the
+container image, loaded at runtime and never linked against the application or against
+Wine, which is the arrangement LGPL-2.1 §6 (b) describes. The application itself is
+GPL-3.0; the plugin keeps its own LGPL-2.1 terms.
+
+### Replacing the library
+
+The plugin is a standalone file. Anyone may replace it with their own build of the
+same source, or with a modified version, provided the replacement exports the entry
+point libasound looks up by name (`_snd_pcm_gamenative_open`) and is placed at the path
+above. Gameplay keeps an installed replacement until the bundled archive changes or
+the container image is rebuilt. The replacement need not match the bundled binary's
+checksum. Reverse engineering of the library for the purpose of debugging such
+modifications is permitted, as LGPL-2.1 §6 requires.
+
+### Third-party code
+
+The engine is original work with no third-party code in it and no dependency beyond
+the platform: the AAudio interface is declared by hand against the NDK's own header,
+and the C ABI in `include/gnaudio.h` is this project's own.
+
+One exception, and it is headers rather than code: the plugin vendors alsa-lib 1.2.13's
+public headers at `alsa-plugin/include/alsa/` (32 headers plus a `sound/` subset), which
+are LGPL-2.1-or-later and carry their own copyright notices. Every vendored header that
+exists in that release is byte-identical to it; the two alsa-lib generates at configure
+time (`asoundlib.h`, `version.h`) are as 1.2.13 produces them. They are the same license
+as this component, so the terms above cover them unchanged. The ALSA plugin SDK those
+headers define — the exported entry point's name and the `snd_pcm_ioplug_t` layout
+libasound fills — is libasound's interface, not this project's design.
+
+### License Text: LGPL-2.1
+
+This library is free software; you can redistribute it and/or modify it
+under the terms of the GNU Lesser General Public License as published by
+the Free Software Foundation; either version 2.1 of the License, or (at
+your option) any later version.
+
+This library is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser
+General Public License for more details.
+
+The complete license text is `COPYING` in the source tree above, and at
+https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html
+
+## DirectAudio for Bionic Wine 11
+
+Gameplay repackages the three unmodified files from The412Banner's
+`directaudio-wine11-arm64ec-sdk35.zip` v1.3.2 release, with SHA-256
+`4b88204685ebf925e7fdb9023d18b9af35140ae13d61667ab4b88b927bcce6a7`.
+The AArch64 Unix backend uses 16 KiB ELF alignment.
+
+* Binary release: https://github.com/The412Banner/directaudio/releases/tag/directaudio-v1.3.2
+* Corresponding source and build workflow: https://github.com/The412Banner/directaudio/tree/2101085596ffe4911f7686012a97585eacbde9d0
+* License: LGPL-2.1-or-later. See `COPYING` in the source tree and the LGPL-2.1 text linked above.
+
+Wine loads the separate driver files at runtime. Users may replace the driver
+with an interface-compatible build and reverse engineer it to debug modifications.
+
+## ARM64 PRoot for Linux AppImages
+
+The ARM64 libproot.so and libproot-loader.so are the unmodified binaries
+from DroidDeck's pack-proot-7800e188363f2b99 release. The archive SHA-256 is
+7800e188363f2b99485e8b9e4f68ea77eb65b088ca66b9e508a3a0938acea394.
+
+* Pack: https://github.com/Droid-Deck/DroidDeck-Components/releases/download/pack-proot-7800e188363f2b99/proot.tar.zst
+* Corresponding build script, patches, configuration and pinned sources: https://github.com/Droid-Deck/DroidDeck/tree/a3e8b4414567f6b75505206ad5278551c1bd483a/tools/proot
+* PRoot: https://github.com/termux/proot/tree/4dba3afbf3a63af89b4d9c1a59bf2bda10f4d10f (GPL-2.0-or-later). The GPL v2 text is in app/src/main/cpp/proot/src/COPYING.
+* talloc 2.4.3: https://www.samba.org/ftp/talloc/talloc-2.4.3.tar.gz (LGPL-3.0-or-later).

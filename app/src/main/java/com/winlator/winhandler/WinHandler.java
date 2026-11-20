@@ -7,6 +7,7 @@ import android.os.SystemClock;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.util.Log;
+import android.util.SparseArray;
 import android.view.InputDevice;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
@@ -24,6 +25,7 @@ import com.winlator.inputcontrols.ControllerManager;
 import com.winlator.inputcontrols.ControlsProfile;
 import com.winlator.inputcontrols.ExternalController;
 import com.winlator.inputcontrols.GamepadState;
+import com.winlator.inputcontrols.JoyCon;
 import com.winlator.inputcontrols.TouchMouse;
 import com.winlator.math.XForm;
 import com.winlator.widget.InputControlsView;
@@ -67,6 +69,8 @@ public class WinHandler {
     public static final int MAX_PLAYERS = 4;
     private final MappedByteBuffer[] extraGamepadBuffers = new MappedByteBuffer[MAX_PLAYERS - 1];
     private final ExternalController[] extraControllers = new ExternalController[MAX_PLAYERS - 1];
+    private volatile int primaryJoyConGuestId = -1;
+    private final ExternalController[][] joyConInputs = new ExternalController[MAX_PLAYERS][2];
     private MappedByteBuffer gamepadBuffer;
     private static final short SERVER_PORT = 7947;
     private static final short CLIENT_PORT = 7946;
@@ -273,10 +277,60 @@ public class WinHandler {
             setGamepadSlotConnected(i + 1, extraControllers[i] != null);
         }
 
+        refreshJoyCons();
         if (clearDisconnectedSlots) {
             clearDisconnectedGamepadSlots();
             sendGamepadState();
         }
+    }
+
+    private void refreshJoyCons() {
+        SparseArray<ExternalController> previous = new SparseArray<>();
+        for (ExternalController[] pair : joyConInputs) {
+            for (ExternalController half : pair) {
+                if (half != null) previous.put(half.getDeviceId(), half);
+            }
+            Arrays.fill(pair, null);
+        }
+        for (InputDevice device : controllerManager.getDetectedDevices()) {
+            int side = JoyCon.side(device);
+            if (side < 0) continue;
+            int slot = controllerManager.getSlotForDevice(device.getId());
+            if (slot < 0) continue;
+            ExternalController half = previous.get(device.getId());
+            joyConInputs[slot][side] = half != null ? half : ExternalController.getController(device.getId());
+        }
+        if (currentController == null || (joyConInputs[0][0] == null && joyConInputs[0][1] == null)) {
+            primaryJoyConGuestId = -1;
+        } else if (primaryJoyConGuestId < 0) {
+            // The UDP guest keeps this ID while either half of its gamepad remains attached.
+            primaryJoyConGuestId = currentController.getDeviceId();
+        }
+        for (int slot = 0; slot < MAX_PLAYERS; slot++) {
+            if (joyConInputs[slot][0] != null || joyConInputs[slot][1] != null)
+                publishJoyConState(slot);
+        }
+    }
+
+    private int primaryGuestId(ExternalController controller) {
+        return primaryJoyConGuestId >= 0 ? primaryJoyConGuestId : controller.getDeviceId();
+    }
+
+    private ExternalController joyConInput(int slot, int side, int deviceId) {
+        ExternalController half = joyConInputs[slot][side];
+        if (half == null || half.getDeviceId() != deviceId || getControllerFromSlot(slot) == null) {
+            refreshControllerMappings();
+            half = joyConInputs[slot][side];
+        }
+        return half != null && half.getDeviceId() == deviceId ? half : null;
+    }
+
+    private void publishJoyConState(int slot) {
+        ExternalController controller = getControllerFromSlot(slot);
+        if (controller == null) return;
+        ExternalController left = joyConInputs[slot][0], right = joyConInputs[slot][1];
+        JoyCon.combine(controller.state, left == null ? null : left.state, right == null ? null : right.state);
+        sendMemoryFileState(controller, getGamepadBuffer(slot), slot);
     }
 
     public void reassertPrimaryController() {
@@ -287,6 +341,7 @@ public class WinHandler {
         if (c != null) {
             c.setContext(activity);
             currentController = c;
+            if (JoyCon.side(p1Device) >= 0) publishJoyConState(0);
         }
     }
 
@@ -680,7 +735,7 @@ public class WinHandler {
                         this.sendData.rewind();
                         this.sendData.put((byte) RequestCodes.GET_GAMEPAD);
                         if (finalEnabled) {
-                            this.sendData.putInt(!useVirtualGamepad ? this.currentController.getDeviceId() : profile.id);
+                            this.sendData.putInt(!useVirtualGamepad ? primaryGuestId(this.currentController) : profile.id);
                             this.sendData.put(this.dinputMapperType);
                             String originalName = (useVirtualGamepad ? profile.getName() : currentController.getName());
                             byte[] originalBytes = originalName.getBytes();
@@ -713,7 +768,7 @@ public class WinHandler {
                     this.sendData.rewind();
                     this.sendData.put((byte) 8);
                     if (finalEnabled2) {
-                        this.sendData.putInt(!useVirtualGamepad ? this.currentController.getDeviceId() : profile.id);
+                        this.sendData.putInt(!useVirtualGamepad ? primaryGuestId(this.currentController) : profile.id);
                         this.sendData.put(this.dinputMapperType);
                         byte[] bytes2 = (useVirtualGamepad ? profile.getName() : this.currentController.getName()).getBytes();
                         this.sendData.putInt(bytes2.length);
@@ -731,10 +786,8 @@ public class WinHandler {
                 final ControlsProfile profile2 = inputControlsView.getProfile();
                 final boolean useVirtualGamepad2 = inputControlsView != null && profile2 != null && profile2.isVirtualGamepad();
                 ExternalController externalController2 = this.currentController;
-                final boolean enabled3 = externalController2 != null || useVirtualGamepad2;
-                if (externalController2 != null && externalController2.getDeviceId() != gamepadId) {
-                    this.currentController = null;
-                }
+                final boolean enabled3 = useVirtualGamepad2 ||
+                        (externalController2 != null && primaryGuestId(externalController2) == gamepadId);
                 addAction(() -> {
                     sendData.rewind();
                     sendData.put(RequestCodes.GET_GAMEPAD_STATE);
@@ -744,7 +797,7 @@ public class WinHandler {
                         if (useVirtualGamepad2) {
                             inputControlsView.getProfile().getGamepadState().writeTo(this.sendData);
                         } else {
-                            this.currentController.state.writeTo(this.sendData);
+                            externalController2.state.writeTo(this.sendData);
                         }
                     }
                     sendPacket(port);
@@ -1236,7 +1289,9 @@ public class WinHandler {
         }
         final ControlsProfile profile = inputControlsView != null ? inputControlsView.getProfile() : null;
         final boolean useVirtualGamepad = isVirtualGamepadActive();
-        final boolean enabled = this.currentController != null || useVirtualGamepad;
+        final ExternalController physical = currentController;
+        final boolean enabled = physical != null || useVirtualGamepad;
+        final int id = useVirtualGamepad ? profile.id : physical == null ? 0 : primaryGuestId(physical);
         Iterator<Integer> it = this.gamepadClients.iterator();
         while (it.hasNext()) {
             final int port = it.next().intValue();
@@ -1245,11 +1300,11 @@ public class WinHandler {
                 sendData.put(RequestCodes.GET_GAMEPAD_STATE);
                 sendData.put((byte)(enabled ? 1 : 0));
                 if (enabled) {
-                    this.sendData.putInt(!useVirtualGamepad ? this.currentController.getDeviceId() : inputControlsView.getProfile().id);
+                    this.sendData.putInt(id);
                     if (useVirtualGamepad) {
-                        inputControlsView.getProfile().getGamepadState().writeTo(sendData);
+                        profile.getGamepadState().writeTo(sendData);
                     } else {
-                        this.currentController.state.writeTo(this.sendData);
+                        physical.state.writeTo(this.sendData);
                     }
                 }
                 sendPacket(port);
@@ -1260,6 +1315,15 @@ public class WinHandler {
     public boolean onGenericMotionEvent(MotionEvent event) {
         boolean handled = false;
         int slot = controllerManager.getSlotForDevice(event.getDeviceId());
+        int side = JoyCon.side(event.getDevice());
+        if (side >= 0) {
+            if (slot < 0) return false;
+            ExternalController half = joyConInput(slot, side, event.getDeviceId());
+            if (half == null || !half.updateStateFromMotionEvent(event)) return false;
+            publishJoyConState(slot);
+            sendGamepadState();
+            return true;
+        }
         if (slot >= 0) {
             ExternalController controller = getControllerFromSlot(slot);
             if (controller == null || controller.getDeviceId() != event.getDeviceId()) {
@@ -1319,6 +1383,15 @@ public class WinHandler {
         // If this is a gamepad event but our controller is null or mismatched, adopt it
         InputDevice device = event.getDevice();
 
+        int side = JoyCon.side(event.getDevice());
+        if (side >= 0) {
+            if (slot < 0) return false;
+            ExternalController half = joyConInput(slot, side, event.getDeviceId());
+            if (half == null || !half.updateStateFromKeyEvent(event)) return false;
+            publishJoyConState(slot);
+            sendGamepadState();
+            return true;
+        }
         if (slot >= 0) {
             ExternalController controller = getControllerFromSlot(slot);
             if (controller == null || controller.getDeviceId() != event.getDeviceId()) {

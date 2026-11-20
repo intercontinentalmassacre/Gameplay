@@ -60,7 +60,7 @@ class ExternalDisplaySwapController(
     }
 
     private fun updatePresentation() {
-        val targetDisplay = if (swapEnabled) findPresentationDisplay() else null
+        val targetDisplay = if (swapEnabled) findGamePresentationDisplay(context, displayManager) else null
         if (targetDisplay == null) {
             moveGameToInternal()
             dismissPresentation()
@@ -116,19 +116,19 @@ class ExternalDisplaySwapController(
         gameOnExternal = value
         onGameOnExternalChanged(value)
     }
+}
 
-    private fun findPresentationDisplay(): Display? {
-        val currentDisplay = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            context.display
-        } else {
-            displayManager?.getDisplay(Display.DEFAULT_DISPLAY)
-        } ?: return null
-        return displayManager
-            ?.getDisplays(DisplayManager.DISPLAY_CATEGORY_PRESENTATION)
-            ?.firstOrNull { display ->
-                display.displayId != currentDisplay.displayId && display.name != "HiddenDisplay"
-            }
-    }
+internal fun findGamePresentationDisplay(
+    context: Context,
+    displayManager: DisplayManager? = context.getSystemService(DisplayManager::class.java),
+): Display? {
+    val currentDisplay = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        context.display
+    } else {
+        displayManager?.getDisplay(Display.DEFAULT_DISPLAY)
+    } ?: return null
+    return displayManager?.getDisplays(DisplayManager.DISPLAY_CATEGORY_PRESENTATION)
+        ?.firstOrNull { it.displayId != currentDisplay.displayId && it.name != "HiddenDisplay" }
 }
 
 private class GamePresentation(

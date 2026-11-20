@@ -33,7 +33,7 @@
     <string name="action_system">Система</string>
     <string name="add">Добавить</string>
     <string name="add_custom_game_content_desc">Добавить пользовательскую игру</string>
-    <string name="add_custom_game_dialog_message">Пожалуйста, выберите папку, содержащую файлы игры, которые вы хотите добавить в качестве пользовательской игры.</string>
+    <string name="add_custom_game_dialog_message">Для игр Linux выберите AppImage типа 2, собранный для ARM64.</string>
     <string name="custom_game_importing">Импорт игры…</string>
     <string name="custom_game_import_success">Игра импортирована</string>
     <string name="custom_game_import_failed">Не удалось импортировать</string>
@@ -365,6 +365,7 @@
     <string name="custom_game_delete_message">Вы уверены, что хотите удалить %1$s?</string>
     <string name="custom_game_delete_title">Удалить игру</string>
     <string name="custom_game_folder_picker_error">Ошибка разрешения пути папки</string>
+    <string name="custom_game_folder_add_failed">Не удалось добавить эту папку. В окне выбора папки откройте память устройства и выберите папку там.</string>
     <string name="custom_game_unknown_developer">Неизвестно</string>
     <string name="default_error_message">Неверный ввод</string>
     <string name="default_popup_window_title">Всплывающее окно</string>
@@ -1412,6 +1413,7 @@ Ubuntu RootFs - releases.ubuntu.com/focal</string>
     <string name="tab">Вкладка</string>
     <string name="downloads_empty">Нет активных загрузок</string>
     <string name="downloads_overview_subtitle">Отслеживайте активные, приостановленные и возобновляемые загрузки</string>
+    <string name="library_cancel_download_keep_game_message">Остановить загрузку %1$s? Установленная игра сохранится.</string>
     <string name="downloads_cancel_confirm">Отменить загрузку и удалить файлы для %1$s?</string>
     <string name="downloads_cancel_all">Отменить все</string>
     <string name="downloads_clear_finished">Очистить завершённые</string>
@@ -2375,7 +2377,7 @@ Ubuntu RootFs - releases.ubuntu.com/focal</string>
     <string name="achievements_unlocked_by_percent">Открыто у %1$.1f%% игроков</string>
     <string name="action_add_to_home">Добавить на главный экран</string>
     <string name="add_custom_game_choose_folder">Выбрать существующую папку</string>
-    <string name="add_custom_game_import_exe">Импортировать переносной EXE</string>
+    <string name="add_custom_game_import_exe">Импортировать EXE или AppImage</string>
     <string name="add_custom_game_install">Установить игру</string>
     <string name="analog_sticks">Аналоговые джойстики</string>
     <string name="base_app_images_fetching">Загрузка изображений...</string>
@@ -2676,4 +2678,12 @@ Ubuntu RootFs - releases.ubuntu.com/focal</string>
     <string name="downloads_containers_action_remove">Удалить</string>
     <string name="downloads_containers_legacy_unavailable">Файлы контейнеров поставляются вместе с этой сборкой; загрузка не требуется.</string>
     <string name="downloads_containers_empty">В этой сборке нет файлов контейнеров</string>
+    <string name="gnaudio_low_latency">Режим низкой задержки GNAudio</string>
+    <string name="gamescope_experimental">Экспериментальный Gamescope</string>
+    <string name="gamescope_experimental_cap_description">Улучшает генерацию кадров при ограничении FPS ниже частоты обновления дисплея.</string>
+    <string name="gamescope_experimental_gl_description">Экспериментальный вывод OpenGL и управление частотой генерации кадров для этой игры.</string>
+    <string name="suspend_behavior_reclaim">Освобождать память и продолжать автоматически</string>
+    <string name="driver_category_mali">Arm Mali</string>
+    <string name="driver_category_mali_desc">Драйверы Vulkan для графики Arm Mali с драйвером ядра kbase.</string>
+    <string name="container_settings_load_failed">Не удалось открыть настройки контейнера. Попробуйте ещё раз.</string>
 </resources>

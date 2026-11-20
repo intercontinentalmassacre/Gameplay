@@ -7,6 +7,7 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
 import android.widget.FrameLayout
+import com.winlator.xserver.XKeycode
 import com.winlator.xserver.XServer
 import timber.log.Timber
 
@@ -117,8 +118,6 @@ class IMEInputReceiver(
                 0,
                 metaState,
             )
-            xServer.keyboard.onKeyEvent(downEvent)
-
             val upEvent = KeyEvent(
                 0L,
                 0L,
@@ -127,7 +126,16 @@ class IMEInputReceiver(
                 0,
                 metaState,
             )
-            xServer.keyboard.onKeyEvent(upEvent)
+            // Gamescope receives evdev codes, which carry no Android KeyEvent meta state.
+            val temporaryShift = xServer.inputEventSink != null && keyDispatch.requiresShift &&
+                !xServer.keyboard.modifiersMask.isSet(1)
+            if (temporaryShift) xServer.injectKeyPress(XKeycode.KEY_SHIFT_L)
+            try {
+                xServer.keyboard.onKeyEvent(downEvent)
+                xServer.keyboard.onKeyEvent(upEvent)
+            } finally {
+                if (temporaryShift) xServer.injectKeyRelease(XKeycode.KEY_SHIFT_L)
+            }
 
             Timber.v(
                 "IMEInputReceiver: Sent char '$char' as keyCode ${keyDispatch.keyCode} (shift=${keyDispatch.requiresShift})",

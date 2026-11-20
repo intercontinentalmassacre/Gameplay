@@ -2,16 +2,21 @@ package app.gamenative.db.dao
 
 import android.content.Context
 import androidx.room.Room
+import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import app.gamenative.data.SteamApp
 import app.gamenative.data.SteamLicense
+import app.gamenative.data.mergeSteamLicenseFlags
 import app.gamenative.db.PluviaDatabase
 import app.gamenative.enums.AppType
 import app.gamenative.service.SteamService.Companion.INVALID_PKG_ID
 import `in`.dragonbra.javasteam.enums.ELicenseFlags
 import `in`.dragonbra.javasteam.enums.ELicenseType
 import `in`.dragonbra.javasteam.enums.EPaymentMethod
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -69,6 +74,63 @@ class SteamAppDaoTest {
 
     private fun makeApp(id: Int, packageId: Int, type: AppType = AppType.game) =
         SteamApp(id = id, packageId = packageId, type = type, name = "App $id")
+
+    @Test
+    fun `interrupted library sync resumes both package discovery and app metadata`() = runBlocking {
+        licenseDao.insertAll(
+            listOf(
+                makeLicense(packageId = 100).copy(accessToken = 42L),
+                makeLicense(packageId = 200, appIds = listOf(1, 2)),
+                makeLicense(packageId = 300).copy(depotIds = listOf(301)),
+            ),
+        )
+        appDao.insertAll(
+            listOf(
+                SteamApp(id = 1, packageId = 200),
+                makeApp(id = 2, packageId = 200).copy(receivedPICS = true),
+                SteamApp(id = 3, packageId = 999),
+                SteamApp(id = 4, packageId = INVALID_PKG_ID),
+            ),
+        )
+
+        assertEquals(listOf(100 to 42L), licenseDao.getUnresolvedPackagesForPics().map { it.packageId to it.accessToken })
+        assertEquals(listOf(1), appDao.getLicensedAppIdsWithoutPics())
+        assertEquals(listOf(2), appDao.getAppIdsWithPics())
+
+        appDao.insert(makeApp(id = 1, packageId = 200).copy(receivedPICS = true))
+        licenseDao.updateApps(packageId = 100, appIds = listOf(5))
+        assertTrue(appDao.getLicensedAppIdsWithoutPics().isEmpty())
+        assertTrue(licenseDao.getUnresolvedPackagesForPics().isEmpty())
+        assertEquals(setOf(1, 2), appDao.getAllOwnedApps().first().map { it.id }.toSet())
+    }
+
+    @Test
+    fun `a valid family license keeps a shared package visible after another copy expires`() = runBlocking {
+        val expired = EnumSet.of(ELicenseFlags.Expired)
+        val active = EnumSet.of(ELicenseFlags.Renew)
+        val merged = mergeSteamLicenseFlags(listOf(expired, active))
+        licenseDao.insertAll(listOf(makeLicense(packageId = 100, flags = merged, appIds = listOf(1))))
+        appDao.insert(makeApp(id = 1, packageId = 100))
+
+        assertEquals(EnumSet.of(ELicenseFlags.Renew), merged)
+        assertEquals(listOf(1), appDao.getAllOwnedApps().first().map { it.id })
+        val stub = licenseDao.getLicenseStubs().single()
+        assertEquals(listOf(1), stub.ownerAccountId)
+        assertEquals(ELicenseFlags.code(merged), ELicenseFlags.code(stub.licenseFlags))
+        assertEquals(expired, mergeSteamLicenseFlags(listOf(expired)))
+    }
+
+    @Test
+    fun `package discovery repairs the owner of a title with cached metadata`() = runBlocking {
+        appDao.insert(makeApp(id = 1, packageId = INVALID_PKG_ID).copy(receivedPICS = true))
+        licenseDao.insertAll(listOf(makeLicense(packageId = 100, appIds = listOf(1)).copy(ownerAccountId = listOf(2))))
+        appDao.updatePackageIdForApps(100, listOf(1))
+        assertEquals(listOf(2), appDao.getAllOwnedApps().first().single().ownerAccountId)
+
+        licenseDao.insertAll(listOf(makeLicense(packageId = 100, appIds = listOf(1)).copy(ownerAccountId = listOf(3))))
+        appDao.syncCachedLicenseDetails()
+        assertEquals(listOf(3), appDao.getAllOwnedApps().first().single().ownerAccountId)
+    }
 
     @Test
     fun `valid license - app appears in library`() = runBlocking {
@@ -179,6 +241,33 @@ class SteamAppDaoTest {
 
         val apps = appDao.getAllOwnedApps().first()
         assertEquals(1, apps.size)
+    }
+
+    @Test
+    fun `same-size changes refresh the owned library`() = runBlocking {
+        licenseDao.insertAll(listOf(makeLicense(packageId = 100, appIds = listOf(1, 2))))
+        appDao.insert(makeApp(id = 1, packageId = 100))
+        appDao.insert(makeApp(id = 2, packageId = INVALID_PKG_ID))
+
+        val emissions = Channel<List<SteamApp>>(Channel.UNLIMITED)
+        val collection = launch { appDao.getAllOwnedApps().collect { emissions.send(it) } }
+        try {
+            val initial = withTimeout(5_000) { emissions.receive() }
+            assertEquals(listOf(1), initial.map { it.id })
+
+            db.withTransaction {
+                appDao.insert(makeApp(id = 1, packageId = INVALID_PKG_ID))
+                appDao.insert(makeApp(id = 2, packageId = 100))
+            }
+            val replaced = withTimeout(5_000) { emissions.receive() }
+            assertEquals(listOf(2), replaced.map { it.id })
+
+            appDao.insert(makeApp(id = 2, packageId = 100).copy(name = "Updated name"))
+            val renamed = withTimeout(5_000) { emissions.receive() }
+            assertEquals("Updated name", renamed.single().name)
+        } finally {
+            collection.cancel()
+        }
     }
 
     @Test

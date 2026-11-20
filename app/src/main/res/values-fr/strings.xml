@@ -94,6 +94,7 @@
 
     <string name="downloads_empty">Aucun téléchargement actif</string>
     <string name="downloads_overview_subtitle">Suivez les téléchargements actifs, en pause et repris</string>
+    <string name="library_cancel_download_keep_game_message">Arrêter le téléchargement de %1$s ? Le jeu installé est conservé.</string>
     <string name="downloads_cancel_confirm">Annuler le téléchargement et supprimer les fichiers de %1$s ?</string>
     <string name="downloads_cancel_all">Tout annuler</string>
     <string name="downloads_clear_finished">Effacer les terminés</string>
@@ -179,6 +180,7 @@
     <string name="custom_games_folders_found">%d dossiers trouvés</string>
     <string name="custom_games_scan_description">Les dossiers dans ces chemins sont analysés pour les fichiers .exe et listés comme jeux personnalisés. Cela peut ralentir le démarrage de l\'application.</string>
     <string name="custom_game_folder_picker_error">Échec de la résolution du chemin du dossier</string>
+    <string name="custom_game_folder_add_failed">Impossible d\'ajouter ce dossier. Dans le sélecteur de dossiers, ouvrez le stockage de l\'appareil et sélectionnez le dossier à cet endroit.</string>
     <string name="container_config_drive_letter_missing">La lettre du lecteur est manquante</string>
     <string name="container_config_invalid_drive_path">Chemin du lecteur invalide</string>
     <string name="custom_game_settings">Paramètres du jeu personnalisé</string>
@@ -586,7 +588,7 @@
     <string name="playtime">Temps de jeu</string>
     <string name="add_custom_game_content_desc">Ajouter un jeu personnalisé</string>
     <string name="add_custom_game_dialog_title">Ajouter un jeu personnalisé</string>
-    <string name="add_custom_game_dialog_message">Veuillez sélectionner le dossier contenant les fichiers du jeu que vous souhaitez ajouter comme jeu personnalisé.</string>
+    <string name="add_custom_game_dialog_message">Pour les jeux Linux, choisissez une AppImage de type 2 pour ARM64.</string>
     <string name="custom_game_importing">Importation du jeu…</string>
     <string name="custom_game_import_success">Jeu importé</string>
     <string name="custom_game_import_failed">Échec de l\'importation</string>
@@ -2249,7 +2251,7 @@
     <string name="achievements_unlocked_by_percent">Débloqué par %1$.1f%% des joueurs</string>
     <string name="action_add_to_home">Ajouter à l\'écran d\'accueil</string>
     <string name="add_custom_game_choose_folder">Choisir un dossier existant</string>
-    <string name="add_custom_game_import_exe">Importer un EXE portable</string>
+    <string name="add_custom_game_import_exe">Importer un EXE ou une AppImage</string>
     <string name="add_custom_game_install">Installer un jeu</string>
     <string name="base_app_images_fetching">Récupération des images…</string>
     <string name="compat_preset_applied">Appliqué</string>
@@ -2582,4 +2584,6 @@
     <string name="downloads_containers_legacy_unavailable">Les fichiers du conteneur sont fournis avec cette version ; aucun téléchargement requis.</string>
     <string name="downloads_containers_bundled_runtime_description">Runtime fourni disponible pour la configuration du conteneur. Aucun téléchargement séparé requis.</string>
     <string name="downloads_containers_empty">Aucun fichier de conteneur dans cette version</string>
+    <string name="gnaudio_low_latency">Mode faible latence GNAudio</string>
+    <string name="suspend_behavior_reclaim">Libérer la mémoire et reprendre automatiquement</string>
 </resources>

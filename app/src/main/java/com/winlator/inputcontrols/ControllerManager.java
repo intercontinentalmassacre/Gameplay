@@ -51,6 +51,7 @@ public class ControllerManager {
 
     // This list will hold all physical game controllers detected by Android.
     private final List<InputDevice> detectedDevices = new ArrayList<>();
+    private final JoyCon.Pairs joyCons = new JoyCon.Pairs();
     private final SparseArray<String> knownDeviceIdentifiers = new SparseArray<>();
 
     // This maps a player slot (0-3) to the unique identifier of the physical device.
@@ -101,6 +102,9 @@ public class ControllerManager {
     public void scanForDevices() {
         detectedDevices.clear();
         int[] deviceIds = inputManager.getInputDeviceIds();
+        Set<Integer> attached = new HashSet<>();
+        for (int id : deviceIds) attached.add(id);
+        joyCons.retain(attached);
         Set<String> present = new HashSet<>();
         for (int deviceId : deviceIds) {
             InputDevice device = inputManager.getInputDevice(deviceId);
@@ -184,6 +188,7 @@ public class ControllerManager {
      */
     public static boolean isGameController(InputDevice device) {
         if (device == null) return false;
+        if (JoyCon.side(device) >= 0 && (device.supportsSource(InputDevice.SOURCE_GAMEPAD) || device.supportsSource(InputDevice.SOURCE_JOYSTICK))) return true;
 
         boolean isGamepad = device.supportsSource(InputDevice.SOURCE_GAMEPAD);
         boolean isJoystick = device.supportsSource(InputDevice.SOURCE_JOYSTICK);
@@ -217,8 +222,14 @@ public class ControllerManager {
      * @param device The InputDevice.
      * @return A unique identifier string.
      */
-    public static String getDeviceIdentifier(InputDevice device) {
+    public String getDeviceIdentifier(InputDevice device) {
         if (device == null) return null;
+        int side = JoyCon.side(device);
+        if (side >= 0) return joyCons.identifier(device.getId(), side);
+        return physicalIdentifier(device);
+    }
+
+    private static String physicalIdentifier(InputDevice device) {
         // The descriptor is the most reliable unique ID for a device.
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
             return device.getDescriptor();
@@ -428,6 +439,16 @@ public class ControllerManager {
         scanForDevices();
         boolean changed = false;
         for (InputDevice device : detectedDevices) {
+            if (JoyCon.side(device) < 0) continue;
+            String pair = getDeviceIdentifier(device);
+            int oldSlot = getSlotForIdentifier(physicalIdentifier(device));
+            if (oldSlot >= 0) {
+                slotAssignments.remove(oldSlot);
+                if (getSlotForIdentifier(pair) < 0) assignDeviceIdentifierToSlot(oldSlot, pair);
+                changed = true;
+            }
+        }
+        for (InputDevice device : detectedDevices) {
             String deviceIdentifier = getDeviceIdentifier(device);
             if (deviceIdentifier == null || getSlotForDevice(device.getId()) >= 0) {
                 continue;
@@ -464,6 +485,10 @@ public class ControllerManager {
         knownDeviceIdentifiers.remove(deviceId);
         scanForDevices();
         if (slot >= 0) {
+            if (getAssignedDeviceForSlot(slot) != null) {
+                notifySlotsChanged();
+                return;
+            }
             slotAssignments.remove(slot);
             if (deviceIdentifier != null) {
                 lastKnownSlotByIdentifier.put(deviceIdentifier, slot);

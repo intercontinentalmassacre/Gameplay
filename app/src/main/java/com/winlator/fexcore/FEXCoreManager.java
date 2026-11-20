@@ -14,12 +14,19 @@ import com.winlator.contents.ContentsManager;
 import com.winlator.core.AppUtils;
 import com.winlator.core.DefaultVersion;
 import com.winlator.core.FileUtils;
+import com.winlator.core.envvars.EnvVars;
 import com.winlator.xenvironment.ImageFs;
+import java.io.DataInputStream;
 import java.io.File;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import org.json.JSONObject;
 import timber.log.Timber;
 
 public final class FEXCoreManager {
@@ -34,17 +41,90 @@ public final class FEXCoreManager {
         "steam.exe",
     };
 
-    private static final String APP_CONFIG_CONTENT = "{\n" +
-        "  \"Config\": {\n" +
-        "    \"Multiblock\": \"0\",\n" +
-        "    \"X87ReducedPrecision\": \"1\",\n" +
-        "    \"VectorTSOEnabled\": \"1\",\n" +
-        "    \"HalfBarrierTSOEnabled\": \"1\",\n" +
-        "    \"MonoHacks\": \"0\"\n" +
-        "  }\n" +
-        "}\n";
+    private static final String[][] APP_CONFIG_OPTIONS = {
+        {"Multiblock", "0"},
+        {"X87ReducedPrecision", "0"},
+        {"TSOEnabled", "1"},
+        {"VectorTSOEnabled", "1"},
+        {"MemcpySetTSOEnabled", "1"},
+        {"HalfBarrierTSOEnabled", "1"},
+        {"MonoHacks", "0"},
+        {"EnableCodeCachingWIP", "0"},
+    };
+
+    static final String APP_CONFIG_CONTENT = appConfigContent();
+
+    private static final String CONTAINER_CONFIG_PATH = ".fex-emu/Config.json";
+    private static final String SESSION_CONFIG_PREFIX = "{\n  \"GameplaySessionConfig\": true,\n";
 
     FEXCoreManager() {
+    }
+
+    private static String appConfigContent() {
+        EnvVars options = new EnvVars();
+        for (String[] option : APP_CONFIG_OPTIONS) options.put(envName(option[0]), option[1]);
+        return containerConfigContent(options);
+    }
+
+    private static String envName(String option) {
+        return "FEX_" + option.toUpperCase(Locale.ROOT);
+    }
+
+    /**
+     * FEX ranks FEX_* environment variables above the per-app files, so an option those files set
+     * only reaches them when every other process gets it from the container's Config.json instead.
+     * Removes those options from envVars and returns them.
+     */
+    public static EnvVars takeAppConfigOptions(EnvVars envVars) {
+        EnvVars taken = new EnvVars();
+        for (String[] option : APP_CONFIG_OPTIONS) {
+            String name = envName(option[0]);
+            if (!envVars.has(name)) continue;
+            taken.put(name, envVars.get(name));
+            envVars.remove(name);
+        }
+        return taken;
+    }
+
+    /** Config.json content for options named by their FEX_* environment variables. */
+    public static String containerConfigContent(EnvVars options) {
+        StringBuilder json = new StringBuilder("{\n  \"Config\": {");
+        String separator = "\n";
+        for (String[] option : APP_CONFIG_OPTIONS) {
+            String name = envName(option[0]);
+            if (!options.has(name)) continue;
+            json.append(separator).append("    ").append(JSONObject.quote(option[0])).append(": ").append(JSONObject.quote(options.get(name)));
+            separator = ",\n";
+        }
+        return json.append("\n  }\n}\n").toString();
+    }
+
+    public static synchronized boolean writeContainerConfig(File containerRootDir, EnvVars options) {
+        if (containerRootDir == null) return false;
+        File file = new File(containerRootDir, CONTAINER_CONFIG_PATH);
+        if (Files.isSymbolicLink(file.getParentFile().toPath())) return false;
+        if (Files.exists(file.toPath(), LinkOption.NOFOLLOW_LINKS) && !isSessionConfig(file)) return false;
+        String content = SESSION_CONFIG_PREFIX + containerConfigContent(options).substring(2);
+        return FileUtils.writeString(file, content);
+    }
+
+    public static synchronized void deleteContainerConfig(File containerRootDir) {
+        if (containerRootDir == null) return;
+        File file = new File(containerRootDir, CONTAINER_CONFIG_PATH);
+        if (isSessionConfig(file)) file.delete();
+    }
+
+    private static boolean isSessionConfig(File file) {
+        if (Files.isSymbolicLink(file.getParentFile().toPath())) return false;
+        if (!Files.isRegularFile(file.toPath(), LinkOption.NOFOLLOW_LINKS)) return false;
+        byte[] expected = SESSION_CONFIG_PREFIX.getBytes(StandardCharsets.UTF_8);
+        try (DataInputStream input = new DataInputStream(Files.newInputStream(file.toPath()))) {
+            byte[] prefix = new byte[expected.length];
+            input.readFully(prefix);
+            return Arrays.equals(expected, prefix);
+        } catch (IOException e) {
+            return false;
+        }
     }
 
     public static File ensureAppConfigOverrides(Context context) {
@@ -85,10 +165,7 @@ public final class FEXCoreManager {
         try {
             ImageFs imageFs = ImageFs.find(context);
             // Delete container-level config
-            File containerConfig = new File(imageFs.home_path + "-" + containerId + "/.fex-emu/Config.json");
-            if (containerConfig.exists()) {
-                containerConfig.delete();
-            }
+            deleteContainerConfig(new File(imageFs.home_path + "-" + containerId));
             // Delete app-level config directory
             File appConfigDir = new File(context.getFilesDir(), "imagefs/home/xuser/.fex-emu/AppConfig");
             if (appConfigDir.exists() && appConfigDir.isDirectory()) {

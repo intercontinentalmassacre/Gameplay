@@ -10,8 +10,12 @@ public class PixmapManager extends XResourceManager {
     private final SparseArray<Pixmap> pixmaps = new SparseArray<>();
 
     public PixmapManager() {
-        visual = new Visual(IDGenerator.generate(), true, 32, 24, 0xff0000, 0x00ff00, 0x0000ff);
-        supportedVisuals = new Visual[]{visual, new Visual(IDGenerator.generate(), false, 1, 1, 0, 0, 0)};
+        visual = new Visual(IDGenerator.generate(), true, 24, 8, 0xff0000, 0x00ff00, 0x0000ff);
+        supportedVisuals = new Visual[]{
+                visual,
+                new Visual(IDGenerator.generate(), true, 32, 8, 0xff0000, 0x00ff00, 0x0000ff),
+                new Visual(IDGenerator.generate(), false, 1, 1, 0, 0, 0)
+        };
 
         supportedPixmapFormats = new PixmapFormat[] {
                 new PixmapFormat(1, 1, 32),

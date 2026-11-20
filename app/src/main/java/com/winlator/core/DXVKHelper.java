@@ -5,7 +5,7 @@ import android.content.Context;
 import com.winlator.core.envvars.EnvVars;
 import com.winlator.xenvironment.ImageFs;
 
-import java.io.File;
+import java.util.StringJoiner;
 
 public class DXVKHelper {
     public static final String DEFAULT_CONFIG = "version="+DefaultVersion.DXVK+",framerate=0,maxDeviceMemory=0";
@@ -20,36 +20,15 @@ public class DXVKHelper {
         envVars.put("DXVK_STATE_CACHE_PATH", imageFs.getRootDir().getAbsolutePath() + ImageFs.CACHE_PATH);
         envVars.put("DXVK_LOG_LEVEL", "none");
 
-        File rootDir = ImageFs.find(context).getRootDir();
-        File dxvkConfigFile = new File(imageFs.config_path+"/dxvk.conf");
-
-        String content = "\"";
-        String maxDeviceMemory = config.get("maxDeviceMemory");
-        if (!maxDeviceMemory.isEmpty() && !maxDeviceMemory.equals("0")) {
-            content += "dxgi.maxDeviceMemory = "+maxDeviceMemory+"\n";
-            content += "dxgi.maxSharedMemory = "+maxDeviceMemory+"\n";
-        }
-
         String maxFeatureLevel = config.get("maxFeatureLevel");
         if (!maxFeatureLevel.isEmpty() && !maxFeatureLevel.equals("0")) {
-            content += "d3d11.maxFeatureLevel = "+maxFeatureLevel+"\n";
             envVars.put("DXVK_FEATURE_LEVEL", maxFeatureLevel);
         }
-
 
         String framerate = config.get("framerate");
         if (!framerate.isEmpty() && !framerate.equals("0")) {
             envVars.put("DXVK_FRAME_RATE", framerate);
         }
-        String customDevice = config.get("customDevice");
-        if (customDevice.contains(":")) {
-            String[] parts = customDevice.split(":");
-            content = (((((content + "dxgi.customDeviceId = " + parts[0] + "\n") + "dxgi.customVendorId = " + parts[1] + "\n") + "d3d9.customDeviceId = " + parts[0] + "\n") + "d3d9.customVendorId = " + parts[1] + "\n") + "dxgi.customDeviceDesc = \"" + parts[2] + "\"\n") + "d3d9.customDeviceDesc = \"" + parts[2] + "\"\n";
-        }
-        if (config.getBoolean("constantBufferRangeCheck")) {
-            content = content + "d3d11.constantBufferRangeCheck = \"True\"\n";
-        }
-
         String async = config.get("async");
         if (!async.isEmpty() && !async.equals("0"))
             envVars.put("DXVK_ASYNC", "1");
@@ -57,11 +36,35 @@ public class DXVKHelper {
         String asyncCache = config.get("asyncCache");
         if (!asyncCache.isEmpty() && !asyncCache.equals("0"))
             envVars.put("DXVK_GPLASYNCCACHE", "1");
-        content = content + '\"';
+        envVars.put("DXVK_CONFIG_FILE", imageFs.getRootDir() + ImageFs.CONFIG_PATH + "/dxvk.conf");
+        envVars.put("DXVK_CONFIG", buildInlineConfig(config));
+    }
 
+    static String buildInlineConfig(KeyValueSet config) {
+        StringJoiner options = new StringJoiner(";");
+        String memory = config.get("maxDeviceMemory");
+        if (!memory.isEmpty() && !memory.equals("0")) {
+            options.add("dxgi.maxDeviceMemory = " + memory);
+            options.add("dxgi.maxSharedMemory = " + memory);
+        }
 
-        envVars.put("DXVK_CONFIG_FILE", rootDir + ImageFs.CONFIG_PATH+"/dxvk.conf");
-        envVars.put("DXVK_CONFIG", content);
+        String featureLevel = config.get("maxFeatureLevel");
+        if (!featureLevel.isEmpty() && !featureLevel.equals("0")) {
+            options.add("d3d11.maxFeatureLevel = " + featureLevel);
+        }
+
+        String[] device = config.get("customDevice").split(":", 3);
+        if (device.length == 3) {
+            for (String api : new String[]{"dxgi", "d3d9"}) {
+                options.add(api + ".customDeviceId = " + device[0]);
+                options.add(api + ".customVendorId = " + device[1]);
+                options.add(api + ".customDeviceDesc = \"" + device[2] + "\"");
+            }
+        }
+        if (config.getBoolean("constantBufferRangeCheck")) {
+            options.add("d3d11.constantBufferRangeCheck = \"True\"");
+        }
+        return options.toString();
     }
 
     public static void setVKD3DEnvVars(Context context, KeyValueSet config, EnvVars envVars) {

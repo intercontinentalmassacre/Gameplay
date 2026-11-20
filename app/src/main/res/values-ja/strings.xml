@@ -102,6 +102,7 @@
     <string name="downloads_section_title">ダウンロード</string>
     <string name="downloads_empty">アクティブなダウンロードはありません</string>
     <string name="downloads_overview_subtitle">アクティブ・一時停止・再開可能なダウンロードを管理</string>
+    <string name="library_cancel_download_keep_game_message">%1$s のダウンロードを停止しますか？インストール済みのゲームは保持されます。</string>
     <string name="downloads_cancel_confirm">ダウンロードをキャンセルして、%1$s のファイルを削除しますか?</string>
 
     <!-- Library Tabs -->
@@ -136,6 +137,7 @@
     <string name="custom_games_folders_found">%d 個のフォルダーが見つかりました</string>
     <string name="custom_games_scan_description">これらのパス内のフォルダーから .exe ファイルを検出し、カスタムゲームとして一覧表示します。スキャンによりアプリ起動が遅くなる場合があります。</string>
     <string name="custom_game_folder_picker_error">フォルダーパスの取得に失敗しました</string>
+    <string name="custom_game_folder_add_failed">このフォルダーを追加できませんでした。フォルダー選択画面でデバイスのストレージを開き、そこからフォルダーを選択してください。</string>
     <string name="container_config_drive_letter_missing">ドライブ文字がありません</string>
     <string name="container_config_invalid_drive_path">無効なドライブパス</string>
     <string name="custom_game_exe_selection_title">実行可能ファイルの選択が必要です</string>
@@ -596,7 +598,7 @@
     <string name="playtime">遊び時間</string>
     <string name="add_custom_game_content_desc">カスタムゲームを追加する</string>
     <string name="add_custom_game_dialog_title">カスタムゲームを追加</string>
-    <string name="add_custom_game_dialog_message">カスタム ゲームとして追加するゲーム ファイルが含まれるフォルダーを選択してください。</string>
+    <string name="add_custom_game_dialog_message">Linux ゲームには ARM64 用の Type 2 AppImage を選んでください。</string>
     <string name="custom_game_importing">ゲームをインポート中…</string>
     <string name="custom_game_import_success">ゲームをインポートしました</string>
     <string name="custom_game_import_failed">インポートに失敗しました</string>
@@ -2195,7 +2197,7 @@
     <string name="achievements_unlocked_by_percent">プレイヤーの %1$.1f%% が達成</string>
     <string name="action_add_to_home">ホーム画面に追加</string>
     <string name="add_custom_game_choose_folder">既存のフォルダーを選択</string>
-    <string name="add_custom_game_import_exe">ポータブル EXE をインポート</string>
+    <string name="add_custom_game_import_exe">EXE または AppImage をインポート</string>
     <string name="add_custom_game_install">ゲームをインストール</string>
     <string name="base_app_images_fetching">画像を取得しています...</string>
     <string name="compat_preset_applied">適用済み</string>
@@ -2554,4 +2556,6 @@
     <string name="downloads_containers_legacy_unavailable">このビルドにはコンテナファイルが同梱されているため、ダウンロードは不要です。</string>
     <string name="downloads_containers_bundled_runtime_description">コンテナ設定用に同梱ランタイムが利用可能です。別途ダウンロードは不要です。</string>
     <string name="downloads_containers_empty">このビルドにはコンテナファイルがありません</string>
+    <string name="gnaudio_low_latency">GNAudio 低レイテンシーモード</string>
+    <string name="suspend_behavior_reclaim">メモリを解放して自動再開</string>
 </resources>

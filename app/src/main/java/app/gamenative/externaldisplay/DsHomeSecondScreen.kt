@@ -1,5 +1,6 @@
 package app.gamenative.externaldisplay
 
+import com.winlator.inputcontrols.JoyCon
 import android.app.Presentation
 import android.content.Context
 import android.content.res.Configuration
@@ -136,7 +137,6 @@ import app.gamenative.ui.data.shouldLoadNextLibraryPage
 import app.gamenative.ui.enums.LibraryTab
 import app.gamenative.ui.enums.PaneType
 import app.gamenative.ui.screen.library.components.DsGameGrid
-import app.gamenative.ui.screen.library.components.DsContentBottomPadding
 import app.gamenative.ui.screen.library.components.dsHomeCellMinSize
 import app.gamenative.ui.screen.library.components.AppItem
 import app.gamenative.ui.screen.library.components.GameSourceIcon
@@ -770,7 +770,8 @@ class DsHomePresentation(
      * input channel. In that case MainActivity.dispatchKeyEvent is never
      * reached, so the companion must route controller keys from its own window.
      */
-    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+    override fun dispatchKeyEvent(rawEvent: KeyEvent): Boolean {
+        val event = JoyCon.normalizeKey(rawEvent)
         if (event.device?.name?.contains("Xbox", ignoreCase = true) == true) {
             Timber.d(
                 "DS_INPUT key action=%d code=%d source=0x%s mode=%s",
@@ -1170,7 +1171,10 @@ private fun DsHomeSecondScreenGrid(model: DsHomeSecondScreen.Model) {
         onDispose { DsHomeSecondScreen.detachLibraryControllerKeyHandler(handler) }
     }
     val actions = listOf(
-        GamepadAction(GamepadButton.A, app.gamenative.R.string.action_select),
+        GamepadAction(
+            GamepadButton.A, app.gamenative.R.string.action_select,
+            model.items.getOrNull(controllerSelectedIndex)?.let { item -> { model.onNavigate(item.appId) } },
+        ),
         GamepadAction(GamepadButton.SELECT, app.gamenative.R.string.options, model.onOptions),
         GamepadAction(GamepadButton.Y, app.gamenative.R.string.search, model.onSearchToggle),
         GamepadAction(GamepadButton.X, app.gamenative.R.string.action_add_game, model.onAddGame),
@@ -1288,21 +1292,20 @@ private fun DsHomeSecondScreenGrid(model: DsHomeSecondScreen.Model) {
                         cellAspectRatio = 0.76f,
                         preferSquareIcon = false,
                         labelStyle = MaterialTheme.typography.labelLarge,
-                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = DsContentBottomPadding),
+                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 8.dp),
                         modifier = Modifier.fillMaxSize(),
                     )
                 }
             }
-        }
 
-        GamepadActionBar(
-            actions = actions,
-            modifier = Modifier.align(Alignment.BottomCenter),
-            visible = !model.isSearching,
-            forceVisible = true,
-            compact = true,
-            scale = 1.25f,
-        )
+            GamepadActionBar(
+                actions = actions,
+                visible = !model.isSearching,
+                forceVisible = true,
+                compact = true,
+                docked = true,
+            )
+        }
     }
 }
 
@@ -1429,7 +1432,7 @@ private fun DsHomeSecondScreenList(
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 8.dp, bottom = DsContentBottomPadding),
+        contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 8.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         itemsIndexed(model.items, key = { _, item -> item.appId }) { index, item ->
@@ -1634,7 +1637,7 @@ private fun DsHomeCoverFlowPane(
                 flingBehavior = rememberSnapFlingBehavior(lazyListState = listState),
                 horizontalArrangement = Arrangement.spacedBy(itemSpacing),
                 verticalAlignment = Alignment.CenterVertically,
-                contentPadding = PaddingValues(start = sidePadding, end = sidePadding, bottom = DsContentBottomPadding),
+                contentPadding = PaddingValues(start = sidePadding, end = sidePadding, bottom = 8.dp),
             ) {
                     itemsIndexed(model.items, key = { _, item -> item.appId }) { index, item ->
                     val tiltInputState = remember(index) {
@@ -1895,7 +1898,7 @@ private fun DsHomeCoverWallPane(
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 8.dp, bottom = DsContentBottomPadding),
+        contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 8.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         itemsIndexed(model.items, key = { _, item -> item.appId }) { index, item ->

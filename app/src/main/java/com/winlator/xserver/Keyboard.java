@@ -51,16 +51,18 @@ public class Keyboard {
 
     public void setKeyPress(byte keycode, int keysym) {
         triggerOnKeyPress(keycode, keysym);
-        pressedKeys.add(keycode);
-        if (isModifier(keycode)) modifiersMask.set(getModifierFlag(keycode));
+        updateKeyState(keycode, true);
     }
 
     public void setKeyRelease(byte keycode) {
-        if (pressedKeys.contains(keycode)) {
-            pressedKeys.remove(keycode);
-            if (isModifier(keycode)) modifiersMask.unset(getModifierFlag(keycode));
-            triggerOnKeyRelease(keycode);
-        }
+        if (updateKeyState(keycode, false)) triggerOnKeyRelease(keycode);
+    }
+
+    /** Track Android input state without dispatching to X11 listeners. */
+    boolean updateKeyState(byte keycode, boolean pressed) {
+        boolean changed = pressed ? pressedKeys.add(keycode) : pressedKeys.remove(keycode);
+        if ((pressed || changed) && isModifier(keycode)) modifiersMask.set(getModifierFlag(keycode), pressed);
+        return changed;
     }
 
     public void addOnKeyboardListener(OnKeyboardListener onKeyboardListener) {

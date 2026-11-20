@@ -354,10 +354,13 @@ fun HomeDownloadsScreen(
     MessageDialog(
         visible = confirmation != null,
         title = stringResource(R.string.cancel_download_prompt_title),
-        message = confirmation?.gameName?.let {
-            stringResource(R.string.downloads_cancel_confirm, it)
+        message = confirmation?.let {
+            stringResource(
+                if (it.keepsInstalledGame) R.string.library_cancel_download_keep_game_message else R.string.downloads_cancel_confirm,
+                it.gameName,
+            )
         },
-        confirmBtnText = stringResource(R.string.yes),
+        confirmBtnText = stringResource(R.string.cancel_download_prompt_title),
         dismissBtnText = stringResource(R.string.no),
         onConfirmClick = { viewModel.onConfirmCancel() },
         onDismissClick = { viewModel.onDismissCancel() },

@@ -118,6 +118,7 @@ import app.gamenative.service.SteamService
 import app.gamenative.utils.ManifestComponentHelper.VersionOptionList
 import app.gamenative.utils.ManifestRepository
 import app.gamenative.utils.rememberHasExternalDisplay
+import com.winlator.contents.AdrenotoolsManager
 import com.winlator.contents.ContentProfile
 import com.alorma.compose.settings.ui.SettingsGroup
 import app.gamenative.ui.component.settings.SettingsMenuLink
@@ -137,6 +138,7 @@ import com.winlator.core.WineThemeManager
 import com.winlator.fexcore.FEXCoreManager
 import com.winlator.fexcore.FEXCorePreset
 import com.winlator.fexcore.FEXCorePresetManager
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
@@ -463,6 +465,7 @@ fun ContainerConfigDialog(
         val componentAvailabilityRef = remember { mutableStateOf<ManifestComponentHelper.ComponentAvailability?>(null) }
         var componentAvailability by componentAvailabilityRef
         var manifestInstallInProgress by remember { mutableStateOf(false) }
+        var localDriverImportInProgress by remember { mutableStateOf(false) }
         var showManifestDownloadDialog by remember { mutableStateOf(false) }
         var manifestDownloadProgress by remember { mutableStateOf(-1f) }
         var manifestDownloadLabel by remember { mutableStateOf("") }
@@ -486,10 +489,10 @@ fun ContainerConfigDialog(
 
         val isBionicVariant = config.containerVariant.equals(Container.BIONIC, ignoreCase = true)
         val isAndroidPlatform = config.platform.equals(Container.PLATFORM_ANDROID, ignoreCase = true)
-        val manifestDownloadMessage = if (manifestDownloadLabel.isNotEmpty()) {
-            stringResource(R.string.manifest_downloading_item, manifestDownloadLabel)
-        } else {
-            stringResource(R.string.downloading)
+        val manifestDownloadMessage = when {
+            localDriverImportInProgress -> stringResource(R.string.driver_importing)
+            manifestDownloadLabel.isNotEmpty() -> stringResource(R.string.manifest_downloading_item, manifestDownloadLabel)
+            else -> stringResource(R.string.downloading)
         }
 
         val manifestDxvk = manifestData.items[ManifestContentTypes.DXVK].orEmpty()
@@ -591,6 +594,38 @@ fun ContainerConfigDialog(
         LaunchedEffect(Unit) {
             refreshInstalledLists()
             versionsLoaded = true
+        }
+
+        val localDriverPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            if (uri == null || manifestInstallInProgress) return@rememberLauncherForActivityResult
+            manifestInstallInProgress = true
+            localDriverImportInProgress = true
+            showManifestDownloadDialog = true
+            manifestDownloadProgress = -1f
+            installScope.launch {
+                try {
+                    val driverId = withContext(Dispatchers.IO) { AdrenotoolsManager(context).installDriver(uri) }
+                    if (driverId.isBlank()) {
+                        SnackbarManager.show(context.getString(R.string.driver_snackbar_install_failed))
+                    } else {
+                        val driverConfig = KeyValueSet(config.graphicsDriverConfig).apply {
+                            put("version", driverId)
+                            put("adrenotoolsTurnip", "1")
+                        }
+                        config = config.copy(graphicsDriverConfig = driverConfig.toString())
+                        refreshInstalledLists()
+                        SnackbarManager.show(context.getString(R.string.driver_snackbar_installed, driverId))
+                    }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    SnackbarManager.show(context.getString(R.string.driver_snackbar_import_error, e.localizedMessage.orEmpty()))
+                } finally {
+                    manifestInstallInProgress = false
+                    localDriverImportInProgress = false
+                    showManifestDownloadDialog = false
+                }
+            }
         }
 
         fun launchManifestInstall(
@@ -1178,6 +1213,7 @@ fun ContainerConfigDialog(
 
         val state = ContainerConfigState(
             config = configState,
+            isPerContainer = appId != null,
             graphicsDrivers = graphicsDriversRef,
             bionicWineEntries = bionicWineEntriesRef,
             glibcWineEntries = glibcWineEntriesRef,
@@ -1300,6 +1336,11 @@ fun ContainerConfigDialog(
                 launchManifestContentInstall(entry, expectedType, onInstalled)
             },
             launchManifestDriverInstall = { entry, onInstalled -> launchManifestDriverInstall(entry, onInstalled) },
+            launchLocalDriverImport = {
+                if (!manifestInstallInProgress) {
+                    localDriverPicker.launch(arrayOf("application/zip", "application/x-zip-compressed", "application/octet-stream"))
+                }
+            },
             launchSteamAppDownload = { appId, label, onDownloaded -> launchSteamAppDownload(appId, label, onDownloaded) },
             getStartupSelectionOptions = { getStartupSelectionOptions() },
             launchFolderPicker = {

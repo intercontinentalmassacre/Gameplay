@@ -8,7 +8,7 @@ import java.io.File
 import java.io.FileInputStream
 
 /**
- * Bridges a locally selected Windows executable to GameNative's existing Custom Game and
+ * Bridges a locally selected executable to GameNative's existing Custom Game and
  * container infrastructure. It intentionally does not use Steam matching or Steam app IDs.
  */
 object CustomGameContainerCoordinator {
@@ -63,7 +63,11 @@ object CustomGameContainerCoordinator {
         }
 
         val inspection = runCatching {
-            FileInputStream(target).use(WindowsExecutableInspector::inspect)
+            if (target.extension.equals("AppImage", ignoreCase = true)) {
+                AppImageInspector.inspect(target)
+            } else {
+                FileInputStream(target).use(WindowsExecutableInspector::inspect)
+            }
         }.getOrElse {
             return PreparationResult.Failed("Unable to read the selected executable", it)
         }
@@ -93,9 +97,13 @@ object CustomGameContainerCoordinator {
                 reason = "The selected folder could not be registered as a local game",
             )
 
-            val container = ContainerUtils.getOrCreateContainer(context, libraryItem.appId)
-            container.executablePath = executablePath
-            container.saveData()
+            if (inspection.kind == ExecutableKind.ARM64_APPIMAGE) {
+                ContainerUtils.prepareAppImageContainer(context, libraryItem.appId, root, executablePath)
+            } else {
+                val container = ContainerUtils.getOrCreateContainer(context, libraryItem.appId)
+                container.executablePath = executablePath
+                container.saveData()
+            }
 
             PreparationResult.Ready(
                 appId = libraryItem.appId,
@@ -136,12 +144,14 @@ object CustomGameContainerCoordinator {
         ExecutableKind.DOS_ONLY -> "DOS games are outside this Windows-only import workflow"
         ExecutableKind.MALFORMED -> inspection.reason ?: "The executable header is malformed"
         ExecutableKind.UNKNOWN -> inspection.reason ?: "The selected file is not a supported Windows executable"
+        ExecutableKind.ARM64_APPIMAGE,
         ExecutableKind.WINDOWS_32_PE,
         ExecutableKind.WINDOWS_64_PE,
         -> error("Supported executable kind cannot be rejected")
     }
 
     private val portableGameKinds = setOf(
+        ExecutableKind.ARM64_APPIMAGE,
         ExecutableKind.WINDOWS_32_PE,
         ExecutableKind.WINDOWS_64_PE,
     )

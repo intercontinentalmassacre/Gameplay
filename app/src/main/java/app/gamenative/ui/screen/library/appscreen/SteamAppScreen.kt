@@ -532,10 +532,11 @@ class SteamAppScreen : BaseAppScreen() {
         return { downloadInfo.removeProgressListener(listener) }
     }
 
-    override suspend fun isUpdatePendingSuspend(context: Context, libraryItem: LibraryItem): Boolean {
-        val branch = SteamService.getInstalledApp(libraryItem.gameId)?.branch ?: "public"
-        return SteamService.isUpdatePending(libraryItem.gameId, branch)
-    }
+    override suspend fun isUpdatePendingSuspend(context: Context, libraryItem: LibraryItem): Boolean =
+        withContext(Dispatchers.IO) {
+            val installedApp = SteamService.getInstalledApp(libraryItem.gameId) ?: return@withContext false
+            SteamService.isUpdatePending(libraryItem.gameId, installedApp.branch)
+        }
 
     override fun getInstallPath(context: Context, libraryItem: LibraryItem): String? {
         // Only return path if game is installed
@@ -575,8 +576,12 @@ class SteamAppScreen : BaseAppScreen() {
                     visible = true,
                     type = DialogType.CANCEL_APP_DOWNLOAD,
                     title = context.getString(R.string.cancel_download_prompt_title),
-                    message = context.getString(R.string.steam_cancel_download_message),
-                    confirmBtnText = context.getString(R.string.yes),
+                    message = if (isInstalled) {
+                        context.getString(R.string.library_cancel_download_keep_game_message, libraryItem.name)
+                    } else {
+                        context.getString(R.string.downloads_cancel_confirm, libraryItem.name)
+                    },
+                    confirmBtnText = context.getString(R.string.cancel_download_prompt_title),
                     dismissBtnText = context.getString(R.string.no),
                 ),
             )
@@ -628,8 +633,12 @@ class SteamAppScreen : BaseAppScreen() {
                     visible = true,
                     type = DialogType.CANCEL_APP_DOWNLOAD,
                     title = context.getString(R.string.cancel_download_prompt_title),
-                    message = context.getString(R.string.steam_delete_download_message),
-                    confirmBtnText = context.getString(R.string.yes),
+                    message = if (isInstalled) {
+                        context.getString(R.string.library_cancel_download_keep_game_message, libraryItem.name)
+                    } else {
+                        context.getString(R.string.downloads_cancel_confirm, libraryItem.name)
+                    },
+                    confirmBtnText = context.getString(R.string.cancel_download_prompt_title),
                     dismissBtnText = context.getString(R.string.no),
                 ),
             )
@@ -643,57 +652,6 @@ class SteamAppScreen : BaseAppScreen() {
         CoroutineScope(Dispatchers.IO).launch {
             SteamService.downloadApp(libraryItem.gameId)
         }
-    }
-
-    /**
-     * Override Edit Container to check for ImageFS installation first
-     */
-    @Composable
-    override fun getEditContainerOption(
-        context: Context,
-        libraryItem: LibraryItem,
-        onEditContainer: () -> Unit,
-    ): AppMenuOption {
-        val gameId = libraryItem.gameId
-        val appId = libraryItem.appId
-
-        return AppMenuOption(
-            optionType = AppOptionMenuType.EditContainer,
-            onClick = {
-                val container = ContainerUtils.getOrCreateContainer(context, appId)
-                val variant = container.containerVariant
-
-                if (!SteamService.isImageFsInstalled(context)) {
-                    if (!SteamService.isImageFsInstallable(context, variant)) {
-                        showInstallDialog(
-                            gameId,
-                            MessageDialogState(
-                                visible = true,
-                                type = DialogType.INSTALL_IMAGEFS,
-                                title = context.getString(R.string.steam_imagefs_download_install_title),
-                                message = context.getString(R.string.steam_imagefs_download_install_message),
-                                confirmBtnText = context.getString(R.string.proceed),
-                                dismissBtnText = context.getString(R.string.cancel),
-                            ),
-                        )
-                    } else {
-                        showInstallDialog(
-                            gameId,
-                            MessageDialogState(
-                                visible = true,
-                                type = DialogType.INSTALL_IMAGEFS,
-                                title = context.getString(R.string.steam_imagefs_install_title),
-                                message = context.getString(R.string.steam_imagefs_install_message),
-                                confirmBtnText = context.getString(R.string.proceed),
-                                dismissBtnText = context.getString(R.string.cancel),
-                            ),
-                        )
-                    }
-                } else {
-                    onEditContainer()
-                }
-            },
-        )
     }
 
     /**
@@ -898,7 +856,7 @@ class SteamAppScreen : BaseAppScreen() {
     }
 
     override fun loadContainerData(context: Context, libraryItem: LibraryItem): ContainerData {
-        val container = ContainerUtils.getOrCreateContainer(context, libraryItem.appId)
+        val container = ContainerUtils.getOrCreateContainer(context, libraryItem.appId, installWinePrefix = false)
         return ContainerUtils.toContainerData(container)
     }
 
@@ -1207,14 +1165,11 @@ class SteamAppScreen : BaseAppScreen() {
 
                 DialogType.CANCEL_APP_DOWNLOAD -> {
                     {
-                        val downloadInfo = SteamService.getAppDownloadInfo(gameId)
-                        downloadInfo?.cancel()
-                        SteamService.workshopPausedApps.remove(gameId)
                         hideInstallDialog(gameId)
-                        showDeletingDialog(gameId)
+                        if (!SteamService.isAppInstalled(gameId)) showDeletingDialog(gameId)
                         CoroutineScope(Dispatchers.IO).launch {
                             try {
-                                SteamService.deleteApp(gameId)
+                                SteamService.cancelAppDownload(gameId)
                                 DownloadService.invalidateCache()
                                 PluviaApp.events.emit(AndroidEvent.LibraryInstallStatusChanged(gameId, GameSource.STEAM))
                             } finally {

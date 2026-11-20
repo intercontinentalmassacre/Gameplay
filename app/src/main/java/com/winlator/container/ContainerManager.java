@@ -27,8 +27,17 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.File;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.LinkOption;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
@@ -61,13 +70,13 @@ public class ContainerManager {
                         container.setRootDir(new File(homeDir, ImageFs.USER+"-"+container.id));
                         try {
                             File configFile = container.getConfigFile();
-                            String configContent = FileUtils.readString(configFile);
+                            byte[] configBytes = FileUtils.read(configFile);
 
-                            if (configContent == null || configContent.trim().isEmpty()) {
-                                Log.w("ContainerManager", "Container config file is null or empty, skipping: " + containerId);
+                            if (configBytes == null || configBytes.length == 0) {
                                 continue;
                             }
 
+                            String configContent = new String(configBytes, StandardCharsets.UTF_8);
                             JSONObject data = new JSONObject(configContent);
                             container.loadData(data);
                             containers.add(container);
@@ -163,32 +172,43 @@ public class ContainerManager {
     }
 
     public Container createContainer(String containerId, JSONObject data) {
+        return createContainer(containerId, data, true);
+    }
+
+    public Container createContainer(String containerId, JSONObject data, boolean installWinePrefix) {
+        File stagingDir = null;
         try {
             data.put("id", containerId);
 
             File containerDir = new File(homeDir, ImageFs.USER+"-"+containerId);
-            if (!containerDir.mkdirs()) return null;
+            if (!homeDir.isDirectory() && !homeDir.mkdirs() && !homeDir.isDirectory()) return null;
+            if (Files.exists(containerDir.toPath(), LinkOption.NOFOLLOW_LINKS)) {
+                String[] contents = Files.isDirectory(containerDir.toPath(), LinkOption.NOFOLLOW_LINKS)
+                        ? containerDir.list() : null;
+                if (contents == null || contents.length != 0) return null;
+            }
+            stagingDir = Files.createTempDirectory(homeDir.toPath(), ".create-container-").toFile();
 
             Container container = new Container(containerId);
-            container.setRootDir(containerDir);
+            container.setRootDir(stagingDir);
             container.loadData(data);
-            ContentsManager contentsManager = new ContentsManager(context);
-
-            boolean isMainWineVersion = !data.has("wineVersion") || WineInfo.isMainWineVersion(data.getString("wineVersion"));
-            if (!isMainWineVersion) container.setWineVersion(data.getString("wineVersion"));
-
-            if (!extractContainerPatternFile(container.getWineVersion(), contentsManager, containerDir, null)) {
-                Log.w("Container Manager", "Failed to extract container pattern, deleting container directory...");
-                FileUtils.delete(containerDir);
+            if (installWinePrefix && !extractContainerPatternFile(container.getWineVersion(), new ContentsManager(context), stagingDir, null)) {
+                Log.w("ContainerManager", "Failed to extract container pattern for " + containerId);
                 return null;
             }
 
             container.saveData();
+            if (container.getConfigFile().length() == 0 || !stagingDir.renameTo(containerDir)) return null;
+            container.setRootDir(containerDir);
+            stagingDir = null;
             containers.add(container);
             return container;
         }
-        catch (JSONException e) {
-            Log.e("ContainerManager", "Failed to create container: " + e);
+        catch (IOException | JSONException e) {
+            Log.e("ContainerManager", "Failed to create container " + containerId, e);
+        }
+        finally {
+            if (stagingDir != null) FileUtils.delete(stagingDir);
         }
         return null;
     }
@@ -290,19 +310,20 @@ public class ContainerManager {
      * @param destinationDir Directory where the prefix should be extracted
      * @return true if extraction succeeded, false otherwise
      */
-    private static boolean extractPrefixPack(String wineInstallPath, File destinationDir) {
+    private static boolean extractPrefixPack(
+            String wineInstallPath, File destinationDir, OnExtractFileListener listener) {
         if (wineInstallPath == null || wineInstallPath.isEmpty()) {
             return false;
         }
 
         File tzstFile = new File(wineInstallPath, "prefixPack.tzst");
         if (tzstFile.exists()) {
-            return TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, tzstFile, destinationDir);
+            return TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, tzstFile, destinationDir, listener);
         }
 
         File txzFile = new File(wineInstallPath, "prefixPack.txz");
         if (txzFile.exists()) {
-            return TarCompressorUtils.extract(TarCompressorUtils.Type.XZ, txzFile, destinationDir);
+            return TarCompressorUtils.extract(TarCompressorUtils.Type.XZ, txzFile, destinationDir, listener);
         }
 
         Log.d("ContainerManager", "No prefixPack found, returning false");
@@ -333,6 +354,9 @@ public class ContainerManager {
 
     private void extractCommonDlls(String srcName, String dstName, JSONObject commonDlls, File containerDir, OnExtractFileListener onExtractFileListener) throws JSONException {
         File srcDir = new File(ImageFs.find(context).getRootDir(), "/opt/wine/lib/wine/"+srcName);
+        // Settings can create a new prefix before Wine is installed. The first launch's
+        // system-file setup reapplies the template once the Wine files are present.
+        if (!srcDir.isDirectory()) return;
         JSONArray dlnames = commonDlls.getJSONArray(dstName);
 
         for (int i = 0; i < dlnames.length(); i++) {
@@ -352,6 +376,7 @@ public class ContainerManager {
         File srcDir = new File(wineInfo.path + "/lib/wine/" + srcName);
 
         File[] srcfiles = srcDir.listFiles(file -> file.isFile());
+        if (srcfiles == null) return;
 
         for (File file : srcfiles) {
             String dllName = file.getName();
@@ -404,91 +429,88 @@ public class ContainerManager {
     }
 
     /**
-     * Extracts DirectAudio driver files (winedirectaudio.drv and winedirectaudio.so)
-     * from the bundled directaudio-20260812.tzst archive into the Wine installation,
-     * then copies the .drv to the container's system32 directory.
-     *
-     * Files are placed at:
-     * - imageFs/opt/wine/lib/wine/aarch64-windows/winedirectaudio.drv (source)
-     * - imageFs/opt/wine/lib/wine/aarch64-unix/winedirectaudio.so (stays here)
-     * - containerDir/.wine/drive_c/windows/system32/winedirectaudio.drv (copied)
-     *
-     * @param imageFs The ImageFs instance to get the Wine installation path
-     * @param containerDir The container root directory
-     * @return true if extraction succeeded, false otherwise
+     * Installs the matched DirectAudio drivers for Wine 11 or the legacy driver for other builds.
      */
-    public boolean extractDirectAudio(ImageFs imageFs, File containerDir) {
+    public boolean extractDirectAudio(ImageFs imageFs, File containerDir, WineInfo wineInfo) {
+        boolean useWine11Drivers = wineInfo != null
+                && "arm64ec".equals(wineInfo.getArch())
+                && wineInfo.version != null
+                && ("11".equals(wineInfo.version) || wineInfo.version.startsWith("11."));
+        String archive = useWine11Drivers ? "directaudio-wine11-1.3.2.tzst" : "directaudio-20260812.tzst";
+        File tempDir = null;
         try {
-            // Extract the archive to a temporary directory
-            File tempDir = new File(context.getCacheDir(), "directaudio_temp");
-            if (tempDir.exists()) {
-                FileUtils.delete(tempDir);
-            }
-            if (!tempDir.mkdirs()) {
-                Log.e("ContainerManager", "Failed to create temp directory for directaudio");
+            tempDir = Files.createTempDirectory(context.getCacheDir().toPath(), "directaudio-").toFile();
+            if (!TarCompressorUtils.extract(
+                    TarCompressorUtils.Type.ZSTD, context.getAssets(),
+                    archive, tempDir, null)) {
+                Log.e("ContainerManager", "Failed to extract DirectAudio archive");
                 return false;
             }
 
-            boolean extracted = TarCompressorUtils.extract(
-                TarCompressorUtils.Type.ZSTD,
-                context.getAssets(),
-                "directaudio-20260812.tzst",
-                tempDir,
-                null
-            );
-
-            if (!extracted) {
-                Log.e("ContainerManager", "Failed to extract directaudio archive");
-                FileUtils.delete(tempDir);
+            File driver64 = new File(tempDir, useWine11Drivers
+                    ? "aarch64-windows/winedirectaudio.drv" : "winedirectaudio.drv");
+            File driver32 = new File(tempDir, "i386-windows/winedirectaudio.drv");
+            File unixLibrary = new File(tempDir, useWine11Drivers
+                    ? "aarch64-unix/winedirectaudio.so" : "winedirectaudio.so");
+            if (!driver64.isFile() || !unixLibrary.isFile() || (useWine11Drivers && !driver32.isFile())) {
+                Log.e("ContainerManager", "DirectAudio archive is incomplete");
                 return false;
             }
 
-            // Source files from extracted archive (files are in root of archive)
-            File drvSrc = new File(tempDir, "winedirectaudio.drv");
-            File soSrc = new File(tempDir, "winedirectaudio.so");
-
-            if (!drvSrc.exists() || !soSrc.exists()) {
-                Log.e("ContainerManager", "DirectAudio files not found in archive");
-                FileUtils.delete(tempDir);
-                return false;
-            }
-
-            // Destination directories
             File wineLibDir = new File(imageFs.getWinePath(), "lib/wine");
-            File aarch64WindowsDir = new File(wineLibDir, "aarch64-windows");
-            File aarch64UnixDir = new File(wineLibDir, "aarch64-unix");
-            File system32Dir = new File(containerDir, ".wine/drive_c/windows/system32");
-
-            aarch64WindowsDir.mkdirs();
-            aarch64UnixDir.mkdirs();
-            system32Dir.mkdirs();
-
-            // Copy files to their destinations
-            File drvWineDest = new File(aarch64WindowsDir, "winedirectaudio.drv");
-            File soWineDest = new File(aarch64UnixDir, "winedirectaudio.so");
-            File drvSystem32Dest = new File(system32Dir, "winedirectaudio.drv");
-
-            boolean success = FileUtils.copy(drvSrc, drvWineDest) &&
-                            FileUtils.copy(soSrc, soWineDest) &&
-                            FileUtils.copy(drvSrc, drvSystem32Dest);
-
-            // Clean up temp directory
-            FileUtils.delete(tempDir);
-
+            File windowsDir = new File(containerDir, ".wine/drive_c/windows");
+            boolean success = copyDirectAudioFile(unixLibrary, wineLibDir, "aarch64-unix") &&
+                    copyDirectAudioFile(driver64, wineLibDir, "aarch64-windows") &&
+                    copyDirectAudioFile(driver64, windowsDir, "system32") &&
+                    (!useWine11Drivers || (copyDirectAudioFile(driver32, wineLibDir, "i386-windows") &&
+                            copyDirectAudioFile(driver32, windowsDir, "syswow64")));
             if (success) {
-                Log.d("ContainerManager", "DirectAudio driver installed successfully");
+                Log.d("ContainerManager", "DirectAudio drivers installed successfully");
             } else {
                 Log.e("ContainerManager", "Failed to copy DirectAudio files");
             }
-
             return success;
         } catch (Exception e) {
-            Log.e("ContainerManager", "Error extracting DirectAudio: " + e.getMessage());
+            Log.e("ContainerManager", "Error extracting DirectAudio", e);
             return false;
+        } finally {
+            if (tempDir != null) FileUtils.delete(tempDir);
         }
     }
 
+    private static boolean copyDirectAudioFile(File source, File root, String directory) {
+        File destination = new File(root, directory);
+        return (destination.isDirectory() || destination.mkdirs()) &&
+                FileUtils.copy(source, new File(destination, source.getName()));
+    }
+
+    static OnExtractFileListener protectPrefixRegistry(File containerDir, OnExtractFileListener listener) {
+        Path prefix = new File(containerDir, ".wine").toPath().toAbsolutePath().normalize();
+        Set<String> backedUp = new HashSet<>();
+        return (destination, size) -> {
+            File target = listener != null ? listener.onExtractFile(destination, size) : destination;
+            if (target == null) return null;
+
+            Path path = target.toPath().toAbsolutePath().normalize();
+            if (!prefix.equals(path.getParent()) || !Files.isRegularFile(path)) return target;
+
+            String name = path.getFileName().toString();
+            // Games store per-user settings and saves in HKCU.
+            if (name.equals("user.reg")) return null;
+            if ((name.equals("system.reg") || name.equals("userdef.reg")) && !backedUp.contains(name)) {
+                try {
+                    Files.copy(path, prefix.resolve(name + ".prev"), StandardCopyOption.REPLACE_EXISTING);
+                    backedUp.add(name);
+                } catch (IOException e) {
+                    throw new UncheckedIOException("Cannot back up " + name + " before refreshing the prefix", e);
+                }
+            }
+            return target;
+        };
+    }
+
     public boolean extractContainerPatternFile(String wineVersion, ContentsManager contentsManager, File containerDir, OnExtractFileListener onExtractFileListener) {
+        OnExtractFileListener prefixListener = protectPrefixRegistry(containerDir, onExtractFileListener);
         WineInfo wineInfo = WineInfo.fromIdentifier(context, contentsManager, wineVersion);
         if (WineInfo.isMainWineVersion(wineVersion)) {
             Log.d("Extraction", "extracting container_pattern_gamenative.tzst");
@@ -501,10 +523,10 @@ public class ContainerManager {
             boolean result;
             if (componentFile == null) {
                 Log.d("Extraction", "Using bundled asset for container_pattern_gamenative");
-                result = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, context.getAssets(), "container_pattern_gamenative.tzst", containerDir, onExtractFileListener);
+                result = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, context.getAssets(), "container_pattern_gamenative.tzst", containerDir, prefixListener);
             } else {
                 Log.d("Extraction", "Using downloaded file for container_pattern_gamenative: " + componentFile.getAbsolutePath());
-                result = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, componentFile, containerDir, onExtractFileListener);
+                result = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, componentFile, containerDir, prefixListener);
             }
 
             if (result) {
@@ -544,17 +566,17 @@ public class ContainerManager {
 
                 if (componentFile == null) {
                     Log.d("Extraction", "Using bundled asset for " + containerPatternId);
-                    result = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, context, containerPattern, containerDir, onExtractFileListener);
+                    result = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, context, containerPattern, containerDir, prefixListener);
                 } else {
                     Log.d("Extraction", "Using downloaded file for " + containerPatternId + ": " + componentFile.getAbsolutePath());
-                    result = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, componentFile, containerDir, onExtractFileListener);
+                    result = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, componentFile, containerDir, prefixListener);
                 }
             } catch (Exception e) {
                 Log.w("Extraction", "Failed to download/extract " + containerPatternId + ": " + e.getMessage() + ", trying prefix pack");
             }
 
             if (!result) {
-                result = extractPrefixPack(wineInfo.path, containerDir);
+                result = extractPrefixPack(wineInfo.path, containerDir, prefixListener);
             }
 
             if (result) {

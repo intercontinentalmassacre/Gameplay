@@ -131,6 +131,13 @@ class DriverRepositoryCatalogTest {
     }
 
     @Test
+    fun `Mali defaults to its own driver sources`() {
+        assertEquals(DriverCategory.MALI, preferredCategoryFor(AdrenoTarget.MALI))
+        val sources = DriverRepositoryCatalog.repositoriesForTarget(AdrenoTarget.MALI)
+        assertEquals(setOf("bmdhacks-mali", "fristonerr-mali", "minegraph-bilibili-mali"), sources.map { it.id }.toSet())
+    }
+
+    @Test
     fun `preferredCategoryFor routes by Adreno generation`() {
         assertEquals(
             DriverCategory.TURNIP_BLEEDING_EDGE,

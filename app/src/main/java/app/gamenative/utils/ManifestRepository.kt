@@ -18,20 +18,21 @@ object ManifestRepository {
     private val json = Json { ignoreUnknownKeys = true }
 
     suspend fun loadManifest(context: Context, preferRemote: Boolean = false): ManifestData {
+        val bundled = readLocalManifest(context)
         if (BuildConfig.DEBUG && !preferRemote) {
-            readLocalManifest(context)?.let {
+            bundled?.let {
                 Timber.i("ManifestRepository: using local debug manifest")
                 return it
             }
         }
 
         val cachedJson = PrefManager.componentManifestJson
-        val cachedManifest = parseManifest(cachedJson) ?: ManifestData.empty()
+        val cachedManifest = parseManifest(cachedJson)
         val lastFetchedAt = PrefManager.componentManifestFetchedAt
         val isStale = System.currentTimeMillis() - lastFetchedAt >= ONE_DAY_MS
 
-        if (cachedJson.isNotEmpty() && !isStale && !preferRemote) {
-            return cachedManifest
+        if (cachedManifest != null && !isStale && !preferRemote) {
+            return selectManifest(bundled, cachedManifest)
         }
 
         val fetched = fetchManifestJson()
@@ -41,17 +42,22 @@ object ManifestRepository {
                 val now = System.currentTimeMillis()
                 PrefManager.componentManifestJson = fetched
                 PrefManager.componentManifestFetchedAt = now
-                return parsed
+                return selectManifest(bundled, parsed)
             }
         }
 
-        if (BuildConfig.DEBUG) {
-            readLocalManifest(context)?.let {
-                Timber.i("ManifestRepository: remote unavailable, using local debug manifest")
-                return it
-            }
-        }
-        return cachedManifest
+        return selectManifest(bundled, cachedManifest)
+    }
+
+    internal fun loadCachedOrBundledManifest(context: Context): ManifestData =
+        selectManifest(readLocalManifest(context), parseManifest(PrefManager.componentManifestJson))
+
+    // An APK can ship a newer dated v1 catalog before the public branch is updated.
+    internal fun selectManifest(bundled: ManifestData?, remote: ManifestData?): ManifestData = when {
+        remote == null -> bundled ?: ManifestData.empty()
+        bundled == null || remote.schemaVersion > bundled.schemaVersion -> remote
+        bundled.updatedAt.orEmpty() > remote.updatedAt.orEmpty() -> bundled
+        else -> remote
     }
 
     private suspend fun fetchManifestJson(): String? = withContext(Dispatchers.IO) {
@@ -66,7 +72,7 @@ object ManifestRepository {
     }
 }
 
-    private fun readLocalManifest(context: Context): ManifestData? = try {
+    internal fun readLocalManifest(context: Context): ManifestData? = try {
         context.assets.open("manifest.json").bufferedReader().use { parseManifest(it.readText()) }
     } catch (e: Exception) {
         null

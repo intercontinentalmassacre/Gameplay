@@ -1,5 +1,7 @@
 package com.winlator.xenvironment;
 
+import app.gamenative.display.GamescopeServerComponent;
+
 import android.content.Context;
 import android.media.AudioDeviceCallback;
 import android.media.AudioDeviceInfo;
@@ -9,6 +11,7 @@ import android.os.Looper;
 import android.util.Log;
 
 import com.winlator.core.FileUtils;
+import com.winlator.core.PausedGameMemory;
 import com.winlator.xenvironment.components.ALSAServerComponent;
 import com.winlator.xenvironment.components.BionicProgramLauncherComponent;
 import com.winlator.xenvironment.components.GlibcProgramLauncherComponent;
@@ -22,6 +25,7 @@ import java.util.Iterator;
 public class XEnvironment implements Iterable<EnvironmentComponent> {
     private final Context context;
     private final ImageFs imageFs;
+    public PausedGameMemory pausedMemory;
     private final ArrayList<EnvironmentComponent> components = new ArrayList<>();
 
     private boolean winetricksRunning = false;
@@ -79,7 +83,15 @@ public class XEnvironment implements Iterable<EnvironmentComponent> {
     }
 
     public void stopEnvironmentComponents() {
-        for (EnvironmentComponent environmentComponent : this) environmentComponent.stop();
+        if (pausedMemory != null) pausedMemory.cancel();
+        GamescopeServerComponent gamescope = getComponent(GamescopeServerComponent.class);
+        try {
+            for (EnvironmentComponent component : this) {
+                if (component != gamescope) component.stop();
+            }
+        } finally {
+            if (gamescope != null) gamescope.stop();
+        }
     }
 
     public void onPause() {
@@ -105,20 +117,26 @@ public class XEnvironment implements Iterable<EnvironmentComponent> {
     }
 
     public void pauseGameProcesses() {
+        GamescopeServerComponent gamescope = getComponent(GamescopeServerComponent.class);
+        if (gamescope != null) gamescope.pause();
         GuestProgramLauncherComponent guestProgramLauncherComponent = getComponent(GuestProgramLauncherComponent.class);
         if (guestProgramLauncherComponent != null) guestProgramLauncherComponent.suspendProcess();
         GlibcProgramLauncherComponent glibcProgramLauncherComponent = getComponent(GlibcProgramLauncherComponent.class);
         if (glibcProgramLauncherComponent != null) glibcProgramLauncherComponent.suspendProcess();
         BionicProgramLauncherComponent bionicProgramLauncherComponent = getComponent(BionicProgramLauncherComponent.class);
         if (bionicProgramLauncherComponent != null) bionicProgramLauncherComponent.suspendProcess();
+        if (pausedMemory != null) pausedMemory.schedule();
     }
 
     public void resumeGameProcesses() {
+        if (pausedMemory != null) pausedMemory.cancel();
         GuestProgramLauncherComponent guestProgramLauncherComponent = getComponent(GuestProgramLauncherComponent.class);
         if (guestProgramLauncherComponent != null) guestProgramLauncherComponent.resumeProcess();
         GlibcProgramLauncherComponent glibcProgramLauncherComponent = getComponent(GlibcProgramLauncherComponent.class);
         if (glibcProgramLauncherComponent != null) glibcProgramLauncherComponent.resumeProcess();
         BionicProgramLauncherComponent bionicProgramLauncherComponent = getComponent(BionicProgramLauncherComponent.class);
         if (bionicProgramLauncherComponent != null) bionicProgramLauncherComponent.resumeProcess();
+        GamescopeServerComponent gamescope = getComponent(GamescopeServerComponent.class);
+        if (gamescope != null) gamescope.resume();
     }
 }

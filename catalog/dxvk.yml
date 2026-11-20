@@ -2,6 +2,42 @@
   "type": "dxvk",
   "components": [
     {
+      "id": "3.1.1-0",
+      "name": "DXVK 3.1.1",
+      "url": "https://github.com/Arihany/WinlatorWCPHub/releases/download/DXVK/dxvk-3.1.1.wcp",
+      "variant": "bionic"
+    },
+    {
+      "id": "3.0.2-0",
+      "name": "DXVK 3.0.2",
+      "url": "https://github.com/The412Banner/Nightlies/releases/download/Dxvk/dxvk-3.0.2.wcp",
+      "variant": "bionic"
+    },
+    {
+      "id": "3.0.1-0",
+      "name": "DXVK 3.0.1",
+      "url": "https://github.com/Arihany/WinlatorWCPHub/releases/download/DXVK/dxvk-3.0.1.wcp",
+      "variant": "bionic"
+    },
+    {
+      "id": "3.0-0",
+      "name": "DXVK 3.0",
+      "url": "https://github.com/The412Banner/Nightlies/releases/download/Dxvk/dxvk-3.0.wcp",
+      "variant": "bionic"
+    },
+    {
+      "id": "3.0-1-gplasync-0",
+      "name": "DXVK-GPLASYNC 3.0-1",
+      "url": "https://github.com/The412Banner/Nightlies/releases/download/Dxvk-gplasync/dxvk-gplasync-3.0-1.wcp",
+      "variant": "bionic"
+    },
+    {
+      "id": "3.0.2-1-binsem-gplasync-0",
+      "name": "DXVK-BinSem-GPLAsync 3.0.2-1",
+      "url": "https://github.com/The412Banner/Nightlies/releases/download/Dxvk-binsem-gplasync/dxvk-binsem-gplasync-3.0.2-1.wcp",
+      "variant": "bionic"
+    },
+    {
       "id": "2.7.1",
       "name": "DXVK 2.7.1",
       "url": "https://downloads.gamenative.app/dxwrapper/dxvk-2.7.1.tzst",
@@ -46,79 +82,79 @@
     {
       "id": "2.7.1-1-gplasync-0",
       "name": "DXVK-GPLASYNC 2.7.1-1",
-      "url": "https://github.com/Arihany/WinlatorWCPHub/releases/download/DXVK-GPLASYNC/dxvk-gplasync-2.7.1-1.wcp",
+      "url": "https://github.com/The412Banner/Nightlies/releases/download/Dxvk-gplasync/dxvk-gplasync-2.7.1-1.wcp",
       "variant": "bionic"
     },
     {
       "id": "2.6.2-1-gplasync-0",
       "name": "DXVK-GPLASYNC 2.6.2-1",
-      "url": "https://github.com/Arihany/WinlatorWCPHub/releases/download/DXVK-GPLASYNC/dxvk-gplasync-2.6.2-1.wcp",
+      "url": "https://github.com/The412Banner/Nightlies/releases/download/Dxvk-gplasync/dxvk-gplasync-2.6.2-1.wcp",
       "variant": "bionic"
     },
     {
       "id": "2.5.3-1-gplasync-0",
       "name": "DXVK-GPLASYNC 2.5.3-1",
-      "url": "https://github.com/Arihany/WinlatorWCPHub/releases/download/DXVK-GPLASYNC/dxvk-gplasync-2.5.3-1.wcp",
+      "url": "https://github.com/The412Banner/Nightlies/releases/download/Dxvk-gplasync/dxvk-gplasync-2.5.3-1.wcp",
       "variant": "bionic"
     },
     {
       "id": "2.4.1-1-gplasync-0",
       "name": "DXVK-GPLASYNC 2.4.1-1",
-      "url": "https://github.com/Arihany/WinlatorWCPHub/releases/download/DXVK-GPLASYNC/dxvk-gplasync-2.4.1-1.wcp",
+      "url": "https://github.com/The412Banner/Nightlies/releases/download/Dxvk-gplasync/dxvk-gplasync-2.4.1-1.wcp",
       "variant": "bionic"
     },
     {
       "id": "2.4.1-1-gplasync-pre-reg-0",
       "name": "DXVK-GPLASYNC 2.4.1-1 pre-reg",
-      "url": "https://github.com/Arihany/WinlatorWCPHub/releases/download/DXVK-GPLASYNC/dxvk-gplasync-2.4.1-1-pre-reg.wcp",
+      "url": "https://github.com/The412Banner/Nightlies/releases/download/Dxvk-gplasync/dxvk-gplasync-2.4.1-1-pre-reg.wcp",
       "variant": "bionic"
     },
     {
       "id": "2.3.1-1-gplasync-0",
       "name": "DXVK-GPLASYNC 2.3.1-1",
-      "url": "https://github.com/Arihany/WinlatorWCPHub/releases/download/DXVK-GPLASYNC/dxvk-gplasync-2.3.1-1.wcp",
+      "url": "https://github.com/The412Banner/Nightlies/releases/download/Dxvk-gplasync/dxvk-gplasync-2.3.1-1.wcp",
       "variant": "bionic"
     },
     {
       "id": "2.7.1-0",
       "name": "DXVK 2.7.1",
-      "url": "https://github.com/Arihany/WinlatorWCPHub/releases/download/DXVK/dxvk-2.7.1.wcp",
+      "url": "https://github.com/The412Banner/Nightlies/releases/download/Dxvk/dxvk-2.7.1.wcp",
       "variant": "bionic"
     },
     {
       "id": "2.6.2-0",
       "name": "DXVK 2.6.2",
-      "url": "https://github.com/Arihany/WinlatorWCPHub/releases/download/DXVK/dxvk-2.6.2.wcp",
+      "url": "https://github.com/The412Banner/Nightlies/releases/download/Dxvk/dxvk-2.6.2.wcp",
       "variant": "bionic"
     },
     {
       "id": "2.5.3-0",
       "name": "DXVK 2.5.3",
-      "url": "https://github.com/Arihany/WinlatorWCPHub/releases/download/DXVK/dxvk-2.5.3.wcp",
+      "url": "https://github.com/The412Banner/Nightlies/releases/download/Dxvk/dxvk-2.5.3.wcp",
       "variant": "bionic"
     },
     {
       "id": "2.4.1-0",
       "name": "DXVK 2.4.1",
-      "url": "https://github.com/Arihany/WinlatorWCPHub/releases/download/DXVK/dxvk-2.4.1.wcp",
+      "url": "https://github.com/The412Banner/Nightlies/releases/download/Dxvk/dxvk-2.4.1.wcp",
       "variant": "bionic"
     },
     {
       "id": "2.4.1-pre-reg-0",
       "name": "DXVK 2.4.1 pre-reg",
-      "url": "https://github.com/Arihany/WinlatorWCPHub/releases/download/DXVK/dxvk-2.4.1-pre-reg.wcp",
+      "url": "https://github.com/The412Banner/Nightlies/releases/download/Dxvk/dxvk-2.4.1-pre-reg.wcp",
       "variant": "bionic"
     },
     {
       "id": "2.3.1-0",
       "name": "DXVK 2.3.1",
-      "url": "https://github.com/Arihany/WinlatorWCPHub/releases/download/DXVK/dxvk-2.3.1.wcp",
+      "url": "https://github.com/The412Banner/Nightlies/releases/download/Dxvk/dxvk-2.3.1.wcp",
       "variant": "bionic"
     },
     {
       "id": "1.10.3-0",
       "name": "DXVK 1.10.3",
-      "url": "https://github.com/Arihany/WinlatorWCPHub/releases/download/DXVK/dxvk-1.10.3.wcp",
+      "url": "https://github.com/The412Banner/Nightlies/releases/download/Dxvk/dxvk-1.10.3.wcp",
       "variant": "bionic"
     }
   ]

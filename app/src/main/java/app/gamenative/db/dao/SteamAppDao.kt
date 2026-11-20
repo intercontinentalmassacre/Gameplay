@@ -51,6 +51,16 @@ private const val OWNED_APPS_WHERE =
 
 private const val PAGE_SIZE = 50
 
+data class OwnedSteamAppRevision(
+    val id: Int,
+    val packageId: Int,
+    val owners: String,
+    val name: String,
+    val lastChangeNumber: Int,
+    val receivedPics: Boolean,
+    val ufsParseVersion: Int,
+)
+
 @Dao
 interface SteamAppDao {
 
@@ -63,14 +73,17 @@ interface SteamAppDao {
     @Update
     suspend fun update(app: SteamApp)
 
-    // observe change count — triggers re-load without pulling all blobs into one CursorWindow
+    // Track membership and revision without pulling the PICS blobs on every invalidation.
     @Query(
-        "SELECT COUNT(*) FROM steam_app AS app " + OWNED_APPS_WHERE,
+        "SELECT app.id, app.package_id AS packageId, app.owner_account_id AS owners, " +
+            "app.name, app.last_change_number AS lastChangeNumber, app.received_pics AS receivedPics, " +
+            "app.ufs_parse_version AS ufsParseVersion FROM steam_app AS app " + OWNED_APPS_WHERE +
+            "ORDER BY app.id",
     )
-    fun _observeOwnedAppCount(
+    fun _observeOwnedAppRevisions(
         invalidPkgId: Int = INVALID_PKG_ID,
         includeExpired: Int = 0,
-    ): Flow<Int>
+    ): Flow<List<OwnedSteamAppRevision>>
 
     // paged data load — each page fits comfortably in a CursorWindow
     @Query(
@@ -110,8 +123,7 @@ interface SteamAppDao {
         }
     }
 
-    // emits full list on count changes, loaded in pages to avoid CursorWindow overflow.
-    // property-only updates (name, icon) won't re-emit until the next count change.
+    // Load full app rows only when membership or a PICS revision changes.
     // Pass includeExpired = true to surface apps whose license is flagged Expired or
     // is missing entirely — used by the library "Expired" filter for diagnostics.
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -120,8 +132,8 @@ interface SteamAppDao {
         includeExpired: Boolean = false,
     ): Flow<List<SteamApp>> {
         val includeExpiredFlag = if (includeExpired) 1 else 0
-        return _observeOwnedAppCount(invalidPkgId, includeExpiredFlag)
-            .distinctUntilChanged() // skip reload when count unchanged
+        return _observeOwnedAppRevisions(invalidPkgId, includeExpiredFlag)
+            .distinctUntilChanged()
             .flatMapLatest { // cancel stale reloads during rapid PICS inserts
                 flow { emit(_getAllOwnedAppsPaged(invalidPkgId, includeExpiredFlag)) }
             }
@@ -138,11 +150,13 @@ interface SteamAppDao {
         invalidPkgId: Int = INVALID_PKG_ID,
     ): List<SteamApp>
 
-    @Query("SELECT * FROM steam_app WHERE received_pics = 0 AND package_id != :invalidPkgId AND owner_account_id = :ownerId")
-    fun getAllOwnedAppsWithoutPICS(
-        ownerId: Int,
+    @Query(
+        "SELECT app.id FROM steam_app AS app INNER JOIN steam_license AS license ON app.package_id = license.packageId " +
+            "WHERE app.received_pics = 0 AND app.package_id != :invalidPkgId",
+    )
+    suspend fun getLicensedAppIdsWithoutPics(
         invalidPkgId: Int = INVALID_PKG_ID,
-    ): List<SteamApp>
+    ): List<Int>
 
     @Query("SELECT * FROM steam_app WHERE id = :appId")
     suspend fun findApp(appId: Int): SteamApp?
@@ -176,8 +190,8 @@ interface SteamAppDao {
     @Query("DELETE from steam_app")
     suspend fun deleteAll()
 
-    @Query("SELECT id FROM steam_app")
-    suspend fun getAllAppIds(): List<Int>
+    @Query("SELECT id FROM steam_app WHERE received_pics = 1")
+    suspend fun getAppIdsWithPics(): List<Int>
 
     @Query("UPDATE steam_app SET workshop_mods = :workshopMods, enabled_workshop_item_ids = :enabledIds WHERE id = :appId")
     suspend fun updateWorkshopState(appId: Int, workshopMods: Boolean, enabledIds: String)
@@ -216,13 +230,28 @@ interface SteamAppDao {
     }
 
     @Query(
-        "SELECT id, package_id, last_change_number, ufs_parse_version " +
+        "SELECT id, package_id, last_change_number, received_pics, ufs_parse_version " +
             "FROM steam_app WHERE id IN (:appIds)",
     )
     suspend fun _findAppPicsMeta(appIds: List<Int>): List<SteamAppPicsMeta>
 
-    @Query("UPDATE steam_app SET package_id = :packageId WHERE id IN (:appIds)")
+    @Query(
+        "UPDATE steam_app SET package_id = :packageId, " +
+            "owner_account_id = COALESCE((SELECT owner_account_id FROM steam_license WHERE packageId = :packageId), '[]'), " +
+            "license_flags = COALESCE((SELECT license_flags FROM steam_license WHERE packageId = :packageId), 0) " +
+            "WHERE id IN (:appIds)",
+    )
     suspend fun _updatePackageIdForApps(packageId: Int, appIds: List<Int>)
+
+    // Repair old cached rows as well as rows whose package changed owner or flags at login.
+    @Query(
+        "UPDATE steam_app SET " +
+            "owner_account_id = (SELECT owner_account_id FROM steam_license WHERE packageId = steam_app.package_id), " +
+            "license_flags = (SELECT license_flags FROM steam_license WHERE packageId = steam_app.package_id) " +
+            "WHERE EXISTS (SELECT 1 FROM steam_license AS license WHERE license.packageId = steam_app.package_id " +
+            "AND (license.owner_account_id != steam_app.owner_account_id OR license.license_flags != steam_app.license_flags))",
+    )
+    suspend fun syncCachedLicenseDetails()
 
     // Reassigns package ownership for a set of apps in one statement per chunk.
     // The query binds :packageId (1 var) plus each element of :appIds, so the chunk

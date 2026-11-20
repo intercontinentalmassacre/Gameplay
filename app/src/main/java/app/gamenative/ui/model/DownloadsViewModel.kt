@@ -757,6 +757,8 @@ class DownloadsViewModel @Inject constructor(
         _state.update {
             it.copy(
                 cancelConfirmation = CancelConfirmation(
+                    keepsInstalledGame = item.gameSource == GameSource.STEAM &&
+                        item.appId.toIntOrNull()?.let { SteamService.isAppInstalled(it) } == true,
                     appId = item.appId,
                     gameSource = item.gameSource,
                     gameName = item.gameName,
@@ -785,8 +787,7 @@ class DownloadsViewModel @Inject constructor(
             when (gameSource) {
                 GameSource.STEAM -> {
                     val id = appId.toIntOrNull() ?: return@launch
-                    SteamService.getAppDownloadInfo(id)?.cancel()
-                    SteamService.deleteApp(id)
+                    SteamService.cancelAppDownload(id)
                     PluviaApp.events.emit(AndroidEvent.LibraryInstallStatusChanged(id, GameSource.STEAM))
                     scheduleRefreshDownloads()
                 }

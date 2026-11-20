@@ -617,8 +617,8 @@ private fun LibraryScreenContent(
             }
             onAddCustomGameFolder(path)
         },
-        onFailure = { message ->
-            SnackbarManager.show(message)
+        onFailure = {
+            SnackbarManager.show(context.getString(R.string.custom_game_folder_add_failed))
         },
     )
 
@@ -1540,7 +1540,8 @@ private fun LibraryScreenContent(
         }
 
         // Bottom action bar
-        if (!hasExternalDisplay && selectedAppId == null && !state.isOptionsPanelOpen && !isSystemMenuOpen && !isQuickActionsOpen) {
+        val showLibraryFooter = !hasExternalDisplay && selectedAppId == null && !state.isOptionsPanelOpen && !isSystemMenuOpen && !isQuickActionsOpen
+        if (showLibraryFooter) {
             val libraryActions = if (state.isSearching) {
                 listOf(
                     LibraryActions.select,
@@ -1592,11 +1593,13 @@ private fun LibraryScreenContent(
                 )
             }
 
-            GamepadActionBar(
-                actions = libraryActions,
-                modifier = Modifier.align(Alignment.BottomCenter),
-                visible = true,
-            )
+            Row(
+                modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().navigationBarsPadding(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                ConsoleStatusIndicators(modifier = Modifier.padding(start = 12.dp))
+                GamepadActionBar(actions = libraryActions, modifier = Modifier.weight(1f), visible = true)
+            }
         }
 
         // Options panel (SELECT) - renders on top of everything
@@ -1856,7 +1859,7 @@ private fun LibraryScreenContent(
         // passive system chrome in its conventional top-right corner there; the
         // controller hints remain on the lower display. Single-display library
         // keeps status beside its bottom controller chrome.
-        ConsoleStatusIndicators(
+        if (!showLibraryFooter) ConsoleStatusIndicators(
             modifier = if (hasExternalDisplay) {
                 Modifier
                     .align(Alignment.TopEnd)

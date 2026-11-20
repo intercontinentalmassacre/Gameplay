@@ -645,7 +645,11 @@ object CustomGameScanner {
 
         if (allowSteamAssociation && SteamService.instance != null && PrefManager.importCustomGameAsSteamGame) {
             val steamApps = SteamService.findSteamAppWithInstallDir(dirName = folder.name)
-            if (steamApps?.size == 1) {
+            // An imported AppImage has its own Linux launch target even if its title matches Steam.
+            if (steamApps?.size == 1 && !folder.listFiles().orEmpty().any {
+                    it.extension.equals("AppImage", ignoreCase = true) && it.isFile
+                }
+            ) {
                 val steamApp = steamApps[0]
                 if (SteamService.isAppLicensed(steamApp.packageId)) {
                     if (SteamService.getInstalledApp(steamApp.id) == null) {

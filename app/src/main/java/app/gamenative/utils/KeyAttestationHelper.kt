@@ -6,8 +6,9 @@ import android.security.keystore.KeyProperties
 import java.security.ProviderException
 import android.util.Base64
 import app.gamenative.PrefManager
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.runInterruptible
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
@@ -31,14 +32,13 @@ object KeyAttestationHelper {
         .readTimeout(10, TimeUnit.SECONDS)
         .build()
 
-    suspend fun fetchNonce(baseUrl: String): String = withContext(Dispatchers.IO) {
+    suspend fun fetchNonce(baseUrl: String): String {
         val request = Request.Builder()
             .url("$baseUrl/api/attestation/nonce")
             .get()
             .build()
 
-        val response = httpClient.newCall(request).execute()
-        response.use {
+        return httpClient.newCall(request).readCancellable {
             check(it.isSuccessful) { "Nonce request failed: HTTP ${it.code}" }
             val body = it.body?.string() ?: error("Empty nonce response body")
             JSONObject(body).getString("nonce")
@@ -49,13 +49,14 @@ object KeyAttestationHelper {
         val alias = "key_attestation_${System.nanoTime()}"
         val challengeBytes = nonce.toByteArray(Charsets.UTF_8)
 
-        generateKeyPair(alias, challengeBytes, useStrongBox = true)
-
         val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-        val chain = keyStore.getCertificateChain(alias)
-        val result = chain.map { Base64.encodeToString(it.encoded, Base64.NO_WRAP) }
-        keyStore.deleteEntry(alias)
-        return result
+        return try {
+            generateKeyPair(alias, challengeBytes, useStrongBox = true)
+            keyStore.getCertificateChain(alias).map { Base64.encodeToString(it.encoded, Base64.NO_WRAP) }
+        } finally {
+            runCatching { keyStore.deleteEntry(alias) }
+                .onFailure { Timber.tag(TAG).w(it, "Could not delete attestation key") }
+        }
     }
 
     private fun generateKeyPair(alias: String, challenge: ByteArray, useStrongBox: Boolean) {
@@ -93,9 +94,11 @@ object KeyAttestationHelper {
     suspend fun getAttestationFields(baseUrl: String): Pair<String, List<String>>? {
         return try {
             val nonce = fetchNonce(baseUrl)
-            val chain = generateAttestedKey(nonce)
+            val chain = runInterruptible(Dispatchers.IO) { generateAttestedKey(nonce) }
             PrefManager.keyAttestationAvailable = true
             Pair(nonce, chain)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Timber.tag(TAG).e(e, "Key attestation failed, continuing without it")
             PrefManager.keyAttestationAvailable = false

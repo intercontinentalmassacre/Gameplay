@@ -94,6 +94,7 @@
 
     <string name="downloads_empty">Nicio descărcare activă</string>
     <string name="downloads_overview_subtitle">Urmărește descărcările active, întrerupte și reluabile</string>
+	<string name="library_cancel_download_keep_game_message">Opriți descărcarea pentru %1$s? Jocul instalat este păstrat.</string>
     <string name="downloads_cancel_confirm">Anulezi descărcarea și ștergi fișierele pentru %1$s?</string>
     <string name="downloads_cancel_all">Anulează tot</string>
     <string name="downloads_clear_finished">Șterge finalizatele</string>
@@ -179,6 +180,7 @@
     <string name="custom_games_folders_found">%d foldere găsite</string>
     <string name="custom_games_scan_description">Folderele din aceste căi sunt scanate pentru fișiere .exe și listate ca jocuri personalizate. Acest lucru poate încetini pornirea aplicației.</string>
     <string name="custom_game_folder_picker_error">Nu s-a putut rezolva calea folderului</string>
+    <string name="custom_game_folder_add_failed">Acest folder nu a putut fi adăugat. În selectorul de foldere, deschide stocarea dispozitivului și selectează folderul de acolo.</string>
     <string name="container_config_drive_letter_missing">Lipsește litera unității</string>
     <string name="container_config_invalid_drive_path">Calea unității este invalidă</string>
     <string name="custom_game_settings">Setări joc personalizat</string>
@@ -587,7 +589,7 @@
     <string name="playtime">Timp de joc</string>
     <string name="add_custom_game_content_desc">Adaugă joc personalizat</string>
     <string name="add_custom_game_dialog_title">Adaugă joc personalizat</string>
-    <string name="add_custom_game_dialog_message">Selectează folderul care conține fișierele jocului pe care vrei să-l adaugi ca joc personalizat.</string>
+    <string name="add_custom_game_dialog_message">Pentru jocuri Linux, alege un fișier AppImage de tip 2 pentru ARM64.</string>
     <string name="custom_game_importing">Se importă jocul…</string>
     <string name="custom_game_import_success">Joc importat</string>
     <string name="custom_game_import_failed">Importul a eșuat</string>
@@ -2243,7 +2245,7 @@
     <string name="achievements_unlocked_by_percent">Deblocată de %1$.1f%% dintre jucători</string>
     <string name="action_add_to_home">Adaugă pe ecranul de pornire</string>
     <string name="add_custom_game_choose_folder">Alege folderul existent</string>
-    <string name="add_custom_game_import_exe">Importă un EXE portabil</string>
+    <string name="add_custom_game_import_exe">Importă EXE sau AppImage</string>
     <string name="add_custom_game_install">Instalează un joc</string>
     <string name="base_app_images_fetching">Se preiau imaginile...</string>
     <string name="compat_preset_applied">Aplicat</string>
@@ -2576,4 +2578,6 @@
     <string name="downloads_containers_legacy_unavailable">Fișierele containerului vin incluse în acest build; nu este necesară nicio descărcare.</string>
     <string name="downloads_containers_bundled_runtime_description">Runtime inclus disponibil pentru configurația containerului. Nu este necesară o descărcare separată.</string>
     <string name="downloads_containers_empty">Niciun fișier de container în acest build</string>
+	<string name="gnaudio_low_latency">Mod latență redusă GNAudio</string>
+    <string name="suspend_behavior_reclaim">Eliberează memoria și reia automat</string>
 </resources>

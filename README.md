@@ -43,6 +43,7 @@ Release status and support scope are tracked through GitHub Releases and Issues.
 ### Games and installation
 
 - Import local Windows executables into the library.
+- Import an ARM64 Linux Type 2 AppImage with **Add game → Import EXE or AppImage**. Its library entry launches in a native Linux environment. The first launch prepares the shared Linux runtime.
 - Select an installer, create its container, run the installation, and continue into the normal Gameplay launch flow.
 - Reopen installed games without repeating the installer process.
 - Reuse cached runtime payloads across containers.
@@ -93,6 +94,8 @@ Windows software runs through an isolated container that combines a Wine/Proton-
 - A quick menu for keyboard, on-screen controls, control editor, physical controller, radial menu, performance HUD, and exiting the game.
 - Fully customizable radial menus and per-game input control profiles.
 - On-screen touch controls plus Xbox-compatible and DualSense/PS5-compatible physical controllers.
+- Left and right Nintendo Joy-Con controllers share one player slot. Disconnecting one half leaves the other half assigned to that player.
+- On devices with kernel support, a container can reclaim memory from paused Windows game processes and resume automatically. The amount released depends on the game.
 - Performance HUD with live FPS; session averages (average FPS, session length) are written back to the container after exit.
 - Steam achievements, cloud sync, and per-game container settings available without leaving the running session.
 - A soft keyboard that follows the focus target and routes input to the external display when one is active.
