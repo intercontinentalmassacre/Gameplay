@@ -57,6 +57,9 @@ jobs:
         run: |
           apk="$(find app/build/outputs/apk -type f -name '*.apk' -print -quit)"
           test -n "$apk"
+          for profile in Mali-DX9-System.json Neo-Pocket-System-DX9.json Pocket-System-DX9.wcp; do
+            unzip -p "$apk" "assets/$profile" | cmp - "catalog/profiles/$profile"
+          done
           mkdir -p release-assets
           cp "$apk" release-assets/Gameplay-modern-release.apk
 
@@ -95,9 +98,13 @@ jobs:
           if grep -q '[^[:space:]]' release-assets/notes.md; then
             notes=(--notes-file release-assets/notes.md)
           fi
-          gh release create "$RELEASE_TAG" \
-            release-assets/Gameplay-modern-release.apk \
-            release-assets/Gameplay-modern-release.json \
-            release-assets/SHA256SUMS.txt \
-            --title "Gameplay ${{ steps.assets.outputs.version_name }}" \
-            "${notes[@]}"
+          assets=(release-assets/Gameplay-modern-release.apk release-assets/Gameplay-modern-release.json release-assets/SHA256SUMS.txt)
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            test "$(git rev-parse HEAD)" = "$(git rev-list -n 1 "$RELEASE_TAG")"
+            gh release upload "$RELEASE_TAG" "${assets[@]}" --clobber
+            if [[ "${notes[0]}" == "--notes-file" ]]; then
+              gh release edit "$RELEASE_TAG" "${notes[@]}"
+            fi
+          else
+            gh release create "$RELEASE_TAG" "${assets[@]}" --title "Gameplay ${{ steps.assets.outputs.version_name }}" "${notes[@]}"
+          fi

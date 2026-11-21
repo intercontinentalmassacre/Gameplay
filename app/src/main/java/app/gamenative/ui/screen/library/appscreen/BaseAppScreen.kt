@@ -1586,50 +1586,64 @@ abstract class BaseAppScreen {
                 }
         }
 
-        val importConfigLauncher =
-            rememberLauncherForActivityResult(
-                contract = ActivityResultContracts.OpenDocument(),
-            ) { uri ->
-                if (uri == null) {
-                    clearImportConfigRequest(appId)
-                    return@rememberLauncherForActivityResult
-                }
-
-                uiScope.launch {
-                    try {
-                        ContainerConfigTransfer.importConfig(
-                            context = context,
-                            appId = appId,
-                            uri = uri,
-                            onInstallStateChange = { visible, progress, label ->
-                                uiScope.launch(Dispatchers.Main.immediate) {
-                                    if (visible) {
-                                        showKnownConfigInstallState(
-                                            libraryItem.gameId,
-                                            KnownConfigInstallState(
-                                                visible = true,
-                                                progress = progress,
-                                                label = label,
-                                            ),
-                                        )
-                                    } else {
-                                        hideKnownConfigInstallState(libraryItem.gameId)
-                                    }
+        fun applyGameConfig(uri: android.net.Uri? = null, profile: String? = null) {
+            clearImportConfigRequest(appId)
+            uiScope.launch {
+                try {
+                    ContainerConfigTransfer.importConfig(
+                        context = context,
+                        appId = appId,
+                        uri = uri,
+                        bundledProfile = profile,
+                        onInstallStateChange = { visible, progress, label ->
+                            uiScope.launch(Dispatchers.Main.immediate) {
+                                if (visible) {
+                                    showKnownConfigInstallState(
+                                        libraryItem.gameId,
+                                        KnownConfigInstallState(
+                                            visible = true,
+                                            progress = progress,
+                                            label = label,
+                                        ),
+                                    )
+                                } else {
+                                    hideKnownConfigInstallState(libraryItem.gameId)
                                 }
-                            },
-                        )
-                    } finally {
-                        clearImportConfigRequest(appId)
-                    }
+                            }
+                        },
+                    )
+                } finally {
+                    clearImportConfigRequest(appId)
                 }
             }
+        }
 
-        LaunchedEffect(importConfigRequested) {
-            if (importConfigRequested) {
-                importConfigLauncher.launch(
-                    arrayOf("application/json", "text/json", "text/plain"),
-                )
-            }
+        val importConfigLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            if (uri != null) applyGameConfig(uri = uri)
+        }
+
+        if (importConfigRequested) {
+            AlertDialog(
+                onDismissRequest = { clearImportConfigRequest(appId) },
+                title = { Text(stringResource(R.string.game_profiles)) },
+                text = {
+                    Column {
+                        TextButton(onClick = { applyGameConfig(profile = "Mali-DX9-System.json") }) {
+                            Text("Mali DX9 · System")
+                        }
+                        TextButton(onClick = { applyGameConfig(profile = "Neo-Pocket-System-DX9.json") }) {
+                            Text("Neo Pocket DX9 · 3 GB")
+                        }
+                        TextButton(onClick = {
+                            clearImportConfigRequest(appId)
+                            importConfigLauncher.launch(arrayOf("application/json", "text/json", "text/plain"))
+                        }) { Text(stringResource(R.string.import_config)) }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { clearImportConfigRequest(appId) }) { Text(stringResource(R.string.cancel)) }
+                },
+            )
         }
 
         var exportSavesRequested by remember(appId) {

@@ -220,6 +220,22 @@ object ManifestInstaller {
         }
     }
 
+    suspend fun ensurePocketDxvk(context: Context) = withContext(Dispatchers.IO) {
+        val manager = ContentsManager(context)
+        if (manager.getProfileByEntryName("dxvk-1.11.1-sarek-pocket-d3d9-1") != null) return@withContext
+        val file = File.createTempFile("pocket-dxvk-", ".wcp", context.cacheDir)
+        try {
+            context.assets.open("Pocket-System-DX9.wcp").use { input ->
+                file.outputStream().use { output -> input.copyTo(output) }
+            }
+            val (profile, reason, error) = extractContent(manager, Uri.fromFile(file))
+            checkNotNull(profile) { error?.message ?: "Pocket DXVK: $reason" }
+            check(finishInstall(manager, profile)) { "Pocket DXVK installation failed" }
+        } finally {
+            file.delete()
+        }
+    }
+
     private suspend fun extractContent(
         mgr: ContentsManager,
         uri: Uri,

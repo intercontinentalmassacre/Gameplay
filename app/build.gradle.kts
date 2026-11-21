@@ -55,7 +55,7 @@ android {
         buildConfigField("boolean", "XR_BUILD", "false")
         buildConfigField("boolean", "MODERN_XR", "false")
 
-        versionCode = 24
+        versionCode = 25
         versionName = "0.4"
 
         buildConfigField("boolean", "GOLD", "false")
@@ -236,6 +236,7 @@ android {
     }
     // Configure Assets to be used in different variants
     sourceSets {
+        getByName("main").assets.srcDir(rootProject.file("catalog/profiles"))
         getByName("legacy") {
             java.srcDir("src/nonXr/java")
             assets {

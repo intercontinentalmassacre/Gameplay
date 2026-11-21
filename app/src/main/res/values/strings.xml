@@ -1669,6 +1669,7 @@
     <string name="community_config_wrapper">DirectX wrapper</string>
     <string name="community_config_box64_preset">Box64 preset</string>
     <string name="community_config_driver">Graphics driver</string>
+    <string name="game_profiles">Game profiles</string>
     <string name="import_config">Import config</string>
     <string name="export_config">Export config</string>
     <string name="steam_save_export_success">Saves exported</string>
