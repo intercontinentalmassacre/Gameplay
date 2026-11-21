@@ -15,7 +15,7 @@ enum class AppOptionMenuType(@StringRes val title: Int) {
     ResetDrm(R.string.option_reset_drm),
     UseKnownConfig(R.string.option_use_known_config),
     BrowseCommunityConfigs(R.string.option_browse_community_configs),
-    ImportConfig(R.string.import_config),
+    ImportConfig(R.string.game_profiles),
     ExportConfig(R.string.export_config),
     ImportSaves(R.string.option_import_saves),
     ExportSaves(R.string.option_export_saves),

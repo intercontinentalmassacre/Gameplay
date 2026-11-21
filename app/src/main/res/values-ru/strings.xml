@@ -2456,6 +2456,7 @@ Ubuntu RootFs - releases.ubuntu.com/focal</string>
     <string name="gog_settings_logout_subtitle">Выйдите из своего аккаунта GOG</string>
     <string name="hide_controls_with_controller">Скрывать экранные элементы при подключённом контроллере</string>
     <string name="hide_controls_with_controller_description">Автоматически скрывать экранные элементы управления при подключении физического контроллера</string>
+    <string name="game_profiles">Профили игры</string>
     <string name="import_config">Импортировать конфигурацию</string>
     <string name="installer_browse_all_executables">Просмотреть все исполняемые файлы</string>
     <string name="installer_run_again">Запустить установщик снова</string>
