@@ -9,6 +9,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
 import org.junit.Assume.assumeTrue
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -20,6 +21,15 @@ import org.xmlpull.v1.XmlPullParser
 class FileProviderPathsTest {
     private val context = ApplicationProvider.getApplicationContext<Context>()
     private val authority = "${context.packageName}.fileprovider"
+
+    @Before
+    fun attachProvider() {
+        // Robolectric creates fresh directories per test; FileProvider caches roots by authority.
+        val provider = requireNotNull(
+            context.packageManager.resolveContentProvider(authority, PackageManager.GET_META_DATA),
+        )
+        FileProvider().attachInfo(context, provider)
+    }
 
     @Test
     fun manifestConfiguresRestrictedSharingRoots() {

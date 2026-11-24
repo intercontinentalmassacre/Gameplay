@@ -101,7 +101,7 @@ class ContainerConfigRuntimeTest {
 
     @Test
     fun `runtime changes require restart`() {
-        val old = baseConfig()
+        val old = baseConfig().copy(cpuList = "0")
 
         val restartCases = listOf(
             old.copy(wineVersion = "proton-9.0") to "wineVersion",

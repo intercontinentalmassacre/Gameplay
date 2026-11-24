@@ -4,7 +4,7 @@ on:
   push:
     branches: [ "working-builds" ]
   pull_request:
-    branches: [ "master" ]
+    branches: [ "working-builds" ]
     paths-ignore:
       - '**.md'
       - '.gitignore'
@@ -67,7 +67,7 @@ jobs:
       - name: Assemble modern debug
         run: ./gradlew :app:assembleModernDebug
       - name: Upload debug APKs
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
         uses: actions/upload-artifact@v4
         with:
           name: gameplay-debug-apks
