@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.gamenative.ui.component.focusRing
+import app.gamenative.ui.theme.PluviaTheme
 import com.alorma.compose.settings.ui.base.internal.LocalSettingsGroupEnabled
 import com.alorma.compose.settings.ui.base.internal.SettingsTileColors
 import com.alorma.compose.settings.ui.base.internal.SettingsTileDefaults
@@ -78,7 +79,7 @@ fun SettingsMultiListDropdown(
     val focusRequester = remember { FocusRequester() }
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
-    val tileShape = RoundedCornerShape(0.dp)
+    val tileShape = RoundedCornerShape(PluviaTheme.tokens.cornerMd)
 
     SettingsTileScaffold(
         modifier = Modifier
@@ -90,8 +91,9 @@ fun SettingsMultiListDropdown(
                 } else {
                     Color.Transparent
                 },
+                shape = tileShape,
             )
-            .focusRing(interactionSource, tileShape, width = 2.dp)
+            .focusRing(interactionSource, tileShape)
             .clickable(
                 interactionSource = interactionSource,
                 indication = LocalIndication.current,

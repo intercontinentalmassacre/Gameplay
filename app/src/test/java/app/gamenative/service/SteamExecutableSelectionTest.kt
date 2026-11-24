@@ -1,11 +1,37 @@
 package app.gamenative.service
 
 import `in`.dragonbra.javasteam.types.FileData
+import app.gamenative.utils.ExecutableSelectionUtils
+import org.junit.Rule
+import org.junit.rules.TemporaryFolder
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
 class SteamExecutableSelectionTest {
+    @get:Rule val install = TemporaryFolder()
+
+    @Test
+    fun staleExecutableRequiresAnInstalledReplacement() {
+        install.newFolder("Bin")
+        install.newFile("Bin/New.exe")
+        fun resolve(fallback: String) =
+            ExecutableSelectionUtils.resolveConfiguredExecutable(install.root, "Old.exe") { fallback }
+        assertEquals("bin\\new.exe", resolve("bin\\new.exe"))
+        assertEquals("Old.exe", resolve("Missing.exe"))
+        assertEquals("Old.exe", resolve(""))
+    }
+
+    @Test
+    fun customExecutablePathsSurviveDetection() {
+        install.newFile("Game.exe")
+        for (choice in listOf("\"game.exe\"", "D:\\Other.exe", "\\\\share\\other.exe", "/mnt/other.exe")) {
+            assertEquals(choice, ExecutableSelectionUtils.resolveConfiguredExecutable(install.root, choice) {
+                error("Unexpected automatic detection")
+            })
+        }
+    }
+
     private fun exe(path: String, size: Long) = FileData().apply {
         fileName = path
         totalSize = size

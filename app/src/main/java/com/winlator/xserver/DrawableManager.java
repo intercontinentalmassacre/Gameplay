@@ -3,6 +3,7 @@ package com.winlator.xserver;
 import android.util.SparseArray;
 
 import com.winlator.core.Callback;
+import com.winlator.renderer.NativeTexture;
 import com.winlator.renderer.Texture;
 import com.winlator.xenvironment.components.VortekRendererComponent;
 
@@ -26,10 +27,17 @@ public class DrawableManager extends XResourceManager implements XResourceManage
     }
 
     public Drawable createDrawable(int id, short width, short height, Visual visual) {
-        if (id == 0) return new Drawable(id, width, height, visual);
-        if (drawables.indexOfKey(id) >= 0) return null;
-        Drawable drawable = new Drawable(id, width, height, visual);
-        drawables.put(id, drawable);
+        return createDrawable(id, width, height, visual, null);
+    }
+
+    public Drawable createDrawableFromTexture(int id, short height, byte depth, NativeTexture texture) {
+        return createDrawable(id, texture.getStride(), height, xServer.pixmapManager.getVisualForDepth(depth), texture);
+    }
+
+    private Drawable createDrawable(int id, short width, short height, Visual visual, NativeTexture texture) {
+        if (id != 0 && drawables.indexOfKey(id) >= 0) return null;
+        Drawable drawable = new Drawable(id, width, height, visual, texture);
+        if (id != 0) drawables.put(id, drawable);
         return drawable;
     }
 

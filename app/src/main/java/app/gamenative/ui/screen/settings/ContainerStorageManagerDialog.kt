@@ -1,9 +1,7 @@
 package app.gamenative.ui.screen.settings
 
 import android.content.Context
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
@@ -20,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -33,7 +32,6 @@ import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Storage
@@ -43,8 +41,8 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import app.gamenative.ui.component.ConsoleIconButton
 import app.gamenative.ui.component.FilledTonalButton
+import app.gamenative.ui.component.focusRing
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import app.gamenative.ui.component.IconButton
@@ -68,6 +66,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -416,6 +415,7 @@ fun ContainerStorageManagerContent(
     onDismissRequest: (() -> Unit)? = null,
     onOpenGame: ((GameSource, String, String, String) -> Unit)? = null,
 ) {
+    val compact = PluviaTheme.tokens.densityCompact
     LaunchedEffect(state) {
         state.ensureLoaded()
     }
@@ -455,8 +455,8 @@ fun ContainerStorageManagerContent(
                                     StorageUtils.formatBinarySize(vol.freeBytes, decimalPlaces = 1),
                                     StorageUtils.formatBinarySize(vol.totalBytes, decimalPlaces = 1),
                                 ),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
                         if (state.isLoadingExternalVolume) {
@@ -465,8 +465,8 @@ fun ContainerStorageManagerContent(
                                     R.string.storage_calculating,
                                     stringResource(R.string.storage_external),
                                 ),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
                     }
@@ -486,9 +486,9 @@ fun ContainerStorageManagerContent(
             }
         }
 
-        Spacer(modifier = Modifier.height(10.dp))
+        Spacer(modifier = Modifier.height(if (compact) 6.dp else 10.dp))
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(if (compact) 8.dp else 16.dp))
 
         when {
             state.isLoading && state.entries.isEmpty() -> {
@@ -537,8 +537,8 @@ fun ContainerStorageManagerContent(
             else -> {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    contentPadding = PaddingValues(bottom = 24.dp),
+                    verticalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 12.dp),
+                    contentPadding = PaddingValues(bottom = if (compact) 12.dp else 24.dp),
                 ) {
                     items(state.entries, key = { it.containerId }) { entry ->
                         StorageEntryCard(
@@ -622,6 +622,8 @@ private fun StorageEntryCard(
     onUninstall: () -> Unit,
 ) {
     val context = LocalContext.current
+    val compact = PluviaTheme.tokens.densityCompact
+    val sectionGap = if (compact) 6.dp else 10.dp
     val displayName = entry.displayName.ifBlank {
         stringResource(R.string.container_storage_unknown_container)
     }
@@ -635,10 +637,13 @@ private fun StorageEntryCard(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
         ),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(PluviaTheme.tokens.cornerLg),
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            modifier = Modifier.padding(
+                horizontal = if (compact) 10.dp else 16.dp,
+                vertical = if (compact) 8.dp else 14.dp,
+            ),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -659,14 +664,25 @@ private fun StorageEntryCard(
                 )
 
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = displayName,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        Text(
+                            text = displayName,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        entry.combinedSizeBytes?.let {
+                            Text(
+                                text = StorageUtils.formatBinarySize(it),
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                    }
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = entry.containerId,
@@ -676,21 +692,13 @@ private fun StorageEntryCard(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
-
-                entry.combinedSizeBytes?.let {
-                    MetadataChip(
-                        text = StorageUtils.formatBinarySize(it),
-                        containerColor = MaterialTheme.colorScheme.primaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                    )
-                }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(sectionGap))
 
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(if (compact) 4.dp else 8.dp),
             ) {
                 MetadataChip(
                     text = gameSourceLabel(entry.gameSource),
@@ -711,7 +719,7 @@ private fun StorageEntryCard(
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(sectionGap))
 
             Text(
                 text = sizeBreakdown(entry),
@@ -724,58 +732,61 @@ private fun StorageEntryCard(
                 Spacer(modifier = Modifier.height(6.dp))
                 val clipboard = LocalClipboardManager.current
                 val coroutineScope = rememberCoroutineScope()
+                val interactionSource = remember { MutableInteractionSource() }
+                val shape = RoundedCornerShape(PluviaTheme.tokens.cornerMd)
                 Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp)
+                        .focusRing(interactionSource, shape)
+                        .clickable(
+                            interactionSource = interactionSource,
+                            indication = null,
+                            role = Role.Button,
+                            onClickLabel = stringResource(R.string.container_storage_path_copy),
+                            onClick = {
+                                clipboard.setText(AnnotatedString(containerPath))
+                                coroutineScope.launch {
+                                    SnackbarManager.show(
+                                        context.getString(R.string.container_storage_path_copied),
+                                    )
+                                }
+                            },
+                        )
+                        .padding(horizontal = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Text(
-                        text = stringResource(R.string.container_storage_path_label),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                    )
-                    Text(
-                        text = containerPath,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier
-                            .weight(1f, fill = false)
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                                onClick = {
-                                    clipboard.setText(AnnotatedString(containerPath))
-                                    coroutineScope.launch {
-                                        SnackbarManager.show(
-                                            context.getString(R.string.container_storage_path_copied),
-                                        )
-                                    }
-                                },
-                            ),
-                    )
-                    ConsoleIconButton(
-                        onClick = {
-                            clipboard.setText(AnnotatedString(containerPath))
-                            coroutineScope.launch {
-                                SnackbarManager.show(
-                                    context.getString(R.string.container_storage_path_copied),
-                                )
-                            }
-                        },
-                        icon = Icons.Default.ContentCopy,
-                        contentDescription = stringResource(R.string.container_storage_path_copy),
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = stringResource(R.string.container_storage_path_label),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(
+                            text = containerPath,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    Icon(
+                        imageVector = Icons.Default.ContentCopy,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp),
                     )
                 }
             }
 
             val canRemoveContainer = entry.hasContainer
             if (canMoveToExternal || canMoveToInternal || entry.canUninstallGame || canRemoveContainer) {
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(if (compact) 4.dp else 14.dp))
                 FlowRow(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(if (compact) 4.dp else 8.dp),
                 ) {
                     if (canMoveToExternal) {
                         StorageActionButton(
@@ -832,28 +843,17 @@ private fun StorageArtworkButton(
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
-    val accentColor = PluviaTheme.colors.accentPurple
+    val shape = RoundedCornerShape(PluviaTheme.tokens.cornerMd)
 
     Box(
         modifier = Modifier
-            .size(52.dp)
+            .size(if (PluviaTheme.tokens.densityCompact) 48.dp else 52.dp)
             .background(
-                color = if (isFocused) {
-                    accentColor.copy(alpha = 0.18f)
-                } else {
-                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
-                },
-                shape = RoundedCornerShape(10.dp),
+                color = if (isFocused) MaterialTheme.colorScheme.primaryContainer
+                else MaterialTheme.colorScheme.surfaceVariant,
+                shape = shape,
             )
-            .border(
-                width = if (isFocused) 2.dp else 1.dp,
-                color = if (isFocused) {
-                    accentColor.copy(alpha = 0.7f)
-                } else {
-                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f)
-                },
-                shape = RoundedCornerShape(10.dp),
-            )
+            .focusRing(interactionSource, shape)
             .selectable(
                 selected = isFocused,
                 enabled = enabled,
@@ -872,13 +872,13 @@ private fun StorageArtworkButton(
                 ),
                 modifier = Modifier
                     .fillMaxSize()
-                    .clip(RoundedCornerShape(10.dp)),
+                    .clip(shape),
             )
         } else {
             Icon(
                 imageVector = Icons.Default.Storage,
                 contentDescription = contentDescription,
-                tint = if (enabled && isFocused) accentColor else MaterialTheme.colorScheme.onSurfaceVariant,
+                tint = if (enabled && isFocused) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(22.dp),
             )
         }
@@ -894,26 +894,19 @@ private fun StorageActionButton(
     containerColor: androidx.compose.ui.graphics.Color,
     contentColor: androidx.compose.ui.graphics.Color,
 ) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val isFocused by interactionSource.collectIsFocusedAsState()
-    val accentColor = PluviaTheme.colors.accentPurple
-
+    val compact = PluviaTheme.tokens.densityCompact
     FilledTonalButton(
         onClick = onClick,
         enabled = enabled,
-        shape = RoundedCornerShape(16.dp),
-        interactionSource = interactionSource,
-        border = BorderStroke(
-            width = if (isFocused) 2.dp else 1.dp,
-            color = if (isFocused) {
-                accentColor.copy(alpha = 0.7f)
-            } else {
-                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f)
-            },
+        modifier = Modifier.heightIn(min = 48.dp),
+        shape = RoundedCornerShape(PluviaTheme.tokens.cornerMd),
+        contentPadding = PaddingValues(
+            horizontal = if (compact) 12.dp else 20.dp,
+            vertical = 8.dp,
         ),
         colors = ButtonDefaults.filledTonalButtonColors(
-            containerColor = if (isFocused) accentColor.copy(alpha = 0.18f) else containerColor,
-            contentColor = if (isFocused) accentColor else contentColor,
+            containerColor = containerColor,
+            contentColor = contentColor,
         ),
     ) {
         Icon(
@@ -940,7 +933,7 @@ private fun MetadataChip(
             text = text,
             style = MaterialTheme.typography.labelMedium,
             color = contentColor,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = if (PluviaTheme.tokens.densityCompact) 3.dp else 6.dp),
         )
     }
 }
@@ -960,21 +953,16 @@ private fun inventorySummaryBytes(entries: List<ContainerStorageManager.Entry>):
     return containerBytes + gameBytes
 }
 
+@Composable
 private fun sizeBreakdown(entry: ContainerStorageManager.Entry): String {
     val parts = mutableListOf<String>()
 
     entry.gameInstallSizeBytes?.let {
-        parts += "Game ${StorageUtils.formatBinarySize(it)}"
+        parts += stringResource(R.string.container_storage_game_size, StorageUtils.formatBinarySize(it))
     }
 
     if (entry.hasContainer) {
-        parts += "Container ${StorageUtils.formatBinarySize(entry.containerSizeBytes)}"
-    }
-
-    if (entry.hasContainer && entry.gameInstallSizeBytes != null) {
-        entry.combinedSizeBytes?.let {
-            parts += "Total ${StorageUtils.formatBinarySize(it)}"
-        }
+        parts += stringResource(R.string.container_storage_prefix_size, StorageUtils.formatBinarySize(entry.containerSizeBytes))
     }
 
     return parts.joinToString(" • ")

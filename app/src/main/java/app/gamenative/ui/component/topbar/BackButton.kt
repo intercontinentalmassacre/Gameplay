@@ -6,6 +6,8 @@ import androidx.compose.material3.Icon
 import app.gamenative.ui.component.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.stringResource
+import app.gamenative.R
 import androidx.compose.ui.tooling.preview.Preview
 import app.gamenative.ui.theme.PluviaTheme
 
@@ -14,7 +16,7 @@ fun BackButton(onClick: () -> Unit) {
     IconButton(
         onClick = onClick,
         content = {
-            Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Navigate Back")
+            Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
         },
     )
 }

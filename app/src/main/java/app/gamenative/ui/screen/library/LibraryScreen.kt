@@ -4,7 +4,7 @@ import android.content.Intent
 import android.content.res.Configuration
 import android.net.Uri
 import android.text.format.Formatter
-import android.view.InputDevice
+import app.gamenative.ui.util.hasConnectedController
 import android.view.KeyEvent
 import android.view.MotionEvent
 import app.gamenative.ui.util.SnackbarManager
@@ -231,14 +231,6 @@ fun HomeLibraryScreen(
     )
 }
 
-private fun isGameControllerConnected(): Boolean =
-    InputDevice.getDeviceIds().any { id ->
-        val device = InputDevice.getDevice(id) ?: return@any false
-        val sources = device.sources
-        sources and InputDevice.SOURCE_GAMEPAD == InputDevice.SOURCE_GAMEPAD ||
-            sources and InputDevice.SOURCE_JOYSTICK == InputDevice.SOURCE_JOYSTICK
-    }
-
 @OptIn(ExperimentalMaterial3AdaptiveApi::class, ExperimentalMaterial3Api::class)
 @Composable
 private fun LibraryScreenContent(
@@ -419,6 +411,7 @@ private fun LibraryScreenContent(
     val rootFocusRequester = remember { FocusRequester() }
     val gridFirstItemFocusRequester = remember { FocusRequester() }
     val carouselFocusRequester = remember { FocusRequester() }
+    val clearSearchFocusRequester = remember { FocusRequester() }
     var gridFocusTargetListIndex by remember { mutableIntStateOf(0) }
     var carouselFocusTargetListIndex by remember { mutableIntStateOf(0) }
     var pendingGridFocusRequest by remember { mutableStateOf(false) }
@@ -487,7 +480,7 @@ private fun LibraryScreenContent(
 
     val inputModeManager = LocalInputModeManager.current
     fun ensureKeyboardInputMode() {
-        if (isGameControllerConnected()) {
+        if (hasConnectedController()) {
             if (inputModeManager.inputMode != InputMode.Keyboard) {
                 inputModeManager.requestInputMode(InputMode.Keyboard)
             }
@@ -1278,6 +1271,8 @@ private fun LibraryScreenContent(
                     LibraryTab.LOCAL -> PrefManager.customGamesCount == 0
                     else -> false
                 }
+                val showOfflineSplash = isOffline && state.currentTab == LibraryTab.STEAM && state.appInfoList.isEmpty()
+                val showNoResultsSplash = !state.isLoading && state.appInfoList.isEmpty()
                 if (showEmptyStateSplash) {
                     val (messageResId, buttonResId, onAction) = when (state.currentTab) {
                         LibraryTab.STEAM -> Triple(
@@ -1320,14 +1315,14 @@ private fun LibraryScreenContent(
                         onAction = onRefresh,
                         modifier = Modifier.fillMaxSize(),
                     )
-                } else if (isOffline && state.currentTab == LibraryTab.STEAM && state.appInfoList.isEmpty()) {
+                } else if (showOfflineSplash) {
                     LibraryStateSplash(
                         messageResId = R.string.library_offline_no_games,
                         actionResId = R.string.go_online,
                         onAction = onGoOnline,
                         modifier = Modifier.fillMaxSize(),
                     )
-                } else if (!state.isLoading && state.appInfoList.isEmpty()) {
+                } else if (showNoResultsSplash) {
                     LibraryStateSplash(
                         messageResId = if (state.isSearching) {
                             R.string.library_search_no_results
@@ -1345,6 +1340,7 @@ private fun LibraryScreenContent(
                             onRefresh
                         },
                         modifier = Modifier.fillMaxSize(),
+                        actionModifier = Modifier.focusRequester(clearSearchFocusRequester),
                     )
                 } else if (hasExternalDisplay) {
                     if (isSystemMenuOpen) {
@@ -1428,6 +1424,7 @@ private fun LibraryScreenContent(
                             state = state,
                             listState = listState,
                             currentLayout = currentPaneType,
+                            bottomContentPadding = 48.dp,
                             firstGridItemFocusRequester = gridFirstItemFocusRequester,
                             focusTargetListIndex = gridFocusTargetListIndex,
                             onFocusedIndexChanged = { gridFocusTargetListIndex = it },
@@ -1445,7 +1442,6 @@ private fun LibraryScreenContent(
                 // Top overlay: Tab bar OR Search bar
                 if (!hasExternalDisplay && state.isSearching) {
                     // Search overlay replaces tab bar when searching
-                    // TODO: Gamepad focus is a bit wonky whenever we show the search bar
                     LibrarySearchBar(
                         isVisible = true,
                         searchQuery = state.searchQuery,
@@ -1455,11 +1451,27 @@ private fun LibraryScreenContent(
                                 carouselFocusTargetListIndex = 0
                                 carouselListState.scrollToItem(0)
                             } else {
+                                gridFocusTargetListIndex = 0
                                 listState.scrollToItem(0)
                             }
                         },
                         onSearchQuery = onSearchQuery,
                         onDismiss = { onIsSearching(false) },
+                        onNavigateToResults = {
+                            val requester = when {
+                                showEmptyStateSplash || state.loadError || showOfflineSplash -> null
+                                showNoResultsSplash -> clearSearchFocusRequester
+                                !isListFocusable() -> null
+                                currentPaneType == PaneType.CAROUSEL -> carouselFocusRequester
+                                else -> gridFirstItemFocusRequester
+                            }
+                            if (requester == null) {
+                                false
+                            } else {
+                                ensureKeyboardInputMode()
+                                runCatching { requester.requestFocus() }.getOrDefault(false)
+                            }
+                        },
                         modifier = Modifier
                             .align(Alignment.TopCenter)
                             .fillMaxWidth(),
@@ -1556,7 +1568,6 @@ private fun LibraryScreenContent(
                 )
             } else {
                 listOf(
-                    LibraryActions.select,
                     GamepadAction(
                         button = GamepadButton.SELECT,
                         labelResId = R.string.options,
@@ -1567,29 +1578,6 @@ private fun LibraryScreenContent(
                         labelResId = R.string.action_system,
                         onClick = { layerController?.openSystem() },
                     ),
-                    GamepadAction(
-                        button = GamepadButton.B,
-                        labelResId = R.string.menu,
-                        onClick = { isQuickActionsOpen = true },
-                    ),
-                    if (currentPaneType == PaneType.DS_HOME) {
-                        GamepadAction(
-                            button = GamepadButton.Y,
-                            labelResId = R.string.ds_home_icon_size_action,
-                        )
-                    } else {
-                        GamepadAction(
-                            button = GamepadButton.Y,
-                            labelResId = R.string.search,
-                            onClick = { onIsSearching(true) },
-                        )
-                    },
-                ) + listOf(
-                    GamepadAction(
-                        button = GamepadButton.X,
-                        labelResId = R.string.action_add_game,
-                        onClick = onAddCustomGameClick,
-                    ),
                 )
             }
 
@@ -1598,7 +1586,7 @@ private fun LibraryScreenContent(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 ConsoleStatusIndicators(modifier = Modifier.padding(start = 12.dp))
-                GamepadActionBar(actions = libraryActions, modifier = Modifier.weight(1f), visible = true)
+                GamepadActionBar(actions = libraryActions, modifier = Modifier.weight(1f), compact = true)
             }
         }
 

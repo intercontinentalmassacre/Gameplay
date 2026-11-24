@@ -1,6 +1,7 @@
 package app.gamenative.ui.screen.xserver
 
 import android.content.Context
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -34,6 +35,7 @@ import app.gamenative.data.ShooterModeConfig
 import app.gamenative.data.SteamApp
 import app.gamenative.data.TouchGestureConfig
 import app.gamenative.ui.component.ConsoleDialogButton
+import app.gamenative.ui.theme.PluviaTheme
 import app.gamenative.ui.component.GamepadHint
 import app.gamenative.ui.component.GamepadHintRow
 import app.gamenative.ui.component.GamepadButton
@@ -257,15 +259,19 @@ private fun RestartRequiredDialog(
 
     val prompt: @Composable () -> Unit = {
         Surface(
-            shape = RoundedCornerShape(16.dp),
-            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            shape = RoundedCornerShape(PluviaTheme.tokens.cornerLg),
+            color = PluviaTheme.colors.surfaceOverlay,
+            contentColor = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier
-                .widthIn(max = 460.dp)
+                .widthIn(max = PluviaTheme.tokens.panelMaxWidth)
                 .fillMaxWidth()
                 .padding(24.dp),
         ) {
             Column(
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 18.dp),
+                modifier = Modifier.padding(
+                    horizontal = PluviaTheme.tokens.panelHorizontalPadding,
+                    vertical = PluviaTheme.tokens.panelVerticalPadding,
+                ),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Text(
@@ -306,6 +312,7 @@ private fun RestartRequiredDialog(
     }
 
     if (embedded) {
+        BackHandler(onBack = onContinue)
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             prompt()
         }

@@ -14,9 +14,12 @@
 #include <sys/ioctl.h>
 #include <linux/futex.h>
 #include <sys/syscall.h>
+#ifndef EVSHIM_APPIMAGE
 #include <jni.h>
-#include <SDL2/SDL.h>
 #include <android/log.h>
+#endif
+#include <SDL2/SDL.h>
+#include <stdbool.h>
 #include <sys/stat.h>
 #include <time.h>
 
@@ -25,10 +28,16 @@ static int g_debug_enabled = 0;
 #define LOGE(...) dprintf(STDERR_FILENO, __VA_ARGS__)
 #define LOGD(...) do { if (g_debug_enabled) dprintf(STDOUT_FILENO, __VA_ARGS__); } while (0)
 
+#ifdef EVSHIM_APPIMAGE
+#define ALOGI(...) ((void)0)
+#define ALOGE(...) LOGE(__VA_ARGS__)
+#else
 #define LOG_TAG "evshim"
 #define ALOGI(...) __android_log_print(ANDROID_LOG_INFO,  LOG_TAG, __VA_ARGS__)
 #define ALOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 #define ALOGD(...) do { if (g_debug_enabled) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__); } while (0)
+
+#endif
 
 /* -- Shared memory layout --
  *
@@ -401,6 +410,10 @@ static void *vjoy_updater(void *arg)
     LOGI("evshim: vjoy_updater P%d running (PID %d)\n", idx, getpid());
 
     uint32_t last_seq = atomic_load_explicit(&s->seq, memory_order_acquire);
+#ifdef EVSHIM_APPIMAGE
+    // Consume the current sample even if the game polled before this thread started.
+    last_seq--;
+#endif
     int last_connected = atomic_load_explicit(&s->connected, memory_order_acquire) != 0;
     set_vjoy_connected(idx, last_connected);
 
@@ -495,7 +508,7 @@ static void rumble_keepalive_init(void)
 
 static void initialize_wine(int players)
 {
-    sdl_handle = dlopen("libSDL2-2.0.so.0", RTLD_LAZY | RTLD_GLOBAL);
+    if (!sdl_handle) sdl_handle = dlopen("libSDL2-2.0.so.0", RTLD_LAZY | RTLD_GLOBAL);
     if (!sdl_handle) { LOGE("dlopen SDL failed: %s\n", dlerror()); return; }
 
     GETFUNCPTR(SDL_Init);  GETFUNCPTR(SDL_GetError);
@@ -527,6 +540,13 @@ static void initialize_wine(int players)
 
     for (int i = 0; i < players; i++) {
         if (!shm[i]) continue;
+#ifdef EVSHIM_APPIMAGE
+        // Games may enumerate controllers immediately after entering main().
+        if (atomic_load_explicit(&shm[i]->connected, memory_order_acquire)) {
+            set_vjoy_connected(i, 1);
+            if (vjoy_handles[i]) apply_vjoy_state(vjoy_handles[i], &shm[i]->state);
+        }
+#endif
         pthread_t tid;
         pthread_create(&tid, NULL, vjoy_updater, (void *)(intptr_t)i);
         pthread_detach(tid);
@@ -536,7 +556,15 @@ static void initialize_wine(int players)
 __attribute__((constructor))
 static void initialize_all_pads(void)
 {
+#ifdef EVSHIM_APPIMAGE
+    // LD_PRELOAD is inherited by the extractor and shell helpers too. Only
+    // attach to the copy of SDL linked by the actual game process.
+    sdl_handle = dlopen("libSDL2-2.0.so.0", RTLD_LAZY | RTLD_NOLOAD);
+    if (!sdl_handle) return;
+    g_is_wine = 1;
+#else
     g_is_wine = getenv("EVSHIM_WINE") != NULL;
+#endif
 
     const char *dbg = getenv("EVSHIM_DEBUG");
     g_debug_enabled = dbg && strchr("1yY", *dbg);
@@ -560,6 +588,7 @@ static void initialize_all_pads(void)
     }
 }
 
+#ifndef EVSHIM_APPIMAGE
 JNIEXPORT void JNICALL
 Java_com_winlator_winhandler_WinHandler_notifyStateChanged(JNIEnv *env, jclass cls, jint idx)
 {
@@ -597,3 +626,5 @@ Java_com_winlator_winhandler_WinHandler_rumbleTeardown(JNIEnv *env, jclass cls, 
     atomic_fetch_add_explicit(&shm[idx]->rumble_seq, 1u, memory_order_release);
     syscall(SYS_futex, &shm[idx]->rumble_seq, FUTEX_WAKE, INT_MAX, NULL, NULL, 0);
 }
+
+#endif

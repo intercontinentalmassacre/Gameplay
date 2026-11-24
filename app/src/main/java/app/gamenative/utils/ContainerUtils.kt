@@ -42,6 +42,13 @@ object ContainerUtils {
         val name: String,
     )
 
+    const val WRAPPER_THOR = "Turnip 27.0.0-R2"
+    const val DXVK_THOR = "3.0.2-1-binsem-gplasync"
+
+    val isAynThor: Boolean
+        get() = Build.MANUFACTURER.equals("AYN", ignoreCase = true) &&
+            (Build.MODEL.equals("AYN Thor", ignoreCase = true) || Build.MODEL.equals("Thor", ignoreCase = true))
+
     const val WRAPPER_TURNIP_CAPABLE = "Turnip v26.2.0 R4"
     const val WRAPPER_ADRENO_8ELITE_GEN5 = "Turnip Adreno Driver T26 (@Mr_Purple_666)"
     const val WRAPPER_ADRENO_8ELITE = "Turnip Gen8 V30"
@@ -52,12 +59,16 @@ object ContainerUtils {
 
     fun setContainerDefaults(context: Context) {
         // Override default driver and DXVK version based on Turnip capability
-        if (GPUInformation.isTurnipCapable(context)) {
+        if (isAynThor || GPUInformation.isTurnipCapable(context)) {
             DefaultVersion.VARIANT = Container.BIONIC
             DefaultVersion.DEFAULT_GRAPHICS_DRIVER = "Wrapper"
-            DefaultVersion.DXVK = if (GPUInformation.isAdreno6xx(context)) "1.11.1-sarek" else "2.4.1-gplasync"
+            DefaultVersion.DXVK = when {
+                isAynThor -> DXVK_THOR
+                GPUInformation.isAdreno6xx(context) -> "1.11.1-sarek"
+                else -> "2.4.1-gplasync"
+            }
             DefaultVersion.VKD3D = "2.14.1"
-            DefaultVersion.WRAPPER = WRAPPER_TURNIP_CAPABLE
+            DefaultVersion.WRAPPER = if (isAynThor) WRAPPER_THOR else WRAPPER_TURNIP_CAPABLE
             DefaultVersion.STEAM_TYPE = Container.STEAM_TYPE_NORMAL
             DefaultVersion.ASYNC_CACHE = "1"
         } else if (GPUInformation.isAdrenoA12(context)) {
@@ -255,6 +266,41 @@ object ContainerUtils {
         PrefManager.vibrationIntensity = containerData.vibrationIntensity
     }
 
+    // Settings may be saved before the selected Wine prefix has been provisioned.
+    private fun settingsRegistry(container: Container): File {
+        val pending = File(container.rootDir, "pending-user-settings.reg")
+        val hive = File(container.rootDir, ".wine/user.reg")
+        return if (pending.exists() || !hive.isFile) pending else hive
+    }
+
+    fun applyPendingRegistrySettings(context: Context, container: Container) {
+        val pending = File(container.rootDir, "pending-user-settings.reg")
+        if (!pending.isFile) return
+        val hive = File(container.rootDir, ".wine/user.reg")
+        check(hive.isFile) { "Wine user registry missing after prefix setup" }
+        writeGraphicsRegistry(context, hive, toContainerData(container))
+        check(pending.delete()) { "Cannot finish applying Wine registry settings" }
+    }
+
+    private fun writeGraphicsRegistry(context: Context, userRegFile: File, containerData: ContainerData) {
+        WineRegistryEditor(userRegFile).use { registryEditor ->
+            registryEditor.setStringValue("Software\\Wine\\Direct3D", "renderer", containerData.renderer)
+            registryEditor.setDwordValue("Software\\Wine\\Direct3D", "csmt", if (containerData.csmt) 3 else 0)
+            registryEditor.setDwordValue("Software\\Wine\\Direct3D", "VideoPciDeviceID", containerData.videoPciDeviceID)
+            registryEditor.setDwordValue(
+                "Software\\Wine\\Direct3D",
+                "VideoPciVendorID",
+                getGPUCards(context)[containerData.videoPciDeviceID]!!.vendorId,
+            )
+            registryEditor.setStringValue("Software\\Wine\\Direct3D", "OffScreenRenderingMode", containerData.offScreenRenderingMode)
+            registryEditor.setDwordValue("Software\\Wine\\Direct3D", "strict_shader_math", if (containerData.strictShaderMath) 1 else 0)
+            registryEditor.setStringValue("Software\\Wine\\Direct3D", "VideoMemorySize", containerData.videoMemorySize)
+            registryEditor.setStringValue("Software\\Wine\\DirectInput", "MouseWarpOverride", containerData.mouseWarpOverride)
+            registryEditor.setStringValue("Software\\Wine\\Direct3D", "shader_backend", "glsl")
+            registryEditor.setStringValue("Software\\Wine\\Direct3D", "UseGLSL", "enabled")
+        }
+    }
+
     fun toContainerData(container: Container): ContainerData {
         val renderer: String
         val csmt: Boolean
@@ -264,7 +310,7 @@ object ContainerUtils {
         val videoMemorySize: String
         val mouseWarpOverride: String
 
-        val userRegFile = File(container.rootDir, ".wine/user.reg")
+        val userRegFile = settingsRegistry(container)
         WineRegistryEditor(userRegFile).use { registryEditor ->
             renderer =
                 registryEditor.getStringValue("Software\\Wine\\Direct3D", "renderer", PrefManager.renderer)
@@ -378,6 +424,7 @@ object ContainerUtils {
                 app.gamenative.display.GamescopePayload.EXPERIMENTAL_CONTAINER_EXTRA,
                 "false",
             ).toBoolean(),
+            fossilizeEnabled = container.getExtra(app.gamenative.shadercache.FossilizeManager.EXTRA_ENABLED).toBoolean(),
             gamescopeOutputResolution = container.getExtra(
                 GamescopeSettings.EXTRA_OUTPUT_RESOLUTION,
                 GamescopeSettings.OUTPUT_RESOLUTION_DEFAULT,
@@ -464,6 +511,12 @@ object ContainerUtils {
                 "cpuList" -> value?.let { updatedData.copy(cpuList = it as? String ?: updatedData.cpuList) } ?: updatedData
                 "cpuListWoW64" -> value?.let { updatedData.copy(cpuListWoW64 = it as? String ?: updatedData.cpuListWoW64) } ?: updatedData
                 "audioDriver" -> value?.let { updatedData.copy(audioDriver = it as? String ?: updatedData.audioDriver) } ?: updatedData
+                "inputType" -> (value as? Int)?.let { PreferredInputApi.values().getOrNull(it) }?.let { api ->
+                    updatedData.copy(
+                        enableXInput = api == PreferredInputApi.XINPUT || api == PreferredInputApi.BOTH,
+                        enableDInput = api == PreferredInputApi.DINPUT || api == PreferredInputApi.BOTH,
+                    )
+                } ?: updatedData
                 "wincomponents" -> value?.let { updatedData.copy(wincomponents = it as? String ?: updatedData.wincomponents) } ?: updatedData
                 "videoMemorySize" -> value?.let { updatedData.copy(videoMemorySize = it as? String ?: updatedData.videoMemorySize) } ?: updatedData
                 else -> updatedData
@@ -490,23 +543,7 @@ object ContainerUtils {
         val previousUnpackFiles: Boolean = container.isUnpackFiles
         val previousLaunchBionicSteam: Boolean = container.isLaunchBionicSteam
         val previousLaunchRealSteam: Boolean = container.isLaunchRealSteam
-        val userRegFile = File(container.rootDir, ".wine/user.reg")
-        WineRegistryEditor(userRegFile).use { registryEditor ->
-            registryEditor.setStringValue("Software\\Wine\\Direct3D", "renderer", containerData.renderer)
-            registryEditor.setDwordValue("Software\\Wine\\Direct3D", "csmt", if (containerData.csmt) 3 else 0)
-            registryEditor.setDwordValue("Software\\Wine\\Direct3D", "VideoPciDeviceID", containerData.videoPciDeviceID)
-            registryEditor.setDwordValue(
-                "Software\\Wine\\Direct3D",
-                "VideoPciVendorID",
-                getGPUCards(context)[containerData.videoPciDeviceID]!!.vendorId,
-            )
-            registryEditor.setStringValue("Software\\Wine\\Direct3D", "OffScreenRenderingMode", containerData.offScreenRenderingMode)
-            registryEditor.setDwordValue("Software\\Wine\\Direct3D", "strict_shader_math", if (containerData.strictShaderMath) 1 else 0)
-            registryEditor.setStringValue("Software\\Wine\\Direct3D", "VideoMemorySize", containerData.videoMemorySize)
-            registryEditor.setStringValue("Software\\Wine\\DirectInput", "MouseWarpOverride", containerData.mouseWarpOverride)
-            registryEditor.setStringValue("Software\\Wine\\Direct3D", "shader_backend", "glsl")
-            registryEditor.setStringValue("Software\\Wine\\Direct3D", "UseGLSL", "enabled")
-        }
+        writeGraphicsRegistry(context, settingsRegistry(container), containerData)
 
         container.name = containerData.name
         container.screenSize = containerData.screenSize
@@ -632,6 +669,7 @@ object ContainerUtils {
         container.setHdrEnabled(containerData.hdrEnabled)
         container.putExtra(GamescopeSettings.EXTRA_OUTPUT_RESOLUTION, containerData.gamescopeOutputResolution)
         container.putExtra(app.gamenative.display.GamescopePayload.EXPERIMENTAL_CONTAINER_EXTRA, containerData.gamescopeExperimental.toString())
+        container.putExtra(app.gamenative.shadercache.FossilizeManager.EXTRA_ENABLED, containerData.fossilizeEnabled.toString())
         Timber.d("Container set: preferredInputApi=%s, dinputMapperType=0x%02x", api, containerData.dinputMapperType)
 
         if (saveToDisk) {
@@ -816,7 +854,9 @@ object ContainerUtils {
         data.put("wineVersion", Container.DEFAULT_WINE_VERSION)
 
         // The editor only needs the config. The first game launch installs its selected prefix.
-        val container = (if (installWinePrefix) containerManager.createContainerFuture(containerId, data).get()
+        // The final runtime is selected below. An overlay must use that runtime as its base.
+        val stageFullPrefix = installWinePrefix && !PrefManager.sharedContainerBase
+        val container = (if (stageFullPrefix) containerManager.createContainerFuture(containerId, data).get()
             else containerManager.createContainer(containerId, data, false))
             ?: throw IllegalStateException("Failed to create container: $containerId")
 

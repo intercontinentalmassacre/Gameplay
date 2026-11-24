@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-20",
+  "updatedAt": "2026-11-24",
   "items": {
     "driver": [
       {
@@ -179,6 +179,14 @@
         "id": "v805",
         "name": "v805",
         "url": "https://downloads.gamenative.app/drivers/v805.zip",
+        "variant": "bionic"
+      },
+      {
+        "id": "Turnip 27.0.0-R2",
+        "name": "Turnip_v27.0.0-R2",
+        "url": "https://github.com/StevenMXZ/Adreno-Tools-Drivers/releases/download/v39/Turnip_v27.0.0-R2.zip",
+        "sha256": "8d30be022582d0c03b1918c019540491d00439e14e9e5e1359fe0bb19004f781",
+        "sizeBytes": 2663719,
         "variant": "bionic"
       },
       {
@@ -1005,6 +1013,14 @@
         "id": "2601-217d039-0",
         "name": "FEX 2601-217d039",
         "url": "https://downloads.gamenative.app/FEXCore-2601-217d039.wcp",
+        "variant": "bionic"
+      },
+      {
+        "id": "2611-gn-8",
+        "name": "FEX 2611-gn (8)",
+        "url": "https://downloads.gamenative.app/FEXCore-2611-gn-8.wcp",
+        "sha256": "17c330056e425088e38033321619792725d39a4839df6d0fdf8de530468fc43e",
+        "sizeBytes": 1959704,
         "variant": "bionic"
       }
     ],

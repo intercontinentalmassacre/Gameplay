@@ -53,7 +53,19 @@ class VcRedistStepTest {
             gameDirPath = gameDir.absolutePath,
         )
 
-        val expected = "A:\\_CommonRedist\\MSVC2017\\VC_redist.x86.exe /install /passive /norestart"
+        val expected = "A:\\_CommonRedist\\MSVC2017\\VC_redist.x86.exe /install /quiet /norestart"
         assertEquals(expected, checkNotNull(cmd))
+    }
+
+    @Test
+    fun buildCommand_runsGameBundledLegacyInstallersQuietly() {
+        val redistDir = File(gameDir, "redist").apply { mkdirs() }
+        File(redistDir, "vcredist_x86.exe").writeText("dummy")
+        File(redistDir, "vcredist_x64.exe").writeText("dummy")
+
+        assertEquals(
+            "A:\\redist\\vcredist_x86.exe /Q & A:\\redist\\vcredist_x64.exe /Q",
+            VcRedistStep.buildCommand(container, "STEAM_1", GameSource.STEAM, gameDir, gameDir.absolutePath),
+        )
     }
 }

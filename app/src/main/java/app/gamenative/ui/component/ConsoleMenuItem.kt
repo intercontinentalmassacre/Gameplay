@@ -4,7 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.MenuItemColors
@@ -14,12 +13,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.dp
 
 /**
  * Drop-in replacement for the material3 DropdownMenuItem with a visible
  * controller focus state: console menus highlight the focused row with a
- * filled background (Steam Deck style), no ring inside popups.
+ * filled background and the shared focus ring.
  */
 @Composable
 fun DropdownMenuItem(
@@ -34,13 +32,14 @@ fun DropdownMenuItem(
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
-    val shape = RoundedCornerShape(0.dp)
+    val shape = MaterialTheme.shapes.small
 
     androidx.compose.material3.DropdownMenuItem(
         text = text,
         onClick = onClick,
         modifier = modifier
             .clip(shape)
+            .focusRing(isFocused, shape)
             .background(
                 if (isFocused) {
                     MaterialTheme.colorScheme.surfaceContainerHighest

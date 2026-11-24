@@ -635,6 +635,14 @@ public class Container {
         return wineVersion;
     }
 
+    public String getBasePrefix() { return getExtra("basePrefix"); }
+
+    public void setBasePrefix(String path) { putExtra("basePrefix", path); }
+
+    public boolean isOverlay() {
+        return ContainerOverlay.isEligible(this) && !getBasePrefix().isEmpty();
+    }
+
     public void setWineVersion(String wineVersion) {
         this.wineVersion = wineVersion;
     }

@@ -32,6 +32,19 @@ class CrashContextTest {
     }
 
     @Test
+    fun `trace export only includes the selected game's session`() {
+        CrashContext.beginLaunch("game-a")
+        val trace = app.gamenative.diagnostics.LaunchTrace
+        val preview = trace.snapshot("game-a")
+        CrashContext.beginLaunch("game-b")
+
+        assertEquals(null, trace.snapshot("game-a").sessionId)
+        assertEquals(emptyList<Any>(), trace.snapshot("game-a").events)
+        assertFalse(preview.events.isEmpty())
+        assertFalse(preview.sessionId == trace.snapshot("game-b").sessionId)
+    }
+
+    @Test
     fun `redacts common credentials from logs`() {
         val log = "Authorization: Bearer secret-token api_key=another-secret https://example.test/?token=url-secret"
 

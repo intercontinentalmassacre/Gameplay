@@ -78,8 +78,7 @@ private fun getValidatedAudioDriver(config: ContainerData): String {
 @Composable
 fun GeneralTabContent(
     state: ContainerConfigState,
-    nonzeroResolutionError: String,
-    aspectResolutionError: String,
+    resolutionRangeError: String,
 ) {
     val config = state.config.value
     val graphicsDrivers = state.graphicsDrivers.value
@@ -154,15 +153,14 @@ fun GeneralTabContent(
                     text = stringResource(R.string.ok),
                     isPrimary = true,
                     onClick = {
-                        val widthRaw = state.customScreenWidth.value.toIntOrNull() ?: 0
-                        val heightRaw = state.customScreenHeight.value.toIntOrNull() ?: 0
-                        val widthInt = evenRound(widthRaw.toFloat())
-                        val heightInt = evenRound(heightRaw.toFloat())
-                        if (widthRaw <= 0 || heightRaw <= 0) {
-                            state.customResolutionValidationError.value = nonzeroResolutionError
-                        } else if (widthInt <= heightInt) {
-                            state.customResolutionValidationError.value = aspectResolutionError
+                        val resolution = normalizeCustomResolution(
+                            state.customScreenWidth.value.toIntOrNull(),
+                            state.customScreenHeight.value.toIntOrNull(),
+                        )
+                        if (resolution == null) {
+                            state.customResolutionValidationError.value = resolutionRangeError
                         } else {
+                            val (widthInt, heightInt) = resolution
                             state.customScreenWidth.value = widthInt.toString()
                             state.customScreenHeight.value = heightInt.toString()
                             state.customResolutionValidationError.value = null

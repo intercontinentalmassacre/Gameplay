@@ -22,6 +22,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -61,9 +63,8 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
+import app.gamenative.ui.component.NoExtractOutlinedTextField
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -94,6 +95,7 @@ import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
@@ -101,9 +103,13 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -121,11 +127,14 @@ import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import app.gamenative.PrefManager
 import app.gamenative.data.GameCompatibilityStatus
 import app.gamenative.data.LibraryItem
-import app.gamenative.enums.AppTheme
+import androidx.compose.runtime.State
+import androidx.compose.runtime.rememberUpdatedState
+import app.gamenative.ui.theme.GameplayAppearance
 import app.gamenative.ui.component.CompatibilityBadge
 import app.gamenative.ui.component.GamepadAction
 import app.gamenative.ui.component.GamepadActionBar
 import app.gamenative.ui.component.GamepadButton
+import app.gamenative.ui.component.IconButton
 import app.gamenative.ui.component.focusRing
 import app.gamenative.ui.component.GameStatsRow
 import app.gamenative.ui.component.dialog.LocalSecondScreenDialogWindowToken
@@ -196,7 +205,7 @@ object DsHomeSecondScreen {
         QUICK_MENU,
 
         // The same QuickMenu remains visible while input stays with the game.
-        // Back promotes it to QUICK_MENU; Back again returns to this mode.
+        // Menu activation takes controller focus until Back dismisses it.
         QUICK_MENU_PASSIVE,
 
         // Passive, glanceable runtime status while the game owns controller focus.
@@ -558,13 +567,19 @@ internal fun DsHomeSecondScreen.Mode.ownsControllerFocus(): Boolean = when (this
     DsHomeSecondScreen.Mode.GRID,
     DsHomeSecondScreen.Mode.CARD,
     DsHomeSecondScreen.Mode.SETTINGS,
+    DsHomeSecondScreen.Mode.QUICK_MENU,
     -> true
 
     DsHomeSecondScreen.Mode.DETAILS,
-    DsHomeSecondScreen.Mode.QUICK_MENU,
     DsHomeSecondScreen.Mode.QUICK_MENU_PASSIVE,
     DsHomeSecondScreen.Mode.GAME_DASHBOARD,
     -> false
+}
+
+internal fun secondScreenGameMode(menuActive: Boolean, showPassiveMenu: Boolean): DsHomeSecondScreen.Mode = when {
+    menuActive -> DsHomeSecondScreen.Mode.QUICK_MENU
+    showPassiveMenu -> DsHomeSecondScreen.Mode.QUICK_MENU_PASSIVE
+    else -> DsHomeSecondScreen.Mode.GAME_DASHBOARD
 }
 
 private class PresentationLifecycleOwner : LifecycleOwner, SavedStateRegistryOwner, OnBackPressedDispatcherOwner {
@@ -589,9 +604,10 @@ private class PresentationLifecycleOwner : LifecycleOwner, SavedStateRegistryOwn
     }
 }
 
-class DsHomePresentation(
+class DsHomePresentation internal constructor(
     private val hostContext: Context,
     display: Display,
+    private val appearance: State<GameplayAppearance>,
 ) : Presentation(hostContext, display) {
 
     private val presentationLifecycleOwner = PresentationLifecycleOwner()
@@ -659,21 +675,7 @@ class DsHomePresentation(
                         hostContext as? ActivityResultRegistryOwner,
                     ) { "Dual-screen presentation requires an ActivityResultRegistryOwner host" },
                 ) {
-                    val appTheme = PrefManager.appTheme
-                    val isDark = when (appTheme) {
-                        AppTheme.AUTO -> (context.resources.configuration.uiMode and
-                            Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
-                        AppTheme.DAY -> false
-                        AppTheme.NIGHT, AppTheme.AMOLED -> true
-                    }
-                    PluviaTheme(
-                        isDark = isDark,
-                        isAmoled = appTheme == AppTheme.AMOLED,
-                        style = PrefManager.appThemePalette,
-                        customThemeJson = PrefManager.customThemeJson
-                            .takeIf { PrefManager.customThemeEnabled },
-                        reduceMotion = PrefManager.reduceMotion,
-                    ) {
+                    appearance.value.Provide {
                         Surface(
                             modifier = Modifier.fillMaxSize(),
                             color = MaterialTheme.colorScheme.background,
@@ -689,11 +691,12 @@ class DsHomePresentation(
                                             DsHomeSecondScreen.Mode.GRID -> DsHomeSecondScreenGrid(model)
                                             DsHomeSecondScreen.Mode.DETAILS -> DsHomeSecondScreenDetails(model)
                                             DsHomeSecondScreen.Mode.CARD -> model.cardContent?.invoke()
-                                            DsHomeSecondScreen.Mode.QUICK_MENU -> SecondScreenGamePanel(
+                                            DsHomeSecondScreen.Mode.QUICK_MENU,
+                                            DsHomeSecondScreen.Mode.QUICK_MENU_PASSIVE,
+                                            -> SecondScreenGamePanel(
                                                 model = model,
                                                 showMenu = true,
                                             )
-                                            DsHomeSecondScreen.Mode.QUICK_MENU_PASSIVE -> model.menuContent?.invoke()
                                             DsHomeSecondScreen.Mode.GAME_DASHBOARD -> SecondScreenGamePanel(
                                                 model = model,
                                                 showMenu = false,
@@ -722,7 +725,7 @@ class DsHomePresentation(
 
     private fun updateInputMode(mode: DsHomeSecondScreen.Mode) {
         if (mode.ownsControllerFocus()) {
-            // Library, game-card and settings surfaces are controller workspaces
+            // Active menus, library, game cards, and settings are controller workspaces
             // on the lower display. They must own window focus for D-pad traversal
             // and A, including after the display wakes or is unfolded again.
             window?.clearFlags(
@@ -731,15 +734,14 @@ class DsHomePresentation(
             )
             requestComposeControllerFocus()
         } else if (mode == DsHomeSecondScreen.Mode.GAME_DASHBOARD ||
-            mode == DsHomeSecondScreen.Mode.QUICK_MENU
+            mode == DsHomeSecondScreen.Mode.QUICK_MENU_PASSIVE
         ) {
             // In-game panels stay touchable on the lower screen while hardware
             // keys remain routed to the game on the upper display.
             window?.addFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
             window?.clearFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE)
         } else {
-            // Passive details and the passive quick-menu stage never steal
-            // controller input from the main display.
+            // Details are a display-only surface.
             window?.addFlags(
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                     WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
@@ -846,7 +848,12 @@ class DsHomePresentation(
         }
 
         if (event.keyCode == KeyEvent.KEYCODE_BUTTON_B || event.keyCode == KeyEvent.KEYCODE_BACK) {
-            if (event.action == KeyEvent.ACTION_DOWN) {
+            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+                val dispatcher = presentationLifecycleOwner.onBackPressedDispatcher
+                if (currentModel?.owner == DsHomeSecondScreen.Owner.DIALOG && dispatcher.hasEnabledCallbacks()) {
+                    dispatcher.onBackPressed()
+                    return true
+                }
                 // Let the focused card/settings tree close its own top layer
                 // first. BUTTON_B is normalized to Android BACK so Compose
                 // BackHandlers and explicit key handlers share one contract.
@@ -892,6 +899,10 @@ class DsHomePresentation(
             Timber.d("Recovering companion focus for controller key=$normalizedKeyCode")
             requestComposeControllerFocus()
             composeView.postDelayed({
+                val activeModel = DsHomeSecondScreen.model
+                if (activeModel?.mode != currentModel?.mode || activeModel?.owner != currentModel?.owner) {
+                    return@postDelayed
+                }
                 val retryDown = composeEvent.withAction(KeyEvent.ACTION_DOWN)
                 composeView.dispatchKeyEvent(retryDown)
                 composeView.dispatchKeyEvent(KeyEvent.changeAction(retryDown, KeyEvent.ACTION_UP))
@@ -1171,15 +1182,8 @@ private fun DsHomeSecondScreenGrid(model: DsHomeSecondScreen.Model) {
         onDispose { DsHomeSecondScreen.detachLibraryControllerKeyHandler(handler) }
     }
     val actions = listOf(
-        GamepadAction(
-            GamepadButton.A, app.gamenative.R.string.action_select,
-            model.items.getOrNull(controllerSelectedIndex)?.let { item -> { model.onNavigate(item.appId) } },
-        ),
         GamepadAction(GamepadButton.SELECT, app.gamenative.R.string.options, model.onOptions),
-        GamepadAction(GamepadButton.Y, app.gamenative.R.string.search, model.onSearchToggle),
-        GamepadAction(GamepadButton.X, app.gamenative.R.string.action_add_game, model.onAddGame),
-        GamepadAction(GamepadButton.START, app.gamenative.R.string.system_hub_open, model.onSystemMenu),
-        GamepadAction(GamepadButton.B, app.gamenative.R.string.menu, model.onQuickActions),
+        GamepadAction(GamepadButton.START, app.gamenative.R.string.action_system, model.onSystemMenu),
     )
 
     Box(
@@ -1315,6 +1319,8 @@ private fun DualLibraryHeader(
     onLayoutCycle: (() -> Unit)? = null,
 ) {
     val layoutCycle = onLayoutCycle ?: model.onLayoutCycle
+    val compact = PluviaTheme.tokens.densityCompact
+    val toolbarButton = Modifier.size(48.dp)
     if (model.isSearching) {
         // Keep the text local: the model is republished from the main-display composition
         // on every keystroke, and a fully controlled field loses its IME connection and
@@ -1322,7 +1328,7 @@ private fun DualLibraryHeader(
         var localQuery by androidx.compose.runtime.saveable.rememberSaveable(model.isSearching) {
             androidx.compose.runtime.mutableStateOf(model.searchQuery)
         }
-        OutlinedTextField(
+        NoExtractOutlinedTextField(
             value = localQuery,
             onValueChange = {
                 localQuery = it
@@ -1331,14 +1337,14 @@ private fun DualLibraryHeader(
             singleLine = true,
             leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
             trailingIcon = {
-                IconButton(onClick = model.onSearchToggle) {
+                IconButton(onClick = model.onSearchToggle, modifier = toolbarButton) {
                     Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = stringResource(app.gamenative.R.string.back))
                 }
             },
             label = { Text(stringResource(app.gamenative.R.string.search)) },
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+                .padding(horizontal = if (compact) 8.dp else 16.dp, vertical = if (compact) 4.dp else 8.dp),
         )
         return
     }
@@ -1346,60 +1352,68 @@ private fun DualLibraryHeader(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(56.dp)
-            .padding(horizontal = 8.dp),
+            .height(if (compact) 48.dp else 56.dp)
+            .padding(horizontal = if (compact) 4.dp else 8.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
+        horizontalArrangement = Arrangement.spacedBy(if (compact) 0.dp else 2.dp),
     ) {
-        IconButton(
-            onClick = { model.onPreviousTab?.invoke() },
-            enabled = model.onPreviousTab != null,
+        Row(
+            modifier = Modifier.weight(1f),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = null)
-        }
-        val currentTabCount = model.tabCounts[model.currentTab] ?: model.totalItemCount
-        Text(
-            text = stringResource(
-                app.gamenative.R.string.library_tab_with_count,
-                stringResource(model.currentTab.labelResId),
-                currentTabCount,
-            ),
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 1,
-        )
-        IconButton(
-            onClick = { model.onNextTab?.invoke() },
-            enabled = model.onNextTab != null,
-        ) {
-            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
-        }
-        if (model.lastPage > 1) {
+            IconButton(
+                onClick = { model.onPreviousTab?.invoke() },
+                modifier = toolbarButton,
+                enabled = model.onPreviousTab != null,
+            ) {
+                Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = null)
+            }
+            val currentTabCount = model.tabCounts[model.currentTab] ?: model.totalItemCount
             Text(
-                text = "${model.currentPage.coerceAtMost(model.lastPage)} / ${model.lastPage}",
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                text = stringResource(
+                    app.gamenative.R.string.library_tab_with_count,
+                    stringResource(model.currentTab.labelResId),
+                    currentTabCount,
+                ),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false),
             )
+            IconButton(
+                onClick = { model.onNextTab?.invoke() },
+                modifier = toolbarButton,
+                enabled = model.onNextTab != null,
+            ) {
+                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
+            }
+            if (model.lastPage > 1) {
+                Text(
+                    text = "${model.currentPage.coerceAtMost(model.lastPage)} / ${model.lastPage}",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                )
+            }
         }
-        Spacer(modifier = Modifier.weight(1f))
-        IconButton(onClick = model.onRefresh) {
+        IconButton(onClick = model.onRefresh, modifier = toolbarButton) {
             Icon(
                 Icons.Default.Refresh,
                 contentDescription = stringResource(app.gamenative.R.string.action_refresh),
             )
         }
-        IconButton(onClick = layoutCycle) {
+        IconButton(onClick = layoutCycle, modifier = toolbarButton) {
             Icon(Icons.Default.GridView, contentDescription = stringResource(app.gamenative.R.string.ds_home_icon_size_action))
         }
-        IconButton(onClick = model.onSystemMenu) {
+        IconButton(onClick = model.onSystemMenu, modifier = toolbarButton) {
             Icon(
                 Icons.Default.AccountCircle,
                 contentDescription = stringResource(app.gamenative.R.string.system_hub_open),
             )
         }
-        IconButton(onClick = model.onOpenSettings) {
+        IconButton(onClick = model.onOpenSettings, modifier = toolbarButton) {
             Icon(Icons.Default.Settings, contentDescription = stringResource(app.gamenative.R.string.settings_title))
         }
     }
@@ -1732,6 +1746,7 @@ private fun SecondScreenControllerFocusBridge(
     content: @Composable () -> Unit,
 ) {
     val focusManager = LocalFocusManager.current
+    val inputModeManager = LocalInputModeManager.current
     val controllerFocusEpoch = DsHomeSecondScreen.controllerFocusEpoch
     // The Presentation's ComposeView can own Android window focus while no
     // Compose child is focused. In that state dispatchKeyEvent reaches the
@@ -1748,6 +1763,10 @@ private fun SecondScreenControllerFocusBridge(
 
     DisposableEffect(model.owner, model.mode, model.focusRequestKey) {
         val handler: (Int) -> Boolean = { keyCode ->
+            // Forwarded gamepad events bypass Android's normal exit from touch mode.
+            if (inputModeManager.inputMode != InputMode.Keyboard) {
+                inputModeManager.requestInputMode(InputMode.Keyboard)
+            }
             when (keyCode) {
                 KeyEvent.KEYCODE_DPAD_UP -> {
                     val direction = if (model.controllerNavigation == DsHomeSecondScreen.ControllerNavigation.VERTICAL_LIST) {
@@ -1832,10 +1851,8 @@ private fun SecondScreenControllerFocusBridge(
         // the first interactive child. Without this anchor a secondary
         // Presentation has no starting node and D-pad appears inert even
         // though A/B key events are delivered correctly.
-        repeat(8) {
-            if (runCatching { controllerAnchor.requestFocus() }.getOrDefault(false)) {
-                return@repeat
-            }
+        for (attempt in 0 until 8) {
+            if (runCatching { controllerAnchor.requestFocus() }.getOrDefault(false)) break
             delay(32)
         }
         repeat(8) {
@@ -2115,12 +2132,19 @@ private fun SecondScreenGamePanel(
     model: DsHomeSecondScreen.Model,
     showMenu: Boolean,
 ) {
+    val compact = PluviaTheme.tokens.densityCompact
+    val activateMenu by rememberUpdatedState(
+        model.onShowMenu.takeIf { model.mode == DsHomeSecondScreen.Mode.QUICK_MENU_PASSIVE },
+    )
     Column(modifier = Modifier.fillMaxSize()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                .padding(
+                    horizontal = if (compact) 8.dp else 16.dp,
+                    vertical = if (compact) 4.dp else 8.dp,
+                ),
+            horizontalArrangement = Arrangement.spacedBy(if (compact) 4.dp else 8.dp),
         ) {
             InGamePanelTab(
                 text = stringResource(app.gamenative.R.string.second_screen_tab_game),
@@ -2134,7 +2158,18 @@ private fun SecondScreenGamePanel(
             )
         }
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .pointerInput(Unit) {
+                    awaitEachGesture {
+                        // Activate before the tapped control can open a child dialog.
+                        awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                        activateMenu?.invoke()
+                    }
+                },
+        ) {
             if (showMenu) {
                 model.menuContent?.invoke()
             } else {
@@ -2150,19 +2185,24 @@ private fun RowScope.InGamePanelTab(
     selected: Boolean,
     onClick: () -> Unit,
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val shape = RoundedCornerShape(PluviaTheme.tokens.cornerMd)
     Surface(
         onClick = onClick,
+        interactionSource = interactionSource,
         modifier = Modifier
             .weight(1f)
-            .height(52.dp),
-        shape = RoundedCornerShape(PluviaTheme.tokens.cornerLg),
+            .height(if (PluviaTheme.tokens.densityCompact) 48.dp else 52.dp)
+            .focusRing(interactionSource, shape, width = PluviaTheme.tokens.focusRingWidth)
+            .semantics { this.selected = selected },
+        shape = shape,
         color = if (selected) {
-            MaterialTheme.colorScheme.secondaryContainer
+            MaterialTheme.colorScheme.primaryContainer
         } else {
             MaterialTheme.colorScheme.surfaceContainerLow
         },
         contentColor = if (selected) {
-            MaterialTheme.colorScheme.onSecondaryContainer
+            MaterialTheme.colorScheme.onPrimaryContainer
         } else {
             MaterialTheme.colorScheme.onSurfaceVariant
         },
@@ -2181,22 +2221,24 @@ private fun RowScope.InGamePanelTab(
 
 @Composable
 private fun SecondScreenGameDashboard(model: DsHomeSecondScreen.Model) {
+    val compact = PluviaTheme.tokens.densityCompact
+    val hasGameTitle = model.dashboardTitle.isNotBlank() || model.dashboardLogoUrl.isNotBlank()
     Surface(
         modifier = Modifier
             .fillMaxSize()
-            .padding(20.dp),
+            .padding(if (compact) 8.dp else 16.dp),
         shape = RoundedCornerShape(PluviaTheme.tokens.cornerLg),
         color = MaterialTheme.colorScheme.surfaceContainerLow,
     ) {
         Row(
-            modifier = Modifier.padding(18.dp),
-            horizontalArrangement = Arrangement.spacedBy(20.dp),
+            modifier = Modifier.padding(if (compact) 12.dp else 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(if (compact) 12.dp else 20.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Surface(
                 modifier = Modifier
-                    .width(128.dp)
-                    .height(184.dp),
+                    .width(if (compact) 96.dp else 128.dp)
+                    .height(if (compact) 138.dp else 184.dp),
                 shape = RoundedCornerShape(PluviaTheme.tokens.cornerLg),
                 color = MaterialTheme.colorScheme.surfaceContainerHighest,
             ) {
@@ -2224,11 +2266,13 @@ private fun SecondScreenGameDashboard(model: DsHomeSecondScreen.Model) {
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.Center,
             ) {
-                Text(
-                    text = stringResource(app.gamenative.R.string.second_screen_game_running),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary,
-                )
+                if (hasGameTitle) {
+                    Text(
+                        text = stringResource(app.gamenative.R.string.second_screen_game_running),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
                 if (model.dashboardLogoUrl.isNotBlank()) {
                     CoilImage(
                         imageModel = { model.dashboardLogoUrl },
@@ -2238,20 +2282,19 @@ private fun SecondScreenGameDashboard(model: DsHomeSecondScreen.Model) {
                         ),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(104.dp)
-                            .padding(top = 8.dp),
+                            .height(if (compact) 68.dp else 96.dp),
                     )
                 } else {
                     Text(
                         text = model.dashboardTitle.ifBlank {
                             stringResource(app.gamenative.R.string.second_screen_game_running)
                         },
-                        style = MaterialTheme.typography.headlineMedium,
+                        style = if (compact) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(top = 8.dp),
+                        modifier = Modifier.padding(top = if (compact) 4.dp else 8.dp),
                     )
                 }
                 if (model.dashboardSubtitle.isNotBlank()) {
@@ -2259,7 +2302,7 @@ private fun SecondScreenGameDashboard(model: DsHomeSecondScreen.Model) {
                         text = model.dashboardSubtitle,
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 8.dp),
+                        modifier = Modifier.padding(top = if (compact) 4.dp else 8.dp),
                     )
                 }
                 if (model.performanceHudEnabled) {
@@ -2275,7 +2318,7 @@ private fun SecondScreenGameDashboard(model: DsHomeSecondScreen.Model) {
                             },
                             update = { hud -> hud.setConfig(model.performanceHudConfig) },
                             modifier = Modifier
-                                .padding(top = 18.dp)
+                                .padding(top = if (compact) 8.dp else 12.dp)
                                 .wrapContentSize(Alignment.CenterStart),
                         )
                     }
@@ -2287,7 +2330,8 @@ private fun SecondScreenGameDashboard(model: DsHomeSecondScreen.Model) {
 
 /** Keeps the external-display surface alive while the feature is enabled. */
 @Composable
-fun DsHomePresentationHost() {
+internal fun DsHomePresentationHost(appearance: GameplayAppearance) {
+    val currentAppearance = rememberUpdatedState(appearance)
     val context = LocalContext.current
     val secondScreenEnabled = app.gamenative.PrefManager.dualScreenLauncherState.value
     val display = rememberExternalDisplay()
@@ -2306,7 +2350,7 @@ fun DsHomePresentationHost() {
             DsHomeSecondScreen.markPresentationActive(false)
             return@DisposableEffect onDispose { }
         }
-        val presentation = DsHomePresentation(context, display)
+        val presentation = DsHomePresentation(context, display, currentAppearance)
         runCatching { presentation.show() }
             .onSuccess {
                 DsHomeSecondScreen.markPresentationActive(true)

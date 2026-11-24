@@ -1,9 +1,20 @@
 package app.gamenative.utils
 
+import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class SteamUtilsColdClientIniTest {
+    @Test
+    fun `Dragon's Dogma 2 receives the compatibility option in ColdClient`() {
+        val config = SteamUtils.resolveColdClientLaunchConfig(
+            steamAppId = 2054970,
+            executablePath = "DD2.exe",
+            exeCommandLine = "-windowed",
+            gameRootDir = File("."),
+        )
+        assertEquals("-windowed /WineDetectionEnabled:False", config.exeCommandLine)
+    }
 
     private fun generate(
         gameName: String = "Batman Arkham Asylum GOTY",

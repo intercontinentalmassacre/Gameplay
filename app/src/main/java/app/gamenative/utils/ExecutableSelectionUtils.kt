@@ -4,6 +4,19 @@ import java.io.File
 
 object ExecutableSelectionUtils {
 
+    internal fun resolveConfiguredExecutable(installDir: File, configured: String, detect: () -> String): String {
+        if (configured.isEmpty()) return detect()
+        val path = configured.removeSurrounding("\"").replace('\\', '/')
+        if (!path.endsWith(".exe", ignoreCase = true) || path.startsWith('/') ||
+            path.getOrNull(1) == ':' || !installDir.isDirectory
+        ) return configured
+        if (FileUtils.findFileCaseInsensitive(installDir, path)?.isFile == true) return configured
+
+        val replacement = detect()
+        val file = FileUtils.findFileCaseInsensitive(installDir, replacement.replace('\\', '/'))
+        return if (file?.isFile == true) replacement else configured
+    }
+
     private val ueShipping = Regex(
         ".*-win(32|64)(-shipping)?\\.exe$",
         RegexOption.IGNORE_CASE,

@@ -43,6 +43,15 @@ fun GraphicsTabContent(state: ContainerConfigState, default: Boolean = false) {
     val config = state.config.value
     SettingsGroup() {
         if (config.containerVariant.equals(Container.BIONIC, ignoreCase = true)) {
+            if (state.isPerContainer && Build.VERSION.SDK_INT >= 28) {
+                SettingsSwitch(
+                    colors = settingsTileColorsAlt(),
+                    title = { Text(stringResource(R.string.fossilize_enabled)) },
+                    subtitle = { Text(stringResource(R.string.fossilize_description)) },
+                    state = config.fossilizeEnabled,
+                    onCheckedChange = { state.config.value = state.config.value.copy(fossilizeEnabled = it) },
+                )
+            }
             // Bionic: Graphics Driver (Wrapper/Wrapper-v2)
             SettingsListDropdown(
                 colors = settingsTileColors(),

@@ -12,8 +12,7 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.clickable
 import androidx.compose.material3.ButtonColors
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ButtonElevation
@@ -30,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -39,7 +39,7 @@ import app.gamenative.ui.theme.PluviaTheme
 import androidx.compose.material3.SegmentedButton as MaterialSegmentedButton
 
 /**
- * Controller-first 44dp icon button shared by settings surfaces and dialogs.
+ * Controller-first 48dp icon button shared by settings surfaces and dialogs.
  * Same focus vocabulary as [ConsoleCategoryRail]: elevated surface at rest,
  * primary container + focus ring while focused.
  */
@@ -53,11 +53,11 @@ fun ConsoleIconButton(
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
-    val shape = RoundedCornerShape(0.dp)
+    val shape = MaterialTheme.shapes.small
 
     Box(
         modifier = modifier
-            .size(44.dp)
+            .size(48.dp)
             .clip(shape)
             .background(
                 if (isFocused) {
@@ -74,8 +74,8 @@ fun ConsoleIconButton(
                     Modifier
                 },
             )
-            .selectable(
-                selected = isFocused,
+            .clickable(
+                role = Role.Button,
                 interactionSource = interactionSource,
                 indication = null,
                 onClick = onClick,
@@ -86,7 +86,7 @@ fun ConsoleIconButton(
             imageVector = icon,
             contentDescription = contentDescription,
             tint = if (isFocused) {
-                MaterialTheme.colorScheme.primary
+                MaterialTheme.colorScheme.onPrimaryContainer
             } else {
                 MaterialTheme.colorScheme.onSurfaceVariant
             },
@@ -98,7 +98,7 @@ fun ConsoleIconButton(
 /**
  * Controller-first list row (search results, pickers). Shares the
  * [ConsoleCategoryRail] focus vocabulary: elevated background + ring on
- * focus, quiet at rest. 44dp+ touch target.
+ * focus, quiet at rest. 48dp+ touch target.
  */
 @Composable
 fun ConsoleListRow(
@@ -110,7 +110,7 @@ fun ConsoleListRow(
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
-    val shape = RoundedCornerShape(10.dp)
+    val shape = MaterialTheme.shapes.medium
 
     Column(
         modifier = modifier
@@ -131,8 +131,8 @@ fun ConsoleListRow(
                     Modifier
                 },
             )
-            .selectable(
-                selected = isFocused,
+            .clickable(
+                role = Role.Button,
                 interactionSource = interactionSource,
                 indication = null,
                 onClick = onClick,
@@ -171,11 +171,11 @@ fun ConsoleDialogButton(
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
-    val shape = RoundedCornerShape(10.dp)
+    val shape = MaterialTheme.shapes.medium
 
     Box(
         modifier = modifier
-            .heightIn(min = 44.dp)
+            .heightIn(min = 48.dp)
             .clip(shape)
             .background(
                 when {
@@ -192,8 +192,8 @@ fun ConsoleDialogButton(
                     Modifier
                 },
             )
-            .selectable(
-                selected = isFocused,
+            .clickable(
+                role = Role.Button,
                 interactionSource = interactionSource,
                 indication = null,
                 onClick = onClick,
@@ -223,7 +223,7 @@ fun FilledTonalButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    shape: Shape = ButtonDefaults.filledTonalShape,
+    shape: Shape = MaterialTheme.shapes.medium,
     colors: ButtonColors = ButtonDefaults.filledTonalButtonColors(),
     elevation: ButtonElevation? = ButtonDefaults.filledTonalButtonElevation(),
     border: BorderStroke? = null,
@@ -233,7 +233,6 @@ fun FilledTonalButton(
 ) {
     val fallbackInteractionSource = remember { MutableInteractionSource() }
     val interactionSource = interactionSource ?: fallbackInteractionSource
-    val isFocused by interactionSource.collectIsFocusedAsState()
 
     androidx.compose.material3.FilledTonalButton(
         onClick = onClick,
@@ -258,7 +257,7 @@ fun OutlinedButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    shape: Shape = ButtonDefaults.outlinedShape,
+    shape: Shape = MaterialTheme.shapes.medium,
     colors: ButtonColors = ButtonDefaults.outlinedButtonColors(),
     elevation: ButtonElevation? = null,
     border: BorderStroke? = ButtonDefaults.outlinedButtonBorder(enabled),
@@ -268,7 +267,6 @@ fun OutlinedButton(
 ) {
     val fallbackInteractionSource = remember { MutableInteractionSource() }
     val interactionSource = interactionSource ?: fallbackInteractionSource
-    val isFocused by interactionSource.collectIsFocusedAsState()
 
     androidx.compose.material3.OutlinedButton(
         onClick = onClick,
@@ -285,7 +283,7 @@ fun OutlinedButton(
 }
 
 /**
- * Drop-in replacement for the material3 IconButton: 44dp minimum touch
+ * Drop-in replacement for the material3 IconButton: 48dp minimum touch
  * target and a visible controller focus state (elevated background + ring).
  */
 @Composable
@@ -300,12 +298,12 @@ fun IconButton(
     val fallbackInteractionSource = remember { MutableInteractionSource() }
     val resolvedInteractionSource = interactionSource ?: fallbackInteractionSource
     val isFocused by resolvedInteractionSource.collectIsFocusedAsState()
-    val shape = RoundedCornerShape(10.dp)
+    val shape = MaterialTheme.shapes.medium
 
     androidx.compose.material3.IconButton(
         onClick = onClick,
         modifier = modifier
-            .size(44.dp)
+            .size(48.dp)
             .clip(shape)
             .background(
                 if (isFocused) {
@@ -331,7 +329,7 @@ fun Button(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    shape: Shape = ButtonDefaults.shape,
+    shape: Shape = MaterialTheme.shapes.medium,
     colors: ButtonColors = ButtonDefaults.buttonColors(),
     elevation: ButtonElevation? = ButtonDefaults.buttonElevation(),
     border: BorderStroke? = null,
@@ -341,7 +339,6 @@ fun Button(
 ) {
     val fallbackInteractionSource = remember { MutableInteractionSource() }
     val resolvedInteractionSource = interactionSource ?: fallbackInteractionSource
-    val isFocused by resolvedInteractionSource.collectIsFocusedAsState()
 
     androidx.compose.material3.Button(
         onClick = onClick,
@@ -381,7 +378,6 @@ fun FilterChip(
 ) {
     val fallbackInteractionSource = remember { MutableInteractionSource() }
     val resolvedInteractionSource = interactionSource ?: fallbackInteractionSource
-    val isFocused by resolvedInteractionSource.collectIsFocusedAsState()
 
     androidx.compose.material3.FilterChip(
         selected = selected,
@@ -418,7 +414,6 @@ fun androidx.compose.material3.SingleChoiceSegmentedButtonRowScope.SegmentedButt
     label: @Composable () -> Unit,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
-    val isFocused by interactionSource.collectIsFocusedAsState()
 
     MaterialSegmentedButton(
         selected = selected,

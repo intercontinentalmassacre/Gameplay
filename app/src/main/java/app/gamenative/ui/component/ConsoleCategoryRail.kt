@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -78,7 +77,7 @@ fun <T> ConsoleCategoryRail(
             val interactionSource = remember(item) { MutableInteractionSource() }
             val focused by interactionSource.collectIsFocusedAsState()
             val selected = item == selectedItem
-            val shape = RoundedCornerShape(10.dp)
+            val shape = MaterialTheme.shapes.medium
             Text(
                 text = label(item),
                 modifier = Modifier
@@ -174,7 +173,7 @@ fun <T> ConsoleCategoryStrip(
             val interactionSource = remember(item) { MutableInteractionSource() }
             val focused by interactionSource.collectIsFocusedAsState()
             val selected = item == selectedItem
-            val shape = RoundedCornerShape(10.dp)
+            val shape = MaterialTheme.shapes.medium
             Text(
                 text = label(item),
                 maxLines = 1,

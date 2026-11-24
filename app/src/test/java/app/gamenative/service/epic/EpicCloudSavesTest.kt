@@ -11,11 +11,14 @@ import app.gamenative.service.epic.manifest.FileManifestList
 import app.gamenative.service.epic.manifest.ManifestMeta
 import app.gamenative.utils.FileUtils
 import java.io.File
+import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.security.MessageDigest
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -32,6 +35,37 @@ class EpicCloudSavesTest {
 
     @get:Rule
     val tmpDir = TemporaryFolder()
+
+    @Test
+    fun `missing cloud chunk preserves the entire existing save set`() {
+        val saveDir = tmpDir.newFolder("saves")
+        val first = saveDir.resolve("first.sav").apply { writeText("first local save") }
+        val second = saveDir.resolve("second.sav").apply { writeText("second local save") }
+        val available = "first cloud save".toByteArray()
+        val missing = "second cloud save".toByteArray()
+        val firstPart = ChunkPart(intArrayOf(1, 0, 0, 0), 0, available.size, 0L)
+        val secondPart = ChunkPart(intArrayOf(2, 0, 0, 0), 0, missing.size, 0L)
+        val digest = MessageDigest.getInstance("SHA-1")
+        val files = listOf(
+            FileManifest(first.name, hash = digest.digest(available), chunkParts = mutableListOf(firstPart)),
+            FileManifest(second.name, hash = digest.digest(missing), chunkParts = mutableListOf(secondPart)),
+        )
+
+        assertThrows(IOException::class.java) {
+            EpicCloudSavesManager.restoreSaveFiles(saveDir, files, mapOf(firstPart.guidStr to available))
+        }
+        assertEquals("first local save", first.readText())
+        assertEquals("second local save", second.readText())
+        assertEquals(setOf(first.name, second.name), saveDir.list()?.toSet())
+
+        EpicCloudSavesManager.restoreSaveFiles(
+            saveDir,
+            files,
+            mapOf(firstPart.guidStr to available, secondPart.guidStr to missing),
+        )
+        assertArrayEquals(available, first.readBytes())
+        assertArrayEquals(missing, second.readBytes())
+    }
 
     // -------------------------------------------------------------------------
     // Rolling hash — test vectors produced by Legendary's get_hash()
@@ -84,7 +118,7 @@ class EpicCloudSavesTest {
 
     @Test
     fun `absolute cloud save path resolves LocalLow using on-disk casing`() {
-        val wineUserDir = tmpDir.newFolder("prefix", "drive_c", "users", "xuser")
+        val wineUserDir = tmpDir.newFolder("prefix", "drive_c", "users", "xuser").canonicalFile
         val saveDir = File(wineUserDir, "AppData/LocalLow/ZAUM Studio/Disco Elysium/SaveGames").apply {
             mkdirs()
         }
@@ -93,9 +127,11 @@ class EpicCloudSavesTest {
             .absolutePath
             .replace('\\', '/')
 
-        val resolved = FileUtils.resolveCaseInsensitive(File("/"), metadataPath)
+        val path = File(metadataPath).toPath()
+        val root = path.root
+        val resolved = FileUtils.resolveCaseInsensitive(root.toFile(), root.relativize(path).toString())
 
-        assertEquals(saveDir.absolutePath, resolved.absolutePath)
+        assertEquals(saveDir.canonicalPath, resolved.absolutePath)
         assertTrue(resolved.exists())
     }
 

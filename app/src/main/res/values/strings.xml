@@ -1,4 +1,7 @@
 <resources>
+    <string name="fossilize_enabled">Local shader cache</string>
+    <string name="fossilize_description">Record Vulkan pipelines on this device and prepare new ones before the next launch.</string>
+    <string name="fossilize_preparing">Preparing local shaders…</string>
     <string name="app_name">Gameplay</string>
     <string name="login_user">User Login</string>
     <string name="login_2fa">Two Factor</string>
@@ -214,6 +217,7 @@
     <string name="container_config_custom_resolution_separator">x</string>
     <string name="container_config_custom_resolution_error_nonzero">Width and height must be greater than 0</string>
     <string name="container_config_custom_resolution_error_aspect">Width must be greater than height</string>
+    <string name="container_config_custom_resolution_error_range">Width and height must be between 1 and %1$d</string>
     <string name="resolution_native">Native</string>
     <string name="resolution_optimized">75% · Quality</string>
     <string name="resolution_half">50% · Performance</string>
@@ -1183,8 +1187,10 @@
     <string name="settings_emulation_default_config_dialog_title">Default Container Config</string>
     <string name="settings_emulation_auto_apply_known_config_title">Auto-apply known config</string>
     <string name="settings_emulation_auto_apply_known_config_subtitle">Automatically apply recommended settings for Steam games on first launch</string>
+    <string name="settings_emulation_migrate_existing_prefixes_title">Migrate existing containers</string>
+    <string name="settings_emulation_migrate_existing_prefixes_subtitle">On next launch, move compatible Bionic containers to a shared Wine base. Keep game-specific files and registry settings.</string>
     <string name="settings_emulation_shared_container_base_title">Shared container base</string>
-    <string name="settings_emulation_shared_container_base_subtitle">Link immutable Wine DLLs for new containers to reduce storage. Experimental; existing containers are unchanged.</string>
+    <string name="settings_emulation_shared_container_base_subtitle">Share a Wine base across new Bionic containers. Each game keeps its own changes.</string>
     <string name="settings_emulation_box64_presets_title">Box64 Presets</string>
     <string name="settings_emulation_box64_presets_subtitle">View, modify, and create Box64 presets</string>
     <string name="settings_emulation_driver_manager_title">Driver Manager</string>
@@ -1351,6 +1357,8 @@
     <string name="storage_external">External</string>
     <string name="storage_free_of_total">%1$s: %2$s free of %3$s</string>
     <string name="storage_calculating">%1$s: Calculating…</string>
+    <string name="container_storage_game_size">Game %1$s</string>
+    <string name="container_storage_prefix_size">Container %1$s</string>
     <string name="container_storage_title">Container &amp; Storage Manager</string>
     <string name="container_storage_subtitle">Review game and container storage, including installed games without containers</string>
     <string name="container_storage_path_label">On disk</string>
@@ -2054,6 +2062,8 @@
     <string name="support_bundle_title">Support bundle</string>
     <string name="support_bundle_exporting">Collecting diagnostics…</string>
     <string name="support_bundle_show_contents">Bundle contents</string>
+    <string name="support_bundle_error">Could not prepare or share the archive. %1$s</string>
+    <string name="support_bundle_retry">Retry</string>
     <string name="support_bundle_export">Export &amp; share</string>
     <string name="support_bundle_share_title">Share support bundle</string>
     <string name="diagnostics_share_title">Share diagnostics log</string>
@@ -2576,7 +2586,7 @@
     <string name="local_mod_folder_single">Select one folder at a time.</string>
     <string name="local_mod_reselect">Select the local content again to continue this import.</string>
     <string name="local_mod_invalid_request">The local mod import request is invalid.</string>
-    <string name="local_mod_too_large">The selected content exceeds the 20 GiB import limit.</string>
+    <string name="local_mod_too_large">The selected content exceeds the %1$d GiB import limit.</string>
     <string name="local_mod_uri_payload_too_large">The selected file references are too large to import together. Select their containing folder instead.</string>
     <string name="local_mod_already_importing">This local mod is already being imported.</string>
     <string name="local_mod_import_failed">Failed to import the local mod.</string>
@@ -2775,4 +2785,11 @@
     <string name="driver_category_mali">Arm Mali</string>
     <string name="driver_category_mali_desc">Vulkan drivers for Arm Mali GPUs with the kbase kernel driver.</string>
     <string name="container_settings_load_failed">Could not open container settings. Try again.</string>
+    <string name="hud_thermal_throttling">THERMAL THROTTLING</string>
+    <string name="download_container_title">Container configuration</string>
+    <string name="download_container_dx_default">From configuration</string>
+    <string name="download_container_shared">Shared Wine base</string>
+    <string name="download_container_shared_hint">Store matching MSI, Mono and DirectX files once across games.</string>
+    <string name="download_container_save_failed">Could not save the container settings. Try again.</string>
+    <string name="download_container_auto">Automatic game configuration</string>
 </resources>

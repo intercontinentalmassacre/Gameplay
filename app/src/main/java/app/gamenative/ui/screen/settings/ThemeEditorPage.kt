@@ -1,20 +1,21 @@
 ﻿package app.gamenative.ui.screen.settings
 
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -22,7 +23,6 @@ import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Restore
 import app.gamenative.ui.component.Button
 import app.gamenative.ui.component.FilterChip
-import androidx.compose.material3.Icon
 import app.gamenative.ui.component.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
@@ -37,13 +37,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import app.gamenative.R
-import app.gamenative.ui.component.ConsoleCategoryRail
-import app.gamenative.ui.gcds.GcdsRail
+import app.gamenative.ui.component.ConsoleIconButton
+import app.gamenative.ui.gcds.GcdsAdaptiveCategoryLayout
 import app.gamenative.ui.component.GamepadHint
 import app.gamenative.ui.component.GamepadButton
 import app.gamenative.ui.component.NoExtractOutlinedTextField
@@ -53,6 +54,7 @@ import app.gamenative.ui.theme.GameplayThemeDecodeResult
 import app.gamenative.ui.theme.GameplayThemeDocument
 import app.gamenative.ui.theme.GameplayThemePalette
 import app.gamenative.ui.theme.GameplayThemeTokens
+import app.gamenative.ui.theme.PluviaTheme
 
 private enum class ThemeEditorSection(val labelRes: Int) {
     GENERAL(R.string.theme_editor_section_general),
@@ -75,6 +77,8 @@ fun ThemeEditorPage(
     var selectedSection by remember { mutableStateOf(ThemeEditorSection.GENERAL) }
     var validationError by remember { mutableStateOf<String?>(null) }
     val themeWarnings = remember(draft) { GameplayThemeCodec.warnings(draft) }
+    val compact = PluviaTheme.tokens.densityCompact
+    val sectionScroll = remember(selectedSection) { ScrollState(0) }
 
     fun save() {
         when (val result = GameplayThemeCodec.decode(GameplayThemeCodec.encode(draft))) {
@@ -88,46 +92,47 @@ fun ThemeEditorPage(
         title = stringResource(R.string.theme_editor_title),
         onDismissRequest = onDismiss,
         actions = {
-            IconButton(
+            ConsoleIconButton(
+                icon = Icons.Default.Restore,
+                contentDescription = stringResource(R.string.theme_editor_reset_draft),
                 onClick = {
                     draft = GameplayThemeCodec.safeDocument(name = draft.name.ifBlank { "Gameplay Slate" })
                     validationError = null
                 },
-            ) {
-                Icon(Icons.Default.Restore, contentDescription = stringResource(R.string.theme_editor_reset_draft))
-            }
-            IconButton(onClick = ::save) {
-                Icon(Icons.Default.Save, contentDescription = stringResource(R.string.theme_editor_save))
-            }
+            )
+            ConsoleIconButton(
+                icon = Icons.Default.Save,
+                contentDescription = stringResource(R.string.theme_editor_save),
+                onClick = ::save,
+            )
         },
     ) {
-        Row(modifier = Modifier.fillMaxSize()) {
-            GcdsRail(
-                items = ThemeEditorSection.entries,
-                selectedItem = selectedSection,
-                label = { stringResource(it.labelRes) },
-                onSelected = {
-                    selectedSection = it
-                    validationError = null
-                },
-                footer = stringResource(R.string.container_config_console_controls_hint),
-                    footerHints = listOf(
-                        GamepadHint(listOf(GamepadButton.LB, GamepadButton.RB), R.string.hint_categories),
-                        GamepadHint(GamepadButton.A, R.string.action_select),
-                        GamepadHint(GamepadButton.B, R.string.back),
-                    ),
-                requestInitialFocus = true,
-                compact = true,
-                modifier = Modifier.width(190.dp),
-            )
-
+        GcdsAdaptiveCategoryLayout(
+            items = ThemeEditorSection.entries,
+            selectedItem = selectedSection,
+            label = { stringResource(it.labelRes) },
+            onSelected = {
+                selectedSection = it
+                validationError = null
+            },
+            footer = stringResource(R.string.container_config_console_controls_hint),
+            footerHints = listOf(
+                GamepadHint(listOf(GamepadButton.LB, GamepadButton.RB), R.string.hint_categories),
+                GamepadHint(GamepadButton.A, R.string.action_select),
+                GamepadHint(GamepadButton.B, R.string.back),
+            ),
+            railWidth = 190.dp,
+            modifier = Modifier.fillMaxSize(),
+        ) {
             Column(
                 modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .verticalScroll(rememberScrollState())
-                    .padding(start = 22.dp, end = 12.dp, bottom = 28.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                    .fillMaxSize()
+                    .verticalScroll(sectionScroll)
+                    .padding(
+                        horizontal = if (compact) 6.dp else 12.dp,
+                        vertical = if (compact) 6.dp else 12.dp,
+                    ),
+                verticalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 12.dp),
             ) {
                 validationError?.let { error ->
                     Surface(
@@ -194,8 +199,10 @@ fun ThemeEditorPage(
                     ThemeEditorSection.PREVIEW -> ThemePreview(document = draft)
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
-                Button(onClick = ::save, modifier = Modifier.align(Alignment.End)) {
+                Button(
+                    onClick = ::save,
+                    modifier = Modifier.align(Alignment.End).heightIn(min = 48.dp),
+                ) {
                     Text(stringResource(R.string.theme_editor_save_and_apply))
                 }
             }
@@ -219,6 +226,7 @@ private fun GeneralThemeEditor(name: String, onNameChange: (String) -> Unit) {
     )
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ThemeLayoutEditor(
     tokens: GameplayThemeTokens,
@@ -264,14 +272,16 @@ private fun ThemeLayoutEditor(
             style = MaterialTheme.typography.labelLarge,
             modifier = Modifier.padding(top = 4.dp),
         )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FilterChip(
                 selected = tokens.focusRingStyle == "solid",
+                modifier = Modifier.heightIn(min = 48.dp),
                 onClick = { onChange(tokens.copy(focusRingStyle = "solid")) },
                 label = { Text(stringResource(R.string.theme_editor_focus_solid)) },
             )
             FilterChip(
                 selected = tokens.focusRingStyle == "dashed",
+                modifier = Modifier.heightIn(min = 48.dp),
                 onClick = { onChange(tokens.copy(focusRingStyle = "dashed")) },
                 label = { Text(stringResource(R.string.theme_editor_focus_dashed)) },
             )
@@ -284,14 +294,16 @@ private fun ThemeLayoutEditor(
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FilterChip(
                 selected = tokens.density == "compact",
+                modifier = Modifier.heightIn(min = 48.dp),
                 onClick = { onChange(tokens.copy(density = "compact")) },
                 label = { Text(stringResource(R.string.theme_editor_density_compact)) },
             )
             FilterChip(
                 selected = tokens.density == "comfortable",
+                modifier = Modifier.heightIn(min = 48.dp),
                 onClick = { onChange(tokens.copy(density = "comfortable")) },
                 label = { Text(stringResource(R.string.theme_editor_density_comfortable)) },
             )
@@ -306,6 +318,7 @@ private fun ThemeLayoutEditor(
         )
         FilterChip(
             selected = tokens.highContrast,
+            modifier = Modifier.heightIn(min = 48.dp),
             onClick = { onChange(tokens.copy(highContrast = !tokens.highContrast)) },
             label = { Text(stringResource(R.string.theme_editor_high_contrast)) },
         )
@@ -314,14 +327,15 @@ private fun ThemeLayoutEditor(
 
 @Composable
 private fun ThemeTokenSection(title: String, content: @Composable () -> Unit) {
+    val compact = PluviaTheme.tokens.densityCompact
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(PluviaTheme.tokens.cornerMd),
     ) {
         Column(
-            modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.padding(if (compact) 8.dp else 14.dp),
+            verticalArrangement = Arrangement.spacedBy(if (compact) 4.dp else 8.dp),
         ) {
             Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
             content()
@@ -340,9 +354,10 @@ private fun ThemeSlider(
     Column {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(label, style = MaterialTheme.typography.bodyMedium)
+            Text(label, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
             Text(
                 text = "$value $suffix",
                 style = MaterialTheme.typography.labelLarge,
@@ -351,6 +366,7 @@ private fun ThemeSlider(
             )
         }
         Slider(
+            modifier = Modifier.heightIn(min = 48.dp),
             value = value.toFloat(),
             onValueChange = { onChange(it.toInt().coerceIn(range.first, range.last)) },
             valueRange = range.first.toFloat()..range.last.toFloat(),
@@ -412,6 +428,7 @@ private fun ColorTokenField(labelRes: Int, value: String, onValueChange: (String
     )
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ThemePreview(document: GameplayThemeDocument) {
     Text(
@@ -419,25 +436,31 @@ private fun ThemePreview(document: GameplayThemeDocument) {
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        PalettePreview(
-            title = stringResource(R.string.theme_editor_section_dark),
-            palette = document.dark,
-            tokens = document.tokens,
-            modifier = Modifier.weight(1f),
-        )
-        PalettePreview(
-            title = stringResource(R.string.theme_editor_section_light),
-            palette = document.light,
-            tokens = document.tokens,
-            modifier = Modifier.weight(1f),
-        )
+    val gap = if (PluviaTheme.tokens.densityCompact) 8.dp else 16.dp
+    val fontScale = LocalDensity.current.fontScale.coerceAtLeast(1f)
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        val previewWidth = if (maxWidth >= 460.dp * fontScale) (maxWidth - gap) / 2 else maxWidth
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(gap),
+            verticalArrangement = Arrangement.spacedBy(gap),
+        ) {
+            PalettePreview(
+                title = stringResource(R.string.theme_editor_section_dark),
+                palette = document.dark,
+                tokens = document.tokens,
+                modifier = Modifier.width(previewWidth),
+            )
+            PalettePreview(
+                title = stringResource(R.string.theme_editor_section_light),
+                palette = document.light,
+                tokens = document.tokens,
+                modifier = Modifier.width(previewWidth),
+            )
+        }
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun PalettePreview(
     title: String,
@@ -448,6 +471,7 @@ private fun PalettePreview(
     fun color(value: String, fallback: Color): Color =
         if (Regex("^#[0-9A-Fa-f]{6}$").matches(value)) GameplayThemeCodec.color(value) else fallback
 
+    val previewPadding = if (tokens.density == "compact") 8.dp else 14.dp
     val background = color(palette.background, MaterialTheme.colorScheme.background)
     val surface = color(palette.surface, MaterialTheme.colorScheme.surface)
     val elevated = color(palette.surfaceElevated, MaterialTheme.colorScheme.surfaceContainerHigh)
@@ -463,15 +487,15 @@ private fun PalettePreview(
     Column(
         modifier = modifier
             .background(background, RoundedCornerShape(tokens.cornerLgDp.dp))
-            .padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+            .padding(previewPadding),
+        verticalArrangement = Arrangement.spacedBy(if (tokens.density == "compact") 6.dp else 10.dp),
     ) {
         Text(title, color = color(palette.onBackground, content), fontWeight = FontWeight.SemiBold)
         Surface(color = surface, shape = RoundedCornerShape(tokens.cornerMdDp.dp)) {
-            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Column(modifier = Modifier.padding(previewPadding), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(documentPreviewTitle(), color = content, style = MaterialTheme.typography.titleMedium)
                 Text(stringResource(R.string.theme_editor_preview_secondary), color = muted, style = MaterialTheme.typography.bodySmall)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Box(Modifier.size(30.dp).background(primary, RoundedCornerShape(tokens.cornerSmDp.dp)))
                     Box(Modifier.size(30.dp).background(color(palette.success, primary), RoundedCornerShape(tokens.cornerSmDp.dp)))
                     Box(Modifier.size(30.dp).background(color(palette.warning, primary), RoundedCornerShape(tokens.cornerSmDp.dp)))
@@ -480,7 +504,7 @@ private fun PalettePreview(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(34.dp)
+                        .heightIn(min = 48.dp)
                         .background(elevated, RoundedCornerShape(tokens.cornerSmDp.dp))
                         .border(
                             tokens.focusRingWidthDp.dp,
@@ -493,7 +517,7 @@ private fun PalettePreview(
                         text = stringResource(R.string.theme_editor_preview_selected),
                         color = content,
                         style = MaterialTheme.typography.labelLarge,
-                        modifier = Modifier.padding(horizontal = 10.dp),
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                     )
                 }
             }

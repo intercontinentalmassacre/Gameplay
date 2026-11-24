@@ -1201,6 +1201,8 @@ public class ControlElement {
                 if (handleRadialMenuDirectionalMove(pointerId, states, x, y)) return true;
                 int cursorDx = 0;
                 int cursorDy = 0;
+                ControlsProfile profile = inputControlsView.getProfile();
+                float cursorSpeed = profile != null ? profile.getCursorSpeed() : 1f;
 
                 for (byte i = 0; i < 4; i++) {
                     float value = (i == 1 || i == 3 ? deltaX : deltaY);
@@ -1214,6 +1216,7 @@ public class ControlElement {
                         this.states[i] = true;
                     }
                     else {
+                        if (binding.isMouseMove()) value *= cursorSpeed;
                         if (Math.abs(value) > TouchpadView.CURSOR_ACCELERATION_THRESHOLD) value *= TouchpadView.CURSOR_ACCELERATION;
                         if (binding == Binding.MOUSE_MOVE_LEFT || binding == Binding.MOUSE_MOVE_RIGHT) {
                             cursorDx = Mathf.roundPoint(value);
@@ -1234,12 +1237,17 @@ public class ControlElement {
                 final boolean[] states = {deltaY <= -DPAD_DEAD_ZONE, deltaX >= DPAD_DEAD_ZONE, deltaY >= DPAD_DEAD_ZONE, deltaX <= -DPAD_DEAD_ZONE};
                 if (handleRadialMenuDirectionalMove(pointerId, states, x, y)) return true;
 
+                // Opposing bindings can share an axis, so release the old direction first.
                 for (byte i = 0; i < 4; i++) {
                     float value = i == 1 || i == 3 ? deltaX : deltaY;
-                    Binding binding = getBindingAt(i);
-                    boolean state = binding.isMouseMove() ? (states[i] || states[(i+2)%4]) : states[i];
-                    inputControlsView.handleInputEvent(binding, state, value);
-                    this.states[i] = state;
+                    if (this.states[i] && !states[i]) {
+                        inputControlsView.handleInputEvent(getBindingAt(i), false, value);
+                    }
+                }
+                for (byte i = 0; i < 4; i++) {
+                    float value = i == 1 || i == 3 ? deltaX : deltaY;
+                    if (states[i]) inputControlsView.handleInputEvent(getBindingAt(i), true, value);
+                    this.states[i] = states[i];
                 }
 
                 inputControlsView.invalidate();

@@ -26,6 +26,7 @@ import com.winlator.xserver.XKeycode;
 import com.winlator.xserver.XServer;
 
 import java.util.ArrayList;
+import java.util.function.BooleanSupplier;
 
 public class TouchpadView extends View implements View.OnCapturedPointerListener {
     private static final byte MAX_FINGERS = 4;
@@ -65,6 +66,7 @@ public class TouchpadView extends View implements View.OnCapturedPointerListener
     private boolean pressExecuted;
     private final boolean capturePointerOnExternalMouse;
     private boolean pointerCaptureRequested;
+    private BooleanSupplier pointerCaptureAllowed = () -> true;
 
     // Suppress spurious left-click after two-finger right-click tap
     private boolean suppressNextLeftTap;
@@ -260,10 +262,42 @@ public class TouchpadView extends View implements View.OnCapturedPointerListener
     }
 
     @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        if (canCapturePointer()) requestFocus();
+    }
+
+    public void setPointerCaptureAllowed(BooleanSupplier allowed) {
+        pointerCaptureAllowed = allowed;
+    }
+
+    public boolean canCapturePointer() {
+        return capturePointerOnExternalMouse && !isTouchscreenMode && pointerCaptureAllowed.getAsBoolean();
+    }
+
+    @Override
+    public void requestPointerCapture() {
+        if (!canCapturePointer()) return;
+        pointerCaptureRequested = true;
+        if (hasWindowFocus() && requestFocus()) super.requestPointerCapture();
+    }
+
+    @Override
+    public void releasePointerCapture() {
+        pointerCaptureRequested = false;
+        super.releasePointerCapture();
+    }
+
+    @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
-        // allow re-capture after app returns from background
-        if (hasFocus) pointerCaptureRequested = false;
+        if (!pointerCaptureRequested) return;
+        if (hasFocus) {
+            requestPointerCapture();
+        } else {
+            // Release the Android capture without losing the game's request.
+            super.releasePointerCapture();
+        }
     }
 
     private static StateListDrawable createTransparentBackground() {
@@ -347,6 +381,7 @@ public class TouchpadView extends View implements View.OnCapturedPointerListener
                 && !event.isFromSource(InputDevice.SOURCE_MOUSE)) {
             return true; // consume without generating mouse events
         }
+        if (event.getActionMasked() == MotionEvent.ACTION_DOWN && canCapturePointer()) requestFocus();
         if (isStylus) {
             return handleStylusEvent(event);
         } else if (isTouchscreenMode) {
@@ -2157,6 +2192,7 @@ public class TouchpadView extends View implements View.OnCapturedPointerListener
     public void setTouchscreenMode(boolean isTouchscreenMode) {
         Log.d("TouchpadView", "Setting touchscreen mode to " + isTouchscreenMode);
         this.isTouchscreenMode = isTouchscreenMode;
+        if (isTouchscreenMode && pointerCaptureRequested) releasePointerCapture();
     }
 
     public boolean isTouchscreenMode() {

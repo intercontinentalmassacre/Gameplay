@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -21,7 +20,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
@@ -41,31 +39,15 @@ fun AccentActionRow(
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
-    val shape = RoundedCornerShape(14.dp)
+    val shape = MaterialTheme.shapes.medium
 
     Row(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 8.dp, vertical = 2.dp)
             .clip(shape)
-            .background(
-                if (isFocused) {
-                    Brush.horizontalGradient(
-                        colors = listOf(
-                            accentColor.copy(alpha = 0.16f),
-                            accentColor.copy(alpha = 0.08f),
-                        ),
-                    )
-                } else {
-                    Brush.horizontalGradient(
-                        colors = listOf(
-                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.18f),
-                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.10f),
-                        ),
-                    )
-                },
-            )
-            .focusRing(interactionSource, shape, width = 2.dp)
+            .background(if (isFocused) MaterialTheme.colorScheme.surfaceContainerHighest else MaterialTheme.colorScheme.surfaceContainer)
+            .focusRing(isFocused, shape)
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,

@@ -1,9 +1,12 @@
 package app.gamenative.service.gog
 
 import android.content.Context
+import app.gamenative.Crypto
+import io.mockk.every
+import io.mockk.mockkObject
+import io.mockk.unmockkObject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
-import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.json.JSONObject
@@ -20,6 +23,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import timber.log.Timber
 import java.io.File
+import java.util.Base64
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
@@ -51,10 +55,19 @@ class GOGAuthManagerTest {
         mockWebServer.start()
         tempDir = createTempDir("gogtest")
         `when`(context.filesDir).thenReturn(tempDir)
+        // AndroidKeyStore itself is covered by an instrumented Crypto test.
+        mockkObject(Crypto)
+        every { Crypto.encryptToString(any()) } answers {
+            Base64.getEncoder().encodeToString(firstArg<ByteArray>())
+        }
+        every { Crypto.decryptFromString(any()) } answers {
+            runCatching { Base64.getDecoder().decode(firstArg<String>()) }.getOrNull()
+        }
     }
 
     @After
     fun tearDown() {
+        unmockkObject(Crypto)
         mockWebServer.shutdown()
         closeable.close()
         tempDir.deleteRecursively()
@@ -115,7 +128,7 @@ class GOGAuthManagerTest {
 
         // Assert
         assertTrue(result.isFailure)
-        assertTrue(result.exceptionOrNull()?.message?.contains("Invalid code") == true)
+        assertEquals("Authentication failed: HTTP 400", result.exceptionOrNull()?.message)
     }
 
     @Test
@@ -136,6 +149,7 @@ class GOGAuthManagerTest {
         assertTrue(result.isSuccess)
         val creds = result.getOrNull()!!
         assertEquals("token123", creds.accessToken)
+        assertEquals(authJson, String(Base64.getDecoder().decode(authFile.readText())))
     }
 
     @Test

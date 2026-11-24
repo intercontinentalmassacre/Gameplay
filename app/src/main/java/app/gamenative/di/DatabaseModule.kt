@@ -14,6 +14,7 @@ import app.gamenative.db.dao.EncryptedAppTicketDao
 import app.gamenative.db.dao.LibraryPlayHistoryDao
 import app.gamenative.db.dao.ModDao
 import app.gamenative.db.dao.SteamUnlockedBranchDao
+import app.gamenative.db.migration.ROOM_MIGRATION_V16_to_V17
 import app.gamenative.db.migration.ROOM_MIGRATION_V23_to_V24
 import app.gamenative.db.migration.ROOM_MIGRATION_V24_to_V25
 import app.gamenative.db.migration.ROOM_MIGRATION_V7_to_V8
@@ -37,6 +38,7 @@ class DatabaseModule {
         return Room.databaseBuilder(context, PluviaDatabase::class.java, DATABASE_NAME)
             .addMigrations(
                 ROOM_MIGRATION_V7_to_V8,
+                ROOM_MIGRATION_V16_to_V17,
                 ROOM_MIGRATION_V23_to_V24,
                 ROOM_MIGRATION_V24_to_V25,
             )

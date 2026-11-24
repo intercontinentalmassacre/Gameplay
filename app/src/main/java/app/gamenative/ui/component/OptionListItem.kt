@@ -2,7 +2,6 @@ package app.gamenative.ui.component
 
 import android.content.res.Configuration
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -18,11 +17,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Download
@@ -48,8 +47,6 @@ import app.gamenative.ui.theme.motionSpec
 
 private data class OptionItemStyle(
     val backgroundColor: Color,
-    val borderColor: Color,
-    val borderWidth: androidx.compose.ui.unit.Dp,
     val contentColor: Color,
 )
 
@@ -70,18 +67,6 @@ private fun rememberOptionItemStyle(
         label = "${labelPrefix}BgColor",
     )
 
-    val borderColor by animateColorAsState(
-        targetValue = if (isFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
-        animationSpec = motionSpec(tween(PluviaTheme.tokens.motionFastMs)),
-        label = "${labelPrefix}BorderColor",
-    )
-
-    val borderWidth by animateDpAsState(
-        targetValue = if (isFocused) 2.dp else 0.dp,
-        animationSpec = motionSpec(tween(PluviaTheme.tokens.motionFastMs)),
-        label = "${labelPrefix}BorderWidth",
-    )
-
     val contentColor by animateColorAsState(
         targetValue = when {
             isFocused -> MaterialTheme.colorScheme.onSurface
@@ -94,8 +79,6 @@ private fun rememberOptionItemStyle(
 
     return OptionItemStyle(
         backgroundColor = backgroundColor,
-        borderColor = borderColor,
-        borderWidth = borderWidth,
         contentColor = contentColor,
     )
 }
@@ -121,13 +104,10 @@ fun OptionListItem(
 
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(0.dp))
+            .heightIn(min = 48.dp)
+            .clip(MaterialTheme.shapes.small)
             .background(style.backgroundColor)
-            .then(
-                if (isFocused) {
-                    Modifier.border(style.borderWidth, style.borderColor, RoundedCornerShape(0.dp))
-                } else Modifier
-            )
+            .focusRing(isFocused, MaterialTheme.shapes.small)
             .focusRequester(focusRequester)
             .selectable(
                 selected = selected,
@@ -135,7 +115,7 @@ fun OptionListItem(
                 indication = null,
                 onClick = onClick
             )
-            .padding(horizontal = 16.dp, vertical = 14.dp)
+            .padding(horizontal = 16.dp, vertical = if (PluviaTheme.tokens.densityCompact) 6.dp else 14.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -204,13 +184,10 @@ fun OptionRadioItem(
 
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(0.dp))
+            .heightIn(min = 48.dp)
+            .clip(MaterialTheme.shapes.small)
             .background(style.backgroundColor)
-            .then(
-                if (isFocused) {
-                    Modifier.border(style.borderWidth, style.borderColor, RoundedCornerShape(0.dp))
-                } else Modifier
-            )
+            .focusRing(isFocused, MaterialTheme.shapes.small)
             .focusRequester(focusRequester)
             .selectable(
                 selected = selected,
@@ -218,7 +195,7 @@ fun OptionRadioItem(
                 indication = null,
                 onClick = onClick
             )
-            .padding(horizontal = 16.dp, vertical = 14.dp)
+            .padding(horizontal = 16.dp, vertical = if (PluviaTheme.tokens.densityCompact) 6.dp else 14.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -283,13 +260,13 @@ fun OptionGroup(
     Surface(
         modifier = modifier.fillMaxWidth(),
         color = MaterialTheme.colorScheme.surfaceContainer,
-        shape = RoundedCornerShape(12.dp),
+        shape = MaterialTheme.shapes.medium,
     ) {
         Column(
             modifier = Modifier
                 .padding(vertical = 8.dp)
                 .then(if (focusableGroup) Modifier.focusGroup() else Modifier),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+            verticalArrangement = Arrangement.spacedBy(if (PluviaTheme.tokens.densityCompact) 0.dp else 4.dp),
         ) {
             content()
         }

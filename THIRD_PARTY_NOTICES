@@ -536,6 +536,40 @@ The AArch64 Unix backend uses 16 KiB ELF alignment.
 Wine loads the separate driver files at runtime. Users may replace the driver
 with an interface-compatible build and reverse engineer it to debug modifications.
 
+## Fossilize
+
+The Vulkan recording layer and replay executable are the unmodified Bionic
+AArch64 artifacts from GameNative #2356, built from Valve's Fossilize with NDK
+r27d, Android API 28 and 16 KiB ELF alignment.
+
+* Source: https://github.com/ValveSoftware/Fossilize/tree/556da9ff7d7616704dda515756219ab1dab693ec
+* Packaging and Bionic patch: `tools/build-fossilize.sh` and `tools/fossilize-patches/`.
+* Upstream binary provenance: https://github.com/utkarshdalal/GameNative/commit/22032b857734b54e9592d3c6c24e9d630ad1956b
+* `libfossilize_layer.so` SHA-256: `2b8848da38f8ea5c57ee9cf431f89d100248958f44d1c7fccef9f5895ac45065`.
+* `libfossilize_replay.so` SHA-256: `2e0396eca90a40c375b847ed795345ae8d603ac659ac254872a5c6cdddb60be0`.
+* Upstream submodules and their licenses are referenced in the pinned Fossilize source tree.
+
+Copyright (c) 2018 Hans-Kristian Arntzen
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
 ## ARM64 PRoot for Linux AppImages
 
 The ARM64 libproot.so and libproot-loader.so are the unmodified binaries

@@ -1,5 +1,8 @@
 package app.gamenative
 
+import app.gamenative.utils.ContainerUtils
+import com.winlator.core.KeyValueSet
+
 import android.content.Context
 import androidx.compose.runtime.mutableStateOf
 import app.gamenative.display.GamescopeSettings
@@ -240,7 +243,12 @@ object PrefManager {
 
     private val GRAPHICS_DRIVER_CONFIG = stringPreferencesKey("graphics_driver_config")
     var graphicsDriverConfig: String
-        get() = getPref(GRAPHICS_DRIVER_CONFIG, Container.DEFAULT_GRAPHICSDRIVERCONFIG)
+        get() = getPref(GRAPHICS_DRIVER_CONFIG, if (ContainerUtils.isAynThor) {
+            KeyValueSet(Container.DEFAULT_GRAPHICSDRIVERCONFIG).apply {
+                put("version", ContainerUtils.WRAPPER_THOR)
+                put("vulkanVersion", "1.4")
+            }.toString()
+        } else Container.DEFAULT_GRAPHICSDRIVERCONFIG)
         set(value) {
             setPref(GRAPHICS_DRIVER_CONFIG, value)
         }
@@ -254,7 +262,7 @@ object PrefManager {
 
     private val DISPLAY_SERVER = stringPreferencesKey("display_server")
     var displayServer: String
-        get() = getPref(DISPLAY_SERVER, Container.DISPLAY_SERVER_X11)
+        get() = getPref(DISPLAY_SERVER, if (ContainerUtils.isAynThor) Container.DISPLAY_SERVER_GAMESCOPE else Container.DISPLAY_SERVER_X11)
         set(value) {
             setPref(DISPLAY_SERVER, value)
         }
@@ -405,7 +413,13 @@ object PrefManager {
 
     private val DXWRAPPER_CONFIG = stringPreferencesKey("dxwrapperConfig")
     var dxWrapperConfig: String
-        get() = getPref(DXWRAPPER_CONFIG, Container.DEFAULT_DXWRAPPERCONFIG)
+        get() = getPref(DXWRAPPER_CONFIG, if (ContainerUtils.isAynThor) {
+            KeyValueSet(Container.DEFAULT_DXWRAPPERCONFIG).apply {
+                put("version", ContainerUtils.DXVK_THOR)
+                put("async", "1")
+                put("asyncCache", "1")
+            }.toString()
+        } else Container.DEFAULT_DXWRAPPERCONFIG)
         set(value) {
             setPref(DXWRAPPER_CONFIG, value)
         }
@@ -1573,6 +1587,11 @@ object PrefManager {
     var sharedContainerBase: Boolean
         get() = getPref(SHARED_CONTAINER_BASE, false)
         set(value) = setPrefBlocking(SHARED_CONTAINER_BASE, value)
+
+    private val MIGRATE_EXISTING_PREFIXES = booleanPreferencesKey("migrate_existing_prefixes")
+    var migrateExistingPrefixes: Boolean
+        get() = getPref(MIGRATE_EXISTING_PREFIXES, false)
+        set(value) = setPrefBlocking(MIGRATE_EXISTING_PREFIXES, value)
 
     // Game compatibility cache (JSON string)
     private val GAME_COMPATIBILITY_CACHE = stringPreferencesKey("game_compatibility_cache")

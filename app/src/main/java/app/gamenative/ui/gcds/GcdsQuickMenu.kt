@@ -44,6 +44,7 @@ import app.gamenative.R
 import app.gamenative.data.SteamApp
 import app.gamenative.data.SteamCollection
 import app.gamenative.externaldisplay.DsHomeSecondScreen
+import app.gamenative.externaldisplay.secondScreenGameMode
 import app.gamenative.ui.component.QuickMenu
 import app.gamenative.ui.data.DownloadsState
 import app.gamenative.ui.data.PerformanceHudConfig
@@ -54,6 +55,7 @@ import app.gamenative.ui.screen.library.components.ConsolePanelHeader
 import app.gamenative.ui.screen.library.components.ConsoleSidePanel
 import app.gamenative.ui.screen.library.components.LibraryOptionsPanel
 import app.gamenative.ui.screen.xserver.InGameContainerSettings
+import app.gamenative.ui.theme.PluviaTheme
 import app.gamenative.utils.rememberHasExternalDisplay
 import com.winlator.container.Container
 import com.winlator.renderer.GLRenderer
@@ -282,27 +284,16 @@ private fun GcdsGameQuickMenu(
             ?: app.getLogoUrl()
             ?: app.logoUrl.takeIf { app.logoHash.isNotBlank() }
     }.orEmpty().takeIf { PrefManager.dualScreenGameUseLogo }.orEmpty()
-    val lowerPanel = remember(container?.id) {
-        mutableStateOf(PrefManager.dualScreenGameDefaultPanel)
-    }
-
-    LaunchedEffect(isVisible) {
-        if (isVisible) {
-            lowerPanel.value = 1
-        } else if (!InGameContainerSettings.overlayActive) {
-            lowerPanel.value = PrefManager.dualScreenGameDefaultPanel
-        }
+    val showPassiveMenu = remember(container?.id) {
+        mutableStateOf(PrefManager.dualScreenGameDefaultPanel == 1)
     }
 
     if (hasExternalDisplay) {
         SideEffect {
             DsHomeSecondScreen.publish(DsHomeSecondScreen.Model(
                 owner = DsHomeSecondScreen.Owner.GAME,
-                mode = if (lowerPanel.value == 1) {
-                    DsHomeSecondScreen.Mode.QUICK_MENU
-                } else {
-                    DsHomeSecondScreen.Mode.GAME_DASHBOARD
-                },
+                mode = secondScreenGameMode(menuActive = isVisible, showPassiveMenu = showPassiveMenu.value),
+                onBack = onDismiss,
                 dashboardTitle = dashboardTitle,
                 dashboardSubtitle = dashboardSubtitle,
                 dashboardImageUrl = dashboardImageUrl,
@@ -315,17 +306,13 @@ private fun GcdsGameQuickMenu(
                 },
                 performanceHudKey = 31 * System.identityHashCode(frameRating),
                 onShowDashboard = {
-                    lowerPanel.value = 0
-                    if (isVisible) onDismiss()
+                    if (!InGameContainerSettings.overlayActive) {
+                        showPassiveMenu.value = false
+                        if (isVisible) onDismiss()
+                    }
                 },
                 onShowMenu = {
-                    lowerPanel.value = 1
-                    // Force an outer state change as well: the Presentation owns
-                    // a separate Compose frame clock, so changing only the state
-                    // captured by this callback is not enough to reliably wake
-                    // the main-display publisher on every device. The lower
-                    // window remains NOT_FOCUSABLE, so controller focus still
-                    // stays with the game.
+                    showPassiveMenu.value = true
                     if (!isVisible) onRequestOpen()
                 },
                 menuContent = {
@@ -350,14 +337,14 @@ private fun GcdsGameQuickMenu(
                         onPerformanceHudConfigChanged = onPerformanceHudConfigChanged,
                         onFpsLimiterEnabledChanged = onFpsLimiterEnabledChanged,
                         onFpsLimiterChanged = onFpsLimiterChanged,
-hasPhysicalController = hasPhysicalController,
-            isSteamControllerLive = isSteamControllerLive,
-            isTouchscreenModeActive = isTouchscreenModeActive,
-            onTouchGestureSettingsClick = onTouchGestureSettingsClick,
-            isShooterModeActive = isShooterModeActive,
-            onShooterModeSettingsClick = onShooterModeSettingsClick,
-            activeToggleIds = activeToggleIds,
-            isLsfgAvailable = isLsfgAvailable,
+                        hasPhysicalController = hasPhysicalController,
+                        isSteamControllerLive = isSteamControllerLive,
+                        isTouchscreenModeActive = isTouchscreenModeActive,
+                        onTouchGestureSettingsClick = onTouchGestureSettingsClick,
+                        isShooterModeActive = isShooterModeActive,
+                        onShooterModeSettingsClick = onShooterModeSettingsClick,
+                        activeToggleIds = activeToggleIds,
+                        isLsfgAvailable = isLsfgAvailable,
                         lsfgMultiplier = lsfgMultiplier,
                         lsfgFlowScale = lsfgFlowScale,
                         lsfgPerformanceMode = lsfgPerformanceMode,
@@ -603,10 +590,12 @@ private fun GcdsQueueActionRow(
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
     isFocused: Boolean = false,
 ) {
+    val shape = RoundedCornerShape(PluviaTheme.tokens.cornerSm)
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .gcdsFocusRing(interactionSource, RoundedCornerShape(0.dp))
+            .focusRequester(focusRequester)
+            .gcdsFocusRing(interactionSource, shape)
             .background(
                 when {
                     !enabled -> Color.Transparent
@@ -614,7 +603,7 @@ private fun GcdsQueueActionRow(
                     emphasized -> MaterialTheme.colorScheme.surfaceContainerHigh
                     else -> Color.Transparent
                 },
-                RoundedCornerShape(0.dp),
+                shape,
             )
             .clickable(
                 interactionSource = interactionSource,
@@ -622,7 +611,6 @@ private fun GcdsQueueActionRow(
                 enabled = enabled,
                 onClick = onClick,
             )
-            .focusRequester(focusRequester)
             .padding(horizontal = 16.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp),

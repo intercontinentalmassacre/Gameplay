@@ -52,19 +52,26 @@ public class Drawable extends XResource {
     }
 
     public Drawable(int id, int width, int height, Visual visual) {
+        this(id, width, height, visual, null);
+    }
+
+    Drawable(int id, int width, int height, Visual visual, NativeTexture importedTexture) {
         super(id);
-        this.texture = new Texture();
         this.offscreenStorage = false;
         this.renderLock = new Object();
         this.width = (short)width;
         this.height = (short)height;
         this.visual = visual;
 
-        if (Drawable.DRAWABLE_FOR_ASR) {
+        if (importedTexture != null) {
+            this.texture = importedTexture;
+            this.data = importedTexture.getVirtualData();
+        } else if (Drawable.DRAWABLE_FOR_ASR) {
             AHBImage g = new AHBImage((short) width, (short) height);
             this.texture = g;
             this.data = g.getVirtualData();
         } else {
+            this.texture = new Texture();
             this.data = ByteBuffer.allocateDirect(width * height * 4).order(ByteOrder.LITTLE_ENDIAN);
         }
     }

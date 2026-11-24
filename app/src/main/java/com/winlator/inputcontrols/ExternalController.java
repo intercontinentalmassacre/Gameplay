@@ -79,36 +79,21 @@ public class ExternalController {
     }
 
     public int getDeviceId() {
-        if (this.deviceId == -1) {
-            int[] deviceIds = InputDevice.getDeviceIds();
-            int length = deviceIds.length;
-            int i = 0;
-            while (true) {
-                if (i < length) {
-                    int deviceId = deviceIds[i];
-                InputDevice device = InputDevice.getDevice(deviceId);
-                    if (device == null || !device.getDescriptor().equals(this.id)) {
-                        i++;
-                    } else {
-                    this.deviceId = deviceId;
-                    break;
-                    }
-                } else {
-                    break;
-                }
+        InputDevice cached = InputDevice.getDevice(deviceId);
+        if (cached != null && cached.getDescriptor().equals(id)) return deviceId;
+        deviceId = -1;
+        for (int candidate : InputDevice.getDeviceIds()) {
+            InputDevice device = InputDevice.getDevice(candidate);
+            if (isGameController(device) && device.getDescriptor().equals(id)) {
+                deviceId = candidate;
+                break;
             }
         }
-        return this.deviceId;
+        return deviceId;
     }
 
     public boolean isConnected() {
-        for (int deviceId : InputDevice.getDeviceIds()) {
-            InputDevice device = InputDevice.getDevice(deviceId);
-            if (device != null && device.getDescriptor().equals(this.id)) {
-                return true;
-            }
-        }
-        return false;
+        return getDeviceId() != -1;
     }
 
     public ExternalControllerBinding getControllerBinding(int keyCode) {
@@ -332,6 +317,7 @@ public class ExternalController {
                 ExternalController controller = new ExternalController();
                 controller.setId(device.getDescriptor());
                 controller.setName(device.getName());
+                controller.deviceId = deviceIds[i];
                 controllers.add(controller);
             }
         }
@@ -350,51 +336,59 @@ public class ExternalController {
     }
 
     public static ExternalController getController(int deviceId) {
-        int[] deviceIds = InputDevice.getDeviceIds();
-        for (int i = deviceIds.length-1; i >= 0; i--) {
-            if (deviceIds[i] == deviceId || deviceId == 0) {
-                InputDevice device = InputDevice.getDevice(deviceIds[i]);
-                if (isGameController(device)) {
-                    ExternalController controller = new ExternalController();
-                    controller.setId(device.getDescriptor());
-                    controller.setName(device.getName());
-                    controller.deviceId = deviceIds[i];
-                    return controller;
-                }
-            }
-        }
-        return null;
+        InputDevice device = InputDevice.getDevice(deviceId);
+        if (!isGameController(device)) return null;
+        ExternalController controller = new ExternalController();
+        controller.setId(device.getDescriptor());
+        controller.setName(device.getName());
+        controller.deviceId = deviceId;
+        return controller;
     }
 
     public static boolean isGameController(InputDevice device) {
         if (device == null) return false;
-        if (device.isVirtual()) return false;
-        if (JoyCon.side(device) >= 0) return ControllerManager.isGameController(device);
+        String name = device.getName();
+        // Xiaomi's uinput device can advertise gamepad sources even when Android reports it as non-virtual.
+        if ("uinput-xiaomi".equalsIgnoreCase(name) || "ui-input-xiaomi".equalsIgnoreCase(name)) return false;
+        if (name != null && name.toLowerCase(java.util.Locale.ROOT).contains("uinput-fpc")) return false;
+        int sources = device.getSources();
+        // A mouse can advertise a joystick source without acting as a gamepad.
+        boolean gamepad = (sources & InputDevice.SOURCE_GAMEPAD) == InputDevice.SOURCE_GAMEPAD;
+        boolean joystick = (sources & InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK
+                && !device.supportsSource(InputDevice.SOURCE_MOUSE);
+        if (device.isVirtual() || (!gamepad && !joystick)) return false;
+        if (JoyCon.side(device) >= 0 || device.getKeyboardType() != InputDevice.KEYBOARD_TYPE_ALPHABETIC) return true;
 
-        boolean isGamepad = device.supportsSource(InputDevice.SOURCE_GAMEPAD);
-        boolean isJoystick = device.supportsSource(InputDevice.SOURCE_JOYSTICK);
-
-        boolean hasAxes =
-                device.getMotionRange(android.view.MotionEvent.AXIS_X) != null ||
-                        device.getMotionRange(android.view.MotionEvent.AXIS_Y) != null;
-
-        boolean[] hasGamepadKeysArray = device.hasKeys(
-                KeyEvent.KEYCODE_BUTTON_A,
-                KeyEvent.KEYCODE_BUTTON_B,
-                KeyEvent.KEYCODE_BUTTON_X,
-                KeyEvent.KEYCODE_BUTTON_Y
-        );
-
-        boolean hasGamepadKeys = false;
-        for (boolean hasKey : hasGamepadKeysArray) {
-            if (hasKey) {
-                hasGamepadKeys = true;
-                break;
-            }
+        // Some keyboards advertise a gamepad source without any controller controls.
+        for (InputDevice.MotionRange range : device.getMotionRanges()) {
+            if ((range.getSource() & InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK) return true;
         }
+        for (boolean present : device.hasKeys(KeyEvent.KEYCODE_BUTTON_A, KeyEvent.KEYCODE_BUTTON_B,
+                KeyEvent.KEYCODE_BUTTON_X, KeyEvent.KEYCODE_BUTTON_Y,
+                KeyEvent.KEYCODE_BUTTON_START, KeyEvent.KEYCODE_BUTTON_SELECT,
+                KeyEvent.KEYCODE_BUTTON_L1, KeyEvent.KEYCODE_BUTTON_R1,
+                KeyEvent.KEYCODE_BUTTON_L2, KeyEvent.KEYCODE_BUTTON_R2,
+                KeyEvent.KEYCODE_BUTTON_THUMBL, KeyEvent.KEYCODE_BUTTON_THUMBR,
+                KeyEvent.KEYCODE_BUTTON_1, KeyEvent.KEYCODE_BUTTON_2)) {
+            if (present) return true;
+        }
+        return false;
+    }
 
-        return (isGamepad && hasGamepadKeys) ||
-                (isJoystick && hasAxes);
+    public static boolean isControllerKeyEvent(KeyEvent event) {
+        int key = event.getKeyCode();
+        InputDevice device = event.getDevice();
+        if (!isGameController(device)) return false;
+        if (JoyCon.side(device) >= 0 || KeyEvent.isGamepadButton(key)) return true;
+        boolean keyboard = event.isFromSource(InputDevice.SOURCE_KEYBOARD);
+        if (!keyboard && (event.isFromSource(InputDevice.SOURCE_GAMEPAD)
+                || event.isFromSource(InputDevice.SOURCE_JOYSTICK))) return true;
+
+        // Resolve ambiguous navigation keys using the device's capabilities.
+        if (key != KeyEvent.KEYCODE_BACK && key != KeyEvent.KEYCODE_HOME
+                && (key < KeyEvent.KEYCODE_DPAD_UP || key > KeyEvent.KEYCODE_DPAD_CENTER)) return false;
+        return device.getKeyboardType() != InputDevice.KEYBOARD_TYPE_ALPHABETIC
+                || (!keyboard && event.isFromSource(InputDevice.SOURCE_DPAD));
     }
 
     public static float getCenteredAxis(MotionEvent event, int axis, int historyPos) {

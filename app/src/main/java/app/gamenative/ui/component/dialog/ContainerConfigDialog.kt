@@ -43,6 +43,7 @@ import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.TopAppBarDefaults
 import app.gamenative.ui.component.NoExtractOutlinedTextField
 import app.gamenative.ui.component.ConsoleDialogButton
 import app.gamenative.ui.component.ConsoleIconButton
@@ -171,6 +172,16 @@ internal fun winComponentsItemTitleRes(string: String): Int {
 
 /** GPU-compatible nearest-even rounding for render-target dimensions. */
 internal fun evenRound(value: Float): Int = (value / 2f).roundToInt() * 2
+
+// ScreenInfo stores both dimensions as signed shorts; keep room for rounding to even.
+internal val maxCustomResolutionDimension = Short.MAX_VALUE.toInt() - 1
+
+internal fun normalizeCustomResolution(width: Int?, height: Int?): Pair<Int, Int>? {
+    if (width == null || height == null ||
+        width !in 1..maxCustomResolutionDimension || height !in 1..maxCustomResolutionDimension
+    ) return null
+    return evenRound(width.toFloat()) to evenRound(height.toFloat())
+}
 
 internal tailrec fun gcd(a: Int, b: Int): Int {
     val positiveA = kotlin.math.abs(a)
@@ -1177,13 +1188,9 @@ fun ContainerConfigDialog(
 
         val applyScreenSizeToConfig: () -> Unit = {
             val screenSize = if (screenSizeIndex == 0) {
-                val width = customScreenWidth.toIntOrNull()
-                val height = customScreenHeight.toIntOrNull()
-                if (width != null && height != null && width > 0 && height > 0) {
-                    "${evenRound(width.toFloat())}x${evenRound(height.toFloat())}"
-                } else {
-                    config.screenSize
-                }
+                normalizeCustomResolution(customScreenWidth.toIntOrNull(), customScreenHeight.toIntOrNull())
+                    ?.let { (width, height) -> "${width}x${height}" }
+                    ?: config.screenSize
             } else {
                 screenSizes[screenSizeIndex].split(" ")[0]
             }
@@ -1204,11 +1211,9 @@ fun ContainerConfigDialog(
             }
         }
 
-        val nonzeroResolutionError = stringResource(
-            R.string.container_config_custom_resolution_error_nonzero
-        )
-        val aspectResolutionError = stringResource(
-            R.string.container_config_custom_resolution_error_aspect
+        val resolutionRangeError = stringResource(
+            R.string.container_config_custom_resolution_error_range,
+            maxCustomResolutionDimension,
         )
 
         val state = ContainerConfigState(
@@ -1453,6 +1458,9 @@ fun ContainerConfigDialog(
                         },
                     topBar = {
                         CenterAlignedTopAppBar(
+                            colors = TopAppBarDefaults.topAppBarColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                            ),
                             title = {
                                 Text(
                                     text = "$title${if (initialConfig != config) "*" else ""}",
@@ -1499,7 +1507,7 @@ fun ContainerConfigDialog(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         } else {
-                            if (selectedTab == 0) GeneralTabContent(state, nonzeroResolutionError, aspectResolutionError)
+                            if (selectedTab == 0) GeneralTabContent(state, resolutionRangeError)
                             if (selectedTab == 1) CompatPresetsTabContent(state)
                             if (selectedTab == 2) GraphicsTabContent(state, default)
                             if (selectedTab == 3) EmulationTabContent(state)
@@ -1658,7 +1666,7 @@ private fun EmbeddedContainerOverlay(
                     .widthIn(max = 520.dp)
                     .fillMaxWidth()
                     .padding(24.dp),
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(PluviaTheme.tokens.cornerLg),
                 color = MaterialTheme.colorScheme.surfaceContainerHigh,
             ) {
                 Column(

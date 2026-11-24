@@ -3,6 +3,7 @@ package app.gamenative.display
 import android.annotation.SuppressLint
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.view.Surface
 import app.gamenative.PluviaApp
 import app.gamenative.events.AndroidEvent
@@ -67,6 +68,7 @@ object GameNativeDrm {
 
     /** Registers (or, with `null`, clears) the widget that [onFramePublished] feeds. */
     @JvmStatic
+    @Synchronized
     fun setFrameRating(frameRating: FrameRating?) {
         this.frameRating = frameRating
     }
@@ -79,18 +81,21 @@ object GameNativeDrm {
      * every frame gamescope publishes, and gamescope only repaints on damage: wine's static desktop
      * publishes next to nothing, a rendering game publishes continuously. Sixty distinct published
      * frames (one second at 60 Hz) is the gamescope equivalent of the first mapped game window.
+     * The FPS widget starts with the continuous run that reached this threshold.
      */
-    const val GAME_CONTENT_FRAMES: Int = 60
+    const val GAME_CONTENT_FRAMES: Int = GamescopeFrameStart.CONTENT_FRAMES
 
     @Volatile
-    private var presentation: java.util.concurrent.atomic.AtomicInteger? = null
+    private var presentation: GamescopeFrameStart? = null
 
     @JvmStatic
+    @Synchronized
     fun beginSurfaceSession() {
-        presentation = java.util.concurrent.atomic.AtomicInteger()
+        presentation = GamescopeFrameStart()
     }
 
     @JvmStatic
+    @Synchronized
     fun endSurfaceSession() {
         presentation = null
         frameRating = null
@@ -99,7 +104,7 @@ object GameNativeDrm {
 
     /** Whether this session has already signalled game content (the event fires once). */
     @JvmStatic
-    val gameContentSeen: Boolean get() = (presentation?.get() ?: 0) >= GAME_CONTENT_FRAMES
+    val gameContentSeen: Boolean get() = presentation?.gameContentSeen == true
 
     /** Set by the session screen; runs on the main thread once per session when game content is first seen. */
     @Volatile
@@ -114,10 +119,11 @@ object GameNativeDrm {
      * (gamescope's frames never tick the X11 present hook).
      */
     @JvmStatic
+    @Synchronized
     fun onFramePublished() {
         val session = presentation ?: return
-        frameRating?.update()
-        if (session.incrementAndGet() == GAME_CONTENT_FRAMES) {
+        val rating = frameRating
+        if (session.onFrame(SystemClock.elapsedRealtime()) { time -> rating?.update(time) }) {
             mainHandler.post { if (presentation === session) gameContentListener?.invoke() }
         }
     }

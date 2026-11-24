@@ -1,7 +1,11 @@
 package app.gamenative.ui.components
 
 import android.app.Application
+import android.content.ContentProvider
+import android.content.ContentValues
 import android.content.Context
+import android.database.Cursor
+import android.database.MatrixCursor
 import android.net.Uri
 import android.os.Environment
 import android.provider.DocumentsContract
@@ -12,9 +16,8 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
-import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
-import org.robolectric.fakes.RoboCursor
+import org.robolectric.shadows.ShadowContentResolver
 
 @RunWith(RobolectricTestRunner::class)
 @Config(application = Application::class, sdk = [29])
@@ -56,12 +59,34 @@ class CustomGameFolderPickerTest {
 
     @Test fun downloadsFolderIdIsReadFromMediaStore() {
         val row = MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL, 2029738L)
-        val cursor = RoboCursor().apply {
-            setColumnNames(listOf(MediaStore.MediaColumns.DATA))
-            setResults(arrayOf(arrayOf<Any>("/storage/emulated/0/Download/Games/Foo")))
-        }
-        shadowOf(context.contentResolver).setCursor(row, cursor)
-        assertEquals("/storage/emulated/0/Download/Games/Foo", getPathFromTreeUri(context, downloadsTree("msd:2029738")))
+        val path = "/storage/emulated/0/Download/Games/Foo"
+        ShadowContentResolver.registerProviderInternal(requireNotNull(row.authority), object : ContentProvider() {
+            override fun onCreate(): Boolean = true
+
+            override fun query(
+                uri: Uri,
+                projection: Array<out String>?,
+                selection: String?,
+                selectionArgs: Array<out String>?,
+                sortOrder: String?,
+            ): Cursor? {
+                if (uri != row) return null
+                val columns = arrayOf(MediaStore.MediaColumns.DATA)
+                assertEquals(columns.toList(), projection?.toList())
+                return MatrixCursor(columns).apply { addRow(arrayOf(path)) }
+            }
+
+            override fun getType(uri: Uri): String? = null
+            override fun insert(uri: Uri, values: ContentValues?): Uri? = null
+            override fun delete(uri: Uri, selection: String?, selectionArgs: Array<out String>?): Int = 0
+            override fun update(
+                uri: Uri,
+                values: ContentValues?,
+                selection: String?,
+                selectionArgs: Array<out String>?,
+            ): Int = 0
+        })
+        assertEquals(path, getPathFromTreeUri(context, downloadsTree("msd:2029738")))
     }
 
     @Test fun downloadsFolderIdWithoutMediaStoreRowHasNoPath() {

@@ -247,7 +247,7 @@ private fun PrimaryActionButton(
             .background(
                 if (enabled) buttonColor else buttonColor.copy(alpha = 0.5f),
             )
-            .focusRing(interactionSource, RoundedCornerShape(8.dp), width = 2.dp)
+            .focusRing(interactionSource, RoundedCornerShape(8.dp))
             .focusRequester(focusRequester)
             .selectable(
                 selected = isFocused,
@@ -356,7 +356,7 @@ private fun ActionIconButton(
                     else -> MaterialTheme.colorScheme.surfaceContainerHigh
                 },
             )
-            .focusRing(interactionSource, RoundedCornerShape(8.dp), width = 2.dp)
+            .focusRing(interactionSource, RoundedCornerShape(8.dp))
             .selectable(
                 selected = isFocused,
                 interactionSource = interactionSource,
@@ -405,7 +405,7 @@ private fun ConsoleSecondaryActionButton(
                     else -> MaterialTheme.colorScheme.surfaceContainerHigh
                 },
             )
-            .focusRing(interactionSource, shape, width = 2.dp)
+            .focusRing(interactionSource, shape)
             .selectable(
                 selected = isFocused,
                 interactionSource = interactionSource,
@@ -440,13 +440,8 @@ private fun GameRuntimeSummary(
     sizeText: String? = null,
     playtimeText: String? = null,
 ) {
-    val dxConfig = remember(config.dxwrapperConfig) { KeyValueSet(config.dxwrapperConfig) }
     val directXName = remember(config.dxwrapper, config.dxwrapperConfig) {
-        when (config.dxwrapper.lowercase(Locale.ROOT)) {
-            "dxvk" -> listOf("DXVK", dxConfig.get("version")).filter { it.isNotBlank() }.joinToString(" ")
-            "vkd3d" -> listOf("VKD3D", dxConfig.get("vkd3dVersion")).filter { it.isNotBlank() }.joinToString(" ")
-            else -> config.dxwrapper.replaceFirstChar { it.titlecase(Locale.ROOT) }
-        }
+        directXSummary(config.dxwrapper, config.dxwrapperConfig)
     }
 
     Row(
@@ -485,6 +480,16 @@ private fun GameRuntimeSummary(
             )
         }
     }
+}
+
+internal fun directXSummary(wrapper: String, config: String): String {
+    val options = KeyValueSet(config)
+    val (name, version) = when (wrapper.lowercase(Locale.ROOT)) {
+        "dxvk" -> "DXVK" to options.get("version")
+        "vkd3d" -> "VKD3D" to options.get("vkd3dVersion")
+        else -> return wrapper.replaceFirstChar { it.titlecase(Locale.ROOT) }
+    }
+    return listOf(name, version).filter { it.isNotBlank() }.joinToString(" ")
 }
 
 /**
@@ -572,6 +577,7 @@ private fun InfoCard(
     isCompact: Boolean = false,
     focusableForNavigation: Boolean = false,
 ) {
+    val shape = RoundedCornerShape(PluviaTheme.tokens.cornerMd)
     var isFocused by remember { mutableStateOf(false) }
     val interactionSource = remember { MutableInteractionSource() }
     val bringIntoViewRequester = remember { BringIntoViewRequester() }
@@ -586,14 +592,14 @@ private fun InfoCard(
                 }
             }
             .focusable(interactionSource = interactionSource)
-            .focusRing(interactionSource, RoundedCornerShape(16.dp), width = 2.dp)
+            .focusRing(interactionSource, shape)
     } else {
         modifier
     }
 
     Surface(
         modifier = cardModifier,
-        shape = RoundedCornerShape(10.dp),
+        shape = shape,
         color = MaterialTheme.colorScheme.surfaceContainerLow,
         shadowElevation = 0.dp,
     ) {
@@ -1028,7 +1034,7 @@ private fun GameUpdatesSection(
                         Color.Transparent
                     },
                 )
-                .focusRing(headerInteractionSource, headerShape, width = 2.dp)
+                .focusRing(headerInteractionSource, headerShape)
                 .selectable(
                     selected = headerFocused,
                     interactionSource = headerInteractionSource,
@@ -1128,7 +1134,7 @@ private fun AppScreenBody(content: @Composable () -> Unit) {
 @Composable
 private fun AppScreenBelowHeroContent(
     isPortrait: Boolean,
-    isUpdatePending: Boolean,
+    showUpdateBanner: Boolean,
     onUpdateClick: () -> Unit,
     isInstalled: Boolean,
     isInstalledOnOtherSource: Boolean,
@@ -1138,18 +1144,24 @@ private fun AppScreenBelowHeroContent(
     onSourceClick: (GameSource) -> Unit,
     newsItems: List<app.gamenative.utils.SteamNewsService.NewsItem>,
     storeDetails: app.gamenative.utils.SteamStoreDetails.Details?,
+    compact: Boolean = false,
 ) {
     val context = LocalContext.current
+    val sidePadding = when {
+        compact -> 16.dp
+        isPortrait -> 20.dp
+        else -> 48.dp
+    }
     Column(
         modifier = Modifier
             .widthIn(max = 1180.dp)
             .fillMaxWidth()
             .wrapContentWidth(Alignment.CenterHorizontally)
             .padding(
-                start = if (isPortrait) 20.dp else 48.dp,
-                end = if (isPortrait) 20.dp else 48.dp,
-                top = 26.dp,
-                bottom = 96.dp,
+                start = sidePadding,
+                end = sidePadding,
+                top = if (compact) 16.dp else 26.dp,
+                bottom = if (compact) 32.dp else 96.dp,
             ),
     ) {
         storeDetails?.let { details ->
@@ -1158,7 +1170,7 @@ private fun AppScreenBelowHeroContent(
         }
 
         // Update available banner
-        if (isUpdatePending) {
+        if (showUpdateBanner) {
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
@@ -1352,7 +1364,7 @@ private fun AppScreenBelowHeroContent(
                         } else {
                             MaterialTheme.colorScheme.surfaceContainerHigh
                         },
-                        modifier = Modifier.focusRing(chipInteractionSource, chipShape, width = 2.dp),
+                        modifier = Modifier.focusRing(chipInteractionSource, chipShape),
                         interactionSource = chipInteractionSource,
                     ) {
                         Row(
@@ -1728,7 +1740,8 @@ private fun AppScreenActionBar(
         }
     }
 
-    Spacer(modifier = Modifier.height(16.dp))
+    val compact = !onHero && PluviaTheme.tokens.densityCompact
+    Spacer(modifier = Modifier.height(if (compact) 8.dp else 16.dp))
 
     Column(
         modifier = Modifier
@@ -1825,7 +1838,8 @@ private fun AppScreenActionBar(
                     )
                     Button(
                         onClick = onUpdateClick,
-                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.heightIn(min = 48.dp),
+                        shape = RoundedCornerShape(PluviaTheme.tokens.cornerMd),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = if (onHero) Color.White else MaterialTheme.colorScheme.primary,
                             contentColor = if (onHero) Color.Black else MaterialTheme.colorScheme.onPrimary,
@@ -1839,13 +1853,13 @@ private fun AppScreenActionBar(
 
         if (runtimeConfig != null) {
             HorizontalDivider(
-                modifier = Modifier.padding(top = 18.dp),
+                modifier = Modifier.padding(top = if (compact) 10.dp else 18.dp),
                 color = if (onHero) Color.White.copy(alpha = 0.14f)
                 else MaterialTheme.colorScheme.outlineVariant,
             )
             GameRuntimeSummary(
                 config = runtimeConfig,
-                modifier = Modifier.padding(top = 12.dp),
+                modifier = Modifier.padding(top = if (compact) 8.dp else 12.dp),
                 onHero = onHero,
                 sizeText = displayInfo.sizeOnDisk ?: displayInfo.sizeFromStore,
                 playtimeText = displayInfo.playtimeText,
@@ -1927,6 +1941,7 @@ private fun AppScreenActionBar(
 /** Compact context header for the actionable half of a dual-screen game card. */
 @Composable
 private fun SecondScreenGameHeader(displayInfo: GameDisplayInfo) {
+    val compact = PluviaTheme.tokens.densityCompact
     val releaseYear = remember(displayInfo.releaseDate) {
         if (displayInfo.releaseDate > 0) {
             SimpleDateFormat("yyyy", Locale.getDefault()).format(Date(displayInfo.releaseDate * 1000))
@@ -1940,13 +1955,13 @@ private fun SecondScreenGameHeader(displayInfo: GameDisplayInfo) {
             .widthIn(max = 1180.dp)
             .fillMaxWidth()
             .wrapContentWidth(Alignment.CenterHorizontally)
-            .padding(horizontal = 18.dp, vertical = 12.dp),
+            .padding(horizontal = if (compact) 16.dp else 24.dp, vertical = if (compact) 8.dp else 12.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        horizontalArrangement = Arrangement.spacedBy(if (compact) 10.dp else 16.dp),
     ) {
         Surface(
-            modifier = Modifier.size(56.dp),
-            shape = RoundedCornerShape(10.dp),
+            modifier = Modifier.size(if (compact) 40.dp else 56.dp),
+            shape = RoundedCornerShape(PluviaTheme.tokens.cornerMd),
             color = MaterialTheme.colorScheme.surfaceContainerHigh,
         ) {
             if (!displayInfo.iconUrl.isNullOrBlank()) {
@@ -1954,7 +1969,7 @@ private fun SecondScreenGameHeader(displayInfo: GameDisplayInfo) {
                     imageModel = { displayInfo.iconUrl },
                     imageOptions = ImageOptions(
                         contentScale = ContentScale.Crop,
-                        contentDescription = displayInfo.name,
+                        contentDescription = null,
                     ),
                     modifier = Modifier.fillMaxSize(),
                 )
@@ -1963,7 +1978,7 @@ private fun SecondScreenGameHeader(displayInfo: GameDisplayInfo) {
                     imageVector = Icons.Default.PlayArrow,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(16.dp),
+                    modifier = Modifier.padding(if (compact) 9.dp else 16.dp),
                 )
             }
         }
@@ -1977,8 +1992,6 @@ private fun SecondScreenGameHeader(displayInfo: GameDisplayInfo) {
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
             )
             val byline = listOf(displayInfo.developer, releaseYear)
                 .filter { it.isNotBlank() }
@@ -2034,7 +2047,10 @@ private fun AppScreenSecondScreenCard(
     modifier: Modifier = Modifier,
 ) {
     val achievementsVisible = runtime.achievementsVisible
-    val isPortrait = LocalConfiguration.current.orientation == Configuration.ORIENTATION_PORTRAIT
+    val configuration = LocalConfiguration.current
+    val isPortrait = configuration.orientation == Configuration.ORIENTATION_PORTRAIT
+    val stackedActions = isPortrait || configuration.screenWidthDp / configuration.fontScale < 420
+    val compact = PluviaTheme.tokens.densityCompact
     val secondScreenScroll = rememberScrollState()
 
     // The presentation window gains real focus a moment after show(); wait for
@@ -2115,6 +2131,7 @@ private fun AppScreenSecondScreenCard(
                 .fillMaxSize()
                 .padding(bottom = 56.dp)
                 .verticalScroll(secondScreenScroll),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             SecondScreenGameHeader(displayInfo)
 
@@ -2123,11 +2140,11 @@ private fun AppScreenSecondScreenCard(
                     .widthIn(max = 1180.dp)
                     .fillMaxWidth()
                     .wrapContentWidth(Alignment.CenterHorizontally)
-                    .padding(horizontal = 24.dp),
+                    .padding(horizontal = if (compact) 16.dp else 24.dp),
             ) {
                 AppScreenActionBar(
                     displayInfo = displayInfo,
-                    isPortrait = isPortrait,
+                    isPortrait = stackedActions,
                     isInstalled = isInstalled,
                     isValidToDownload = isValidToDownload,
                     isDownloading = isDownloading,
@@ -2152,7 +2169,7 @@ private fun AppScreenSecondScreenCard(
 
             AppScreenBelowHeroContent(
                 isPortrait = isPortrait,
-                isUpdatePending = isUpdatePending,
+                showUpdateBanner = false,
                 onUpdateClick = onUpdateClick,
                 isInstalled = isInstalled,
                 isInstalledOnOtherSource = isInstalledOnOtherSource,
@@ -2162,6 +2179,7 @@ private fun AppScreenSecondScreenCard(
                 onSourceClick = onSourceClick,
                 newsItems = newsItems,
                 storeDetails = storeDetails,
+                compact = compact,
             )
         }
 
@@ -2486,7 +2504,7 @@ internal fun AppScreenContent(
 
                 AppScreenBelowHeroContent(
                     isPortrait = isPortrait,
-                    isUpdatePending = isUpdatePending,
+                    showUpdateBanner = isUpdatePending,
                     onUpdateClick = onUpdateClick,
                     isInstalled = isInstalled,
                     isInstalledOnOtherSource = isInstalledOnOtherSource,

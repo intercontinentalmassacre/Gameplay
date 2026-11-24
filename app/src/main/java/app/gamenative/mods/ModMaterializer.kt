@@ -42,10 +42,10 @@ object ModMaterializer {
         manifests: List<ModOverwriteManifest>,
     ): List<ModPlacementConflict> {
         if (conflicts.isEmpty() || manifests.isEmpty()) return conflicts
-        val manifestsByTarget = manifests.groupBy { File(it.targetPath).absolutePath }
+        val manifestsByTarget = manifests.groupBy { File(it.targetPath).canonicalFile }
         return conflicts.filter { conflict ->
             val target = File(conflict.targetPath)
-            val matchingManifests = manifestsByTarget[target.absolutePath].orEmpty()
+            val matchingManifests = manifestsByTarget[target.canonicalFile].orEmpty()
             matchingManifests.none { manifest -> targetMatchesApprovedState(target, manifest) }
         }
     }

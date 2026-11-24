@@ -9,7 +9,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import app.gamenative.service.epic.EpicConstants
 import app.gamenative.ui.component.dialog.AuthWebViewDialog
-import app.gamenative.ui.theme.PluviaTheme
+import app.gamenative.ui.theme.currentGameplayAppearance
 import app.gamenative.utils.redactUrlForLogging
 import timber.log.Timber
 
@@ -63,7 +63,7 @@ class EpicOAuthActivity : ComponentActivity() {
         initialAuthUrl = authUrl
 
         setContent {
-            PluviaTheme {
+            currentGameplayAppearance().Provide {
                 AuthWebViewDialog(
                     isVisible = true,
                     url = authUrl,
