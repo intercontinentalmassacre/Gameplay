@@ -2,6 +2,14 @@
 
 All notable changes to Gameplay are documented here.
 
+## 0.4.1 — 2026-11-24
+
+- Choose a compatibility preset and DXVK version while installing supported Steam and Epic games. Eligible Wine containers can share a base for common components.
+- Customize physical-controller bindings and optionally record Vulkan pipelines for reuse on later launches.
+- Import and manage local mods, including per-game profiles and file priority. Online Nexus Mods access remains disabled.
+- Export a per-game support bundle with launch diagnostics.
+- Fix Android build-check tests and run both legacy and modern debug checks on pull requests to `working-builds`.
+
 ## 0.4 — 2026-11-21
 
 ### Graphics, drivers and game profiles

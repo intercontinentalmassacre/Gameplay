@@ -4,7 +4,7 @@
 
 Turn your Android phone or handheld into a console for the games you already own. Browse Steam, GOG, Epic Games Store and Amazon Games alongside your local Windows installs, then launch compatible games directly on the device. Gameplay is free, open source and designed for gamepads and touch.
 
-[**Download Gameplay 0.4 for Android**](https://github.com/intercontinentalmassacre/Gameplay/releases/download/v0.4/Gameplay-modern-release.apk) · [Release notes and checksums](https://github.com/intercontinentalmassacre/Gameplay/releases/tag/v0.4) · [Report an issue](https://github.com/intercontinentalmassacre/Gameplay/issues)
+[**Download Gameplay for Android**](https://github.com/intercontinentalmassacre/Gameplay/releases/latest/download/Gameplay-modern-release.apk) · [Release notes and checksums](https://github.com/intercontinentalmassacre/Gameplay/releases/latest) · [Report an issue](https://github.com/intercontinentalmassacre/Gameplay/issues)
 
 <img width="834" height="887" alt="{3D316416-197D-442F-A4F2-363EDE8EA080}" src="https://github.com/user-attachments/assets/9dda553b-d0d0-40d0-80a0-05c2506df88f" />
 
@@ -24,9 +24,7 @@ Turn your Android phone or handheld into a console for the games you already own
 
 See the [changelog](CHANGELOG.md) for device results and the full list of changes.
 
-## In the working build
-
-The [`working-builds` branch](https://github.com/intercontinentalmassacre/Gameplay/tree/working-builds) is ahead of the published 0.4 APK.
+## What’s new in 0.4.1
 
 - Choose a compatibility preset and DXVK version while installing supported Steam and Epic games. Eligible Wine containers can share a base for common components.
 - Customize physical-controller bindings or try the optional local Vulkan shader cache, which records pipelines for reuse on later launches.
@@ -35,7 +33,7 @@ The [`working-builds` branch](https://github.com/intercontinentalmassacre/Gamepl
 
 ## Get started
 
-1. Install the [0.4 modern APK](https://github.com/intercontinentalmassacre/Gameplay/releases/download/v0.4/Gameplay-modern-release.apk) on an ARM64 device running Android 10 or newer.
+1. Install the [latest modern APK](https://github.com/intercontinentalmassacre/Gameplay/releases/latest/download/Gameplay-modern-release.apk) on an ARM64 device running Android 10 or newer.
 2. Connect a storefront, or open **Add game** and select **Import EXE or AppImage** for a local executable. Use the installer option for an EXE or MSI setup package.
 3. Install or launch the game from your library. Allow extra storage for game files and the shared runtime downloaded during setup.
 
@@ -94,7 +92,7 @@ Gameplay checks the latest non-prerelease GitHub Release for `intercontinentalma
 
 The APK is verified for package name, newer version code, size, and SHA-256 before Android's package installer is opened. The release workflow is [`.github/workflows/release.yml`](.github/workflows/release.yml). Production releases must use the same signing key as the installed `app.gameplay` package; losing that key makes in-place updates impossible.
 
-On Windows, use the tag that matches `versionName`. For 0.4, run `powershell -ExecutionPolicy Bypass -File .\scripts\release-preflight.ps1 -Tag v0.4` locally before publishing. It requires local `app/keystores/keystore.properties`, which must never be committed.
+On Windows, use the tag that matches `versionName`. For 0.4.1, run `powershell -ExecutionPolicy Bypass -File .\scripts\release-preflight.ps1 -Tag v0.4.1` locally before publishing. It requires local `app/keystores/keystore.properties`, which must never be committed.
 
 ### Optional artwork integration
 
