@@ -1,144 +1,47 @@
 # Gameplay
 
-Gameplay is an open-source Android gaming shell for installing, organizing, configuring, and running legally owned Windows games directly on ARM64 phones and handhelds.
+**Play your PC games on Android.**
 
-It combines a controller-first console interface with isolated Wine/Proton containers. Games can come from a connected storefront or from files on the device: Gameplay treats local executables and installers as first-class library content rather than requiring every title to belong to Steam.
+Turn your Android phone or handheld into a console for the games you already own. Browse Steam, GOG, Epic Games Store and Amazon Games alongside your local Windows installs, then launch compatible games directly on the device. Gameplay is free, open source and designed for gamepads and touch.
 
-Gameplay is a modified fork of [GameNative](https://github.com/utkarshdalal/GameNative). It remains licensed under GPL-3.0, preserves upstream attribution, and develops a separate product direction focused on a unified console shell, local installation workflows, extensive theming, and equal support for touch and physical controllers.
-
-This project uses AI generated code for design and theme engine.
-
+[**Download Gameplay 0.4 for Android**](https://github.com/intercontinentalmassacre/Gameplay/releases/download/v0.4/Gameplay-modern-release.apk) · [Release notes and checksums](https://github.com/intercontinentalmassacre/Gameplay/releases/tag/v0.4) · [Report an issue](https://github.com/intercontinentalmassacre/Gameplay/issues)
 
 <img width="834" height="887" alt="{3D316416-197D-442F-A4F2-363EDE8EA080}" src="https://github.com/user-attachments/assets/9dda553b-d0d0-40d0-80a0-05c2506df88f" />
 
+## Bring your library with you
 
-> Gameplay is under active development. Compatibility varies by device, GPU driver, Android version, CPU architecture, Windows runtime, graphics translation layer, and the game itself. It is not a cloud-streaming service and does not include games, licenses, product keys, or DRM circumvention.
+- **Your stores and your own files in one library.** Sync connected storefronts or import a Windows executable. Run an EXE or MSI installer in a dedicated container, then add the installed game to your library. You can also import ARM64 Type 2 AppImages and launch them in a shared Linux runtime.
+- **Designed for handhelds.** Browse with a gamepad or touch, open a quick menu mid-game and customize inputs per title. Pair left and right Joy-Con as one player or use Xbox-compatible, DualSense or Steam controllers. On dual-screen devices, keep downloads, settings or game details on the companion display.
+- **Tune each game independently.** Pick a Wine or Proton runtime, CPU translation and GPU driver, then set up DXVK, VKD3D-Proton or your preferred graphics path. Containers keep game settings separate and reuse downloaded runtime components.
+- **Pick up where you left off.** Use achievements and Steam Cloud for supported titles, track play sessions and check live FPS in the in-game HUD. Make the console yours with built-in themes or [importable themes](docs/themes).
 
-## What Gameplay is building
+## What's new in 0.4
 
-The goal is a complete Android console environment for Windows games—not a collection of disconnected emulator dialogs. Success means that importing, installing, configuring, and launching a game feels like one coherent workflow rather than operating a toolkit.
+- **Choose X11 or Gamescope per game.** Gamescope brings adjustable output resolution, FSR, NIS and SGSR scaling, plus color filters and ReShade effects. HDR is in beta. Experimental Adreno presentation and frame pacing are opt-in. See the [Gamescope notes](docs/gamescope-experimental.md).
+- **More graphics options for Adreno and Mali.** The catalog adds newer Turnip and PanVK builds, Proton 11 builds for x86-64 and ARM64EC, DXVK 3.1.1 and VKD3D 3.1. Start with **Mali DX9 System** or the **Neo Pocket System DX9** preset under **Options → Container → Game profiles**. The Pocket preset is tuned for 3 GB devices and targets 640×480 at 30 FPS.
+- **Better Steam installs and cloud saves.** Cancelling a Steam update preserves the installed game. The release improves shared-library and executable selection, and lets you decide which copy to keep when local and cloud saves conflict.
+- **More control while you play.** The handheld interface and companion display get clearer game and controller status. Supported kernels can reclaim memory from paused Windows games and resume them automatically. Wine 11 gains updated DirectAudio packaging and a GNAudio low-latency option.
 
-- A unified library for Steam, GOG, Epic, Amazon, imported games, and locally installed titles.
-- A landscape shell designed for handheld consoles and controller navigation.
-- Direct import of Windows executables, MSI packages, and EXE installers from Android storage.
-- Automatic creation of a dedicated container when an installer is selected.
-- Post-install executable discovery so an installed game can be added to the library and launched again.
-- Reusable runtime caches so Wine/Proton components are not downloaded separately for every container.
-- Per-game configuration for Wine/Proton, DXVK/VKD3D, GPU drivers, CPU translation, environment variables, display, and controls.
-- Touch controls and physical Xbox-compatible and DualSense/PS5-compatible controllers as equal input methods.
-- A semantic theme system with built-in themes, full-screen editing, import/export, validation, and recovery.
+See the [changelog](CHANGELOG.md) for device results and the full list of changes.
 
-Release status and support scope are tracked through GitHub Releases and Issues.
+## In the working build
 
-## Version 0.2 highlights
+The [`working-builds` branch](https://github.com/intercontinentalmassacre/Gameplay/tree/working-builds) is ahead of the published 0.4 APK.
 
-- A rebuilt console library with richer Steam game details, improved cover-art selection, controller-friendly cards, and an installed-games-first landing experience.
-- Manual library refresh for Steam, GOG, Epic, and Amazon, plus connected-account identity in the system hub.
-- A more capable dual-screen companion: library controls, quick actions, downloads, settings, and game-card details can live on the secondary display without interrupting the primary one.
-- Stronger launch reliability for migrated containers, including repair of obsolete Wine/Proton links created by older storage layouts.
-- Native Android platform integration, modern storage handling, downloadable container payloads, refreshed driver management, and expanded Steam Controller configuration.
+- Choose a compatibility preset and DXVK version while installing supported Steam and Epic games. Eligible Wine containers can share a base for common components.
+- Customize physical-controller bindings or try the optional local Vulkan shader cache, which records pipelines for reuse on later launches.
+- Import local mods and manage their profiles and file priority. Online Nexus Mods access is currently disabled.
+- Export a per-game support bundle from the game menu to share launch diagnostics.
 
-## Current capabilities
+## Get started
 
-### Games and installation
+1. Install the [0.4 modern APK](https://github.com/intercontinentalmassacre/Gameplay/releases/download/v0.4/Gameplay-modern-release.apk) on an ARM64 device running Android 10 or newer.
+2. Connect a storefront, or open **Add game** and select **Import EXE or AppImage** for a local executable. Use the installer option for an EXE or MSI setup package.
+3. Install or launch the game from your library. Allow extra storage for game files and the shared runtime downloaded during setup.
 
-- Import local Windows executables into the library.
-- Import an ARM64 Linux Type 2 AppImage with **Add game → Import EXE or AppImage**. Its library entry launches in a native Linux environment. The first launch prepares the shared Linux runtime.
-- Select an installer, create its container, run the installation, and continue into the normal Gameplay launch flow.
-- Reopen installed games without repeating the installer process.
-- Reuse cached runtime payloads across containers.
-- Configure each title independently without changing the defaults for the rest of the library.
-- View important runtime choices—graphics driver, Wine/Proton, and DXVK/VKD3D—close to the game configuration surface.
-- Discover installed executables automatically after an installer finishes, so a finished title becomes a normal library entry with its own configuration.
-- Apply community-submitted per-game configurations from the [Community Configs](https://github.com/intercontinentalmassacre/Gameplay) service, filtered by device and GPU, with full preview before applying.
+Games run on your device through Windows compatibility tools. Use your own game files and accounts. Compatibility varies by game, Android version, GPU and driver. Vulkan-capable hardware is recommended for modern DirectX titles. Anti-cheat, kernel drivers and some DRM can prevent games from running. ISO and DOS titles need a separate workflow.
 
-ISO and other disc images are not currently treated as executables. They require a dedicated mounted-media workflow and remain planned work.
-
-### Runtime stack
-
-Windows software runs through an isolated container that combines a Wine/Proton-compatible environment with Android-native translation and graphics layers. The exact stack is selectable per game.
-
-- **Wine and Proton** — a choice of Wine builds and Proton variants (including `x86_64` and `arm64ec` flavors) as the Windows compatibility layer.
-- **CPU translation** — Box64/WOWBox64 for x86-64 emulation and FEX (ARM64EC) as an alternative backend; 32-bit translation rides on Box86/WoW64.
-- **Graphics translation** — DXVK for Direct3D 9–11 over Vulkan, VKD3D-Proton for Direct3D 12, plus Zink/OpenGL-on-Vulkan paths for titles that need them.
-- **GPU drivers** — bundled Mesa Turnip and vendor-specific wrappers, chosen per game and cached for reuse.
-- **Frame generation** — optional LSFG-based Vulkan frame interpolation on capable hardware.
-- **Audio** — PulseAudio inside the container routed to the Android audio stack.
-- Components are versioned and validated; a runtime is never installed without a compatibility check.
-
-### Storefronts and library
-
-- Connect to Steam using the inherited GameNative integration.
-- Retain installed library data and session state while navigating instead of reconnecting on every tab change.
-- Hide storefront navigation when its service is not authenticated.
-- Use installed games as the primary home library instead of a recommendations feed.
-- Display Steam achievements in Gameplay's console-oriented game screen.
-- Preserve GOG, Epic, and Amazon library support from the upstream codebase.
-- Refresh connected storefront libraries from the library header; newly purchased titles appear without restarting the app.
-- Show the connected identity for supported storefronts in the system hub.
-- Sort, filter, search, and select views through controller-friendly library options.
-- Track game time against launch configurations; the running game is reported to Steam and session statistics are persisted into container metadata.
-
-### Console interface
-
-- Full-screen landscape navigation inspired by dedicated handhelds and living-room consoles without copying their visual identity.
-- Separate system-menu and context-action behavior.
-- Quick actions for play/install, details, search, library options, and adding games.
-- Category-based application, container, and per-game settings.
-- Full-screen nested settings instead of deep stacks of mobile dialogs.
-- Restrained surfaces, low-saturation themes, predictable focus, and narrow-landscape layouts.
-- Bottom-edge gamepad hint bars that always show which button does what, with 44dp minimum touch targets and reduced-motion fallbacks for every animation.
-
-### In-game experience
-
-- A quick menu for keyboard, on-screen controls, control editor, physical controller, radial menu, performance HUD, and exiting the game.
-- Fully customizable radial menus and per-game input control profiles.
-- On-screen touch controls plus Xbox-compatible and DualSense/PS5-compatible physical controllers.
-- Left and right Nintendo Joy-Con controllers share one player slot. Disconnecting one half leaves the other half assigned to that player.
-- On devices with kernel support, a container can reclaim memory from paused Windows game processes and resume automatically. The amount released depends on the game.
-- Performance HUD with live FPS; session averages (average FPS, session length) are written back to the container after exit.
-- Steam achievements, cloud sync, and per-game container settings available without leaving the running session.
-- A soft keyboard that follows the focus target and routes input to the external display when one is active.
-
-### Diagnostics and crash reporting
-
-- Structured crash logs are written per container, with sensitive values redacted before they are stored.
-- A "Recent Crash" flow lets you attach the latest crash report to an email via a system share sheet, including app version and device information.
-- On-device logs are self-contained: nothing is uploaded without your action.
-
-### Themes
-
-Gameplay themes are semantic documents rather than simple accent colors. A theme may redefine surfaces, text roles, focus states, status colors, shape, density, and related presentation tokens while retaining a safe recovery path.
-
-Included profiles cover dark, OLED, light, forest, copper, wine, and arctic directions. Custom themes can be created in the application or imported from a file. The versioned format is documented in [docs/THEMES.md](docs/THEMES.md).
-
-### Localization
-
-The interface is translated into 15 locales in addition to English: Danish, German, Spanish, French, Italian, Japanese, Korean, Polish, Brazilian Portuguese, Romanian, Russian, Ukrainian, Simplified Chinese, and Traditional Chinese. Strings are maintained across all locales in parallel; interface changes must keep every translation file valid.
-
-## Compatibility scope
-
-Gameplay targets Windows software that can run through the bundled Wine/Proton-compatible stack and Android-native translation components.
-
-- Modern 32-bit and 64-bit Windows games are supported when the selected runtime and hardware permit it.
-- Vulkan-capable hardware is strongly recommended for modern DirectX games.
-- Older DirectDraw/Direct3D titles may need game-specific graphics and Wine settings.
-- Win16 support depends on the chosen Wine path and game architecture; it is not universal.
-- DOS games need a future DOSBox-style integration and are not currently a promised compatibility target.
-- Anti-cheat, kernel drivers, unusual DRM, launchers, codecs, and device-specific GPU issues may prevent a game from running.
-
-There is no meaningful single “supported up to year X” cutoff. A demanding old title may fail while a newer title works well. Compatibility should be evaluated per game, runtime, driver, and device.
-
-## Requirements
-
-- ARM64 Android device.
-- Android 10 or newer for the recommended `modern` build (`minSdk 29`, `targetSdk 36`).
-- Android 8 or newer for the compatibility-oriented `legacy` build (`minSdk 26`, `targetSdk 28`).
-- Sufficient free storage for the Windows runtime, container, installer, extracted files, and game data.
-- Vulkan support for DXVK/VKD3D-based games.
-- Legally obtained game files and any licenses required by their publishers.
-
-The XR flavors are experimental and are not the primary Gameplay target.
+The source also provides a `legacy` build flavor for Android 8 and newer. The APK linked above is the signed `modern` release.
 
 ## Building from source
 
@@ -169,7 +72,7 @@ The resulting APK is written to:
 app/build/outputs/apk/modern/debug/app-modern-debug.apk
 ```
 
-Other available flavors include `legacy`, `legacyXr`, `modern`, and `modernXr`. Gameplay development primarily validates `modernDebug`. The XR flavors are experimental and are not the primary Gameplay target.
+The build check runs unit tests and assembles both `modernDebug` and `legacyDebug`. The `modernXr` and `legacyXr` flavors are experimental.
 
 ### Running tests
 
@@ -191,7 +94,7 @@ Gameplay checks the latest non-prerelease GitHub Release for `intercontinentalma
 
 The APK is verified for package name, newer version code, size, and SHA-256 before Android's package installer is opened. The release workflow is [`.github/workflows/release.yml`](.github/workflows/release.yml). Production releases must use the same signing key as the installed `app.gameplay` package; losing that key makes in-place updates impossible.
 
-On Windows, run `powershell -ExecutionPolicy Bypass -File .\scripts\release-preflight.ps1 -Tag v1.1.2` locally before publishing. It requires local `app/keystores/keystore.properties`, which must never be committed.
+On Windows, use the tag that matches `versionName`. For 0.4, run `powershell -ExecutionPolicy Bypass -File .\scripts\release-preflight.ps1 -Tag v0.4` locally before publishing. It requires local `app/keystores/keystore.properties`, which must never be committed.
 
 ### Optional artwork integration
 
@@ -214,7 +117,7 @@ For interface changes, verify:
 - Xbox A/B and PlayStation Cross/Circle semantics;
 - Back behavior and focus restoration;
 - touch targets, scrolling, empty states, and long localized strings;
-- that every newly added string resource exists in all 16 locales.
+- that every newly added string resource exists in all supported locales.
 
 For runtime changes, verify both a storefront title and a locally imported executable or installer where applicable. Container and database changes must preserve existing installations.
 
@@ -264,7 +167,7 @@ Gameplay talks to these services for library sync, ownership, and metadata. None
 - [Epic Games Store](https://store.epicgames.com/) (Epic Games) — authentication and library.
 - [Amazon Games](https://gaming.amazon.com/) (Amazon) — authentication and library.
 - [SteamGridDB](https://www.steamgriddb.com/) — community-contributed grid, hero, logo, and icon artwork used for library enrichment. A user-supplied API key in `local.properties` activates this integration.
-- [NexusMods](https://www.nexusmods.com/) — mod hosting and Nexus Mod Manager download flow used by the in-app mod manager.
+- [NexusMods](https://www.nexusmods.com/) — mod hosting and Nexus Mod Manager download flow. Online Nexus access is currently disabled in the working build. The local mod manager remains available.
 - [PCGamingWiki](https://www.pcgamingwiki.com/) — community-maintained Windows-game fix database used to seed container configuration defaults.
 
 ### Compatibility and runtime data
@@ -274,7 +177,7 @@ Gameplay talks to these services for library sync, ownership, and metadata. None
 
 ### Development tools and assistance
 
-This project uses AI generated code for design and theme engine work. The interface vocabulary, theme tokens, several settings and dialog flows, and refactors in this repository were produced with AI assistance (Anthropic Claude and OpenAI GPT, via opencode and Claude Code). Reviewers are listed in the commit log per change.
+This project uses AI-generated code for design and theme engine work. The interface vocabulary, theme tokens, several settings and dialog flows, and refactors in this repository were produced with AI assistance (Anthropic Claude and OpenAI GPT, via opencode and Claude Code). Reviewers are listed in the commit log per change.
 
 ## License, attribution, and trademarks
 

@@ -48,7 +48,7 @@ public class ImageFs {
         if (local != null) return local;
         synchronized (ImageFs.class) {
             if (INSTANCE == null) {
-                INSTANCE = new ImageFs(new File(context.getFilesDir(), "imagefs"));
+                INSTANCE = new ImageFs(getDefaultRootDir(context));
             }
             return INSTANCE;
         }
@@ -56,6 +56,10 @@ public class ImageFs {
 
     public static ImageFs find(File rootDir) {
         return new ImageFs(rootDir);
+    }
+
+    public static File getDefaultRootDir(Context context) {
+        return new File(context.getFilesDir(), "imagefs");
     }
 
     public File getRootDir() {
