@@ -693,7 +693,8 @@ public class WinHandler {
                 final boolean useVirtualGamepad = inputControlsView != null && profile != null && profile.isVirtualGamepad();
                 int processId = this.receiveData.getInt();
                 if (!useVirtualGamepad && ((externalController = this.currentController) == null || !externalController.isConnected())) {
-                    this.currentController = ExternalController.getController(0);
+                    List<ExternalController> connected = ExternalController.getControllers();
+                    this.currentController = connected.isEmpty() ? null : connected.get(0);
                 }
                 boolean enabled2 = this.currentController != null || useVirtualGamepad;
                 if (enabled2) {
@@ -827,9 +828,17 @@ public class WinHandler {
         }
     }
 
+    public void startGamepadOnly() {
+        start(false);
+    }
+
     public void start() {
+        start(true);
+    }
+
+    private void start(boolean wineSocket) {
         try {
-            this.localhost = InetAddress.getLocalHost();
+            if (wineSocket) this.localhost = InetAddress.getLocalHost();
             Context context = activity.getApplicationContext();
             File gamepadShmDir = new File(
                     context.getFilesDir(),
@@ -858,6 +867,7 @@ public class WinHandler {
                 extraGamepadBuffers[i].order(ByteOrder.LITTLE_ENDIAN);
             }
         } catch (IOException e) {
+            if (!wineSocket) throw new IllegalStateException("Could not prepare AppImage gamepad input", e);
             Log.e("EVSHIM_HOST", "FATAL: Failed to create memory-mapped file(s).", e);
             try {
                 this.localhost = InetAddress.getByName("127.0.0.1");
@@ -866,6 +876,10 @@ public class WinHandler {
         }
         refreshControllerMappings();
         this.running = true;
+        if (!wineSocket) {
+            startRumblePoller();
+            return;
+        }
         startSendThread();
         Executors.newSingleThreadExecutor().execute(() -> {
             try {

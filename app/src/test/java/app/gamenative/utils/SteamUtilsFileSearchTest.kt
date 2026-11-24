@@ -71,13 +71,8 @@ class SteamUtilsFileSearchTest {
         appDir = File(SteamService.internalAppInstallPath, "123456")
         appDir.mkdirs()
 
-        // Set up ImageFs for restoreOriginalExecutable
         val imageFs = ImageFs.find(context)
-        val wineprefix = File(imageFs.wineprefix)
-        wineprefix.mkdirs()
-        val dosDevices = File(wineprefix, "dosdevices")
-        dosDevices.mkdirs()
-        File(dosDevices, "a:").mkdirs()
+        File(imageFs.wineprefix).mkdirs()
 
         // Set up container directory so ContainerManager can find it
         // This prevents getOrCreateContainer() from trying to create a new container (which needs zstd-jni)
@@ -229,24 +224,23 @@ class SteamUtilsFileSearchTest {
 
     @Test
     fun restoreOriginalExecutable_findsAndRestoresOriginalExe() {
-        // Set up dosdevices path
-        val imageFs = ImageFs.find(context)
-        val dosDevicesPath = File(imageFs.wineprefix, "dosdevices/a:")
-        dosDevicesPath.mkdirs()
+        val otherGame = File(tempDir, "different-game").apply { mkdirs() }
+        val otherExe = File(otherGame, "game.exe").apply { writeText("other game's executable") }
+        File(otherGame, "game.exe.original.exe").writeText("other game's backup")
 
         // Create multiple .original.exe files in different folders
-        val origExeFile = File(dosDevicesPath, "game.exe.original.exe")
+        val origExeFile = File(appDir, "game.exe.original.exe")
         origExeFile.writeBytes("original exe content".toByteArray())
-        val nestedDir = File(dosDevicesPath, "bin")
+        val nestedDir = File(appDir, "bin")
         nestedDir.mkdirs()
-        val origExeFile2 = File(nestedDir, "game2.exe.original.exe")
+        val origExeFile2 = File(nestedDir, "game2.exe.ORIGINAL.EXE")
         origExeFile2.writeBytes("original exe content 2".toByteArray())
 
         // Call the actual function
-        SteamUtils.restoreOriginalExecutable(context, steamAppId)
+        SteamUtils.restoreOriginalExecutable(steamAppId)
 
         // Verify restoration
-        val restoredFile = File(dosDevicesPath, "game.exe")
+        val restoredFile = File(appDir, "game.exe")
         assertTrue("Should restore exe to original location", restoredFile.exists())
         assertEquals("Restored content should match backup",
             "original exe content", restoredFile.readText())
@@ -254,17 +248,13 @@ class SteamUtilsFileSearchTest {
         assertTrue("Should restore exe to original location in subdirectory", restoredFile2.exists())
         assertEquals("Restored content should match backup for second exe",
             "original exe content 2", restoredFile2.readText())
+        assertEquals("other game's executable", otherExe.readText())
     }
 
     @Test
     fun restoreOriginalExecutable_respectsMaxDepth() {
-        // Set up dosdevices path
-        val imageFs = ImageFs.find(context)
-        val dosDevicesPath = File(imageFs.wineprefix, "dosdevices/a:")
-        dosDevicesPath.mkdirs()
-
-        // Create directory structure deeper than max depth (5)
-        var currentDir = dosDevicesPath
+        // Create directory structure deeper than the search limit.
+        var currentDir = appDir
         for (i in 1..12) {
             currentDir = File(currentDir, "level$i")
             currentDir.mkdirs()
@@ -275,7 +265,7 @@ class SteamUtilsFileSearchTest {
         deepOrigExeFile.writeBytes("original exe content".toByteArray())
 
         // Call the actual function
-        SteamUtils.restoreOriginalExecutable(context, steamAppId)
+        SteamUtils.restoreOriginalExecutable(steamAppId)
 
         // Verify file beyond max depth was NOT restored
         val restoredFile = File(currentDir, "game.exe")
@@ -284,14 +274,9 @@ class SteamUtilsFileSearchTest {
 
     @Test
     fun restoreOriginalExecutable_doesNotFailWhenNoBackupFound() {
-        // Set up dosdevices path with no backup files
-        val imageFs = ImageFs.find(context)
-        val dosDevicesPath = File(imageFs.wineprefix, "dosdevices/a:")
-        dosDevicesPath.mkdirs()
-
         // Call the actual function - should not throw
         try {
-            SteamUtils.restoreOriginalExecutable(context, steamAppId)
+            SteamUtils.restoreOriginalExecutable(steamAppId)
             // Test passes if no exception is thrown
             assertTrue("Should complete without error when no backup found", true)
         } catch (e: Exception) {
@@ -558,11 +543,9 @@ class SteamUtilsFileSearchTest {
 
         // Create game.exe files
         val imageFs = ImageFs.find(context)
-        val dosDevicesPath = File(imageFs.wineprefix, "dosdevices/a:")
-        dosDevicesPath.mkdirs()
-        val gameExe = File(dosDevicesPath, "game.exe")
-        val gameExeUnpacked = File(dosDevicesPath, "game.exe.unpacked.exe")
-        val gameExeOriginal = File(dosDevicesPath, "game.exe.original.exe")
+        val gameExe = File(binDir, "game.exe")
+        val gameExeUnpacked = File(binDir, "game.exe.unpacked.exe")
+        val gameExeOriginal = File(binDir, "game.exe.original.exe")
         gameExe.writeBytes("game.exe content".toByteArray())
         gameExeUnpacked.writeBytes("unpacked exe content".toByteArray())
         gameExeOriginal.writeBytes("original exe content".toByteArray())
@@ -574,7 +557,7 @@ class SteamUtilsFileSearchTest {
 
         // Set container executablePath so restoreUnpackedExecutable can work
         val container = ContainerUtils.getContainer(context, testAppId)
-        container.executablePath = "game.exe"
+        container.executablePath = "bin\\game.exe"
         container.saveData()
 
         // Ensure no markers exist
@@ -798,11 +781,9 @@ class SteamUtilsFileSearchTest {
 
         // Create game.exe files
         val imageFs = ImageFs.find(context)
-        val dosDevicesPath = File(imageFs.wineprefix, "dosdevices/a:")
-        dosDevicesPath.mkdirs()
-        val gameExe = File(dosDevicesPath, "game.exe")
-        val gameExeUnpacked = File(dosDevicesPath, "game.exe.unpacked.exe")
-        val gameExeOriginal = File(dosDevicesPath, "game.exe.original.exe")
+        val gameExe = File(appDir, "game.exe")
+        val gameExeUnpacked = File(appDir, "game.exe.unpacked.exe")
+        val gameExeOriginal = File(appDir, "game.exe.original.exe")
         gameExe.writeBytes("game.exe content".toByteArray())
         gameExeUnpacked.writeBytes("unpacked exe content".toByteArray())
         gameExeOriginal.writeBytes("original exe content".toByteArray())
@@ -904,6 +885,7 @@ class SteamUtilsFileSearchTest {
         // Verify restoreOriginalExecutable overwrites game.exe with game.exe.original.exe content
         assertEquals("game.exe should be overwritten with game.exe.original.exe content after restoreSteamApi",
             "original exe content", gameExe.readText())
+        Files.setLastModifiedTime(gameExe.toPath(), Files.getLastModifiedTime(gameExeUnpacked.toPath()))
 
         // Verify steam_api64.dll remains the same (not replaced, since restoreSteamApi calls putBackSteamDlls
         // which only restores from .orig if it exists, and we don't have a .orig file at this point)
@@ -990,11 +972,9 @@ class SteamUtilsFileSearchTest {
 
         // Create game.exe files
         val imageFs = ImageFs.find(context)
-        val dosDevicesPath = File(imageFs.wineprefix, "dosdevices/a:")
-        dosDevicesPath.mkdirs()
-        val gameExe = File(dosDevicesPath, "game.exe")
-        val gameExeUnpacked = File(dosDevicesPath, "game.exe.unpacked.exe")
-        val gameExeOriginal = File(dosDevicesPath, "game.exe.original.exe")
+        val gameExe = File(appDir, "game.exe")
+        val gameExeUnpacked = File(appDir, "game.exe.unpacked.exe")
+        val gameExeOriginal = File(appDir, "game.exe.original.exe")
         gameExe.writeBytes("game.exe content".toByteArray())
         gameExeUnpacked.writeBytes("unpacked exe content".toByteArray())
         gameExeOriginal.writeBytes("original exe content".toByteArray())

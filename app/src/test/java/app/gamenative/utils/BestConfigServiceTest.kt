@@ -9,6 +9,7 @@ import java.io.File
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
 import org.junit.Assert.*
 import org.junit.Assume.assumeFalse
@@ -17,9 +18,54 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.Mockito.*
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.util.ReflectionHelpers
 
 @RunWith(RobolectricTestRunner::class)
 class BestConfigServiceTest {
+
+    @Test
+    fun importedControllerApiSurvivesParsingAndApplication() = runBlocking {
+        val base = parseBestConfig(cs2MaliExactMatchResponse)
+        val previous = com.winlator.container.ContainerData(enableXInput = true, enableDInput = false)
+        for ((raw, expected) in mapOf(
+            "0" to (false to false), "1" to (false to true), "2" to (true to false),
+            "3" to (true to true), "99" to (true to false), "bad" to (true to false),
+        )) {
+            val input = raw.toIntOrNull()?.let { JsonPrimitive(it) } ?: JsonPrimitive(raw)
+            val parsed = BestConfigService.parseConfigResult(
+                context, JsonObject(base + ("inputType" to input)), "exact_gpu_match", true,
+                allowRemoteManifest = false,
+            )
+            val result = ContainerUtils.applyBestConfigMapToContainerData(previous, parsed.config)
+            assertEquals(raw, expected, result.enableXInput to result.enableDInput)
+        }
+    }
+
+    @Test
+    fun testUbwcFlagHintKeptOnlyOnSamsung() = runBlocking {
+        val base = parseBestConfig(cs2MaliExactMatchResponse)
+        suspend fun envVars(value: String, preserve: Boolean = false): String {
+            val config = JsonObject(base + ("envVars" to JsonPrimitive(value)))
+            return BestConfigService.parseConfigToContainerData(
+                context, config, "exact_gpu_match", true, preserveConfigValues = preserve,
+            )!!["envVars"] as String
+        }
+
+        val original = android.os.Build.MANUFACTURER
+        val hint = "FD_DEV_FEATURES=enable_tp_ubwc_flag_hint=1 PULSE_LATENCY_MSEC=144"
+        try {
+            ReflectionHelpers.setStaticField(android.os.Build::class.java, "MANUFACTURER", "AYN")
+            assertEquals("PULSE_LATENCY_MSEC=144", envVars(hint))
+            assertEquals(hint, envVars(hint, preserve = true))
+            val escaped = "WINEDLLOVERRIDES=a\\ FD_DEV_FEATURES=enable_tp_ubwc_flag_hint=1"
+            assertEquals(escaped, envVars(escaped))
+
+            ReflectionHelpers.setStaticField(android.os.Build::class.java, "MANUFACTURER", "samsung")
+            assertEquals(hint, envVars(hint))
+        } finally {
+            ReflectionHelpers.setStaticField(android.os.Build::class.java, "MANUFACTURER", original)
+        }
+    }
 
     private lateinit var context: Context
     private lateinit var resources: Resources

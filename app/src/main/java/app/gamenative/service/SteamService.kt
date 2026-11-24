@@ -64,6 +64,8 @@ import app.gamenative.utils.FileUtils
 import app.gamenative.utils.LicenseSerializer
 import app.gamenative.utils.LsfgVkManager
 import app.gamenative.utils.MarkerUtils
+import app.gamenative.gamefixes.CYBERPUNK_2077_APP_ID
+import app.gamenative.gamefixes.installedCyberpunk2077Exe
 import app.gamenative.utils.Net
 import app.gamenative.utils.SteamUtils
 import app.gamenative.utils.CURRENT_UFS_PARSE_VERSION
@@ -925,6 +927,19 @@ class SteamService : Service(), IChallengeUrlChanged {
         }
 
         /**
+         * Whether the parent app's own depot entry gives this depot, with content, to a DLC other
+         * than [dlcAppId]. A DLC app's record can list a depot that belongs to a sibling DLC, at a
+         * manifest the parent no longer uses (XCOM: Enemy Unknown: app 209811 lists depot 209812,
+         * which the parent assigns to DLC 209812). The parent's entry is the one the update check
+         * reads, so it has to win or the depot installs at a gid that never matches.
+         */
+        fun parentAssignsDepotToOtherDlc(parentDepot: DepotInfo?, dlcAppId: Int): Boolean {
+            if (parentDepot == null) return false
+            if (parentDepot.dlcAppId == INVALID_APP_ID || parentDepot.dlcAppId == dlcAppId) return false
+            return parentDepot.manifests.isNotEmpty() || parentDepot.encryptedManifests.isNotEmpty()
+        }
+
+        /**
          * Depots eligible for preference-flag computation: delegates to
          * [filterForDownloadableDepots] with both preference flags false
          * so arch and Steam Deck checks become no-ops. This gives us the pool from
@@ -1062,6 +1077,9 @@ class SteamService : Service(), IChallengeUrlChanged {
                         )
                     }
                     .forEach { (depotId, depot) ->
+                        // Checked against the parent's full depot list, not `map`: the owning DLC may be
+                        // unowned or unselected, and the depot still isn't this DLC's to install.
+                        if (parentAssignsDepotToOtherDlc(appInfo.depots[depotId], dlcApp.id)) return@forEach
                         // Add DLC Depots with custom object
                         map[depotId] = DepotInfo(
                             depotId = depot.depotId,
@@ -1255,6 +1273,9 @@ class SteamService : Service(), IChallengeUrlChanged {
          */
         fun getInstalledExe(appId: Int): String {
             val appInfo = getAppInfoOf(appId) ?: return ""
+            if (appId == CYBERPUNK_2077_APP_ID) {
+                installedCyberpunk2077Exe(getAppDirPath(appId))?.let { return it }
+            }
 
             val installDir = appInfo.config.installDir.ifEmpty { appInfo.name }
 
@@ -1343,8 +1364,13 @@ class SteamService : Service(), IChallengeUrlChanged {
         fun getLaunchExecutable(appId: String, container: Container): String {
             if (container.isLaunchRealSteam || container.isLaunchBionicSteam) return "steam"
             val gameId = ContainerUtils.extractGameIdFromContainerId(appId)
-            return container.executablePath.ifEmpty { getInstalledExe(gameId) }
+            return resolveConfiguredExecutable(gameId, container.executablePath)
         }
+
+        fun resolveConfiguredExecutable(gameId: Int, configured: String): String =
+            app.gamenative.utils.ExecutableSelectionUtils.resolveConfiguredExecutable(File(getAppDirPath(gameId)), configured) {
+                getInstalledExe(gameId)
+            }
 
         suspend fun cancelAppDownload(appId: Int) = withContext(Dispatchers.IO) {
             val info = getAppDownloadInfo(appId) ?: GameDownloadQueue.getDownloadInfo(GameSource.STEAM, appId.toString())

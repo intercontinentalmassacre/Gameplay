@@ -1,5 +1,8 @@
 package app.gamenative.ui.screen.library.appscreen
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.heightIn
 import android.content.Context
 import com.winlator.container.ContainerManager
 import android.content.Intent
@@ -581,14 +584,22 @@ abstract class BaseAppScreen {
         container: Container?,
         onDismiss: () -> Unit,
     ) {
-        val envVars = remember { mutableStateOf<com.winlator.core.envvars.EnvVars?>(null) }
-        val contents = remember { mutableStateOf<app.gamenative.diagnostics.SupportBundle.BundleContents?>(null) }
+        val contents = remember(libraryItem.appId) { mutableStateOf<app.gamenative.diagnostics.SupportBundle.BundleContents?>(null) }
         val exporting = remember { mutableStateOf(false) }
+        var failure by remember(libraryItem.appId) { mutableStateOf<String?>(null) }
+        var attempt by remember(libraryItem.appId) { mutableIntStateOf(0) }
         val scope = rememberCoroutineScope()
 
-        LaunchedEffect(Unit) {
-            contents.value = withContext(Dispatchers.IO) {
-                app.gamenative.diagnostics.SupportBundle.collect(context, container, envVars.value)
+        LaunchedEffect(libraryItem.appId, attempt) {
+            failure = null
+            try {
+                contents.value = withContext(Dispatchers.IO) {
+                    app.gamenative.diagnostics.SupportBundle.collect(context, container, libraryItem.appId, libraryItem.name)
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                failure = e.localizedMessage ?: e.javaClass.simpleName
             }
         }
 
@@ -597,7 +608,9 @@ abstract class BaseAppScreen {
             title = { Text(stringResource(R.string.support_bundle_title)) },
             text = {
                 val bundle = contents.value
-                if (bundle == null) {
+                if (failure != null) {
+                    Text(stringResource(R.string.support_bundle_error, failure.orEmpty()))
+                } else if (bundle == null) {
                     Text(stringResource(R.string.support_bundle_exporting))
                 } else {
                     Column {
@@ -612,30 +625,37 @@ abstract class BaseAppScreen {
             },
             confirmButton = {
                 TextButton(
-                    enabled = contents.value != null && !exporting.value,
+                    enabled = (contents.value != null || failure != null) && !exporting.value,
                     onClick = {
-                        val bundle = contents.value ?: return@TextButton
+                        val bundle = contents.value
+                        if (bundle == null) {
+                            attempt++
+                            return@TextButton
+                        }
+                        failure = null
                         exporting.value = true
                         scope.launch {
-                            val zip = withContext(Dispatchers.IO) {
-                                val dest = File(
-                                    context.getExternalFilesDir(null),
-                                    "support_bundles/gameplay_support_${libraryItem.appId}.zip",
-                                )
-                                app.gamenative.diagnostics.SupportBundle.export(
-                                    context,
-                                    container,
-                                    envVars.value,
-                                    dest,
-                                )
+                            try {
+                                val zip = withContext(Dispatchers.IO) {
+                                    val dest = File(
+                                        context.getExternalFilesDir(null),
+                                        "support_bundles/gameplay_support_${libraryItem.appId}.zip",
+                                    )
+                                    app.gamenative.diagnostics.SupportBundle.export(bundle, dest)
+                                }
+                                shareSupportBundle(context, zip)
+                                onDismiss()
+                            } catch (e: CancellationException) {
+                                throw e
+                            } catch (e: Exception) {
+                                failure = e.localizedMessage ?: e.javaClass.simpleName
+                            } finally {
+                                exporting.value = false
                             }
-                            exporting.value = false
-                            onDismiss()
-                            shareSupportBundle(context, zip)
                         }
                     },
                 ) {
-                    Text(stringResource(R.string.support_bundle_export))
+                    Text(stringResource(if (failure == null) R.string.support_bundle_export else R.string.support_bundle_retry))
                 }
             },
             dismissButton = {
@@ -1976,10 +1996,13 @@ abstract class BaseAppScreen {
                             R.string.best_config_missing_components_message,
                             missingState.components.joinToString("\n"),
                         ),
+                        modifier = Modifier
+                            .heightIn(max = 224.dp)
+                            .verticalScroll(rememberScrollState()),
                     )
                 },
                 confirmButton = {
-                    TextButton(onClick = {
+                    TextButton(modifier = Modifier.heightIn(min = 48.dp), onClick = {
                         hideMissingComponentsDialog(appId)
                     }) {
                         Text(stringResource(R.string.ok))
@@ -1987,7 +2010,7 @@ abstract class BaseAppScreen {
                 },
                 dismissButton = if (missingState.onApplyAnyway != null) {
                     {
-                        TextButton(onClick = {
+                        TextButton(modifier = Modifier.heightIn(min = 48.dp), onClick = {
                             hideMissingComponentsDialog(appId)
                             missingState.onApplyAnyway.invoke()
                         }) {

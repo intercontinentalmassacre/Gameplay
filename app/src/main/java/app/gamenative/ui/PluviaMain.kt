@@ -9,7 +9,6 @@ import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -76,7 +75,6 @@ import app.gamenative.PluviaApp
 import app.gamenative.PrefManager
 import app.gamenative.R
 import app.gamenative.data.GameSource
-import app.gamenative.enums.AppTheme
 import app.gamenative.enums.LoginResult
 import app.gamenative.enums.PathType
 import app.gamenative.enums.SaveLocation
@@ -120,7 +118,7 @@ import app.gamenative.ui.screen.PluviaScreen
 import app.gamenative.ui.screen.login.UserLoginScreen
 import app.gamenative.ui.screen.settings.SettingsScreen
 import app.gamenative.ui.screen.xserver.XServerScreen
-import app.gamenative.ui.theme.PluviaTheme
+import app.gamenative.ui.theme.currentGameplayAppearance
 import app.gamenative.ui.util.LocalSnackbarHostController
 import app.gamenative.ui.util.PlatformAuthUiHelpers
 import app.gamenative.ui.util.PlatformLogoutCallbacks
@@ -1373,18 +1371,12 @@ fun PluviaMain(
     val epicLoggedIn = EpicAuthManager.hasStoredCredentials(context)
     val amazonLoggedIn = AmazonAuthManager.hasStoredCredentials(context)
 
-    PluviaTheme(
-        isDark = when (state.appTheme) {
-            AppTheme.AUTO -> isSystemInDarkTheme()
-            AppTheme.DAY -> false
-            AppTheme.NIGHT -> true
-            AppTheme.AMOLED -> true
-        },
-        isAmoled = (state.appTheme == AppTheme.AMOLED),
-        style = state.paletteStyle,
+    val appearance = currentGameplayAppearance(
+        appTheme = state.appTheme,
+        paletteStyle = state.paletteStyle,
         customThemeJson = state.customThemeJson.takeIf { state.customThemeEnabled },
-        reduceMotion = PrefManager.reduceMotion,
-    ) {
+    )
+    appearance.Provide {
         ProvideLayerController(layerController) {
         Box(modifier = Modifier.fillMaxSize()) {
             LoadingDialog(
@@ -1804,7 +1796,7 @@ fun PluviaMain(
 
             AchievementOverlay()
             GameInviteOverlay()
-            DsHomePresentationHost()
+            DsHomePresentationHost(appearance)
 
             // Global system menu (L3 overlay) — visible from every screen. The
             // second display owns its own full-screen hub, so skip here when DS.
@@ -1936,12 +1928,22 @@ fun preLaunchApp(
     }
 
     val gameId = ContainerUtils.extractGameIdFromContainerId(appId)
+    val gameSource = ContainerUtils.extractGameSourceFromContainerId(appId)
 
     CoroutineScope(Dispatchers.IO).launch {
         if (LaunchReadiness.pending) {
             setLoadingDialogVisible(false)
             (context as? Activity)?.let { LaunchReadiness.resolve(it) }
             return@launch
+        }
+
+        if (gameSource == GameSource.AMAZON) {
+            try {
+                AmazonService.prepareLaunch(context, gameId)
+            } catch (error: Exception) {
+                showSetupError(error)
+                return@launch
+            }
         }
 
         // create container if it does not already exist
@@ -1996,7 +1998,6 @@ fun preLaunchApp(
         // Clear session metadata on every launch to ensure fresh values
         container.clearSessionMetadata()
 
-        val gameSource = ContainerUtils.extractGameSourceFromContainerId(appId)
         val isLocalSavesOnly = ContainerUtils.isLocalSavesOnly(context, appId)
 
         // Migrate legacy on-disk imagefs layout (e.g. legacy Proton → shared paths) before manifest

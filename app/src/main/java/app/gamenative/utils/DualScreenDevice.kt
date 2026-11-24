@@ -29,9 +29,9 @@ object DualScreenDevice {
     )
 
     fun isKnownDualScreenModel(
-        manufacturer: String = Build.MANUFACTURER,
-        model: String = Build.MODEL,
-        device: String = Build.DEVICE,
+        manufacturer: String = Build.MANUFACTURER.orEmpty(),
+        model: String = Build.MODEL.orEmpty(),
+        device: String = Build.DEVICE.orEmpty(),
     ): Boolean {
         val haystack = listOf(manufacturer, model, device)
             .joinToString(" ")

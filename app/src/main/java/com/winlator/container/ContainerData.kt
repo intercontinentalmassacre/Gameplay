@@ -75,6 +75,7 @@ data class ContainerData(
     val hdrEnabled: Boolean = false,
     val gamescopeOutputResolution: String = GamescopeSettings.OUTPUT_RESOLUTION_DEFAULT,
     val gamescopeExperimental: Boolean = false,
+    val fossilizeEnabled: Boolean = false,
     val videoMemorySize: String = "2048",
     val mouseWarpOverride: String = "disable",
     val shaderBackend: String = "glsl",
@@ -188,6 +189,7 @@ data class ContainerData(
                     "hdrEnabled" to state.hdrEnabled,
                     "gamescopeOutputResolution" to state.gamescopeOutputResolution,
                     "gamescopeExperimental" to state.gamescopeExperimental,
+                    "fossilizeEnabled" to state.fossilizeEnabled,
                     "language" to state.language,
                     "forceDlc" to state.forceDlc,
                     "localSavesOnly" to state.localSavesOnly,
@@ -273,6 +275,7 @@ data class ContainerData(
                     gamescopeOutputResolution = (savedMap["gamescopeOutputResolution"] as? String)
                         ?: GamescopeSettings.OUTPUT_RESOLUTION_DEFAULT,
                     gamescopeExperimental = (savedMap["gamescopeExperimental"] as? Boolean) ?: false,
+                    fossilizeEnabled = (savedMap["fossilizeEnabled"] as? Boolean) ?: false,
                     language = (savedMap["language"] as? String) ?: "english",
                     forceDlc = (savedMap["forceDlc"] as? Boolean) ?: false,
                     localSavesOnly = (savedMap["localSavesOnly"] as? Boolean) ?: false,

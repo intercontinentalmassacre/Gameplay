@@ -1,4 +1,7 @@
 <resources>
+    <string name="fossilize_enabled">Локальный кэш шейдеров</string>
+    <string name="fossilize_description">Записывать конвейеры Vulkan на этом устройстве и подготавливать новые перед следующим запуском.</string>
+    <string name="fossilize_preparing">Подготовка локальных шейдеров…</string>
     <string name="install_content_size">Загрузка: %1$s • После установки: %2$s</string>
     <string name="install_branch_name">Ветка: %1$s</string>
     <string name="install_select_all">Выбрать всё</string>
@@ -495,7 +498,7 @@
     <string name="external_display_swap_subtitle">Поменять экраны так, чтобы игра отображалась на внешнем дисплее, а это устройство стало поверхностью контроллера</string>
     <string name="extra">Дополнительно</string>
     <string name="extreme">Экстремальный</string>
-    <string name="face_buttons_category">Кнопки лица</string>
+    <string name="face_buttons_category">A/B/X/Y</string>
     <string name="fallback_menu_item_copy_link">Копировать ссылку</string>
     <string name="fallback_menu_item_open_in_browser">Открыть в браузере</string>
     <string name="fallback_menu_item_share_link">Поделиться ссылкой</string>
@@ -954,7 +957,7 @@ Ubuntu RootFs - releases.ubuntu.com/focal</string>
     <string name="path_password_strike_through">M3.27,4.27 L19.74,20.74</string>
     <string name="pause_download">Пауза</string>
     <string name="performance">Производительность</string>
-    <string name="physical_controller_config">Редактор привязок физического контроллера</string>
+    <string name="physical_controller_config">Привязки геймпада</string>
     <string name="play_time">Время игры</string>
     <string name="playtime">Время игры</string>
     <string name="playtime_last_two_weeks">Время игры за последние 2 недели: %s ч.</string>
@@ -1130,8 +1133,10 @@ Ubuntu RootFs - releases.ubuntu.com/focal</string>
     <string name="settings_downloads_title">Загрузки</string>
     <string name="settings_emulation_auto_apply_known_config_subtitle">Автоматически применять рекомендуемые настройки для игр Steam при первом запуске</string>
     <string name="settings_emulation_auto_apply_known_config_title">Автоматически применять известную конфигурацию</string>
+    <string name="settings_emulation_migrate_existing_prefixes_title">Переводить существующие контейнеры на общую базу</string>
+    <string name="settings_emulation_migrate_existing_prefixes_subtitle">При следующем запуске совместимые контейнеры Bionic перейдут на общую базу Wine. Файлы игр и настройки реестра сохранятся.</string>
     <string name="settings_emulation_shared_container_base_title">Общая база контейнеров</string>
-    <string name="settings_emulation_shared_container_base_subtitle">Ссылаться на неизменяемые Wine DLL для новых контейнеров и экономить место. Экспериментально; существующие контейнеры не меняются.</string>
+    <string name="settings_emulation_shared_container_base_subtitle">Использовать общую базу Wine для новых контейнеров Bionic. Каждая игра хранит свои изменения отдельно.</string>
     <string name="settings_emulation_box64_presets_subtitle">Просмотр, изменение и создание предустановок Box64</string>
     <string name="settings_emulation_box64_presets_title">Предустановки Box64</string>
     <string name="settings_emulation_contents_manager_subtitle">Установить дополнительные компоненты (.wcp)</string>
@@ -1308,7 +1313,7 @@ Ubuntu RootFs - releases.ubuntu.com/focal</string>
     <string name="shooter_mode_toggle">Режим стрельбы</string>
     <string name="shooter_mode_toggle_description">Автоматически заменять элементы джойстика на динамические джойстики</string>
     <string name="shortcuts">Ярлыки</string>
-    <string name="shoulder_buttons_category">Шифты</string>
+    <string name="shoulder_buttons_category">Бамперы и триггеры</string>
     <string name="show_fps">Показать FPS</string>
     <string name="side_sheet_accessibility_pane_title">Боковой лист</string>
     <string name="size">Размер</string>
@@ -1444,6 +1449,11 @@ Ubuntu RootFs - releases.ubuntu.com/focal</string>
     <string name="storage_external">Внешняя</string>
     <string name="storage_free_of_total">%1$s: %2$s свободно из %3$s</string>
     <string name="storage_calculating">%1$s: Вычисление…</string>
+    <string name="container_storage_game_size">Игра %1$s</string>
+    <string name="container_storage_prefix_size">Контейнер %1$s</string>
+    <string name="container_storage_path_label">Путь на диске</string>
+    <string name="container_storage_path_copy">Скопировать путь</string>
+    <string name="container_storage_path_copied">Путь скопирован</string>
     <string name="container_storage_title">Менеджер хранилища</string>
     <string name="container_storage_subtitle">Перемещайте установки между внутренним и внешним хранилищем</string>
     <string name="container_storage_summary">%1$d элементов • %2$s</string>
@@ -1493,7 +1503,7 @@ Ubuntu RootFs - releases.ubuntu.com/focal</string>
     <string name="tools_wine_processes_empty">Запущенные EXE не обнаружены.</string>
     <string name="template_percent">%1$d процент.</string>
     <string name="thumbstick_buttons">Кнопки джойстика</string>
-    <string name="thumbstick_buttons_category">Кнопки джойстика</string>
+    <string name="thumbstick_buttons_category">Нажатия стиков</string>
     <string name="toast_controls_reset">Управления сброшены</string>
     <string name="toast_copied_size">Скопирован размер: %.2fx</string>
     <string name="toast_failed_log_save">Ошибка сохранения logcat в место назначения</string>
@@ -2321,7 +2331,7 @@ Ubuntu RootFs - releases.ubuntu.com/focal</string>
     <string name="local_mod_folder_single">Выберите одну папку.</string>
     <string name="local_mod_reselect">Снова выберите локальное содержимое, чтобы продолжить импорт.</string>
     <string name="local_mod_invalid_request">Недопустимый запрос импорта локального мода.</string>
-    <string name="local_mod_too_large">Выбранное содержимое превышает ограничение импорта в 20 ГиБ.</string>
+    <string name="local_mod_too_large">Выбранное содержимое превышает ограничение импорта в %1$d ГиБ.</string>
     <string name="local_mod_uri_payload_too_large">Ссылки на выбранные файлы слишком велики для совместного импорта. Вместо этого выберите содержащую их папку.</string>
     <string name="local_mod_already_importing">Этот локальный мод уже импортируется.</string>
     <string name="local_mod_import_failed">Не удалось импортировать локальный мод.</string>
@@ -2587,6 +2597,8 @@ Ubuntu RootFs - releases.ubuntu.com/focal</string>
     <string name="support_bundle_title">Пакет для поддержки</string>
     <string name="support_bundle_exporting">Сбор диагностики…</string>
     <string name="support_bundle_show_contents">Содержимое пакета</string>
+    <string name="support_bundle_error">Не удалось подготовить или отправить архив. %1$s</string>
+    <string name="support_bundle_retry">Повторить</string>
     <string name="support_bundle_export">Экспортировать и отправить</string>
     <string name="support_bundle_share_title">Отправить пакет для поддержки</string>
     <string name="compat_presets_choose_title">Выберите отправную точку</string>
@@ -2680,6 +2692,29 @@ Ubuntu RootFs - releases.ubuntu.com/focal</string>
     <string name="downloads_containers_legacy_unavailable">Файлы контейнеров поставляются вместе с этой сборкой; загрузка не требуется.</string>
     <string name="downloads_containers_empty">В этой сборке нет файлов контейнеров</string>
     <string name="gnaudio_low_latency">Режим низкой задержки GNAudio</string>
+    <string name="gamescope_scaling_mode">Масштабирование</string>
+    <string name="gamescope_scaler_auto">Авто</string>
+    <string name="gamescope_scaler_integer">Целочисленное</string>
+    <string name="gamescope_scaler_fit">Вписать</string>
+    <string name="gamescope_scaler_stretch">Растянуть</string>
+    <string name="gamescope_scaler_fill">Заполнить</string>
+    <string name="gamescope_scaling_filter">Фильтр масштабирования</string>
+    <string name="gamescope_filter_linear">Линейный</string>
+    <string name="gamescope_filter_nearest">Ближайший сосед</string>
+    <string name="gamescope_filter_integer">Целочисленный</string>
+    <string name="gamescope_scaling_sharpness">Резкость</string>
+    <string name="gamescope_reset_default">Сбросить фильтр и резкость</string>
+    <string name="gamescope_look">Цветовые эффекты</string>
+    <string name="gamescope_look_off">Выкл.</string>
+    <string name="gamescope_look_grayscale">Оттенки серого</string>
+    <string name="gamescope_look_invertcolors">Инверсия цветов</string>
+    <string name="gamescope_look_invertbrightness">Инверсия яркости</string>
+    <string name="gamescope_look_cb_deut">Дейтеранопия</string>
+    <string name="gamescope_look_cb_prot">Протанопия</string>
+    <string name="gamescope_look_cb_trit">Тританопия</string>
+    <string name="gamescope_reshade">Эффекты ReShade</string>
+    <string name="gamescope_output_resolution">Разрешение масштабирования</string>
+    <string name="gamescope_output_resolution_device">Разрешение устройства</string>
     <string name="gamescope_experimental">Экспериментальный Gamescope</string>
     <string name="gamescope_experimental_cap_description">Улучшает генерацию кадров при ограничении FPS ниже частоты обновления дисплея.</string>
     <string name="gamescope_experimental_gl_description">Экспериментальный вывод OpenGL и управление частотой генерации кадров для этой игры.</string>
@@ -2687,4 +2722,11 @@ Ubuntu RootFs - releases.ubuntu.com/focal</string>
     <string name="driver_category_mali">Arm Mali</string>
     <string name="driver_category_mali_desc">Драйверы Vulkan для графики Arm Mali с драйвером ядра kbase.</string>
     <string name="container_settings_load_failed">Не удалось открыть настройки контейнера. Попробуйте ещё раз.</string>
+    <string name="hud_thermal_throttling">ТЕРМОТРОТТЛИНГ</string>
+    <string name="download_container_title">Конфигурация контейнера</string>
+    <string name="download_container_dx_default">Из конфигурации</string>
+    <string name="download_container_shared">Общая база Wine</string>
+    <string name="download_container_shared_hint">Одинаковые файлы MSI, Mono и DirectX занимают место один раз для всех игр.</string>
+    <string name="download_container_save_failed">Не удалось сохранить настройки контейнера. Попробуйте ещё раз.</string>
+    <string name="download_container_auto">Автоматический подбор для игры</string>
 </resources>

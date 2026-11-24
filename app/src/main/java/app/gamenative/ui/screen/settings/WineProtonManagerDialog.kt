@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Info
 import app.gamenative.ui.component.dialog.AlertDialog
 import app.gamenative.ui.component.Button
@@ -30,7 +29,6 @@ import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.Icon
-import app.gamenative.ui.component.IconButton
 import androidx.compose.material3.MaterialTheme
 import app.gamenative.ui.component.NoExtractOutlinedTextField
 import androidx.compose.material3.Text
@@ -47,7 +45,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import app.gamenative.R
 import app.gamenative.service.SteamService
@@ -639,7 +636,7 @@ fun WineProtonManagerDialog(open: Boolean, onDismiss: () -> Unit) {
                             Button(
                                 onClick = { downloadAndInstallWineProton(wineProtonManifest[selectedWineKey]!!) },
                                 enabled = !isBusy && !isDownloading && !isInstalling,
-                                modifier = Modifier.weight(1f)
+                                modifier = Modifier.weight(1f).heightIn(min = 48.dp)
                             ) {
                                 when {
                                     isDownloading -> Text("Downloading...")
@@ -681,15 +678,9 @@ fun WineProtonManagerDialog(open: Boolean, onDismiss: () -> Unit) {
                     }
                 }
 
-                HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
                 // Local import section
-                Text(
-                    text = "Import from local storage:",
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-
                 Text(
                     text = stringResource(R.string.wine_proton_import_package),
                     style = MaterialTheme.typography.titleMedium,
@@ -703,9 +694,9 @@ fun WineProtonManagerDialog(open: Boolean, onDismiss: () -> Unit) {
                 )
                 Text(
                     text = stringResource(R.string.win_proton_example),
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(bottom = 8.dp),
-                    fontWeight = FontWeight.Bold
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 6.dp)
                 )
 
                 Button(
@@ -720,7 +711,7 @@ fun WineProtonManagerDialog(open: Boolean, onDismiss: () -> Unit) {
                         }
                     },
                     enabled = !isBusy,
-                    modifier = Modifier.padding(bottom = 12.dp)
+                    modifier = Modifier.padding(bottom = 8.dp).heightIn(min = 48.dp)
                 ) { Text(stringResource(R.string.wine_proton_import_wcp_button)) }
 
                 if (isBusy) {
@@ -780,7 +771,7 @@ fun WineProtonManagerDialog(open: Boolean, onDismiss: () -> Unit) {
                                 }
                             },
                             enabled = !isBusy,
-                            modifier = Modifier.padding(top = 8.dp)
+                            modifier = Modifier.padding(top = 6.dp).heightIn(min = 48.dp)
                         ) { Text(stringResource(R.string.wine_proton_install_package)) }
                     }
                 }
@@ -792,40 +783,20 @@ fun WineProtonManagerDialog(open: Boolean, onDismiss: () -> Unit) {
                     Text(
                         text = stringResource(R.string.wine_proton_no_versions_found),
                         style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(top = 8.dp)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 6.dp)
                     )
                 } else {
                     Column(
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        installedProfiles.forEachIndexed { index, p ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(text = "${p.type}: ${p.verName}", style = MaterialTheme.typography.bodyMedium)
-                                    if (!p.desc.isNullOrEmpty()) {
-                                        Text(text = p.desc, style = MaterialTheme.typography.bodySmall)
-                                    }
-                                }
-                                IconButton(
-                                    onClick = { deleteTarget = p },
-                                    modifier = Modifier.padding(start = 8.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Delete,
-                                        contentDescription = stringResource(R.string.wine_proton_delete_content_desc),
-                                        tint = MaterialTheme.colorScheme.error
-                                    )
-                                }
-                            }
-                            if (p != installedProfiles.last()) {
-                                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                            }
+                        installedProfiles.forEachIndexed { index, profile ->
+                            if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                            InstalledComponentRow(
+                                title = "${profile.type}: ${profile.verName}",
+                                description = profile.desc,
+                                onDelete = { deleteTarget = profile },
+                            )
                         }
                     }
                 }
@@ -855,7 +826,7 @@ fun WineProtonManagerDialog(open: Boolean, onDismiss: () -> Unit) {
                 }
             },
             confirmButton = {
-                TextButton(onClick = {
+                TextButton(modifier = Modifier.heightIn(min = 48.dp), onClick = {
                     val profile = pendingProfile ?: return@TextButton
                     showUntrustedConfirm = false
                     isBusy = true
@@ -871,7 +842,7 @@ fun WineProtonManagerDialog(open: Boolean, onDismiss: () -> Unit) {
                 }) { Text(stringResource(R.string.install_anyway)) }
             },
             dismissButton = {
-                TextButton(onClick = {
+                TextButton(modifier = Modifier.heightIn(min = 48.dp), onClick = {
                     showUntrustedConfirm = false
                     pendingProfile = null
                     statusMessage = null
@@ -892,7 +863,7 @@ fun WineProtonManagerDialog(open: Boolean, onDismiss: () -> Unit) {
                 )
             },
             confirmButton = {
-                TextButton(onClick = {
+                TextButton(modifier = Modifier.heightIn(min = 48.dp), onClick = {
                     scope.launch {
                         try {
                             withContext(Dispatchers.IO) {
@@ -913,7 +884,7 @@ fun WineProtonManagerDialog(open: Boolean, onDismiss: () -> Unit) {
                 }) { Text(stringResource(R.string.remove)) }
             },
             dismissButton = {
-                TextButton(onClick = { deleteTarget = null }) { Text(stringResource(R.string.cancel)) }
+                TextButton(modifier = Modifier.heightIn(min = 48.dp), onClick = { deleteTarget = null }) { Text(stringResource(R.string.cancel)) }
             }
         )
     }
@@ -921,7 +892,7 @@ fun WineProtonManagerDialog(open: Boolean, onDismiss: () -> Unit) {
 
 @Composable
 private fun InfoRow(label: String, value: String) {
-    Column(modifier = Modifier.padding(bottom = 8.dp)) {
+    Column(modifier = Modifier.padding(bottom = 4.dp)) {
         Text(text = label, style = MaterialTheme.typography.labelMedium)
         NoExtractOutlinedTextField(
             value = value,

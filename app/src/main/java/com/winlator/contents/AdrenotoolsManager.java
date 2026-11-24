@@ -61,6 +61,13 @@ public class AdrenotoolsManager {
         return getMetadataValue(adrenoToolsDriverId, "driverVersion");
     }
 
+    public boolean isSd8Gen2TurboDriver(EnvVars env) {
+        if (!"vulkan.freedreno.so".equals(env.get("ADRENOTOOLS_DRIVER_NAME"))) return false;
+        File driverDir = new File(env.get("ADRENOTOOLS_DRIVER_PATH"));
+        if (!adrenotoolsContentDir.equals(driverDir.getParentFile())) return false;
+        return "26.1.6-sd8gen2-turbo".equals(getMetadataValue(driverDir.getName(), "packageVersion"));
+    }
+
     private String getMetadataValue(String driverId, String key) {
         if (!isSafeFileName(driverId)) return "";
         try {

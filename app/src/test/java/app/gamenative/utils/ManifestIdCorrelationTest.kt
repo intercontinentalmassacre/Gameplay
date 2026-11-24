@@ -1,157 +1,119 @@
 package app.gamenative.utils
 
-import android.content.Context
+import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.winlator.contents.AdrenotoolsManager
-import com.winlator.contents.ContentProfile
+import com.winlator.contents.ContentProfile.ContentType
 import com.winlator.contents.ContentsManager
+import java.io.ByteArrayOutputStream
 import java.io.File
+import java.security.MessageDigest
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 import kotlinx.coroutines.runBlocking
-import org.junit.Assert.assertNotNull
+import okhttp3.mockwebserver.MockResponse
+import okhttp3.mockwebserver.MockWebServer
+import okio.Buffer
+import org.apache.commons.compress.archivers.tar.TarArchiveEntry
+import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream
+import org.apache.commons.compress.compressors.xz.XZCompressorOutputStream
+import org.apache.commons.compress.compressors.zstandard.ZstdCompressorOutputStream
+import org.junit.Assert.assertArrayEquals
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
+@Config(application = Application::class)
 class ManifestIdCorrelationTest {
-    private val context: Context = ApplicationProvider.getApplicationContext()
+    private val context = ApplicationProvider.getApplicationContext<Application>()
 
     @Test
-    fun manifestIdsMatchInstalledIds() = runBlocking {
-        val manifest = loadLocalManifest()
-        val items = manifest.items.filterKeys { it != ManifestContentTypes.PROTON }
-
-        for ((typeKey, entries) in items) {
-            println("Checking manifest type=$typeKey entries=${entries.size}")
-            for (entry in entries) {
-                if (typeKey == ManifestContentTypes.DRIVER) {
-                    verifyDriverEntry(entry)
-                } else if (entry.url.endsWith(".tzst")) {
-                    verifyTzstEntry(typeKey, entry)
-                } else {
-                    verifyContentEntry(typeKey, entry)
-                }
-            }
+    fun manifestDriverIdMatchesInstalledMetadataName() = runBlocking {
+        val archive = ByteArrayOutputStream()
+        ZipOutputStream(archive).use { zip ->
+            zip.putNextEntry(ZipEntry("package/meta.json"))
+            zip.write("""{"name":"Fixture Turnip","libraryName":"libvulkan.so"}""".toByteArray())
+            zip.closeEntry()
+            zip.putNextEntry(ZipEntry("package/libvulkan.so"))
+            zip.write(ByteArray(64).apply {
+                byteArrayOf(0x7f, 69, 76, 70, 2, 1, 1).copyInto(this)
+                this[16] = 3 // ET_DYN
+                this[18] = 183.toByte() // EM_AARCH64
+            })
+            zip.closeEntry()
         }
-    }
 
-    private fun loadLocalManifest(): ManifestData {
-        val manifestFile = locateManifestFile()
-        val json = manifestFile.readText()
-        val parsed = ManifestRepository.parseManifest(json)
-        assertNotNull("Failed to parse manifest.json", parsed)
-        return parsed!!
-    }
-
-    private fun locateManifestFile(): File {
-        val workingDir = File(System.getProperty("user.dir"))
-        val direct = File(workingDir, "manifest.json")
-        if (direct.exists()) return direct
-        val parent = workingDir.parentFile
-        if (parent != null) {
-            val parentFile = File(parent, "manifest.json")
-            if (parentFile.exists()) return parentFile
-        }
-        throw IllegalStateException("manifest.json not found from ${workingDir.absolutePath}")
-    }
-
-    private suspend fun verifyDriverEntry(entry: ManifestEntry) {
-        val manager = AdrenotoolsManager(context)
-        val driverRoot = File(context.filesDir, "contents/adrenotools")
-        var installedId: String? = null
-        try {
-            println("Driver download/install id=${entry.id} name=${entry.name} url=${entry.url}")
+        MockWebServer().use { server ->
+            val entry = server.manifestEntry("Fixture Turnip", "driver.zip", archive.toByteArray())
             val result = ManifestInstaller.downloadAndInstallDriver(context, entry)
-            println("Driver install result id=${entry.id} success=${result.success} message=${result.message}")
-            assertTrue(
-                "Driver install failed for ${entry.id}: ${result.message}",
-                result.success,
-            )
-            val installedDirs = driverRoot.listFiles()
-                ?.filter { it.isDirectory && File(it, "meta.json").exists() }
-                ?.map { it.name }
-                .orEmpty()
-            println("Driver installed dirs: $installedDirs")
-            installedId = installedDirs.firstOrNull { it.equals(entry.id, ignoreCase = true) }
-            println("Driver match id=${entry.id} matched=${installedId != null}")
-            assertTrue(
-                "Driver ID mismatch for ${entry.id}. Installed: $installedDirs",
-                installedId != null,
-            )
-        } finally {
-            if (installedId != null) {
-                println("Driver cleanup id=$installedId")
-                manager.removeDriver(installedId)
-            }
+
+            assertTrue(result.message, result.success)
+            assertTrue(AdrenotoolsManager(context).enumarateInstalledDrivers().contains(entry.id))
+            assertTrue(File(context.filesDir, "contents/adrenotools/${entry.id}/libvulkan.so").isFile)
         }
     }
 
-    private suspend fun verifyContentEntry(typeKey: String, entry: ManifestEntry) {
-        val expectedType = contentTypeForKey(typeKey)
-        val manager = ContentsManager(context)
-        var installedProfile: ContentProfile? = null
-        try {
-            println("Content download/install type=$typeKey id=${entry.id} name=${entry.name} url=${entry.url}")
-            val result = ManifestInstaller.downloadAndInstallContent(context, entry, expectedType)
-            println("Content install result type=$typeKey id=${entry.id} success=${result.success} message=${result.message}")
+    @Test
+    fun manifestContentIdMatchesInstalledProfileVersionAndRevision() = runBlocking {
+        val profile = """
+            {"type":"Box64","versionName":"box64-fixture","versionCode":7,"description":"Fixture","files":[]}
+        """.trimIndent().toByteArray()
+        val archive = ByteArrayOutputStream()
+        TarArchiveOutputStream(XZCompressorOutputStream(archive)).use { tar ->
+            tar.writeFile("profile.json", profile)
+            tar.writeFile("payload", "component payload".toByteArray())
+        }
+
+        MockWebServer().use { server ->
+            val entry = server.manifestEntry("box64-fixture-7", "box64.wcp", archive.toByteArray())
+            val type = ContentType.CONTENT_TYPE_BOX64
+            val result = ManifestInstaller.downloadAndInstallContent(context, entry, type)
+
+            assertTrue(result.message, result.success)
+            val manager = ContentsManager(context)
             manager.syncContents()
-            val profiles = manager.getProfiles(expectedType).orEmpty()
-            println("Content installed profiles type=$typeKey count=${profiles.size}")
-            installedProfile = profiles.firstOrNull { profile ->
-                val installedId = "${profile.verName}-${profile.verCode}"
-                installedId.equals(entry.id, ignoreCase = true)
-            }
-            if (!result.success && installedProfile == null) {
-                assertTrue(
-                    "Content install failed for ${entry.id} (${typeKey}): ${result.message}",
-                    result.success,
-                )
-            }
-            val installedIds = profiles.map { "${it.verName}-${it.verCode}" }
-            println("Content installed IDs type=$typeKey ids=$installedIds")
-            println("Content match type=$typeKey id=${entry.id} matched=${installedProfile != null}")
-            assertTrue(
-                "Content ID mismatch for ${entry.id} (${typeKey}). Installed: $installedIds",
-                installedProfile != null,
-            )
-        } finally {
-            if (installedProfile != null) {
-                println("Content cleanup type=$typeKey verName=${installedProfile.verName} verCode=${installedProfile.verCode}")
-                manager.removeContent(installedProfile)
-            }
+            val installed = manager.getProfiles(type).orEmpty().single { it.verName == "box64-fixture" }
+            assertEquals(entry.id, "${installed.verName}-${installed.verCode}")
+            assertEquals("component payload", ContentsManager.getSourceFile(context, installed, "payload").readText())
         }
     }
 
-    private suspend fun verifyTzstEntry(typeKey: String, entry: ManifestEntry) {
-        val expectedType = contentTypeForKey(typeKey)
-        val cacheFile = File(File(context.filesDir, "assets/dxwrapper"), entry.url.substringAfterLast("/"))
-        try {
-            println("Tzst download/install type=$typeKey id=${entry.id} name=${entry.name} url=${entry.url}")
-            val result = ManifestInstaller.downloadAndInstallContent(context, entry, expectedType)
-            println("Tzst install result type=$typeKey id=${entry.id} success=${result.success} message=${result.message}")
-            assertTrue(
-                "Tzst install failed for ${entry.id} ($typeKey): ${result.message}",
-                result.success,
-            )
-            assertTrue(
-                "Tzst not cached for ${entry.id} ($typeKey) at ${cacheFile.absolutePath}",
-                cacheFile.exists() && cacheFile.length() > 0,
-            )
-        } finally {
-            cacheFile.delete()
+    @Test
+    fun manifestRawWrapperIsCachedUnderTheReleaseFileName() = runBlocking {
+        val archive = ByteArrayOutputStream()
+        TarArchiveOutputStream(ZstdCompressorOutputStream(archive)).use { tar ->
+            tar.writeFile("d3d9.dll", "wrapper payload".toByteArray())
+        }
+        val artifact = archive.toByteArray()
+
+        MockWebServer().use { server ->
+            val entry = server.manifestEntry("dxvk-fixture", "dxvk-fixture.tzst", artifact)
+            val result = ManifestInstaller.downloadAndInstallContent(context, entry, ContentType.CONTENT_TYPE_DXVK)
+
+            assertTrue(result.message, result.success)
+            assertArrayEquals(artifact, File(context.filesDir, "assets/dxwrapper/dxvk-fixture.tzst").readBytes())
         }
     }
 
-    private fun contentTypeForKey(key: String): ContentProfile.ContentType {
-        return when (key.lowercase()) {
-            ManifestContentTypes.DXVK -> ContentProfile.ContentType.CONTENT_TYPE_DXVK
-            ManifestContentTypes.VKD3D -> ContentProfile.ContentType.CONTENT_TYPE_VKD3D
-            ManifestContentTypes.BOX64 -> ContentProfile.ContentType.CONTENT_TYPE_BOX64
-            ManifestContentTypes.WOWBOX64 -> ContentProfile.ContentType.CONTENT_TYPE_WOWBOX64
-            ManifestContentTypes.FEXCORE -> ContentProfile.ContentType.CONTENT_TYPE_FEXCORE
-            ManifestContentTypes.WINE -> ContentProfile.ContentType.CONTENT_TYPE_WINE
-            else -> throw IllegalArgumentException("Unsupported manifest type: $key")
-        }
+    private fun MockWebServer.manifestEntry(id: String, filename: String, archive: ByteArray): ManifestEntry {
+        start()
+        enqueue(MockResponse().setBody(Buffer().write(archive)))
+        return ManifestEntry(
+            id = id,
+            name = "Test component",
+            url = url("/$filename").toString(),
+            sizeBytes = archive.size.toLong(),
+            sha256 = MessageDigest.getInstance("SHA-256").digest(archive).joinToString("") { "%02x".format(it) },
+        )
+    }
+
+    private fun TarArchiveOutputStream.writeFile(name: String, data: ByteArray) {
+        putArchiveEntry(TarArchiveEntry(name).apply { size = data.size.toLong() })
+        write(data)
+        closeArchiveEntry()
     }
 }

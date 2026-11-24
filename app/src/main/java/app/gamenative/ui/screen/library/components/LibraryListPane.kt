@@ -39,6 +39,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import app.gamenative.PrefManager
 import app.gamenative.data.GameSource
@@ -74,6 +75,7 @@ internal fun LibraryListPane(
     onRefresh: () -> Unit,
     modifier: Modifier = Modifier,
     containerColor: Color = MaterialTheme.colorScheme.background,
+    bottomContentPadding: Dp = 72.dp,
 ) {
     val context = LocalContext.current
     val snackBarHost = remember { SnackbarHostState() }
@@ -198,7 +200,7 @@ internal fun LibraryListPane(
                                 top = 80.dp,
                                 start = horizontalPadding,
                                 end = horizontalPadding + 4.dp,
-                                bottom = 72.dp,
+                                bottom = bottomContentPadding,
                             ),
                         ) {
                             items(
@@ -265,7 +267,7 @@ internal fun LibraryListPane(
                             top = 80.dp,
                             start = horizontalPadding,
                             end = horizontalPadding,
-                            bottom = 72.dp,
+                            bottom = bottomContentPadding,
                         ),
                     ) {
                         items(totalSkeletonCount) { index ->

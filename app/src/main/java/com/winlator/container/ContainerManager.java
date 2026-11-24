@@ -192,11 +192,17 @@ public class ContainerManager {
             Container container = new Container(containerId);
             container.setRootDir(stagingDir);
             container.loadData(data);
-            if (installWinePrefix && !extractContainerPatternFile(container.getWineVersion(), new ContentsManager(context), stagingDir, null)) {
+            boolean shared = PrefManager.INSTANCE.getSharedContainerBase() && (!installWinePrefix || ContainerOverlay.isEligible(container))
+                    && ContainerOverlay.bionicLibFile(context).isFile();
+            container.putExtra("overlayRequested", shared ? "1" : null);
+            container.setBasePrefix("");
+            boolean thin = installWinePrefix && shared && prepareOverlay(container, new ContentsManager(context));
+            if (installWinePrefix && !thin && !extractContainerPatternFile(container.getWineVersion(), new ContentsManager(context), stagingDir, null)) {
                 Log.w("ContainerManager", "Failed to extract container pattern for " + containerId);
                 return null;
             }
 
+            if (installWinePrefix) container.putExtra("overlayRequested", null);
             container.saveData();
             if (container.getConfigFile().length() == 0 || !stagingDir.renameTo(containerDir)) return null;
             container.setRootDir(containerDir);
@@ -213,6 +219,25 @@ public class ContainerManager {
         return null;
     }
 
+    public boolean prepareOverlay(Container container, ContentsManager contentsManager) {
+        if (!ContainerOverlay.isEligible(container) || !ContainerOverlay.bionicLibFile(context).isFile()) return false;
+        File base = BasePrefix.ensure(context, contentsManager, container.getWineVersion());
+        if (base == null) return false;
+        File upper = new File(container.getRootDir(), ".wine");
+        String path = ContainerOverlay.canonicalHostPath(base);
+        if (path.equals(container.getBasePrefix())) return true;
+        if (!container.getBasePrefix().isEmpty()) {
+            try {
+                ContainerOverlay.refreshSkeleton(upper, base);
+            } catch (IOException e) {
+                throw new UncheckedIOException("Cannot switch the shared Wine prefix", e);
+            }
+        }
+        if (!ContainerOverlay.createThinPrefix(base, upper)) return false;
+        container.setBasePrefix(path);
+        return true;
+    }
+
     private void duplicateContainer(Container srcContainer) {
         // Generate a unique ID by appending (1), (2), etc. to the original ID
         String baseId = srcContainer.id;
@@ -221,7 +246,10 @@ public class ContainerManager {
         File dstDir = new File(homeDir, ImageFs.USER+"-"+newId);
         if (!dstDir.mkdirs()) return;
 
-        if (!FileUtils.copy(srcContainer.getRootDir(), dstDir, (file) -> FileUtils.chmod(file, 0771))) {
+        boolean copied = srcContainer.isOverlay()
+                ? ContainerOverlay.copyTree(srcContainer.getRootDir(), dstDir, true)
+                : FileUtils.copy(srcContainer.getRootDir(), dstDir, (file) -> FileUtils.chmod(file, 0771));
+        if (!copied) {
             FileUtils.delete(dstDir);
             return;
         }
@@ -248,7 +276,10 @@ public class ContainerManager {
         dstContainer.setBox86Version(srcContainer.getBox86Version());
         dstContainer.setDesktopTheme(srcContainer.getDesktopTheme());
         dstContainer.setRcfileId(srcContainer.getRCFileId());
+        dstContainer.setContainerVariant(srcContainer.getContainerVariant());
         dstContainer.setWineVersion(srcContainer.getWineVersion());
+        dstContainer.setBasePrefix(srcContainer.getBasePrefix());
+        dstContainer.putExtra("overlayRequested", srcContainer.getExtra("overlayRequested"));
         dstContainer.setPlatform(srcContainer.getPlatform());
         dstContainer.saveData();
 
@@ -273,7 +304,10 @@ public class ContainerManager {
     }
 
     private void removeContainer(Container container) {
-        if (FileUtils.delete(container.getRootDir())) containers.remove(container);
+        if (FileUtils.delete(container.getRootDir())) {
+            containers.remove(container);
+            SharedWineComponents.collectUnused(container);
+        }
     }
 
     public ArrayList<Shortcut> loadShortcuts() {
@@ -367,7 +401,7 @@ public class ContainerManager {
                 dstFile = onExtractFileListener.onExtractFile(dstFile, 0);
                 if (dstFile == null) continue;
             }
-            linkOrCopyCommonDll(new File(srcDir, dlname), dstFile, containerDir);
+            copyCommonDll(new File(srcDir, dlname), dstFile);
         }
     }
 
@@ -389,25 +423,12 @@ public class ContainerManager {
                 dstFile = onExtractFileListener.onExtractFile(dstFile, 0);
                 if (dstFile == null) continue;
             }
-            linkOrCopyCommonDll(file, dstFile, containerDir);
+            copyCommonDll(file, dstFile);
         }
     }
 
-    private void linkOrCopyCommonDll(File source, File destination, File containerDir) {
-        if (PrefManager.INSTANCE.getSharedContainerBase() &&
-                !new File(containerDir, ".container").exists()) {
-            if (!source.exists()) {
-                Log.d("Extraction", "skip symlink, source missing: " + source);
-            } else {
-                Log.d("Extraction", "symlinking immutable common DLL " + source + " to " + destination);
-                if (FileUtils.symlink(source, destination)) return;
-                Log.w("Extraction", "Symlink failed; falling back to copy for " + destination);
-            }
-        }
-        Log.d("Extraction", "copying " + source + " to " + destination);
-        if (!FileUtils.copy(source, destination)) {
-            Log.e("Extraction", "Failed to materialize common DLL: " + destination);
-        }
+    private void copyCommonDll(File source, File destination) {
+        if (!FileUtils.copy(source, destination)) Log.e("Extraction", "Failed to copy " + source + " to " + destination);
     }
 
     public boolean extractContainerPatternCommon(File containerDir, OnExtractFileListener onExtractFileListener) {

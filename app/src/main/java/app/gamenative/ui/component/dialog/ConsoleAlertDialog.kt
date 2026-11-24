@@ -20,15 +20,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import app.gamenative.ui.component.focusRing
+import app.gamenative.ui.theme.PluviaTheme
 import app.gamenative.externaldisplay.DsHomeSecondScreen
 import app.gamenative.utils.rememberHasExternalDisplay
 
 /**
  * Drop-in replacement for the material3 AlertDialog with the console dialog
- * shape (16dp) as the default. Everything else delegates unchanged.
+ * shape from the active theme.
  */
 @Composable
 fun AlertDialog(
@@ -39,7 +39,7 @@ fun AlertDialog(
     icon: @Composable (() -> Unit)? = null,
     title: @Composable (() -> Unit)? = null,
     text: @Composable (() -> Unit)? = null,
-    shape: Shape = RoundedCornerShape(16.dp),
+    shape: Shape = RoundedCornerShape(PluviaTheme.tokens.cornerLg),
     containerColor: Color = AlertDialogDefaults.containerColor,
     iconContentColor: Color = AlertDialogDefaults.iconContentColor,
     titleContentColor: Color = AlertDialogDefaults.titleContentColor,
@@ -113,7 +113,7 @@ fun TextButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    shape: Shape = RoundedCornerShape(10.dp),
+    shape: Shape = RoundedCornerShape(PluviaTheme.tokens.cornerMd),
     border: BorderStroke? = null,
     colors: ButtonColors = ButtonDefaults.textButtonColors(),
     content: @Composable RowScope.() -> Unit,
@@ -132,7 +132,7 @@ fun TextButton(
                     Color.Transparent
                 },
             )
-            .focusRing(interactionSource, shape, width = 2.dp),
+            .focusRing(interactionSource, shape),
         enabled = enabled,
         shape = shape,
         border = border,

@@ -408,9 +408,9 @@ private fun DsGameCell(
             )
             .onFocusChanged { if (it.isFocused) onFocused() }
             .semantics { contentDescription = item.name }
+            .focusRing(interactionSource, shape)
             .clip(shape)
             .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-            .focusRing(interactionSource, shape, width = PluviaTheme.tokens.focusRingWidth)
             .then(
                 if (selected && !isFocused) {
                     Modifier.border(
@@ -423,7 +423,7 @@ private fun DsGameCell(
                 },
             )
             .selectable(
-                selected = isActive,
+                selected = selected,
                 interactionSource = interactionSource,
                 indication = null,
                 onClick = onClick,

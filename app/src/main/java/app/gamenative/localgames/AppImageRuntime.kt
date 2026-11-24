@@ -100,9 +100,13 @@ internal object AppImageRuntime {
         val home = File(container.rootDir, "appimage-home").apply { mkdirs() }
         environment.addComponent(AppImageProcess(source(container), home, onError))
         try {
+            xServer.winHandler.startGamepadOnly()
             environment.startEnvironmentComponents()
-        } catch (error: Exception) {
-            environment.stopEnvironmentComponents()
+        } catch (error: Throwable) {
+            runCatching { xServer.winHandler.stop() }.exceptionOrNull()
+                ?.takeUnless { it === error }?.let(error::addSuppressed)
+            runCatching { environment.stopEnvironmentComponents() }.exceptionOrNull()
+                ?.takeUnless { it === error }?.let(error::addSuppressed)
             throw error
         }
         return environment
@@ -127,11 +131,17 @@ private class AppImageProcess(
             val inspection = AppImageInspector.inspect(image)
             require(inspection.kind == ExecutableKind.ARM64_APPIMAGE) { inspection.reason.orEmpty() }
             check(image.setExecutable(true, true)) { "Could not prepare the AppImage executable" }
+            context.assets.open("appimage/libgameplay-pad.so").use { input ->
+                File(staging, "libgameplay-pad.so").outputStream().use { input.copyTo(it) }
+            }
+            val gamepadDir = File(context.filesDir, "gamepad_shm")
+            check(File(staging, "gamepad_shm").mkdir())
             val builder = ProcessBuilder(
                 File(native, "libproot.so").path, "--kill-on-exit", "-r", root.path,
                 "-w", "/home/game", "-b", "/dev", "-b", "/proc",
                 "-b", "${home.path}:/home/game", "-b", "${staging.path}:/run/game",
-                "/run/game/game.AppImage",
+                "-b", "${gamepadDir.path}:/run/game/gamepad_shm",
+                "/bin/sh", "-c", "export LD_PRELOAD=/run/game/libgameplay-pad.so; exec /run/game/game.AppImage",
             ).redirectErrorStream(true)
             builder.environment().apply {
                 clear()
@@ -141,6 +151,8 @@ private class AppImageProcess(
                 put("HOME", "/home/game")
                 put("PATH", "/usr/bin:/bin")
                 put("LD_LIBRARY_PATH", "/usr/lib:/usr/lib/pulseaudio")
+                put("EVSHIM_BASE_PATH", "/run/game")
+                put("EVSHIM_MAX_PLAYERS", "4")
                 put("DISPLAY", ":0")
                 put("PULSE_SERVER", "unix:${UnixSocketConfig.PULSE_SERVER_PATH}")
                 put("APPIMAGE_EXTRACT_AND_RUN", "1")
@@ -165,8 +177,9 @@ private class AppImageProcess(
                     FileUtils.delete(staging)
                 }
             }
-        } catch (error: Exception) {
-            FileUtils.delete(staging)
+        } catch (error: Throwable) {
+            runCatching { FileUtils.delete(staging) }.exceptionOrNull()
+                ?.takeUnless { it === error }?.let(error::addSuppressed)
             throw error
         }
     }

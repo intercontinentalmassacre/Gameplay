@@ -19,6 +19,16 @@ class ContainerConfigRuntimeTest {
     )
 
     @Test
+    fun `local shader cache defaults off and requires a restart`() {
+        val old = baseConfig()
+        assertFalse(old.fossilizeEnabled)
+        assertEquals(
+            setOf("fossilizeEnabled"),
+            ContainerConfigRuntime.restartRequiredChangedFields(old, old.copy(fossilizeEnabled = true)),
+        )
+    }
+
+    @Test
     fun `identical configs report no changes`() {
         val old = baseConfig()
         val new = baseConfig()

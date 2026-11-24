@@ -242,8 +242,9 @@ class GOGDownloadManager @Inject constructor(
 
             // Step 4: Fetch depot manifests to get file lists
             // Track which depot each file came from for proper productId mapping
-            data class FileWithDepot(val file: DepotFile, val depotProductId: String)
+            data class FileWithDepot(val file: DepotFile, val productId: String)
             val allFilesWithDepots = mutableListOf<FileWithDepot>()
+            val baseProductIds = setOf(gameId, gameManifest.baseProductId)
             // Symlinks and empty directories declared in the depot manifests. These carry no chunks,
             // so they bypass the chunk download/assemble path and must be created explicitly.
             val allLinks = mutableListOf<Pair<DepotLink, String>>()
@@ -261,19 +262,29 @@ class GOGDownloadManager @Inject constructor(
 
                 val depotManifest = depotResult.getOrThrow()
                 depotManifest.files.forEach { file ->
-                    allFilesWithDepots.add(FileWithDepot(file, depot.productId))
+                    val productId = file.productId?.takeUnless { it == "2147483047" } ?: depot.productId
+                    if (productId in ownedGameIds && (withDlcs || productId in baseProductIds)) {
+                        allFilesWithDepots.add(FileWithDepot(file, productId))
+                    }
                 }
                 depotManifest.links.forEach { link -> allLinks.add(link to depot.productId) }
                 depotManifest.directories.forEach { dir -> allDirectories.add(dir to depot.productId) }
             }
 
-            val allFiles = allFilesWithDepots.map { it.file }
+            // Gen 2 maps both game and support files into the game directory, stripping app/ from support paths.
+            val effectiveFiles = GOGManifestParser.effectiveEntries(
+                allFilesWithDepots,
+                path = { if (it.file.isSupportFile()) getSupportInstallPath(it.file.path) else it.file.path },
+                isBase = { it.productId in baseProductIds },
+                hasContent = { it.file.chunks.any { chunk -> chunk.compressedMd5.isNotEmpty() } },
+            )
+            val allFiles = effectiveFiles.map { it.file }
             Timber.tag("GOG").d("Total files from all depots: ${allFiles.size}")
 
             // Step 5: Separate base game, DLC, and support files
-            val (baseFiles, dlcFiles) = parser.separateBaseDLC(allFiles, gameManifest.baseProductId)
-            val filesToDownload = if (withDlcs) baseFiles + dlcFiles else baseFiles
-            var (gameFiles, supportFiles) = parser.separateSupportFiles(filesToDownload)
+            val (baseFiles, dlcFiles) = effectiveFiles.partition { it.productId in baseProductIds }
+                .let { (base, dlc) -> base.map { it.file } to dlc.map { it.file } }
+            var (gameFiles, supportFiles) = parser.separateSupportFiles(allFiles)
 
             // Filter out files that already exist with correct size (incremental download)
             val gameInstallDir = installPath
@@ -349,36 +360,11 @@ class GOGDownloadManager @Inject constructor(
 
             Timber.tag("GOG").d("Mapping chunks to products. gameId parameter: $gameId, realGameId: $realGameId, manifest baseProductId: ${gameManifest.baseProductId}")
 
-            val filesToDownloadPaths = allDownloadFiles.map { it.path }.toSet()
+            val pendingFiles = allDownloadFiles.toHashSet()
             // Map each chunk to its product ID using depot info
-            allFilesWithDepots.forEach { (file, depotProductId) ->
-                if (file.path !in filesToDownloadPaths) return@forEach
-                // Use depot's productId as fallback when file has null/placeholder productId
-
-                // TODO: Remove this logic and always use the depotProductId.
-                val productId = when {
-                    file.productId == null -> {
-                        Timber.tag("GOG").d("File ${file.path} has null productId, using depotProductId: $depotProductId")
-                        depotProductId
-                    }
-                    file.productId == "2147483047" -> {
-                        Timber.tag("GOG").d("File ${file.path} has placeholder productId, using depotProductId: $depotProductId")
-                        depotProductId
-                    }
-                    else -> {
-                        Timber.tag("GOG").d("File ${file.path} has productId: ${file.productId}")
-                        file.productId
-                    }
-                }
-
-                // Only include files from products the user owns
-                if (productId in ownedGameIds) {
-                    file.chunks.forEach { chunk ->
-                        chunkToProductMap[chunk.compressedMd5] = productId
-                    }
-                } else {
-                    Timber.tag("GOG").d("Skipping file ${file.path} from unowned product $productId")
-                }
+            effectiveFiles.forEach { (file, productId) ->
+                if (file !in pendingFiles) return@forEach
+                file.chunks.forEach { chunk -> chunkToProductMap[chunk.compressedMd5] = productId }
             }
 
             // Get unique product IDs we need to fetch secure links for
@@ -639,8 +625,13 @@ class GOGDownloadManager @Inject constructor(
                 v1Files.forEach { allV1Files.add(FileWithProduct(it, depot.productId)) }
             }
 
-            var gameFiles = allV1Files.filter { !it.file.isSupport }
-            var supportFiles = allV1Files.filter { it.file.isSupport }
+            fun effective(files: List<FileWithProduct>) = GOGManifestParser.effectiveEntries(
+                files,
+                path = { it.file.path },
+                isBase = { it.productId == baseProductId },
+            )
+            var gameFiles = effective(allV1Files.filter { !it.file.isSupport })
+            var supportFiles = effective(allV1Files.filter { it.file.isSupport })
             gameFiles = gameFiles.filter { f ->
                 val outFile = File(installPath, f.file.path)
                 !fileExistsWithCorrectSize(outFile, f.file.size, f.file.hash.takeIf { it.isNotEmpty() })
@@ -674,7 +665,7 @@ class GOGDownloadManager @Inject constructor(
                 outFile.parentFile?.mkdirs()
 
                 if (file.size == 0L) {
-                    outFile.createNewFile()
+                    outFile.outputStream().close()
                     return Result.success(Unit)
                 }
 

@@ -29,6 +29,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import app.gamenative.ui.screen.library.directXSummary
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -556,40 +559,49 @@ fun QuickMenu(
                         .fillMaxSize()
                         .statusBarsPadding(),
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(start = 20.dp, end = 8.dp, top = 16.dp, bottom = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                    ) {
-                        Text(
-                            text = stringResource(R.string.quick_menu_title),
-                            style = MaterialTheme.typography.titleLarge.copy(
-                                fontWeight = FontWeight.SemiBold,
-                            ),
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                        QuickMenuCloseButton(onClick = onDismiss)
-                    }
+                    val compact = fullScreen && PluviaTheme.tokens.densityCompact
+                    if (compact && container != null) {
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            QuickMenuRuntimeRow(container, Modifier.weight(1f))
+                            QuickMenuCloseButton(onClick = onDismiss)
+                        }
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    } else {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 20.dp, end = 8.dp, top = 16.dp, bottom = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                        ) {
+                            Text(
+                                text = stringResource(R.string.quick_menu_title),
+                                style = MaterialTheme.typography.titleLarge.copy(
+                                    fontWeight = FontWeight.SemiBold,
+                                ),
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                            QuickMenuCloseButton(onClick = onDismiss)
+                        }
 
-                    HorizontalDivider(
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
-                    )
-
-                    if (container != null) {
-                        QuickMenuRuntimeRow(container = container)
                         HorizontalDivider(
                             modifier = Modifier.padding(horizontal = 16.dp),
                             color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
                         )
+
+                        if (container != null) {
+                            QuickMenuRuntimeRow(container = container)
+                            HorizontalDivider(
+                                modifier = Modifier.padding(horizontal = 16.dp),
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
+                            )
+                        }
                     }
 
                     Row(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(horizontal = 12.dp, vertical = 12.dp),
+                            .padding(horizontal = if (compact) 8.dp else 12.dp, vertical = if (compact) 4.dp else 12.dp),
                     ) {
                         Column(
                             modifier = Modifier
@@ -1756,39 +1768,36 @@ private fun QuickMenuSectionHeader(
  * Compact runtime honesty row shown above the quick-menu tabs while a game is
  * running: Wine/Proton, graphics driver, DXVK wrapper and container variant.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun QuickMenuRuntimeRow(container: Container) {
+private fun QuickMenuRuntimeRow(container: Container, modifier: Modifier = Modifier) {
     val wineValue = container.wineVersion.ifBlank { container.containerVariant }
     val driverValue = container.graphicsDriver
-    val dxvkValue = container.dxWrapper
+    val directX = directXSummary(container.dxWrapper, container.dxWrapperConfig)
     val variantValue = container.containerVariant
 
-    Row(
-        modifier = Modifier
+    FlowRow(
+        modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 10.dp),
+            .padding(horizontal = 12.dp, vertical = if (PluviaTheme.tokens.densityCompact) 4.dp else 10.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.CenterVertically,
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         QuickMenuRuntimePill(
             label = stringResource(R.string.game_runtime_wine_proton),
             value = wineValue,
-            modifier = Modifier.weight(1f, fill = false),
         )
         QuickMenuRuntimePill(
             label = stringResource(R.string.game_runtime_driver),
             value = driverValue,
-            modifier = Modifier.weight(1f, fill = false),
         )
         QuickMenuRuntimePill(
-            label = stringResource(R.string.dxvk_version),
-            value = dxvkValue,
-            modifier = Modifier.weight(1f, fill = false),
+            label = stringResource(R.string.game_runtime_directx),
+            value = directX,
         )
         QuickMenuRuntimePill(
             label = stringResource(R.string.container_variant),
             value = variantValue,
-            modifier = Modifier.weight(1f, fill = false),
         )
     }
 }
@@ -1821,13 +1830,14 @@ private fun QuickMenuRuntimePill(
 private fun QuickMenuCloseButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-) {    val interactionSource = remember { MutableInteractionSource() }
+) {
+    val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
-    val shape = RoundedCornerShape(14.dp)
+    val shape = MaterialTheme.shapes.medium
 
     Box(
         modifier = modifier
-            .size(44.dp)
+            .size(48.dp)
             .clip(shape)
             .background(
                 if (isFocused) {

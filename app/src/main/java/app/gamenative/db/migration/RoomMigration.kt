@@ -15,6 +15,11 @@ internal val ROOM_MIGRATION_V7_to_V8 = object : Migration(7, 8) {
     }
 }
 
+// Both schemas already contain steam_app.ufs_parse_version.
+internal val ROOM_MIGRATION_V16_to_V17 = object : Migration(16, 17) {
+    override fun migrate(connection: SQLiteConnection) = Unit
+}
+
 internal val ROOM_MIGRATION_V23_to_V24 = object : Migration(23, 24) {
     override fun migrate(connection: SQLiteConnection) {
         migrateNexusModSupportToV24(connection)

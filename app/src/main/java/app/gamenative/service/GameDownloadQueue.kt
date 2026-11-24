@@ -40,22 +40,25 @@ object GameDownloadQueue {
     /** Called from a download coroutine's finally block. Auto-paused entries remain queued. */
     fun finishDownload(gameSource: GameSource, gameId: String, downloadInfo: DownloadInfo) {
         if (downloadInfo.wasAutoPaused()) return
-        removeAndResume(gameSource, gameId)
+        unregisterDownload(gameSource, gameId, downloadInfo)
     }
 
-    fun unregisterDownload(gameSource: GameSource, gameId: String) {
-        removeAndResume(gameSource, gameId)
-    }
-
-    private fun removeAndResume(gameSource: GameSource, gameId: String) {
+    fun unregisterDownload(gameSource: GameSource, gameId: String, downloadInfo: DownloadInfo) {
         val next = synchronized(lock) {
-            downloads.remove(key(gameSource, gameId))
+            val downloadKey = key(gameSource, gameId)
+            if (downloads[downloadKey]?.downloadInfo !== downloadInfo) return
+            downloads.remove(downloadKey)
             downloads.values.firstOrNull { it.downloadInfo.consumeAutoPaused() }
         }
         next?.let {
             Timber.i("[DownloadQueue] Resuming ${it.gameSource}:${it.gameId}")
             it.resume()
         }
+    }
+
+    /** Remove every current entry before cancelling jobs, so none can auto-resume another. */
+    fun drainForPause(): List<DownloadEntry> = synchronized(lock) {
+        downloads.values.toList().also { downloads.clear() }
     }
 
     fun getActiveDownloads(): Map<String, DownloadEntry> = synchronized(lock) { downloads.toMap() }

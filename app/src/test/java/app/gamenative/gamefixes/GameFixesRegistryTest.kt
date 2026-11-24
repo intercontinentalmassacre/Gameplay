@@ -3,6 +3,7 @@ package app.gamenative.gamefixes
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import app.gamenative.data.GOGGame
+import app.gamenative.service.SteamService
 import app.gamenative.service.gog.GOGService
 import com.winlator.container.Container
 import io.mockk.every
@@ -72,6 +73,36 @@ class GameFixesRegistryTest {
                 container,
             )
         }
+    }
+
+    @Test
+    fun applyFor_defaultsArkhamCityToFullX87Precision() {
+        mockkObject(SteamService.Companion)
+        every { SteamService.getAppDirPath(200260) } returns context.cacheDir.absolutePath
+        every { container.envVars } returns ""
+
+        GameFixesRegistry.applyFor(context, "STEAM_200260", container)
+
+        verify(exactly = 1) { container.envVars = "FEX_X87REDUCEDPRECISION=0" }
+
+        every { container.envVars } returns "FEX_X87REDUCEDPRECISION=1"
+        GameFixesRegistry.applyFor(context, "STEAM_200260", container)
+
+        verify(exactly = 1) { container.envVars = any() }
+    }
+
+    @Test
+    fun applyFor_setsSteamExecForEachBlackOpsIIMode() {
+        val installDir = context.cacheDir.absolutePath
+        mockkObject(SteamService.Companion)
+        every { SteamService.getAppDirPath(any()) } returns installDir
+        every { container.envVars } returns ""
+
+        for (id in listOf("202970", "202990", "212910")) {
+            GameFixesRegistry.applyFor(context, "STEAM_$id", container)
+        }
+
+        verify(exactly = 3) { container.envVars = "WINESTEAMNOEXEC=0" }
     }
 
     @Test

@@ -3,6 +3,9 @@ package app.gamenative.ui.theme
 import android.app.Activity
 import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.animation.core.snap
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Shapes
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.darkColorScheme
@@ -15,11 +18,14 @@ import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
+import app.gamenative.PrefManager
+import app.gamenative.enums.AppTheme
 import com.alorma.compose.settings.ui.base.internal.SettingsTileColors
 import com.alorma.compose.settings.ui.base.internal.SettingsTileDefaults
 import com.materialkolor.PaletteStyle
@@ -180,6 +186,7 @@ private fun pluviaColors(
         highContrast && isDark -> Color.White
         highContrast -> Color.Black
         customPalette?.focusRingColor != null -> GameplayThemeCodec.color(customPalette.focusRingColor!!)
+        !isDark -> lerp(accent, Color.Black, 0.34f)
         else -> FocusRingColor
     },
 )
@@ -254,7 +261,7 @@ private fun themeAccent(seedColor: Color, style: PaletteStyle, isDark: Boolean):
 
 private fun darkScheme(accent: Color, isAmoled: Boolean) = darkColorScheme(
     primary = accent,
-    onPrimary = PluviaForeground,
+    onPrimary = if (accent.luminance() > 0.179f) Color.Black else Color.White,
     primaryContainer = lerp(if (isAmoled) Color.Black else PluviaCard, accent, 0.24f),
     onPrimaryContainer = PluviaForeground,
 
@@ -422,6 +429,38 @@ private fun ColorScheme.withCustomPalette(
     )
 }
 
+@Immutable
+internal data class GameplayAppearance(
+    val isDark: Boolean,
+    val isAmoled: Boolean,
+    val style: PaletteStyle,
+    val customThemeJson: String?,
+    val reduceMotion: Boolean,
+) {
+    @Composable
+    fun Provide(content: @Composable () -> Unit) {
+        PluviaTheme(isDark = isDark, isAmoled = isAmoled, style = style, customThemeJson = customThemeJson,
+            reduceMotion = reduceMotion, content = content)
+    }
+}
+
+@Composable
+internal fun currentGameplayAppearance(
+    appTheme: AppTheme = PrefManager.appTheme,
+    paletteStyle: PaletteStyle = PrefManager.appThemePalette,
+    customThemeJson: String? = if (PrefManager.customThemeEnabled) PrefManager.customThemeJson else null,
+): GameplayAppearance = GameplayAppearance(
+    isDark = when (appTheme) {
+        AppTheme.AUTO -> isSystemInDarkTheme()
+        AppTheme.DAY -> false
+        AppTheme.NIGHT, AppTheme.AMOLED -> true
+    },
+    isAmoled = appTheme == AppTheme.AMOLED,
+    style = paletteStyle,
+    customThemeJson = customThemeJson,
+    reduceMotion = PrefManager.reduceMotion,
+)
+
 @Composable
 fun PluviaTheme(
     seedColor: Color = PluviaSeed,
@@ -502,6 +541,13 @@ fun PluviaTheme(
         MaterialTheme(
             colorScheme = colorScheme,
             typography = PluviaTypography,
+            shapes = remember(tokens.cornerSm, tokens.cornerMd, tokens.cornerLg) {
+                Shapes(
+                    small = RoundedCornerShape(tokens.cornerSm),
+                    medium = RoundedCornerShape(tokens.cornerMd),
+                    large = RoundedCornerShape(tokens.cornerLg),
+                )
+            },
             content = content,
         )
     }

@@ -230,8 +230,10 @@ public class XServer {
                 // - Games that call ClipCursor and happen to work well with this workaround
                 short softMarginX = (short)(screenInfo.width * 0.05f);
                 short softMarginY = (short)(screenInfo.height * 0.05f);
-                short x = (short)Mathf.clamp(pointer.getX() + dx, -softMarginX, screenInfo.width - 1 + softMarginX);
-                short y = (short)Mathf.clamp(pointer.getY() + dy, -softMarginY, screenInfo.height - 1 + softMarginY);
+                // An absolute warp can leave the logical pointer outside the viewport.
+                // Start the next relative move at the visible edge so reversal takes effect immediately.
+                short x = (short)Mathf.clamp(pointer.getClampedX() + dx, -softMarginX, screenInfo.width - 1 + softMarginX);
+                short y = (short)Mathf.clamp(pointer.getClampedY() + dy, -softMarginY, screenInfo.height - 1 + softMarginY);
 
                 pointer.setPosition(x, y);
 

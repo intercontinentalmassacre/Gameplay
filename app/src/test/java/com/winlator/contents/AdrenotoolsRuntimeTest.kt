@@ -21,6 +21,30 @@ class AdrenotoolsRuntimeTest {
     @get:Rule val temporary = TemporaryFolder()
 
     @Test
+    fun `only the selected Turbo package needs the Gamescope guest wrapper path`() {
+        val filesDir = temporary.root
+        val context = object : ContextWrapper(ApplicationProvider.getApplicationContext<Context>()) {
+            override fun getFilesDir() = filesDir
+        }
+        val manager = AdrenotoolsManager(context)
+        val driverDir = File(filesDir, "contents/adrenotools/Turnip Turbo").apply { mkdirs() }
+        val metadata = File(driverDir, "meta.json")
+        val env = EnvVars().apply {
+            put("ADRENOTOOLS_DRIVER_PATH", "$driverDir/")
+            put("ADRENOTOOLS_DRIVER_NAME", "vulkan.freedreno.so")
+        }
+
+        metadata.writeText("""{"packageVersion":"26.1.6"}""")
+        assertFalse(manager.isSd8Gen2TurboDriver(env))
+
+        metadata.writeText("""{"packageVersion":"26.1.6-sd8gen2-turbo"}""")
+        assertTrue(manager.isSd8Gen2TurboDriver(env))
+
+        env.put("ADRENOTOOLS_DRIVER_NAME", "libvulkan_freedreno.so")
+        assertFalse(manager.isSd8Gen2TurboDriver(env))
+    }
+
+    @Test
     fun `installed driver supplies its exact path and library to the Vulkan loader`() {
         val filesDir = temporary.root
         val context = object : ContextWrapper(ApplicationProvider.getApplicationContext<Context>()) {

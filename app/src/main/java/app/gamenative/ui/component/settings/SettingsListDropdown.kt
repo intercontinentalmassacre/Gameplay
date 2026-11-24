@@ -5,10 +5,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -36,17 +39,17 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import app.gamenative.ui.component.focusRing
+import app.gamenative.ui.theme.PluviaTheme
 import com.alorma.compose.settings.ui.base.internal.LocalSettingsGroupEnabled
 import com.alorma.compose.settings.ui.base.internal.SettingsTileColors
 import com.alorma.compose.settings.ui.base.internal.SettingsTileDefaults
 import com.alorma.compose.settings.ui.base.internal.SettingsTileScaffold
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SettingsListDropdown(
     modifier: Modifier = Modifier,
@@ -62,6 +65,7 @@ fun SettingsListDropdown(
     colors: SettingsTileColors = SettingsTileDefaults.colors(),
     tonalElevation: Dp = ListItemDefaults.Elevation,
     shadowElevation: Dp = ListItemDefaults.Elevation,
+    inlineValue: Boolean = false,
     action: @Composable (() -> Unit)? = null,
 ) {
     var isDropdownExpanded by remember { mutableStateOf(false) }
@@ -73,11 +77,13 @@ fun SettingsListDropdown(
     val focusRequester = remember { FocusRequester() }
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
-    val tileShape = RoundedCornerShape(0.dp)
+    val tileShape = RoundedCornerShape(PluviaTheme.tokens.cornerMd)
+    val showInline = inlineValue && subtitle == null
+    val compact = showInline && PluviaTheme.tokens.densityCompact
 
     SettingsTileScaffold(
         modifier = Modifier
-            .padding(vertical = 4.dp)
+            .padding(vertical = if (compact) 0.dp else 4.dp)
             .focusRequester(focusRequester)
             .background(
                 if (isFocused) {
@@ -85,17 +91,36 @@ fun SettingsListDropdown(
                 } else {
                     Color.Transparent
                 },
+                shape = tileShape,
             )
-            .focusRing(interactionSource, tileShape, width = 2.dp)
+            .focusRing(interactionSource, tileShape)
             .clickable(
                 interactionSource = interactionSource,
                 indication = LocalIndication.current,
                 enabled = enabled,
                 onClick = { isDropdownExpanded = true },
-            ).then(modifier),
+            )
+            .then(if (showInline) Modifier.heightIn(min = 48.dp) else Modifier)
+            .then(modifier),
         enabled = enabled,
-        title = title,
-        subtitle = {
+        title = {
+            if (showInline && selectedText.isNotEmpty()) {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    title()
+                    Text(
+                        text = selectedText,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
+            } else {
+                title()
+            }
+        },
+        subtitle = if (showInline) null else ({
             if (subtitle != null) {
                 Column {
                     ProvideTextStyle(value = LocalTextStyle.current.merge(TextStyle(fontStyle = FontStyle.Italic))) {
@@ -116,7 +141,7 @@ fun SettingsListDropdown(
                     style = TextStyle(fontWeight = FontWeight.Bold),
                 )
             }
-        },
+        }),
         icon = icon,
         colors = colors,
         tonalElevation = tonalElevation,

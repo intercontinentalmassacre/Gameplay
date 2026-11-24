@@ -21,12 +21,15 @@ import com.winlator.PrefManager;
 import app.gamenative.display.GameNativeDrm;
 import app.gamenative.display.GamescopePayload;
 import app.gamenative.display.GamescopeSettings;
+import app.gamenative.shadercache.FossilizeManager;
 import app.gamenative.utils.LsfgQuickMenuHelper;
 import app.gamenative.utils.LsfgVkManager;
 import com.winlator.box86_64.Box86_64Preset;
 import com.winlator.box86_64.Box86_64PresetManager;
 import com.winlator.container.Container;
+import com.winlator.container.ContainerOverlay;
 import com.winlator.container.Shortcut;
+import com.winlator.contents.AdrenotoolsManager;
 import com.winlator.contents.ContentProfile;
 import com.winlator.contents.ContentsManager;
 import com.winlator.core.AppUtils;
@@ -56,6 +59,7 @@ import java.io.RandomAccessFile;
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.BooleanSupplier;
 
 import app.gamenative.BuildConfig;
 import app.gamenative.PluviaApp;
@@ -63,6 +67,7 @@ import app.gamenative.events.AndroidEvent;
 import app.gamenative.service.SteamService;
 
 public class BionicProgramLauncherComponent extends GuestProgramLauncherComponent {
+    private static final String VKSHIM_SYSTEM_DRIVER = "GN_VKSHIM_SYSTEM_DRIVER";
     private String guestExecutable;
     // Session-scoped: one launcher instance owns one guest process. The static
     // shared PID let one session kill another's process (see production plan).
@@ -127,6 +132,10 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
 
     private Runnable preUnpack;
     public void setPreUnpack(Runnable r) { this.preUnpack = r; }
+    private BooleanSupplier fossilizeCancellation;
+    public void setFossilizeCancellation(BooleanSupplier cancellation) {
+        fossilizeCancellation = cancellation;
+    }
     @Override
     public void start() {
         synchronized (lock) {
@@ -434,6 +443,7 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
             }
         }
 
+        ContainerOverlay.applyBionicLaunchEnv(context, container, launchEnv);
         Log.d("BionicProgramLauncherComponent", "env vars are " + EnvRedactor.redact(launchEnv));
 
         // Construct the command without Box64 to the Wine executable
@@ -448,9 +458,32 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
         else {
             command = getFinalCommand(winePath, backend, launchEnv, imageFs.getBinDir(), guestExecutable);
         }
+        boolean guestWrapperIcd = gamescopeMode && container != null
+                && launchEnv.get("GNDRM_DRIVER_TYPE").regionMatches(true, 0, "wrapper", 0, "wrapper".length())
+                && !launchEnv.has(VKSHIM_SYSTEM_DRIVER)
+                && new AdrenotoolsManager(context).isSd8Gen2TurboDriver(launchEnv);
+        // This package needs the wrapper ICD in Wine and replay. The wrapper still opens
+        // the selected Turnip driver using the Adrenotools environment.
+        if (guestWrapperIcd) launchEnv.put(VKSHIM_SYSTEM_DRIVER, "1");
+        if (container != null && fossilizeCancellation != null) {
+            launchEnv.remove("FOSSILIZE");
+            if (FossilizeManager.prepare(context, container, launchEnv, fossilizeCancellation)) {
+                command = "/system/bin/env FOSSILIZE=1 " + command;
+            }
+            if (fossilizeCancellation.getAsBoolean()) {
+                throw new IllegalStateException("Launch cancelled before the guest started");
+            }
+        }
         if (gamescopeMode) {
+            EnvVars guestEnv = launchEnv;
+            if (guestWrapperIcd) {
+                guestEnv = new EnvVars();
+                guestEnv.putAll(launchEnv);
+                launchEnv.remove(VKSHIM_SYSTEM_DRIVER);
+                command = "/system/bin/env " + VKSHIM_SYSTEM_DRIVER + "=1 " + command;
+            }
             command = wrapWithGamescope(command);
-            gamescopeGuestEnv = launchEnv;
+            gamescopeGuestEnv = guestEnv;
         }
 
         // **Maybe remove this: Set execute permissions for box64 if necessary (Glibc/Proot artifact)
@@ -991,6 +1024,7 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
                 container != null ? container.getEmulator() : "");
         if (this.envVars != null) envVars.putAll(this.envVars);
 
+        ContainerOverlay.applyBionicLaunchEnv(context, container, envVars);
         String finalCommand = getFinalCommand(winePath, shellBackend, envVars, imageFs.getBinDir(), command);
 
         File box64File = new File(rootDir, "/usr/bin/box64");

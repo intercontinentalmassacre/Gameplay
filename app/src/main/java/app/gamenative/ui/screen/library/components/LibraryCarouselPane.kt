@@ -243,7 +243,7 @@ internal fun LibraryCarouselPane(
     val hideStatusBar = PrefManager.hideStatusBarWhenNotInGame
 
     // Fine-Tuned Values by JT, working on both landscape and portrait screens
-    val hintBarHeight = if (showGamepadHints) 56.dp else 0.dp
+    val hintBarHeight = if (showGamepadHints) 48.dp else 0.dp
     val extraTopPadding = if (showGamepadHints) 0.dp else 8.dp
     val extraBottomPadding = if (hideStatusBar) 0.dp else 24.dp
     val carouselTopMargin = (if (state.isSearching) 64.dp else 56.dp) + extraTopPadding

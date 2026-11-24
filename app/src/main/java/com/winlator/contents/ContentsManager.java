@@ -16,6 +16,9 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.FileAlreadyExistsException;
+import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -228,13 +231,14 @@ public class ContentsManager {
             return;
         }
 
-        if (!installPath.mkdirs()) {
-            callback.onFailed(InstallFailedReason.ERROR_UNKNOWN, null);
+        try {
+            Files.createDirectories(installPath.toPath().getParent());
+            Files.move(getTmpDir(context).toPath(), installPath.toPath());
+        } catch (FileAlreadyExistsException e) {
+            callback.onFailed(InstallFailedReason.ERROR_EXIST, e);
             return;
-        }
-
-        if (!getTmpDir(context).renameTo(installPath)) {
-            callback.onFailed(InstallFailedReason.ERROR_UNKNOWN, null);
+        } catch (IOException e) {
+            callback.onFailed(InstallFailedReason.ERROR_UNKNOWN, e);
             return;
         }
         // For Wine/Proton, normalize directory structure and set executable permissions

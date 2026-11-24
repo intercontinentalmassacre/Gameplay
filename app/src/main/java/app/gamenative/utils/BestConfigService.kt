@@ -1,6 +1,7 @@
 package app.gamenative.utils
 
 import android.content.Context
+import android.os.Build
 import androidx.compose.ui.graphics.Color
 import app.gamenative.BuildConfig
 import app.gamenative.PrefManager
@@ -11,6 +12,7 @@ import com.winlator.contents.ContentProfile
 import com.winlator.core.DefaultVersion
 import com.winlator.fexcore.FEXCorePresetManager
 import com.winlator.core.KeyValueSet
+import com.winlator.core.envvars.EnvVars
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CancellationException
@@ -922,6 +924,14 @@ object BestConfigService {
                     // Strip DXVK/VKD3D frame rate caps from backend config - client-side limiter handles this
                     envVars = envVars.replace(Regex("""\s*DXVK_FRAME_RATE=\d+"""), "")
                     envVars = envVars.replace(Regex("""\s*VKD3D_FRAME_RATE=\d+"""), "")
+                    // The Samsung flicker workaround can cause rendering artifacts on other devices.
+                    if (!preserveConfigValues && !Build.MANUFACTURER.equals("samsung", ignoreCase = true)) {
+                        val parsed = EnvVars(envVars)
+                        if (parsed.get("FD_DEV_FEATURES") == "enable_tp_ubwc_flag_hint=1") {
+                            parsed.remove("FD_DEV_FEATURES")
+                            envVars = parsed.toString()
+                        }
+                    }
                     resultMap["envVars"] = envVars.trim()
                 }
                 if (filteredJson.has("cpuList") && !filteredJson.isNull("cpuList")) {
@@ -933,6 +943,7 @@ object BestConfigService {
                 if (filteredJson.has("audioDriver") && !filteredJson.isNull("audioDriver")) {
                     resultMap["audioDriver"] = filteredJson.optString("audioDriver", PrefManager.audioDriver)
                 }
+                filteredJson.optString("inputType").toIntOrNull()?.let { resultMap["inputType"] = it }
                 if (filteredJson.has("wincomponents") && !filteredJson.isNull("wincomponents")) {
                     resultMap["wincomponents"] = filteredJson.optString("wincomponents", PrefManager.winComponents)
                 }

@@ -85,13 +85,22 @@ public class XEnvironment implements Iterable<EnvironmentComponent> {
     public void stopEnvironmentComponents() {
         if (pausedMemory != null) pausedMemory.cancel();
         GamescopeServerComponent gamescope = getComponent(GamescopeServerComponent.class);
-        try {
-            for (EnvironmentComponent component : this) {
-                if (component != gamescope) component.stop();
-            }
-        } finally {
-            if (gamescope != null) gamescope.stop();
+        ArrayList<EnvironmentComponent> stopOrder = new ArrayList<>(components);
+        if (gamescope != null) {
+            stopOrder.remove(gamescope);
+            stopOrder.add(gamescope);
         }
+        Throwable failure = null;
+        for (EnvironmentComponent component : stopOrder) {
+            try {
+                component.stop();
+            } catch (RuntimeException | Error error) {
+                if (failure == null) failure = error;
+                else if (failure != error) failure.addSuppressed(error);
+            }
+        }
+        if (failure instanceof Error) throw (Error) failure;
+        if (failure != null) throw (RuntimeException) failure;
     }
 
     public void onPause() {

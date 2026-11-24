@@ -223,13 +223,14 @@ private fun CompactLibraryTabBar(
             Row(
                 modifier = Modifier
                     .weight(1f)
-                    .clip(RoundedCornerShape(20.dp))
+                    .clip(RoundedCornerShape(PluviaTheme.tokens.cornerLg))
                     .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
                     .horizontalScroll(scrollState)
                     .padding(4.dp),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                val tabShape = RoundedCornerShape(PluviaTheme.tokens.cornerMd)
                 tabs.forEachIndexed { index, tab ->
                     val isSelected = tab == currentTab
                     val tabInteractionSource = remember { MutableInteractionSource() }
@@ -240,7 +241,8 @@ private fun CompactLibraryTabBar(
                                 tabPositions[index] = coordinates.positionInParent().x
                                 tabWidths[index] = coordinates.size.width.toFloat()
                             }
-                            .clip(RoundedCornerShape(16.dp))
+                            .focusRing(tabInteractionSource, tabShape)
+                            .clip(tabShape)
                             .background(
                                 when {
                                     isSelected -> MaterialTheme.colorScheme.primaryContainer
@@ -248,7 +250,6 @@ private fun CompactLibraryTabBar(
                                     else -> Color.Transparent
                                 },
                             )
-                            .focusRing(tabInteractionSource, RoundedCornerShape(16.dp), width = 2.dp)
                             .selectable(
                                 selected = isSelected,
                                 interactionSource = tabInteractionSource,
@@ -332,7 +333,7 @@ private fun CompactIconButton(
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
-    val shape = RoundedCornerShape(10.dp)
+    val shape = RoundedCornerShape(PluviaTheme.tokens.cornerMd)
 
     Box(
         modifier = modifier
@@ -345,7 +346,7 @@ private fun CompactIconButton(
                     MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                 },
             )
-            .focusRing(interactionSource, shape, width = 2.dp)
+            .focusRing(interactionSource, shape)
             .selectable(
                 selected = false,
                 interactionSource = interactionSource,
@@ -592,7 +593,7 @@ private fun IconActionButton(
                     MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f)
                 },
             )
-            .focusRing(interactionSource, CircleShape, width = 2.dp)
+            .focusRing(interactionSource, CircleShape)
             .selectable(
                 // These are actions, not toggles; feeding isFocused back as `selected` caused an
                 // extra recomposition on every focus change.
@@ -643,16 +644,17 @@ private fun TabItem(
     } else {
         stringResource(tab.labelResId)
     }
+    val shape = RoundedCornerShape(PluviaTheme.tokens.cornerMd)
 
     Box(
         modifier = modifier
             // Preserve a large controller target without turning every tab into a decorative pill.
             .heightIn(min = 40.dp)
-            .clip(RoundedCornerShape(8.dp))
+            .focusRing(interactionSource, shape)
+            .clip(shape)
             .background(
                 if (isFocused) MaterialTheme.colorScheme.surfaceContainerHighest else Color.Transparent,
             )
-            .focusRing(interactionSource, RoundedCornerShape(8.dp), width = 2.dp)
             .onGloballyPositioned { coordinates ->
                 onPositioned(
                     coordinates.positionInParent().x,

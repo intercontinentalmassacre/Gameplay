@@ -134,6 +134,17 @@ fun SettingsGroupEmulation() {
                 PrefManager.sharedContainerBase = it
             },
         )
+        var migrateExistingPrefixes by rememberSaveable { mutableStateOf(PrefManager.migrateExistingPrefixes) }
+        SettingsSwitch(
+            colors = settingsTileColorsAlt(),
+            state = migrateExistingPrefixes,
+            title = { Text(text = stringResource(R.string.settings_emulation_migrate_existing_prefixes_title)) },
+            subtitle = { Text(text = stringResource(R.string.settings_emulation_migrate_existing_prefixes_subtitle)) },
+            onCheckedChange = {
+                migrateExistingPrefixes = it
+                PrefManager.migrateExistingPrefixes = it
+            },
+        )
         SettingsMenuLink(
             colors = settingsTileColors(),
             title = { Text(text = stringResource(R.string.settings_emulation_box64_presets_title)) },

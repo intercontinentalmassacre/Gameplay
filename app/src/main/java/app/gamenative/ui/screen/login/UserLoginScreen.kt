@@ -7,9 +7,7 @@ import android.content.Intent
 import android.content.res.Configuration
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -43,10 +41,6 @@ import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import app.gamenative.ui.component.Button
-import app.gamenative.ui.component.ConsoleIconButton
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -77,7 +71,6 @@ import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -114,6 +107,7 @@ import app.gamenative.ui.component.dialog.LocalSecondScreenDialogWindowType
 import app.gamenative.ui.data.UserLoginState
 import app.gamenative.ui.enums.ConnectionState
 import app.gamenative.ui.model.UserLoginViewModel
+import app.gamenative.ui.gcds.GcdsCard
 import app.gamenative.ui.theme.PluviaTheme
 import app.gamenative.externaldisplay.DsHomeSecondScreen
 import app.gamenative.utils.rememberHasExternalDisplay
@@ -316,7 +310,7 @@ fun UserLoginScreen(
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun UserLoginScreenContent(
     snackBarHostState: SnackbarHostState,
@@ -384,7 +378,8 @@ private fun UserLoginScreenContent(
     val primaryColor = MaterialTheme.colorScheme.primary
 
     val configuration = LocalConfiguration.current
-    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val useSideBySideForm = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE &&
+        configuration.screenWidthDp / configuration.fontScale >= 440
 
     Box(
         modifier = Modifier
@@ -402,34 +397,36 @@ private fun UserLoginScreenContent(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp),
+                    .padding(horizontal = 16.dp, vertical = 2.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 // Logo
                 Text(
                     text = stringResource(R.string.login_app_name),
+                    modifier = Modifier.weight(1f).padding(end = 8.dp),
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
                     color = primaryColor,
                 )
 
-                // Privacy Policy icon button
                 val uriHandler = LocalUriHandler.current
-                ConsoleIconButton(
+                IconButton(
                     onClick = { uriHandler.openUri(Constants.Misc.PRIVACY_LINK) },
-                    icon = Icons.Default.PrivacyTip,
-                    contentDescription = stringResource(R.string.login_privacy_policy),
-                )
+                    modifier = Modifier.size(48.dp),
+                ) {
+                    Icon(Icons.Default.PrivacyTip, contentDescription = stringResource(R.string.login_privacy_policy))
+                }
             }
 
             // Main Content
-            Box(
+            BoxWithConstraints(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f),
                 contentAlignment = Alignment.Center,
             ) {
+                val compactHeight = maxHeight < 460.dp
                 // SnackBar
                 SnackbarHost(
                     hostState = snackBarHostState,
@@ -443,11 +440,11 @@ private fun UserLoginScreenContent(
                     Column(
                         modifier = Modifier
                             .padding(horizontal = 16.dp)
-                            .fillMaxWidth()
-                            .widthIn(max = 920.dp),
+                            .widthIn(max = 920.dp)
+                            .fillMaxWidth(),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
-                        if (!embedded && userLoginState.loginScreen != LoginScreen.TWO_FACTOR) {
+                        if (!compactHeight && !embedded && userLoginState.loginScreen != LoginScreen.TWO_FACTOR) {
                             LoginOnboardingHero(
                                 primaryColor = primaryColor,
                             )
@@ -455,18 +452,14 @@ private fun UserLoginScreenContent(
                         }
 
                         // Login Card
-                        Card(
+                        GcdsCard(
                             modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.95f),
-                            ),
-                            border = BorderStroke(1.dp, primaryColor.copy(alpha = 0.2f)),
-                            shape = RoundedCornerShape(16.dp),
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
                         ) {
                             val scrollState = rememberScrollState()
                             BoxWithConstraints(
                                 modifier = Modifier
-                                    .padding(horizontal = 24.dp, vertical = 12.dp)
+                                    .padding(horizontal = if (compactHeight) 12.dp else 24.dp, vertical = 12.dp)
                                     .fillMaxWidth(),
                             ) {
                                 val cardContentMaxHeight = maxHeight
@@ -516,7 +509,7 @@ private fun UserLoginScreenContent(
                                                 .fillMaxWidth()
                                                 .padding(top = 4.dp, bottom = 16.dp),
                                         )
-                                        if (isLandscape) {
+                                        if (useSideBySideForm) {
                                             Row(
                                                 modifier = Modifier.fillMaxWidth(),
                                                 horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -575,6 +568,7 @@ private fun UserLoginScreenContent(
                                             }
                                         }
                                     }
+                                    LoginAlternativeActions(onLaunchEpic, onLaunchGog, onLaunchAmazon, onContinueOffline)
                                 }
                             }
                         }
@@ -584,58 +578,33 @@ private fun UserLoginScreenContent(
                     LoadingScreen()
                 }
             }
+        }
+    }
+}
 
-            // Or sign in with: Epic · GOG · Amazon · Skip login
-            if (
-                userLoginState.isLoggingIn.not() &&
-                userLoginState.loginResult != LoginResult.Success
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp)
-                        .padding(top = 16.dp, bottom = 8.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Text(
-                        text = stringResource(R.string.login_or_sign_in_with),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    FlowRow(
-                        horizontalArrangement = Arrangement.Center,
-                    ) {
-                        TextButton(onClick = onLaunchEpic) {
-                            Text(
-                                text = "Epic",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.primary,
-                            )
-                        }
-                        TextButton(onClick = onLaunchGog) {
-                            Text(
-                                text = "GOG",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.primary,
-                            )
-                        }
-                        TextButton(onClick = onLaunchAmazon) {
-                            Text(
-                                text = "Amazon",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.primary,
-                            )
-                        }
-                        TextButton(onClick = onContinueOffline) {
-                            Text(
-                                text = stringResource(R.string.login_skip_login),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.primary,
-                            )
-                        }
-                    }
-                }
-            }
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun LoginAlternativeActions(
+    onLaunchEpic: () -> Unit,
+    onLaunchGog: () -> Unit,
+    onLaunchAmazon: () -> Unit,
+    onContinueOffline: () -> Unit,
+) {
+    Text(
+        text = stringResource(R.string.login_or_sign_in_with),
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(top = 8.dp),
+    )
+    FlowRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Center,
+    ) {
+        TextButton(onClick = onLaunchEpic, modifier = Modifier.heightIn(min = 48.dp)) { Text("Epic") }
+        TextButton(onClick = onLaunchGog, modifier = Modifier.heightIn(min = 48.dp)) { Text("GOG") }
+        TextButton(onClick = onLaunchAmazon, modifier = Modifier.heightIn(min = 48.dp)) { Text("Amazon") }
+        TextButton(onClick = onContinueOffline, modifier = Modifier.heightIn(min = 48.dp)) {
+            Text(stringResource(R.string.login_skip_login))
         }
     }
 }
@@ -645,13 +614,13 @@ private fun LoginOnboardingHero(primaryColor: Color) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(PluviaTheme.tokens.cornerLg),
     ) {
         Column(modifier = Modifier.padding(18.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Surface(
                     color = primaryColor.copy(alpha = 0.16f),
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(PluviaTheme.tokens.cornerMd),
                 ) {
                     Icon(
                         imageVector = Icons.Default.SportsEsports,
@@ -774,26 +743,23 @@ private fun LowerScreenLoginContent(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp),
+                    .padding(horizontal = 16.dp, vertical = 2.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
                     text = stringResource(R.string.login_app_name),
+                    modifier = Modifier.weight(1f).padding(end = 8.dp),
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
                     color = primaryColor,
                 )
                 val uriHandler = LocalUriHandler.current
-                TextButton(
+                IconButton(
                     onClick = { uriHandler.openUri(Constants.Misc.PRIVACY_LINK) },
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.surfaceVariant),
-                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.size(48.dp),
                 ) {
-                    Text(
-                        text = stringResource(R.string.login_privacy_policy),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    Icon(Icons.Default.PrivacyTip, contentDescription = stringResource(R.string.login_privacy_policy))
                 }
             }
 
@@ -811,21 +777,18 @@ private fun LowerScreenLoginContent(
                 if (userLoginState.isLoggingIn.not() &&
                     userLoginState.loginResult != LoginResult.Success
                 ) {
-                    Card(
+                    GcdsCard(
                         modifier = Modifier
                             .padding(horizontal = 16.dp)
-                            .fillMaxWidth()
-                            .widthIn(max = 520.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.95f),
-                        ),
-                        border = BorderStroke(1.dp, primaryColor.copy(alpha = 0.2f)),
-                        shape = RoundedCornerShape(16.dp),
+                            .widthIn(max = 520.dp)
+                            .fillMaxWidth(),
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
                     ) {
                         Column(
                             modifier = Modifier
-                                .padding(horizontal = 24.dp, vertical = 20.dp)
-                                .fillMaxWidth(),
+                                .fillMaxWidth()
+                                .verticalScroll(rememberScrollState())
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
                             if (userLoginState.loginScreen == LoginScreen.TWO_FACTOR) {
@@ -856,14 +819,6 @@ private fun LowerScreenLoginContent(
                                     fontWeight = FontWeight.SemiBold,
                                     modifier = Modifier.fillMaxWidth(),
                                 )
-                                Text(
-                                    text = stringResource(R.string.login_onboarding_sign_in_subtitle),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(top = 4.dp, bottom = 16.dp),
-                                )
                                 CredentialsForm(
                                     connectionState = connectionState,
                                     username = userLoginState.username,
@@ -877,58 +832,11 @@ private fun LowerScreenLoginContent(
                                     onContinueOffline = onContinueOffline,
                                 )
                             }
+                            LoginAlternativeActions(onLaunchEpic, onLaunchGog, onLaunchAmazon, onContinueOffline)
                         }
                     }
                 } else {
                     LoadingScreen()
-                }
-            }
-
-            if (userLoginState.isLoggingIn.not() &&
-                userLoginState.loginResult != LoginResult.Success
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp)
-                        .padding(top = 12.dp, bottom = 8.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Text(
-                        text = stringResource(R.string.login_or_sign_in_with),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    FlowRow(horizontalArrangement = Arrangement.Center) {
-                        TextButton(onClick = onLaunchEpic) {
-                            Text(
-                                text = "Epic",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.primary,
-                            )
-                        }
-                        TextButton(onClick = onLaunchGog) {
-                            Text(
-                                text = "GOG",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.primary,
-                            )
-                        }
-                        TextButton(onClick = onLaunchAmazon) {
-                            Text(
-                                text = "Amazon",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.primary,
-                            )
-                        }
-                        TextButton(onClick = onContinueOffline) {
-                            Text(
-                                text = stringResource(R.string.login_skip_login),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.primary,
-                            )
-                        }
-                    }
                 }
             }
         }
@@ -977,76 +885,38 @@ private fun CredentialsForm(
             modifier = Modifier
                 .fillMaxWidth(),
         ) {
-            // Show connecting state or disconnected error
-            if (isConnecting) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 16.dp),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically,
+            if (isConnecting || showDisconnected) {
+                GcdsCard(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                 ) {
                     Column(
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier
-                            .border(
-                                BorderStroke(1.dp, Color.White.copy(alpha = 0.3f)),
-                                shape = RoundedCornerShape(16.dp),
-                            )
-                            .padding(24.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(32.dp),
-                            color = Color.White,
-                            strokeWidth = 3.dp,
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            text = stringResource(R.string.connecting_to_steam),
-                            color = Color.White.copy(alpha = 0.9f),
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-            } else if (showDisconnected) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 16.dp),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier
-                            .border(
-                                BorderStroke(1.dp, Color.White.copy(alpha = 0.5f)),
-                                shape = RoundedCornerShape(16.dp),
-                            )
-                            .padding(24.dp),
-                    ) {
-                        Text(stringResource(R.string.no_connection_to_steam), color = Color.White)
-                        Box(contentAlignment = Alignment.Center) {
+                        if (isConnecting) {
+                            CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 3.dp)
+                            Text(stringResource(R.string.connecting_to_steam))
+                        } else {
+                            Text(stringResource(R.string.no_connection_to_steam))
                             OutlinedButton(
                                 onClick = onRetryConnection,
-                                colors = ButtonDefaults.outlinedButtonColors(
-                                    containerColor = Color.Transparent,
-                                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                                ),
+                                modifier = Modifier.heightIn(min = 48.dp),
+                                shape = RoundedCornerShape(PluviaTheme.tokens.cornerMd),
                             ) {
                                 Text(stringResource(R.string.retry_steam_connection))
                             }
-                        }
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        Box(contentAlignment = Alignment.Center) {
-                            Button(onClick = { onContinueOffline() }) {
+                            Button(
+                                onClick = onContinueOffline,
+                                modifier = Modifier.heightIn(min = 48.dp),
+                                shape = RoundedCornerShape(PluviaTheme.tokens.cornerMd),
+                            ) {
                                 Text(stringResource(R.string.continue_offline))
                             }
                         }
                     }
                 }
-                Spacer(modifier = Modifier.height(8.dp))
             }
             NoExtractOutlinedTextField(
                 value = username,
@@ -1064,7 +934,7 @@ private fun CredentialsForm(
                 placeholder = {
                     Text(
                         stringResource(R.string.login_username_hint),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 },
                 keyboardOptions = KeyboardOptions(
@@ -1074,7 +944,7 @@ private fun CredentialsForm(
                 keyboardActions = KeyboardActions(
                     onNext = { passwordFocusRequester.requestFocus() },
                 ),
-                shape = RoundedCornerShape(8.dp),
+                shape = RoundedCornerShape(PluviaTheme.tokens.cornerMd),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = MaterialTheme.colorScheme.primary,
                     unfocusedBorderColor = MaterialTheme.colorScheme.outline,
@@ -1103,7 +973,7 @@ private fun CredentialsForm(
             placeholder = {
                 Text(
                     stringResource(R.string.login_password_hint),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             },
             visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
@@ -1117,7 +987,7 @@ private fun CredentialsForm(
                     onLoginBtnClick()
                 },
             ),
-            shape = RoundedCornerShape(8.dp),
+            shape = RoundedCornerShape(PluviaTheme.tokens.cornerMd),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = MaterialTheme.colorScheme.primary,
                 unfocusedBorderColor = MaterialTheme.colorScheme.outline,
@@ -1158,17 +1028,12 @@ private fun CredentialsForm(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = 16.dp, bottom = 8.dp)
-                .height(48.dp),
-            shape = RoundedCornerShape(8.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.primary,
-                disabledContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
-            ),
+                .heightIn(min = 48.dp),
+            shape = RoundedCornerShape(PluviaTheme.tokens.cornerMd),
         ) {
             Text(
                 text = stringResource(R.string.login_sign_in),
                 style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
-                color = MaterialTheme.colorScheme.onPrimary,
             )
         }
     }
@@ -1215,17 +1080,10 @@ private fun QRCodeLogin(
 
                 OutlinedButton(
                     onClick = onQrRetry,
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary),
-                    modifier = Modifier.padding(top = 16.dp),
-                    shape = RoundedCornerShape(8.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = MaterialTheme.colorScheme.tertiary,
-                    ),
+                    modifier = Modifier.heightIn(min = 48.dp),
+                    shape = RoundedCornerShape(PluviaTheme.tokens.cornerMd),
                 ) {
-                    Text(
-                        text = stringResource(R.string.login_retry_qr),
-                        color = MaterialTheme.colorScheme.tertiary,
-                    )
+                    Text(stringResource(R.string.login_retry_qr))
                 }
             } else if (qrCode.isNullOrEmpty()) {
                 CircularProgressIndicator(
@@ -1246,39 +1104,18 @@ private fun QRCodeLogin(
                     )
                 }
             } else {
-                Box(
+                Surface(
                     modifier = Modifier
                         .padding(vertical = 8.dp)
-                        .size(qrSize)
-                        .background(
-                            brush = Brush.linearGradient(
-                                colors = listOf(
-                                    MaterialTheme.colorScheme.primary,
-                                    MaterialTheme.colorScheme.tertiary,
-                                    MaterialTheme.colorScheme.primary,
-                                ),
-                            ),
-                            shape = RoundedCornerShape(16.dp),
-                        )
-                        .padding(2.dp),
-                    contentAlignment = Alignment.Center,
+                        .size(qrSize),
+                    color = Color.White,
+                    shape = RoundedCornerShape(PluviaTheme.tokens.cornerMd),
                 ) {
-                    Surface(
+                    QrCodeImage(
                         modifier = Modifier.fillMaxSize(),
-                        color = Color.White,
-                        shape = RoundedCornerShape(14.dp),
-                    ) {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            QrCodeImage(
-                                modifier = Modifier.fillMaxSize(0.95f),
-                                content = qrCode,
-                                size = qrSize,
-                            )
-                        }
-                    }
+                        content = qrCode,
+                        size = qrSize,
+                    )
                 }
 
                 if (showInstructionText) {
