@@ -823,6 +823,18 @@ fun SettingsGroupInterface(
             },
         )
 
+        var scrollHaptics by rememberSaveable { mutableStateOf(PrefManager.touchpadScrollHaptics) }
+        SettingsSwitch(
+            colors = settingsTileColorsAlt(),
+            title = { Text(stringResource(R.string.settings_touchpad_scroll_haptics)) },
+            subtitle = { Text(stringResource(R.string.settings_touchpad_scroll_haptics_summary)) },
+            state = scrollHaptics,
+            onCheckedChange = {
+                scrollHaptics = it
+                PrefManager.touchpadScrollHaptics = it
+            },
+        )
+
         var defaultGamePanel by rememberSaveable {
             mutableStateOf(PrefManager.dualScreenGameDefaultPanel)
         }
