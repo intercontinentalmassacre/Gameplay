@@ -35,6 +35,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.core.content.FileProvider
 import androidx.core.net.toUri
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import app.gamenative.Constants
 import app.gamenative.PluviaApp
 import app.gamenative.R
@@ -50,6 +51,7 @@ import app.gamenative.ui.component.dialog.ContainerConfigDialog
 import app.gamenative.ui.component.dialog.LoadingDialog
 import app.gamenative.ui.component.dialog.LoadingToast
 import app.gamenative.ui.component.dialog.NexusModsDialog
+import app.gamenative.ui.component.dialog.SaveBackupRestoreDialog
 import app.gamenative.ui.data.AppMenuOption
 import app.gamenative.ui.data.Achievement
 import app.gamenative.ui.component.dialog.GameControllerLayouts
@@ -58,6 +60,7 @@ import app.gamenative.ui.enums.AppOptionMenuType
 import app.gamenative.ui.util.ContainerConfigTransfer
 import app.gamenative.ui.util.SnackbarManager
 import app.gamenative.utils.BestConfigService
+import app.gamenative.utils.CloudSaveBackupManager
 import app.gamenative.utils.ContainerUtils
 import app.gamenative.utils.DiagnosticsLog
 import app.gamenative.utils.GameCompatibilityCache
@@ -175,6 +178,7 @@ abstract class BaseAppScreen {
         private val importConfigRequests = mutableStateMapOf<String, Boolean>()
         private val exportSavesRequests = mutableStateMapOf<String, Boolean>()
         private val importSavesRequests = mutableStateMapOf<String, Boolean>()
+        private val restoreSaveBackupRequests = mutableStateMapOf<String, Boolean>()
         private val manageModsRequests = mutableStateMapOf<String, Boolean>()
         private val communityConfigRequests = mutableStateMapOf<String, Boolean>()
         private val knownConfigInstallStates = mutableStateMapOf<Int, KnownConfigInstallState>()
@@ -260,6 +264,18 @@ abstract class BaseAppScreen {
 
         fun shouldImportSaves(appId: String): Boolean {
             return importSavesRequests[appId] == true
+        }
+
+        fun requestRestoreSaveBackup(appId: String) {
+            restoreSaveBackupRequests[appId] = true
+        }
+
+        fun clearRestoreSaveBackupRequest(appId: String) {
+            restoreSaveBackupRequests.remove(appId)
+        }
+
+        fun shouldRestoreSaveBackup(appId: String): Boolean {
+            return restoreSaveBackupRequests[appId] == true
         }
 
         fun requestManageMods(appId: String) {
@@ -815,6 +831,39 @@ abstract class BaseAppScreen {
 
     protected open fun supportsSaveTransfer(libraryItem: LibraryItem): Boolean = false
 
+    /**
+     * Backup folder name per source, matching what the writer of each snapshot uses:
+     * - Steam: the app id (`SteamAutoCloud` snapshots with `appInfo.id`), i.e. [getGameId].
+     * - Epic: the catalog id (`EpicCloudSavesManager` snapshots with `game.id`), i.e. [getGameId].
+     * - GOG: `GOGCloudSavesManager` snapshots with `<clientId>_<save location>`, both resolved from
+     *   GOG's remote config (`GOGManager.getSaveSyncLocation`). That key cannot be rebuilt from a
+     *   [LibraryItem], so GOG is mapped here for the store list but the dialog will report no
+     *   backups until the sync side exposes the key (or keys GOG snapshots by game id).
+     *
+     * Null for every other source, which is what hides the "Restore save backup" entry.
+     */
+    protected open fun getSaveBackupProvider(libraryItem: LibraryItem): String? =
+        when (getGameSource(libraryItem)) {
+            GameSource.STEAM -> CloudSaveBackupManager.PROVIDER_STEAM
+            GameSource.GOG -> CloudSaveBackupManager.PROVIDER_GOG
+            GameSource.EPIC -> CloudSaveBackupManager.PROVIDER_EPIC
+            else -> null
+        }
+
+    @Composable
+    protected open fun getRestoreSaveBackupOption(
+        context: Context,
+        libraryItem: LibraryItem,
+    ): AppMenuOption? {
+        if (getSaveBackupProvider(libraryItem) == null) return null
+        return AppMenuOption(
+            optionType = AppOptionMenuType.RestoreSaveBackup,
+            onClick = {
+                requestRestoreSaveBackup(libraryItem.appId)
+            },
+        )
+    }
+
     /** Whether this game also has a native Android (Steam Frame / Lepton) depot available. */
     open fun hasAndroidVersion(libraryItem: LibraryItem): Boolean = false
 
@@ -857,6 +906,7 @@ abstract class BaseAppScreen {
         return configOptions + listOfNotNull(
             getExportSavesOption(context, libraryItem),
             getImportSavesOption(context, libraryItem),
+            getRestoreSaveBackupOption(context, libraryItem),
         )
     }
 
@@ -1746,6 +1796,17 @@ abstract class BaseAppScreen {
             }
         }
 
+        var restoreSaveBackupRequested by remember(appId) {
+            mutableStateOf(shouldRestoreSaveBackup(appId))
+        }
+
+        LaunchedEffect(appId) {
+            snapshotFlow { shouldRestoreSaveBackup(appId) }
+                .collect { shouldRequest ->
+                    restoreSaveBackupRequested = shouldRequest
+                }
+        }
+
         var manageModsRequested by remember(appId) {
             mutableStateOf(shouldManageMods(appId))
         }
@@ -1851,7 +1912,8 @@ abstract class BaseAppScreen {
             },
             onBack = onBack,
             optionsMenu = optionsMenu,
-            dialogOpen = openControllerLayouts || showConfigDialog || communityConfigsRequested || manageModsRequested,
+            dialogOpen = openControllerLayouts || showConfigDialog || communityConfigsRequested ||
+                manageModsRequested || restoreSaveBackupRequested,
             otherSources = libraryItem.otherSources,
             isInstalledOnOtherSource = libraryItem.isInstalledOnOtherSource,
             onSourceClick = onSourceClick,
@@ -1965,6 +2027,20 @@ abstract class BaseAppScreen {
                     clearManageModsRequest(appId)
                 },
             )
+        }
+
+        if (restoreSaveBackupRequested) {
+            val saveBackupProvider = getSaveBackupProvider(libraryItem)
+            if (saveBackupProvider != null) {
+                SaveBackupRestoreDialog(
+                    visible = true,
+                    provider = saveBackupProvider,
+                    gameId = getGameId(libraryItem).toString(),
+                    onDismissRequest = {
+                        clearRestoreSaveBackupRequest(appId)
+                    },
+                )
+            }
         }
 
         val gameId = libraryItem.gameId
