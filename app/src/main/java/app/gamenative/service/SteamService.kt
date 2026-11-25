@@ -1246,12 +1246,13 @@ class SteamService : Service(), IChallengeUrlChanged {
             return s
         }
 
-        fun FileData.isStub(): Boolean {
-            /* stub detector (same short rules) */
+        internal fun FileData.isStub(declaredLaunchTarget: Boolean = false): Boolean {
             val generic = Regex("^[a-z]\\d{1,3}\\.exe$", RegexOption.IGNORE_CASE)
             val bad = listOf("launcher", "steam", "crash", "handler", "setup", "unins", "eac")
             val n = fileName.lowercase()
-            val stub = generic.matches(n) || bad.any { it in n } || totalSize < 1_000_000
+            // Unity games can ship a small launcher alongside a much larger UnityPlayer.dll.
+            val minimumSize = if (declaredLaunchTarget) 1L else 1_000_000L
+            val stub = generic.matches(n) || bad.any { it in n } || totalSize < minimumSize
             if (stub) Timber.d("Stub filtered: $fileName  size=$totalSize")
             return stub
         }
@@ -1315,7 +1316,8 @@ class SteamService : Service(), IChallengeUrlChanged {
                     f.fileName.endsWith(".exe", true) && !isInstallHelperExecutable(f.fileName)
                 }
                 executableCandidates.firstOrNull { f ->
-                    f.fileName.replace('\\', '/').lowercase(Locale.ROOT) in launchTargets && !f.isStub()
+                    f.fileName.replace('\\', '/').lowercase(Locale.ROOT) in launchTargets &&
+                        !f.isStub(declaredLaunchTarget = true)
                 }?.let {
                     Timber.i("Picked via launch entry: ${it.fileName}")
                     return it.fileName.replace('\\', '/').toString()
