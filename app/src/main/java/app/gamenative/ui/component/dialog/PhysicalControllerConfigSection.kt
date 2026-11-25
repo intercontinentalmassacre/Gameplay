@@ -68,6 +68,9 @@ internal fun PhysicalControllerConfigSection(
     resolveSaveProfile: () -> ControlsProfile?,
     onSave: (ControlsProfile) -> Unit,
     embedded: Boolean = false,
+    layoutsOnly: Boolean = false,
+
+    gameName: String = "",
 ) {
     val hasExternalDisplay = rememberHasExternalDisplay()
     val alreadyOnSecondScreen = LocalSecondScreenDialogWindowType.current != null
@@ -79,6 +82,9 @@ internal fun PhysicalControllerConfigSection(
                 resolveSaveProfile = resolveSaveProfile,
                 onSave = onSave,
                 embedded = true,
+                layoutsOnly = layoutsOnly,
+
+                gameName = gameName,
             )
         }
         SideEffect {
@@ -129,6 +135,29 @@ internal fun PhysicalControllerConfigSection(
                 putAll(defaultBindings)
             }
         }
+    }
+
+    fun saveBindings(bindings: Map<Int, Binding?>) {
+        val target = resolveSaveProfile() ?: return
+        val controller = target.getController("*") ?: target.addController("*")
+        controller.getControllerBindings().toList().forEach(controller::removeControllerBinding)
+        bindings.forEach { (keyCode, binding) ->
+            if (binding != null) {
+                val newBinding = ExternalControllerBinding()
+                newBinding.setKeyCode(keyCode)
+                newBinding.setBinding(binding)
+                controller.addControllerBinding(newBinding)
+            }
+        }
+        if (!layoutsOnly) defaultProfile?.let { copyElementsIfNeeded(context, target, it) }
+        target.save()
+        onSave(target)
+    }
+
+    if (layoutsOnly) {
+        if (embedded) BackHandler(onBack = onDismiss)
+        PhysicalControllerLayoutPicker(gameName, embedded, workingBindings, defaultBindings, ::saveBindings, onDismiss)
+        return
     }
 
     var selectedCategory by remember { mutableStateOf(0) } // 0 = Face, 1 = Shoulder, 2 = Menu, 3 = Thumbstick, 4 = Left Stick, 5 = Right Stick, 6 = D-Pad
@@ -272,20 +301,7 @@ internal fun PhysicalControllerConfigSection(
                             icon = Icons.Default.Save,
                             contentDescription = stringResource(R.string.save),
                             onClick = {
-                                val target = resolveSaveProfile() ?: return@ConsoleIconButton
-                                val controller = target.getController("*") ?: target.addController("*")
-                                controller.getControllerBindings().toList().forEach(controller::removeControllerBinding)
-                                workingBindings.forEach { (keyCode, binding) ->
-                                    if (binding != null) {
-                                        val newBinding = ExternalControllerBinding()
-                                        newBinding.setKeyCode(keyCode)
-                                        newBinding.setBinding(binding)
-                                        controller.addControllerBinding(newBinding)
-                                    }
-                                }
-                                defaultProfile?.let { copyElementsIfNeeded(context, target, it) }
-                                target.save()
-                                onSave(target)
+                                saveBindings(workingBindings)
                             },
                         )
                     }
