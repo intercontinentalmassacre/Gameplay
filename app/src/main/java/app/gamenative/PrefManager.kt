@@ -902,7 +902,7 @@ object PrefManager {
         set(value) { setPref(DUAL_SCREEN_GAME_USE_LOGO, value) }
 
     private val TOUCHPAD_SCROLL_HAPTICS = booleanPreferencesKey("touchpad_scroll_haptics")
-    var touchpadScrollHaptics: Boolean
+    var touchpadMotionHaptics: Boolean
         get() = getPref(TOUCHPAD_SCROLL_HAPTICS, false)
         set(value) { setPref(TOUCHPAD_SCROLL_HAPTICS, value) }
 

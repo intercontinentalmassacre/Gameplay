@@ -1181,8 +1181,8 @@ Ubuntu RootFs - releases.ubuntu.com/focal</string>
     <string name="settings_interface_second_screen_game_title_subtitle">Как показывать название запущенной игры на нижнем экране.</string>
     <string name="settings_interface_second_screen_title_logo">Логотип игры</string>
     <string name="settings_interface_second_screen_title_text">Текстовое название</string>
-    <string name="settings_touchpad_scroll_haptics">Тактильная прокрутка</string>
-    <string name="settings_touchpad_scroll_haptics_summary">Лёгкий щелчок на каждом шаге прокрутки нижнего тачпада.</string>
+    <string name="settings_touchpad_scroll_haptics">Тактильная отдача тачпада</string>
+    <string name="settings_touchpad_scroll_haptics_summary">Щелчки при движении курсора одним пальцем и прокрутке двумя на нижнем тачпаде.</string>
     <string name="settings_interface_second_screen_default_panel_title">Экран при запуске игры</string>
     <string name="settings_interface_second_screen_default_panel_subtitle">Показывать на нижнем экране карточку с HUD или сразу быстрое меню.</string>
     <string name="settings_interface_second_screen_panel_game">Карточка игры и HUD</string>

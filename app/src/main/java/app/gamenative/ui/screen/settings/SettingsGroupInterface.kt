@@ -823,15 +823,15 @@ fun SettingsGroupInterface(
             },
         )
 
-        var scrollHaptics by rememberSaveable { mutableStateOf(PrefManager.touchpadScrollHaptics) }
+        var motionHaptics by rememberSaveable { mutableStateOf(PrefManager.touchpadMotionHaptics) }
         SettingsSwitch(
             colors = settingsTileColorsAlt(),
             title = { Text(stringResource(R.string.settings_touchpad_scroll_haptics)) },
             subtitle = { Text(stringResource(R.string.settings_touchpad_scroll_haptics_summary)) },
-            state = scrollHaptics,
+            state = motionHaptics,
             onCheckedChange = {
-                scrollHaptics = it
-                PrefManager.touchpadScrollHaptics = it
+                motionHaptics = it
+                PrefManager.touchpadMotionHaptics = it
             },
         )
 
