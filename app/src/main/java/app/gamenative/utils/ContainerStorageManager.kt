@@ -31,12 +31,8 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
 import java.io.File
-import java.nio.file.FileVisitResult
-import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
-import java.nio.file.SimpleFileVisitor
-import java.nio.file.attribute.BasicFileAttributes
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -183,7 +179,7 @@ object ContainerStorageManager {
             .filterNot { coveredInstalledIds.contains(it.appId) }
             .map { installedGame -> buildInstalledOnlyEntry(installedGame) }
 
-        val entries = (containerEntries + installedOnlyEntries)
+        val entries = attachGameSizeToFirstRowPerInstallPath(containerEntries + installedOnlyEntries)
             .sortedWith(compareByDescending<Entry> { it.combinedSizeBytes ?: 0L }.thenBy { it.displayName.lowercase() })
 
         Timber.tag("ContainerStorageManager").i(
@@ -347,6 +343,7 @@ object ContainerStorageManager {
             GameSource.CUSTOM_GAME -> {
                 return@withContext Result.failure(UnsupportedOperationException("Custom games are not supported"))
             }
+            else -> Unit
         }
 
         Timber.tag("ContainerStorageManager").i(
@@ -449,6 +446,7 @@ object ContainerStorageManager {
                 }
 
                 GameSource.CUSTOM_GAME -> Result.failure(UnsupportedOperationException("Custom games are not supported"))
+                else -> Result.failure(UnsupportedOperationException("Unsupported source"))
             }
 
             // Drop any cached cover for this game so the home grid and
@@ -638,7 +636,7 @@ object ContainerStorageManager {
             SteamService.getAppDirName(app),
             app.name,
         )
-            .filter { it.isNotBlank() }
+            .filter { SteamService.isSafeAppDirName(it) }
             .distinct()
 
         if (installNames.isEmpty()) return null
@@ -742,6 +740,31 @@ object ContainerStorageManager {
         )
     }
 
+    /**
+     * Duplicate containers (`GOG_123(1)`) and products sharing one install directory each
+     * resolve to the same game bytes. Keep the size on one row per install path, preferring
+     * the container whose id has no duplicate suffix, so rows add up to the summary total.
+     */
+    internal fun attachGameSizeToFirstRowPerInstallPath(entries: List<Entry>): List<Entry> {
+        val ownerIndexes = entries.withIndex()
+            .filter { (_, entry) -> entry.gameInstallSizeBytes != null && !entry.installPath.isNullOrBlank() }
+            .groupBy { (_, entry) -> normalizePath(entry.installPath!!) }
+            .values
+            .map { group ->
+                group.firstOrNull { (_, entry) -> entry.containerId == normalizeContainerId(entry.containerId) }
+                    ?: group.first()
+            }
+            .mapTo(mutableSetOf()) { it.index }
+
+        return entries.mapIndexed { index, entry ->
+            if (entry.gameInstallSizeBytes == null || entry.installPath.isNullOrBlank() || index in ownerIndexes) {
+                entry
+            } else {
+                entry.copy(gameInstallSizeBytes = null)
+            }
+        }
+    }
+
     private fun buildInstalledOnlyEntry(
         installedGame: InstalledGame,
     ): Entry {
@@ -790,6 +813,7 @@ object ContainerStorageManager {
             }
 
             GameSource.CUSTOM_GAME -> null
+            else -> null
         }
     }
 
@@ -802,6 +826,7 @@ object ContainerStorageManager {
             GameSource.EPIC -> listOf(EpicConstants.internalEpicGamesPath(context))
             GameSource.AMAZON -> listOf(AmazonConstants.internalAmazonGamesPath(context))
             GameSource.CUSTOM_GAME -> emptyList()
+            else -> emptyList()
         }
 
         if (internalRoots.any { root -> isPathWithin(normalizedPath, root) }) {
@@ -825,6 +850,7 @@ object ContainerStorageManager {
                 GameSource.EPIC -> if (PrefManager.externalStoragePath.isNotBlank()) add(EpicConstants.externalEpicGamesPath())
                 GameSource.AMAZON -> if (PrefManager.externalStoragePath.isNotBlank()) add(AmazonConstants.externalAmazonGamesPath())
                 GameSource.CUSTOM_GAME -> Unit
+                else -> Unit
             }
 
             inferExternalInstallRoot(gameSource, normalizedPath)?.let(::add)
@@ -846,6 +872,7 @@ object ContainerStorageManager {
             GameSource.EPIC -> listOf("Epic", "games")
             GameSource.AMAZON -> listOf("Amazon", "games")
             GameSource.CUSTOM_GAME -> emptyList()
+            else -> emptyList()
         }
         if (expectedRootSegments.isEmpty()) return null
 
@@ -927,31 +954,7 @@ object ContainerStorageManager {
         }
     }
 
-    private fun getContainerDirectorySize(root: Path): Long {
-        if (!Files.isDirectory(root)) return 0L
-
-        var totalBytes = 0L
-        runCatching {
-            Files.walkFileTree(
-                root,
-                object : SimpleFileVisitor<Path>() {
-                    override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
-                        totalBytes += attrs.size()
-                        return FileVisitResult.CONTINUE
-                    }
-
-                    override fun visitFileFailed(file: Path, exc: java.io.IOException?): FileVisitResult {
-                        Timber.tag("ContainerStorageManager").w(exc, "Failed to size file: $file")
-                        return FileVisitResult.CONTINUE
-                    }
-                },
-            )
-        }.onFailure {
-            Timber.tag("ContainerStorageManager").w(it, "Failed to calculate size for $root")
-        }
-
-        return totalBytes
-    }
+    internal fun getContainerDirectorySize(root: Path): Long = StorageUtils.directorySizeOnDisk(root)
 
     internal fun normalizeContainerId(containerId: String): String = containerId.substringBefore("(")
 
@@ -1027,6 +1030,8 @@ object ContainerStorageManager {
                     known = game != null,
                 )
             }
+
+            else -> ResolvedGame(name = null, known = false)
         }
     }
 
