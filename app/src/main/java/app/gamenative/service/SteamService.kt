@@ -1101,13 +1101,31 @@ class SteamService : Service(), IChallengeUrlChanged {
             return map
         }
 
+        /**
+         * True when [name] is a folder below an install root. Steam app info can carry an
+         * installdir such as "." (app 3082170), which would resolve to the install root itself.
+         */
+        fun isSafeAppDirName(name: String): Boolean {
+            val segments = name.split('/', '\\').filter { it.isNotBlank() }
+            return segments.isNotEmpty() && segments.none { it.trim() == "." || it.trim() == ".." }
+        }
+
         fun getAppDirName(app: SteamApp?): String {
             // The folder name, if it got made
-            var appName = app?.config?.installDir.orEmpty()
-            if (appName.isEmpty()) {
-                appName = app?.name.orEmpty()
+            val installDir = app?.config?.installDir.orEmpty()
+            if (isSafeAppDirName(installDir)) return installDir
+            val name = app?.name.orEmpty()
+            if (isSafeAppDirName(name)) return name
+            return app?.id?.toString().orEmpty()
+        }
+
+        /** True when [dir] is one of [installRoots] or a parent of one: never a single game's folder. */
+        fun isInstallRootOrAbove(dir: File, installRoots: List<String> = allInstallPaths): Boolean {
+            val target = runCatching { dir.canonicalFile }.getOrElse { dir.absoluteFile }.toPath()
+            return installRoots.any { root ->
+                val rootPath = runCatching { File(root).canonicalFile }.getOrElse { File(root).absoluteFile }.toPath()
+                rootPath.startsWith(target)
             }
-            return appName
         }
 
         /**
@@ -1118,7 +1136,7 @@ class SteamService : Service(), IChallengeUrlChanged {
             var firstExisting: String? = null
             for (basePath in installPaths) {
                 for (name in names) {
-                    if (name.isEmpty()) continue
+                    if (!isSafeAppDirName(name)) continue
                     val path = Paths.get(basePath, name)
                     if (Files.isDirectory(path)) {
                         if (MarkerUtils.hasMarker(path.pathString, Marker.DOWNLOAD_COMPLETE_MARKER)) {
@@ -1278,7 +1296,7 @@ class SteamService : Service(), IChallengeUrlChanged {
                 installedCyberpunk2077Exe(getAppDirPath(appId))?.let { return it }
             }
 
-            val installDir = appInfo.config.installDir.ifEmpty { appInfo.name }
+            val installDir = getAppDirName(appInfo)
 
             val depots = appInfo.depots.values.filter { d ->
                 !d.sharedInstall && d.isWindowsCompatible
@@ -1415,11 +1433,17 @@ class SteamService : Service(), IChallengeUrlChanged {
                 val appDirPath = getAppDirPath(appId)
                 val appDir = File(appDirPath)
 
-                if (appDir.exists()) {
-                    MarkerUtils.removeMarker(appDirPath, Marker.DOWNLOAD_COMPLETE_MARKER)
-                }
+                if (isInstallRootOrAbove(appDir)) {
+                    // no app info, or a folder name that points at the root: other games live here
+                    Timber.e("Refusing to delete $appDirPath for app $appId: it is an install root")
+                    false
+                } else {
+                    if (appDir.exists()) {
+                        MarkerUtils.removeMarker(appDirPath, Marker.DOWNLOAD_COMPLETE_MARKER)
+                    }
 
-                File(appDirPath).deleteRecursively()
+                    File(appDirPath).deleteRecursively()
+                }
             }
 
             // Remove from DB
