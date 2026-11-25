@@ -74,6 +74,7 @@ internal enum class PhysicalControllerLayout(val title: Int, val description: In
 @Composable
 internal fun PhysicalControllerLayoutPicker(
     gameName: String,
+    steamAppId: Int?,
     embedded: Boolean,
     current: Map<Int, Binding?>,
     defaults: Map<Int, Binding>,
@@ -84,12 +85,19 @@ internal fun PhysicalControllerLayoutPicker(
     val active = layouts.entries.firstOrNull { it.value == current }?.key
     var selected by remember(active) { mutableStateOf(active) }
     val initialFocus = remember { FocusRequester() }
+    var community by androidx.compose.runtime.saveable.rememberSaveable(steamAppId) { mutableStateOf(false) }
+    val back: () -> Unit = { if (community) community = false else onDismiss() }
     ConsoleSettingsPage(
         visible = true,
-        title = stringResource(R.string.controller_layouts),
-        onDismissRequest = onDismiss,
+        title = stringResource(if (community) R.string.community_layouts else R.string.controller_layouts),
+        onDismissRequest = back,
         embedded = embedded,
     ) {
+        if (community && steamAppId != null) {
+            androidx.activity.compose.BackHandler(onBack = back)
+            CommunityLayoutsPanel(steamAppId, onApply)
+            return@ConsoleSettingsPage
+        }
         Column(Modifier.fillMaxSize()) {
             if (gameName.isNotBlank()) {
                 Text(gameName, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
@@ -98,6 +106,9 @@ internal fun PhysicalControllerLayoutPicker(
                 Text(stringResource(R.string.layout_current_custom), style = MaterialTheme.typography.bodyMedium)
             }
             Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).selectableGroup()) {
+                if (steamAppId != null) {
+                    TextButton(onClick = { community = true }) { Text(stringResource(R.string.community_layouts)) }
+                }
                 for (layout in layouts.keys) {
                     val interaction = remember { MutableInteractionSource() }
                     Row(
@@ -183,6 +194,7 @@ internal fun PhysicalControllerEditorRoute(
     PhysicalControllerConfigSection(
         profile = sourceProfile,
         layoutsOnly = layoutsOnly,
+        steamAppId = container.id.takeIf { it.startsWith("STEAM_") }?.let(ContainerUtils::extractGameIdFromContainerId),
         gameName = gameName,
         onDismiss = onDismiss,
         resolveSaveProfile = {

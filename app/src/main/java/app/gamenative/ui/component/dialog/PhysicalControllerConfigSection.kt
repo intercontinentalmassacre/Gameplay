@@ -69,7 +69,7 @@ internal fun PhysicalControllerConfigSection(
     onSave: (ControlsProfile) -> Unit,
     embedded: Boolean = false,
     layoutsOnly: Boolean = false,
-
+    steamAppId: Int? = null,
     gameName: String = "",
 ) {
     val hasExternalDisplay = rememberHasExternalDisplay()
@@ -83,7 +83,7 @@ internal fun PhysicalControllerConfigSection(
                 onSave = onSave,
                 embedded = true,
                 layoutsOnly = layoutsOnly,
-
+                steamAppId = steamAppId,
                 gameName = gameName,
             )
         }
@@ -156,7 +156,7 @@ internal fun PhysicalControllerConfigSection(
 
     if (layoutsOnly) {
         if (embedded) BackHandler(onBack = onDismiss)
-        PhysicalControllerLayoutPicker(gameName, embedded, workingBindings, defaultBindings, ::saveBindings, onDismiss)
+        PhysicalControllerLayoutPicker(gameName, steamAppId, embedded, workingBindings, defaultBindings, ::saveBindings, onDismiss)
         return
     }
 
