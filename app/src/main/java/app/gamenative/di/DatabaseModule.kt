@@ -11,12 +11,14 @@ import app.gamenative.db.dao.AmazonGameDao
 import app.gamenative.db.dao.CachedLicenseDao
 import app.gamenative.db.dao.DownloadingAppInfoDao
 import app.gamenative.db.dao.EncryptedAppTicketDao
+import app.gamenative.db.dao.ItchGameDao
 import app.gamenative.db.dao.LibraryPlayHistoryDao
 import app.gamenative.db.dao.ModDao
 import app.gamenative.db.dao.SteamUnlockedBranchDao
 import app.gamenative.db.migration.ROOM_MIGRATION_V16_to_V17
 import app.gamenative.db.migration.ROOM_MIGRATION_V23_to_V24
 import app.gamenative.db.migration.ROOM_MIGRATION_V24_to_V25
+import app.gamenative.db.migration.ROOM_MIGRATION_V25_to_V26
 import app.gamenative.db.migration.ROOM_MIGRATION_V7_to_V8
 import dagger.Module
 import dagger.Provides
@@ -41,6 +43,7 @@ class DatabaseModule {
                 ROOM_MIGRATION_V16_to_V17,
                 ROOM_MIGRATION_V23_to_V24,
                 ROOM_MIGRATION_V24_to_V25,
+                ROOM_MIGRATION_V25_to_V26,
             )
             .fallbackToDestructiveMigration(true)
             // Keep PICS sync bursts from starving short library queries.
@@ -108,6 +111,10 @@ class DatabaseModule {
     @Provides
     @Singleton
     fun provideAmazonGameDao(db: PluviaDatabase) = db.amazonGameDao()
+
+    @Provides
+    @Singleton
+    fun provideItchGameDao(db: PluviaDatabase): ItchGameDao = db.itchGameDao()
 
     @Provides
     @Singleton

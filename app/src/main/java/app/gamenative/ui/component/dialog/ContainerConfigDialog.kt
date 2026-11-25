@@ -1,4 +1,4 @@
-﻿package app.gamenative.ui.component.dialog
+package app.gamenative.ui.component.dialog
 
 import android.widget.Spinner
 import android.widget.ArrayAdapter
@@ -361,6 +361,7 @@ fun ContainerConfigDialog(
     gameId: Int? = null,
     appId: String? = null,
     embedded: Boolean = false,
+    onPrepareCodeCache: ((ContainerData) -> Unit)? = null,
 ) {
     if (visible) {
         val hasExternalDisplay = rememberHasExternalDisplay()
@@ -385,6 +386,7 @@ fun ContainerConfigDialog(
                     gameId = gameId,
                     appId = appId,
                     embedded = false,
+                    onPrepareCodeCache = onPrepareCodeCache,
                 )
             }
             SideEffect {
@@ -1510,7 +1512,13 @@ fun ContainerConfigDialog(
                             if (selectedTab == 0) GeneralTabContent(state, resolutionRangeError)
                             if (selectedTab == 1) CompatPresetsTabContent(state)
                             if (selectedTab == 2) GraphicsTabContent(state, default)
-                            if (selectedTab == 3) EmulationTabContent(state)
+                            if (selectedTab == 3) EmulationTabContent(
+                                state,
+                                appId = appId,
+                                onPrepareCodeCache = onPrepareCodeCache?.let { callback ->
+                                    { callback(state.config.value) }
+                                },
+                            )
                             if (selectedTab == 4) ControllerTabContent(state, default)
                             if (selectedTab == 5) WineTabContent(state)
                             if (selectedTab == 6) WinComponentsTabContent(state)

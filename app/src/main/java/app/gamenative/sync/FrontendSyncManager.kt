@@ -111,6 +111,7 @@ object FrontendSyncManager {
         GameSource.GOG -> ".gog"
         GameSource.AMAZON -> ".amazon"
         GameSource.CUSTOM_GAME -> ".pcgame"
+        else -> ".itch"
     }
 
     /**
@@ -203,6 +204,7 @@ object FrontendSyncManager {
                 GameSource.AMAZON -> {
                     amazonGameDao.getInstalledGames().map { it.appId to it.title }
                 }
+                else -> emptyList()
             }
 
             val targetDir = File(dir).also { it.mkdirs() }
@@ -229,6 +231,7 @@ object FrontendSyncManager {
         GameSource.EPIC -> epicGameDao.getById(appId)?.title
         GameSource.GOG -> gogGameDao.getById(appId.toString())?.title
         GameSource.AMAZON -> amazonGameDao.getByAppId(appId)?.title
+        else -> null
     }
 
     private suspend fun isGameInstalled(appId: Int, source: GameSource): Boolean = when (source) {
@@ -236,6 +239,7 @@ object FrontendSyncManager {
         GameSource.EPIC -> epicGameDao.getById(appId)?.isInstalled ?: false
         GameSource.GOG -> gogGameDao.getById(appId.toString())?.isInstalled ?: false
         GameSource.AMAZON -> amazonGameDao.getByAppId(appId)?.isInstalled ?: false
+        else -> false
     }
 
     private val invalidFileChars = Regex("""[\\/:*?"<>|]""")

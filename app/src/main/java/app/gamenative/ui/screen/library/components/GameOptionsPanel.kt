@@ -1,4 +1,4 @@
-﻿package app.gamenative.ui.screen.library.components
+package app.gamenative.ui.screen.library.components
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
@@ -35,6 +35,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.AddToHomeScreen
 import androidx.compose.material.icons.automirrored.filled.CallSplit
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.automirrored.filled.Help
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.AltRoute
@@ -512,6 +513,10 @@ private fun getIconForOption(type: AppOptionMenuType): ImageVector {
         AppOptionMenuType.ManageWorkshop -> Icons.Default.Build
         AppOptionMenuType.ManageMods -> Icons.Default.Extension
         AppOptionMenuType.ChangeBranch -> Icons.AutoMirrored.Filled.CallSplit
+        AppOptionMenuType.ItchCheckForUpdates -> Icons.Default.Update
+        AppOptionMenuType.ItchChangeExecutable -> Icons.Default.Build
+        AppOptionMenuType.ItchOpenOnSite -> Icons.AutoMirrored.Filled.OpenInNew
+        AppOptionMenuType.ItchSignOut -> Icons.AutoMirrored.Filled.ExitToApp
     }
 }
 
@@ -540,6 +545,9 @@ private fun groupOptions(options: List<AppMenuOption>): Map<OptionCategory, List
             AppOptionMenuType.ManageGameContent,
             AppOptionMenuType.ManageWorkshop,
             AppOptionMenuType.ManageMods,
+            AppOptionMenuType.ItchCheckForUpdates,
+            AppOptionMenuType.ItchChangeExecutable,
+            AppOptionMenuType.ItchSignOut,
             -> gameManagement.add(option)
 
             // Container Settings
@@ -565,6 +573,7 @@ private fun groupOptions(options: List<AppMenuOption>): Map<OptionCategory, List
 
             // Help & Info
             AppOptionMenuType.StorePage,
+            AppOptionMenuType.ItchOpenOnSite,
             AppOptionMenuType.GetSupport,
             AppOptionMenuType.SubmitFeedback,
             AppOptionMenuType.FetchSteamGridDBImages,

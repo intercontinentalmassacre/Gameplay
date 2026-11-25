@@ -14,7 +14,9 @@ import app.gamenative.data.LibraryItem
 import app.gamenative.db.dao.AmazonGameDao
 import app.gamenative.db.dao.EpicGameDao
 import app.gamenative.db.dao.GOGGameDao
+import app.gamenative.db.dao.ItchGameDao
 import app.gamenative.db.dao.SteamAppDao
+import app.gamenative.itch.ItchAccess
 import app.gamenative.events.AndroidEvent
 import app.gamenative.service.GameDownloadQueue
 import app.gamenative.service.SteamService
@@ -62,6 +64,7 @@ class DownloadsViewModel @Inject constructor(
     private val epicGameDao: EpicGameDao,
     private val gogGameDao: GOGGameDao,
     private val amazonGameDao: AmazonGameDao,
+    private val itchGameDao: ItchGameDao,
 ) : ViewModel() {
 
     private data class ActiveDownloadBinding(
@@ -277,6 +280,19 @@ class DownloadsViewModel @Inject constructor(
         return Pair(name, icon)
     }
 
+    private suspend fun getItchMetadata(gameId: String): Pair<String, String> {
+        val key = downloadKey(GameSource.ITCH, gameId)
+        val cachedName = gameNameCache[key]
+        val cachedIcon = gameIconCache[key]
+        if (cachedName != null && cachedIcon != null) return Pair(cachedName, cachedIcon)
+
+        val numericId = gameId.toLongOrNull()
+        val game = numericId?.let { itchGameDao.getByGameId(it) }
+        val name = cachedName ?: (game?.title ?: "itch.io game").also { gameNameCache[key] = it }
+        val icon = cachedIcon ?: (game?.coverUrl ?: "").also { gameIconCache[key] = it }
+        return Pair(name, icon)
+    }
+
     suspend fun resolveLibraryItem(gameSource: GameSource, appId: String): LibraryItem? {
         val libraryAppId = "${gameSource.name}_$appId"
 
@@ -346,6 +362,23 @@ class DownloadsViewModel @Inject constructor(
                 CustomGameScanner.scanAsLibraryItems(query = "")
                     .firstOrNull { it.appId == libraryAppId }
             }
+
+            GameSource.ITCH -> {
+                appId.toLongOrNull()?.let { itchGameDao.getByGameId(it) }?.let { game ->
+                    LibraryItem(
+                        appId = game.appId,
+                        name = game.title,
+                        iconHash = game.coverUrl,
+                        capsuleImageUrl = game.coverUrl,
+                        headerImageUrl = game.coverUrl,
+                        heroImageUrl = game.coverUrl,
+                        gameSource = GameSource.ITCH,
+                        isInstalled = game.isInstalled,
+                    )
+                }
+            }
+
+            else -> null
         }
     }
 
@@ -430,7 +463,9 @@ class DownloadsViewModel @Inject constructor(
             GameSource.EPIC -> appId.toIntOrNull()?.let { epicGameDao.getById(it)?.isInstalled == true } ?: false
             GameSource.GOG -> gogGameDao.getById(appId)?.isInstalled == true
             GameSource.AMAZON -> amazonGameDao.getByProductId(appId)?.isInstalled == true
+            GameSource.ITCH -> appId.toLongOrNull()?.let { itchGameDao.getByGameId(it)?.isInstalled == true } ?: false
             GameSource.CUSTOM_GAME -> false
+            else -> false
         }
     }
 
@@ -599,6 +634,24 @@ class DownloadsViewModel @Inject constructor(
                 liveDownloads[key] = buildPartialDownloadItem(productId, GameSource.AMAZON, name, icon)
             }
 
+            val itchDownloads = runCatching { ItchAccess.downloads(appContext) }.getOrNull()
+            if (itchDownloads != null) {
+                for ((gameId, info) in itchDownloads.getActiveDownloads()) {
+                    val appId = gameId.toString()
+                    val (name, icon) = getItchMetadata(appId)
+                    val item = buildActiveDownloadItem(appId, GameSource.ITCH, name, icon, info)
+                    liveDownloads[item.uniqueId] = item
+                    activeBindings[item.uniqueId] = ActiveDownloadBinding(appId, GameSource.ITCH, name, icon, info)
+                }
+                for (gameId in itchDownloads.partialGameIds()) {
+                    val appId = gameId.toString()
+                    val key = downloadKey(GameSource.ITCH, appId)
+                    if (liveDownloads.containsKey(key)) continue
+                    val (name, icon) = getItchMetadata(appId)
+                    liveDownloads[key] = buildPartialDownloadItem(appId, GameSource.ITCH, name, icon)
+                }
+            }
+
             val disappearedKeys = lastTrackedDownloads.keys - liveDownloads.keys
             for (key in disappearedKeys) {
                 val previousItem = lastTrackedDownloads[key] ?: continue
@@ -675,7 +728,12 @@ class DownloadsViewModel @Inject constructor(
 
                 GameSource.GOG -> GOGService.cancelDownload(item.appId)
                 GameSource.AMAZON -> AmazonService.cancelDownload(item.appId)
+                GameSource.ITCH -> {
+                    val id = item.appId.toLongOrNull() ?: return@launch
+                    app.gamenative.itch.ItchAccess.downloads(appContext).stop(id, deletePartial = false)
+                }
                 GameSource.CUSTOM_GAME -> Unit
+                else -> Unit
             }
         }
     }
@@ -726,7 +784,17 @@ class DownloadsViewModel @Inject constructor(
                     result.exceptionOrNull()?.message?.let { recentFailureMessages[key] = it }
                 }
 
+                GameSource.ITCH -> {
+                    val id = item.appId.toLongOrNull() ?: return@launch
+                    when (val result = app.gamenative.itch.ItchAccess.downloads(appContext).start(id)) {
+                        is app.gamenative.itch.ItchDownloadStart.Failed ->
+                            recentFailureMessages[key] = result.message
+                        else -> Unit
+                    }
+                }
+
                 GameSource.CUSTOM_GAME -> Unit
+                else -> Unit
             }
 
             scheduleRefreshDownloads()
@@ -769,6 +837,8 @@ class DownloadsViewModel @Inject constructor(
         val keepsInstalledGame = when (item.gameSource) {
             GameSource.STEAM -> item.appId.toIntOrNull()?.let { SteamService.isAppInstalled(it) } == true
             GameSource.AMAZON -> AmazonService.getInstallPath(item.appId) != null
+            GameSource.ITCH -> item.appId.toLongOrNull()
+                ?.let { app.gamenative.itch.ItchGameCache.installed(it) } == true
             else -> false
         }
         _state.update {
@@ -836,7 +906,15 @@ class DownloadsViewModel @Inject constructor(
                     scheduleRefreshDownloads()
                 }
 
+                GameSource.ITCH -> {
+                    appId.toLongOrNull()?.let { id ->
+                        app.gamenative.itch.ItchAccess.downloads(appContext).stop(id, deletePartial = true)
+                    }
+                    scheduleRefreshDownloads()
+                }
+
                 GameSource.CUSTOM_GAME -> Unit
+                else -> Unit
             }
         }
     }

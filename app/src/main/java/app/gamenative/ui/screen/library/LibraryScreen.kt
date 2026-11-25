@@ -95,6 +95,8 @@ import app.gamenative.data.GameCompatibilityStatus
 import app.gamenative.data.GameSource
 import app.gamenative.data.LibraryItem
 import app.gamenative.events.AndroidEvent
+import app.gamenative.itch.ItchAuthUi
+import app.gamenative.itch.ItchPaths
 import app.gamenative.ui.component.GamepadAction
 import app.gamenative.ui.component.GamepadActionBar
 import app.gamenative.ui.component.GamepadButton
@@ -380,6 +382,24 @@ private fun LibraryScreenContent(
     }
 
     var selectedAppId by remember { mutableStateOf<String?>(null) }
+
+    // itch.io sign-in completes in the browser and returns through a deep link, so
+    // the result arrives as an app event rather than an activity result.
+    DisposableEffect(Unit) {
+        val listener: (AndroidEvent.ItchAuthStateChanged) -> Unit = { event ->
+            SnackbarManager.show(
+                when {
+                    event.signedOut && event.success -> context.getString(R.string.itch_logout_success)
+                    event.success -> context.getString(R.string.itch_login_success)
+                    else -> event.message ?: context.getString(R.string.itch_login_failed)
+                },
+            )
+        }
+        PluviaApp.events.on<AndroidEvent.ItchAuthStateChanged, Unit>(listener)
+        onDispose {
+            PluviaApp.events.off<AndroidEvent.ItchAuthStateChanged, Unit>(listener)
+        }
+    }
 
     // Pinned shortcut in "open game page" mode: select the requested game.
     LaunchedEffect(requestedAppId) {
@@ -1268,6 +1288,7 @@ private fun LibraryScreenContent(
                     LibraryTab.GOG -> !GOGService.hasStoredCredentials(context)
                     LibraryTab.EPIC -> !EpicService.hasStoredCredentials(context)
                     LibraryTab.AMAZON -> !AmazonService.hasStoredCredentials(context)
+                    LibraryTab.ITCH -> !ItchPaths.hasCredentials(context)
                     LibraryTab.LOCAL -> PrefManager.customGamesCount == 0
                     else -> false
                 }
@@ -1295,12 +1316,23 @@ private fun LibraryScreenContent(
                             R.string.amazon_settings_login_title,
                             { amazonOAuthLauncher.launch(Intent(context, AmazonOAuthActivity::class.java)) },
                         )
+                        LibraryTab.ITCH -> Triple(
+                            R.string.library_source_not_logged_in_itch,
+                            R.string.itch_settings_login_title,
+                            {
+                                ItchAuthUi.signIn(context) { message ->
+                                    SnackbarManager.show(message)
+                                }
+                            },
+                        )
                         LibraryTab.LOCAL -> Triple(
                             R.string.library_source_no_custom_games,
                             R.string.add_custom_game_dialog_title,
                             onAddCustomGameClick,
                         )
-                        else -> throw IllegalStateException("showEmptyStateSplash is true only for Steam/GOG/Epic/Amazon/LOCAL")
+                        else -> throw IllegalStateException(
+                            "showEmptyStateSplash is true only for Steam/GOG/Epic/Amazon/itch.io/LOCAL",
+                        )
                     }
                     LibrarySourceNotLoggedInSplash(
                         messageResId = messageResId,

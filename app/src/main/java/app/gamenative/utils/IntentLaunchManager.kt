@@ -21,12 +21,14 @@ object IntentLaunchManager {
 
     private const val EXTRA_GAME_SOURCE = "game_source"
     private const val EXTRA_CONTAINER_CONFIG = "container_config"
+    private const val EXTRA_PREPARE_FEX_CACHE = "fex_cache_prepare"
     private const val ACTION_LAUNCH_GAME = "${BuildConfig.APPLICATION_ID}.LAUNCH_GAME"
     private const val MAX_CONFIG_JSON_SIZE = 50000 // 50KB limit to prevent memory exhaustion
 
     data class LaunchRequest(
         val appId: String,
         val containerConfig: ContainerData? = null,
+        val prepareFexCache: Boolean = false,
     )
 
     fun parseLaunchIntent(intent: Intent): LaunchRequest? {
@@ -67,7 +69,11 @@ object IntentLaunchManager {
             null
         }
 
-        return LaunchRequest(appId, containerConfig)
+        return LaunchRequest(
+            appId = appId,
+            containerConfig = containerConfig,
+            prepareFexCache = intent.getBooleanExtra(EXTRA_PREPARE_FEX_CACHE, false),
+        )
     }
 
     fun applyTemporaryConfigOverride(context: Context, appId: String, configOverride: ContainerData) {

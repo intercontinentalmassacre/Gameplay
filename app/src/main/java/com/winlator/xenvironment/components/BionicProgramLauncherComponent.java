@@ -64,6 +64,7 @@ import java.util.function.BooleanSupplier;
 import app.gamenative.BuildConfig;
 import app.gamenative.PluviaApp;
 import app.gamenative.events.AndroidEvent;
+import app.gamenative.fexcache.FexCodeCache;
 import app.gamenative.service.SteamService;
 
 public class BionicProgramLauncherComponent extends GuestProgramLauncherComponent {
@@ -87,6 +88,7 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
     private Container container;
     private File workingDir;
     private boolean gamescopeMode;
+    private boolean toolMode;
     private volatile EnvVars gamescopeGuestEnv;
     private Display gamescopeDisplay;
     private File gamescopeRuntime;
@@ -103,6 +105,10 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
 
     public void setGamescopeModeOverride(Boolean override) {
         gamescopeMode = Boolean.TRUE.equals(override);
+    }
+
+    public void setToolMode(boolean toolMode) {
+        this.toolMode = toolMode;
     }
 
     public void setWineInfo(WineInfo wineInfo) {
@@ -309,7 +315,7 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
         new File(imageFs.home_path + "/.wine/drive_c" + rootDir.getPath() + "/usr/tmp").mkdirs();
         if (!gamescopeMode) launchEnv.put("DISPLAY", ":0");
 
-        String winePath = imageFs.getWinePath() + "/bin";
+        String winePath = resolveWinePath() + "/bin";
 
         Log.d("BionicProgramLauncherComponent", "WinePath is " + winePath);
 
@@ -318,7 +324,7 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
         if (BuildConfig.MODERN_ANDROID) launchEnv.put("REDIRECT_EXEC__PROC_SELF_EXE", winePath + "/wine");
 
         String ldLibraryPath = rootDir.getPath() + "/usr/lib" + ":" + "/system/lib64";
-        if (BuildConfig.MODERN_ANDROID) ldLibraryPath += ":" + imageFs.getWinePath() + "/lib";
+        if (BuildConfig.MODERN_ANDROID) ldLibraryPath += ":" + resolveWinePath() + "/lib";
         launchEnv.put("LD_LIBRARY_PATH", ldLibraryPath);
         launchEnv.put("ANDROID_SYSVSHM_SERVER", rootDir.getPath() + UnixSocketConfig.SYSVSHM_SERVER_PATH);
         launchEnv.put("FONTCONFIG_PATH", rootDir.getPath() + "/usr/etc/fonts");
@@ -436,6 +442,18 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
         if (gamescopeMode) {
             applyGamescopeEnv(context, launchEnv, rootDir, container, gamescopeDisplay, gamescopeRuntime(), gamescopeIcd);
         }
+
+        // Experimental FEX translation cache: preparation/load is per game and only applied
+        // when the installed FEX build ships the offline compiler.
+        if (container != null) {
+            java.util.Map<String, String> fexCacheEnv = FexCodeCache.launchEnv(context, container);
+            if (fexCacheEnv != null) {
+                for (java.util.Map.Entry<String, String> entry : fexCacheEnv.entrySet()) {
+                    launchEnv.put(entry.getKey(), entry.getValue());
+                }
+            }
+        }
+
         if (!fexConfig.isEmpty() && !FEXCoreManager.writeContainerConfig(container.getRootDir(), fexConfig)) {
             Log.w("BionicProgramLauncherComponent", "Could not write the FEX container config. Using environment variables.");
             for (String name : fexConfig) {
@@ -444,6 +462,15 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
         }
 
         ContainerOverlay.applyBionicLaunchEnv(context, container, launchEnv);
+        if (toolMode) {
+            String libDir = imageFs.getLibDir().getPath();
+            launchEnv.put("LD_PRELOAD", libDir + "/libandroid-sysvshm.so:"
+                    + libDir + "/libgnoverlay.so:"
+                    + libDir + "/" + BuildConfig.PRELOAD_BIONIC_SO);
+            java.util.ArrayList<String> box64Keys = new java.util.ArrayList<>();
+            for (String name : launchEnv) if (name.startsWith("BOX64_")) box64Keys.add(name);
+            for (String name : box64Keys) launchEnv.remove(name);
+        }
         Log.d("BionicProgramLauncherComponent", "env vars are " + EnvRedactor.redact(launchEnv));
 
         // Construct the command without Box64 to the Wine executable
@@ -980,7 +1007,23 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
         return execShellCommand(command, true);
     }
 
+    private String resolveWinePath() {
+        if (wineInfo != null && wineInfo.path != null && !wineInfo.path.isEmpty()) {
+            return wineInfo.path;
+        }
+        return ImageFs.find(environment.getContext()).getWinePath();
+    }
+
     public String execShellCommand(String command, boolean includeStderr) {
+        return execShellCommandInternal(command, includeStderr, false);
+    }
+
+    /** Runs through /system/bin/sh so the child program keeps its own argv[0]. */
+    public String execShellCommandViaShell(String command) {
+        return execShellCommandInternal(command, true, true);
+    }
+
+    private String execShellCommandInternal(String command, boolean includeStderr, boolean viaShell) {
         Context context = environment.getContext();
         ImageFs imageFs = ImageFs.find(context);
         File rootDir = imageFs.getRootDir();
@@ -992,7 +1035,7 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
         envVars.put("TMPDIR", imageFs.getRootDir().getPath() + "/tmp");
         envVars.put("DISPLAY", ":0");
 
-        String winePath = imageFs.getWinePath() + "/bin";
+        String winePath = resolveWinePath() + "/bin";
 
         Log.d("BionicProgramLauncherComponent", "WinePath is " + winePath);
 
@@ -1000,7 +1043,7 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
         if (BuildConfig.MODERN_ANDROID) envVars.put("REDIRECT_EXEC__PROC_SELF_EXE", winePath + "/wine");
 
         String ldLibraryPath = rootDir.getPath() + "/usr/lib" + ":" + "/system/lib64";
-        if (BuildConfig.MODERN_ANDROID) ldLibraryPath += ":" + imageFs.getWinePath() + "/lib";
+        if (BuildConfig.MODERN_ANDROID) ldLibraryPath += ":" + resolveWinePath() + "/lib";
         envVars.put("LD_LIBRARY_PATH", ldLibraryPath);
         envVars.put("ANDROID_SYSVSHM_SERVER", rootDir.getPath() + UnixSocketConfig.SYSVSHM_SERVER_PATH);
         envVars.put("WINE_NO_DUPLICATE_EXPLORER", "1");
@@ -1025,6 +1068,19 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
         if (this.envVars != null) envVars.putAll(this.envVars);
 
         ContainerOverlay.applyBionicLaunchEnv(context, container, envVars);
+        if (viaShell) {
+            // The app's native lib dir may be hidden from a /system/bin/sh child. Use the
+            // imagefs copies so the ARM64EC compiler gets the overlay and bionic shims.
+            String libDir = imageFs.getLibDir().getPath();
+            envVars.put("LD_PRELOAD", libDir + "/libandroid-sysvshm.so:"
+                    + libDir + "/libgnoverlay.so:"
+                    + libDir + "/" + BuildConfig.PRELOAD_BIONIC_SO);
+            // The compiler is not a Box64 guest; BOX64_* makes the overlay pick the wrong
+            // redirection table and breaks Wine's builtin lookup.
+            java.util.ArrayList<String> box64Keys = new java.util.ArrayList<>();
+            for (String name : envVars) if (name.startsWith("BOX64_")) box64Keys.add(name);
+            for (String name : box64Keys) envVars.remove(name);
+        }
         String finalCommand = getFinalCommand(winePath, shellBackend, envVars, imageFs.getBinDir(), command);
 
         File box64File = new File(rootDir, "/usr/bin/box64");
@@ -1033,6 +1089,12 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
         }
 
         Log.d("BionicProgramLauncherComponent", "Shell command is " + EnvRedactor.redactText(finalCommand));
+        if (viaShell) {
+            return ProcessHelper.execWithOutputArgv(
+                    new String[] {"/system/bin/sh", "-c", finalCommand},
+                    envVars.toStringArray(),
+                    workingDir != null ? workingDir : imageFs.getRootDir());
+        }
         return ProcessHelper.execWithOutput(finalCommand, envVars.toStringArray(),
                 workingDir != null ? workingDir : imageFs.getRootDir(), includeStderr);
     }
