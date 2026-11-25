@@ -21,7 +21,6 @@ import app.gamenative.utils.FileUtils
 import app.gamenative.utils.Net
 import app.gamenative.utils.SteamUtils
 import app.gamenative.utils.redactUrlForLogging
-import com.winlator.xenvironment.components.EnvRedactor
 import `in`.dragonbra.javasteam.enums.EOSType
 import `in`.dragonbra.javasteam.enums.EResult
 import `in`.dragonbra.javasteam.steam.handlers.steamcloud.AppFileChangeList
@@ -76,6 +75,19 @@ import java.util.concurrent.atomic.AtomicLong
 object SteamAutoCloud {
 
     private const val MAX_USER_FILE_RETRIES = 3
+
+    private suspend fun uploadBlock(call: okhttp3.Call): Boolean = try {
+        kotlinx.coroutines.withTimeoutOrNull(SteamService.requestTimeout) {
+            call.execute().use { response ->
+                if (!response.isSuccessful) Timber.w("Steam Cloud upload returned HTTP %d", response.code)
+                response.isSuccessful
+            }
+        } ?: false
+    } catch (e: IOException) {
+        currentCoroutineContext().ensureActive()
+        Timber.w("Steam Cloud upload failed: %s", e.javaClass.simpleName)
+        false
+    }
 
     internal data class HashLookupResult(
         val sha: ByteArray,
@@ -644,27 +656,11 @@ object SteamAutoCloud {
                     val progressThreshold = 0.01f // Update every 1% change
 
                     RandomAccessFile(absFilePath.pathString, "r").use { fs ->
-                        uploadInfo.blockRequests.forEach { blockRequest ->
+                        for (blockRequest in uploadInfo.blockRequests) {
                             val httpUrl = buildUrl(
                                 blockRequest.useHttps,
                                 blockRequest.urlHost,
                                 blockRequest.urlPath,
-                            )
-
-                            Timber.i("Uploading to ${redactUrlForLogging(httpUrl.toString())}")
-                            Timber.i(
-                                "Block Request:" +
-                                    "\n\tblockOffset: ${blockRequest.blockOffset}" +
-                                    "\n\tblockLength: ${blockRequest.blockLength}" +
-                                    "\n\trequestHeaders:\n\t\t${
-                                        blockRequest.requestHeaders.joinToString("\n\t\t") { "${it.name}: ${EnvRedactor.redactText(it.value)}" }
-                                    }" +
-                                    "\n\texplicitBodyData: [${
-                                        blockRequest.explicitBodyData.joinToString(
-                                            ", ",
-                                        )
-                                    }]" +
-                                    "\n\tmayParallelize: ${blockRequest.mayParallelize}",
                             )
 
                             val byteArray = ByteArray(blockRequest.blockLength)
@@ -704,32 +700,17 @@ object SteamAutoCloud {
 
                             val httpClient = steamInstance.steamClient!!.configuration.httpClient
 
-                            Timber.i("Sending request to ${request.url}")
-
-                            withTimeout(SteamService.requestTimeout) {
-                                val response = httpClient.newCall(request).execute()
-
-                                if (!response.isSuccessful) {
-                                    Timber.w(
-                                        "Failed to upload part of %s: %s, %s",
-                                        file.prefixPath,
-                                        response.message,
-                                        response?.body.toString(),
-                                    )
-
-                                    uploadFileSuccess = false
-                                    uploadBatchSuccess = false
-                                } else {
-                                    // Update progress after successful block upload
-                                    bytesUploadedForFile += blockRequest.blockLength
-                                    if (fileSize > 0) {
-                                        val currentProgress = (bytesUploadedForFile.toFloat() / fileSize).coerceIn(0f, 1f)
-                                        // Only update if progress changed by at least 1% or we're at 100%
-                                        if (currentProgress - lastReportedProgress >= progressThreshold || currentProgress >= 1f) {
-                                            onProgress?.invoke("Uploading ${file.filename}", currentProgress)
-                                            lastReportedProgress = currentProgress
-                                        }
-                                    }
+                            if (!uploadBlock(httpClient.newCall(request))) {
+                                uploadFileSuccess = false
+                                uploadBatchSuccess = false
+                                break
+                            }
+                            bytesUploadedForFile += blockRequest.blockLength
+                            if (fileSize > 0) {
+                                val currentProgress = (bytesUploadedForFile.toFloat() / fileSize).coerceIn(0f, 1f)
+                                if (currentProgress - lastReportedProgress >= progressThreshold || currentProgress >= 1f) {
+                                    onProgress?.invoke("Uploading ${file.filename}", currentProgress)
+                                    lastReportedProgress = currentProgress
                                 }
                             }
                         }
@@ -774,7 +755,7 @@ object SteamAutoCloud {
                     batchEResult = if (uploadBatchSuccess) EResult.OK else EResult.Fail,
                 ).await()
 
-                if (totalFiles > 0) {
+                if (uploadBatchSuccess && totalFiles > 0) {
                     onProgress?.invoke("Upload complete", 1.0f)
                 }
 
@@ -978,6 +959,7 @@ object SteamAutoCloud {
             // then the correct cache snapshot.
             val reconcileNeverSyncedCloudFiles: (CoroutineScope) -> Deferred<Int> = { parentScope ->
                 parentScope.async {
+                    if (syncResult == SyncResult.UpdateFail) return@async 0
                     // Lowercased absolute paths, mirroring the silent-rehydrate comparison, since
                     // Steam Cloud and wine may disagree on case.
                     val knownKeys = (allLocalUserFiles + (cachedFileList?.userFileInfo ?: emptyList()))
