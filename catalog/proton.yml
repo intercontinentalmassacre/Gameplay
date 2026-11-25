@@ -5,6 +5,8 @@
       "id": "proton-10.0-arm64ec-2",
       "name": "Proton 10.0 ARM64ec",
       "url": "https://downloads.gamenative.app/proton-10.0-arm64ec.wcp",
+      "sha256": "c1638b1f830304222660e338bc032099145ad210d4e36a07d91f39c750a062f7",
+      "sizeBytes": 262671004,
       "variant": "bionic"
     },
     {
@@ -29,6 +31,24 @@
       "id": "proton-11.0-1-arm64ec-1",
       "name": "Proton 11.0-1 ARM64ec",
       "url": "https://downloads.gamenative.app/proton-11.0-1-arm64ec.wcp",
+      "sha256": "be248bf8baf354c4426f997605c6b78debbc93b091a3be3339c1bbc2176b596f",
+      "sizeBytes": 276851384,
+      "variant": "bionic"
+    },
+    {
+      "id": "proton-11.0-2-x86_64-13",
+      "name": "Proton 11.0-2 x86-64 (13)",
+      "url": "https://downloads.gamenative.app/proton-11.0-2-x86_64-13.wcp",
+      "sha256": "6e8064d9eb91e1bf4296894de544b8658aaedcb8e99586c84e4d8d12035d68d8",
+      "sizeBytes": 64722993,
+      "variant": "bionic"
+    },
+    {
+      "id": "proton-11.0-2-arm64ec-13",
+      "name": "Proton 11.0-2 ARM64ec (13)",
+      "url": "https://downloads.gamenative.app/proton-11.0-2-arm64ec-13.wcp",
+      "sha256": "2c53d73c0e2f762d39a1421e62c0ba1b4beda8c60b4af5253512edb7525918ad",
+      "sizeBytes": 100059303,
       "variant": "bionic"
     }
   ]

@@ -227,7 +227,7 @@ object LocalModImporter {
             throw IOException(context.getString(R.string.local_mod_invalid_request))
         }
         if (request.sizeBytes < 0L || request.sizeBytes > MAX_CONTENT_BYTES) {
-            throw IOException(context.getString(R.string.local_mod_too_large))
+            throw IOException(ModImportSafetyLimits.sizeLimitMessage(context))
         }
         val normalizedUris = sourceUris.distinct()
         if (requireSource && normalizedUris.isEmpty()) {
@@ -991,7 +991,7 @@ object LocalModImporter {
 
     private fun safeAddBytes(context: Context, current: Long, additional: Long): Long {
         if (additional < 0L || current > MAX_CONTENT_BYTES - additional) {
-            throw IOException(context.getString(R.string.local_mod_too_large))
+            throw IOException(ModImportSafetyLimits.sizeLimitMessage(context))
         }
         return current + additional
     }

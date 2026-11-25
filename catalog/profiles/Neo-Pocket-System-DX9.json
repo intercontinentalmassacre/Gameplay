@@ -1,0 +1,20 @@
+{
+  "containerVariant": "bionic",
+  "wineVersion": "proton-11.0-1-arm64ec-1",
+  "graphicsDriver": "Wrapper-gamenative",
+  "graphicsDriverConfig": "vulkanVersion=1.4,version=System,blacklistedExtensions=,maxDeviceMemory=0,presentMode=mailbox,syncFrame=0,disablePresentWait=0,resourceType=auto,bcnEmulation=auto,bcnEmulationType=compute,bcnEmulationCache=0,gpuName=Device,adrenotoolsTurnip=0",
+  "screenSize": "640x480",
+  "displayServer": "x11",
+  "displayRendererMode": "vulkan",
+  "rendererPresentMode": "fifo",
+  "dxwrapper": "dxvk",
+  "dxwrapperConfig": "version=1.11.1-sarek-pocket-d3d9-1,framerate=0,maxDeviceMemory=0,async=0,asyncCache=0,vkd3dVersion=2.14.1,vkd3dLevel=12_1,ddrawrapper=none,csmt=3,gpuName=NVIDIA GeForce GTX 480,videoMemorySize=2048,strict_shader_math=1,OffscreenRenderingMode=fbo,renderer=gl",
+  "audioDriver": "pulseaudio",
+  "emulator": "FEXCore",
+  "fexcoreVersion": "2512",
+  "fexcorePreset": "INTERMEDIATE",
+  "cpuList": "0,1,2,3,4,5,6,7",
+  "cpuListWoW64": "4,5,6,7",
+  "useDRI3": true,
+  "envVars": "WRAPPER_MAX_IMAGE_COUNT=0 ZINK_DESCRIPTORS=lazy ZINK_DEBUG=compact MESA_SHADER_CACHE_DISABLE=false MESA_SHADER_CACHE_MAX_SIZE=512MB mesa_glthread=true WINEESYNC=1 MESA_VK_WSI_PRESENT_MODE=fifo TU_DEBUG=noconform PULSE_LATENCY_MSEC=144 WINEDLLOVERRIDES=nvcuda= MESA_VK_WSI_DEBUG=sw,noshm,linear DXVK_CONFIG=dxvk.maxMemoryBudget=256;d3d9.maxAvailableMemory=256;dxvk.numCompilerThreads=1;dxvk.numShaderCompilerThreads=1;d3d9.maxFrameLatency=1;d3d9.maxFrameRate=30"
+}

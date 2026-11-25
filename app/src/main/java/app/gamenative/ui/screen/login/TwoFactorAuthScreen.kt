@@ -1,7 +1,6 @@
 package app.gamenative.ui.screen.login
 
 import android.content.res.Configuration
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,8 +14,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import app.gamenative.ui.component.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import app.gamenative.ui.component.NoExtractOutlinedTextField
@@ -48,6 +45,7 @@ import app.gamenative.R
 import app.gamenative.enums.LoginResult
 import app.gamenative.ui.component.LoadingScreen
 import app.gamenative.ui.data.UserLoginState
+import app.gamenative.ui.gcds.GcdsProgressBarIndeterminate
 import app.gamenative.ui.theme.PluviaTheme
 
 @Composable
@@ -63,24 +61,28 @@ fun TwoFactorAuthScreenContent(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 350.dp)
-            .padding(32.dp),
+            .padding(vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
         Text(
             text = message,
             style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = if (userLoginState.previousCodeIncorrect) {
+                MaterialTheme.colorScheme.error
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            },
             textAlign = TextAlign.Center,
-            modifier = Modifier.padding(bottom = 24.dp)
+            modifier = Modifier.padding(bottom = 12.dp)
         )
 
         if (userLoginState.loginResult == LoginResult.DeviceConfirm) {
-            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            GcdsProgressBarIndeterminate(modifier = Modifier.fillMaxWidth())
             Spacer(modifier = Modifier.height(16.dp))
             TextButton(
-                onClick = onUseGuardTotp
+                onClick = onUseGuardTotp,
+                modifier = Modifier.heightIn(min = 48.dp),
             ) {
                 Text(stringResource(R.string.steam_2fa_use_guard_totp))
             }
@@ -92,7 +94,7 @@ fun TwoFactorAuthScreenContent(
                 onTwoFactorTextChange = onSetTwoFactor,
                 onLogin = onLogin,
             )
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(12.dp))
             Button(
                 enabled = userLoginState.twoFactorCode.length == 5,
                 onClick = {
@@ -101,12 +103,8 @@ fun TwoFactorAuthScreenContent(
                 },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(48.dp),
-                shape = RoundedCornerShape(8.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    disabledContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
-                ),
+                    .heightIn(min = 48.dp),
+                shape = RoundedCornerShape(PluviaTheme.tokens.cornerMd),
                 content = {
                     Text(
                         text = stringResource(R.string.two_factor_login),
@@ -149,11 +147,6 @@ private fun TwoFactorTextField(
                 .dpadFocusEscape(
                     focusManager = LocalFocusManager.current,
                     keyboardController = LocalSoftwareKeyboardController.current,
-                )
-                .border(
-                    width = 1.dp,
-                    color = MaterialTheme.colorScheme.outline,
-                    shape = RoundedCornerShape(8.dp)
                 ),
             value = twoFactorText,
             onValueChange = { value ->
@@ -164,7 +157,7 @@ private fun TwoFactorTextField(
             placeholder = {
                 Text(
                     stringResource(R.string.two_factor_enter_code),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             },
             keyboardOptions = KeyboardOptions(
@@ -177,7 +170,7 @@ private fun TwoFactorTextField(
                     if (twoFactorText.length >= 5) onLogin()
                 },
             ),
-            shape = RoundedCornerShape(8.dp),
+            shape = RoundedCornerShape(PluviaTheme.tokens.cornerMd),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = MaterialTheme.colorScheme.primary,
                 unfocusedBorderColor = MaterialTheme.colorScheme.outline,

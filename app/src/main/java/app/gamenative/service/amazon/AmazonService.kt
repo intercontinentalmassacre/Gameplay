@@ -29,6 +29,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -48,6 +49,7 @@ class AmazonService : Service() {
     @InstallIn(SingletonComponent::class)
     interface AmazonDaoEntryPoint {
         fun amazonGameDao(): AmazonGameDao
+        fun amazonDownloadManager(): AmazonDownloadManager
     }
 
     @Inject
@@ -294,15 +296,29 @@ class AmazonService : Service() {
         /** Return [AmazonGame] for a product ID, or null if unavailable. */
         fun getAmazonGameOf(productId: String): AmazonGame? {
             return runBlocking(Dispatchers.IO) {
-                instance?.amazonManager?.getGameById(productId)
+                instance?.amazonManager?.getGameById(productId) ?: PluviaApp.get()?.amazonGameDao?.getByProductId(productId)
             }
         }
 
         /** Return [AmazonGame] for an appId, or null if unavailable. */
         fun getAmazonGameByAppId(appId: Int): AmazonGame? {
             return runBlocking(Dispatchers.IO) {
-                instance?.amazonManager?.getGameByAppId(appId)
+                instance?.amazonManager?.getGameByAppId(appId) ?: PluviaApp.get()?.amazonGameDao?.getByAppId(appId)
             }
+        }
+
+        /** Complete or roll back a saved update before mounting the game. Works offline. */
+        suspend fun prepareLaunch(context: Context, appId: Int) {
+            val service = instance
+            val entryPoint = EntryPointAccessors
+                .fromApplication(context.applicationContext, AmazonDaoEntryPoint::class.java)
+            val game = service?.amazonManager?.getGameByAppId(appId) ?: entryPoint.amazonGameDao().getByAppId(appId)
+                ?: return
+            check(service?.activeDownloads?.get(game.productId)?.isActive() != true) {
+                "Wait for the Amazon game update to finish before launching."
+            }
+            val downloader = service?.amazonDownloadManager ?: entryPoint.amazonDownloadManager()
+            downloader.recoverUpdate(context, game)
         }
 
         /** Return install path for [productId], or null if not installed. */
@@ -359,9 +375,23 @@ class AmazonService : Service() {
         suspend fun isUpdatePending(productId: String): Boolean {
             val svc = instance ?: return false
             val game = svc.amazonManager.getGameById(productId) ?: return false
-            if (!game.isInstalled || game.versionId.isEmpty()) return false
+            if (!game.isInstalled) return false
+            val currentVersion = if (!svc.activeDownloads.containsKey(productId)) {
+                try {
+                    svc.amazonDownloadManager.recoverUpdate(svc, game)
+                    svc.amazonManager.getGameById(productId)?.versionId.orEmpty()
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Timber.tag("Amazon").w(e, "Failed to recover update for $productId")
+                    return false
+                }
+            } else {
+                game.versionId
+            }
+            if (currentVersion.isEmpty()) return false
             val token = svc.amazonManager.getBearerToken() ?: return false
-            return AmazonApiClient.isUpdateAvailable(productId, game.versionId, token) ?: false
+            return AmazonApiClient.isUpdateAvailable(productId, currentVersion, token) ?: false
         }
 
         // ── Download management ───────────────────────────────────────────────
@@ -445,32 +475,32 @@ class AmazonService : Service() {
             val game = withContext(Dispatchers.IO) {
                 instance.amazonManager.getGameById(productId)
             } ?: return Result.failure(Exception("Game not found: $productId"))
+            val targetPath = game.installPath.takeIf { game.isInstalled && it.isNotBlank() } ?: installPath
 
             val downloadInfo = DownloadInfo(
                 jobCount = 1,
                 gameId = game.appId,
                 downloadingAppIds = CopyOnWriteArrayList(),
             )
-            downloadInfo.setPersistencePath(installPath)
-
-            val persistedBytes = downloadInfo.loadPersistedBytesDownloaded(installPath)
-            if (persistedBytes > 0L) {
-                downloadInfo.initializeBytesDownloaded(persistedBytes)
+            if (!game.isInstalled) {
+                downloadInfo.setPersistencePath(targetPath)
+                val persistedBytes = downloadInfo.loadPersistedBytesDownloaded(targetPath)
+                if (persistedBytes > 0L) {
+                    downloadInfo.initializeBytesDownloaded(persistedBytes)
+                }
+                MarkerUtils.removeMarker(targetPath, Marker.DOWNLOAD_COMPLETE_MARKER)
             }
 
             downloadInfo.setActive(true)
             instance.activeDownloads[productId] = downloadInfo
-            instance.activeDownloadPaths[productId] = installPath
-
-            // Fresh install/update run should clear stale completion marker before starting
-            MarkerUtils.removeMarker(installPath, Marker.DOWNLOAD_COMPLETE_MARKER)
+            instance.activeDownloadPaths[productId] = targetPath
 
             PluviaApp.events.emitJava(
                 AndroidEvent.DownloadStatusChanged(game.appId, true)
             )
             GameDownloadQueue.registerDownload(GameSource.AMAZON, productId, downloadInfo) {
                 instance.serviceScope.launch {
-                    downloadGame(context, productId, installPath)
+                    downloadGame(context, productId, targetPath)
                 }
             }
 
@@ -479,14 +509,14 @@ class AmazonService : Service() {
                     val result = instance.amazonDownloadManager.downloadGame(
                         context = context,
                         game = game,
-                        installPath = installPath,
+                        installPath = targetPath,
                         downloadInfo = downloadInfo,
                     )
 
                     if (result.isSuccess) {
                         Timber.tag("Amazon").i("Download succeeded for $productId")
                         downloadInfo.setActive(false)
-                        downloadInfo.clearPersistedBytesDownloaded(installPath)
+                        downloadInfo.clearPersistedBytesDownloaded(targetPath)
                         SnackbarManager.show("Download completed: ${game.title}")
                         PluviaApp.events.emitJava(
                             AndroidEvent.LibraryInstallStatusChanged(game.appId, GameSource.AMAZON)
@@ -494,8 +524,9 @@ class AmazonService : Service() {
                     } else {
                         val error = result.exceptionOrNull()
                         Timber.tag("Amazon").e(error, "Download failed for $productId")
+                        downloadInfo.updateStatusMessage("Failed: ${error?.message ?: "Unknown error"}")
                         downloadInfo.setActive(false)
-                        instance.cleanupFailedInstall(context, game, installPath)
+                        instance.cleanupFailedInstall(context, game, targetPath)
                         SnackbarManager.show("Download failed: ${error?.message ?: "Unknown error"}")
                     }
                 } catch (e: Exception) {
@@ -503,7 +534,8 @@ class AmazonService : Service() {
                         Timber.tag("Amazon").d("Download cancelled for $productId")
                     } else {
                         Timber.tag("Amazon").e(e, "Download exception for $productId")
-                        instance.cleanupFailedInstall(context, game, installPath)
+                        downloadInfo.updateStatusMessage("Failed: ${e.message ?: "Unknown error"}")
+                        instance.cleanupFailedInstall(context, game, targetPath)
                     }
                     downloadInfo.setActive(false)
                 } finally {
@@ -532,6 +564,18 @@ class AmazonService : Service() {
             return true
         }
 
+        suspend fun cancelInstallation(context: Context, productId: String): Result<Unit> {
+            val instance = getInstance()
+                ?: return Result.failure(Exception("Amazon service is not running"))
+            val download = instance.activeDownloads[productId]
+                ?: GameDownloadQueue.getDownloadInfo(GameSource.AMAZON, productId)
+            download?.cancelAndJoin()
+            if (instance.amazonManager.getGameById(productId)?.isInstalled == true) {
+                return Result.success(Unit)
+            }
+            return deleteGame(context, productId)
+        }
+
         suspend fun deleteGame(context: Context, productId: String): Result<Unit> {
             val instance = getInstance()
                 ?: return Result.failure(Exception("Amazon service is not running"))
@@ -540,6 +584,9 @@ class AmazonService : Service() {
                 try {
                     val game = instance.amazonManager.getGameById(productId)
                         ?: return@withContext Result.failure(Exception("Game not found: $productId"))
+                    if (game.installPath.isNotBlank() && File(game.installPath).exists()) {
+                        instance.amazonDownloadManager.recoverUpdate(context, game)
+                    }
 
                     val path = game.installPath.ifEmpty {
                         AmazonConstants.getGameInstallPath(context, game.title)
@@ -695,6 +742,7 @@ class AmazonService : Service() {
                 try {
                     val game = instance.amazonManager.getGameById(productId)
                         ?: return@withContext Result.failure(Exception("Game not found: $productId"))
+                    instance.amazonDownloadManager.recoverUpdate(context, game)
 
                     if (!game.isInstalled || game.installPath.isEmpty()) {
                         return@withContext Result.failure(Exception("Game is not installed"))
@@ -881,6 +929,7 @@ class AmazonService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     private suspend fun cleanupFailedInstall(context: Context, game: AmazonGame, installPath: String) {
+        if (game.isInstalled) return
         withContext(Dispatchers.IO) {
             MarkerUtils.removeMarker(installPath, Marker.DOWNLOAD_COMPLETE_MARKER)
             MarkerUtils.removeMarker(installPath, Marker.DOWNLOAD_IN_PROGRESS_MARKER)

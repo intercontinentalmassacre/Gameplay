@@ -19,17 +19,18 @@ object LaunchReport {
         context: Context,
         container: Container?,
         crashContext: CrashContextSnapshot? = null,
+        sessionId: String? = LaunchTrace.session(),
+        events: List<LaunchTrace.StageEvent> = LaunchTrace.eventsSnapshot(),
     ): JSONObject {
         val ctx = crashContext ?: CrashContext.snapshot()
         val json = JSONObject()
-        val sessionId = LaunchTrace.session() ?: "unknown"
 
         val packageInfo = runCatching {
             context.packageManager.getPackageInfo(context.packageName, 0)
         }.getOrNull()
 
         json.put("schemaVersion", 1)
-        json.put("sessionId", sessionId)
+        json.put("sessionId", sessionId ?: "unknown")
         json.put("generatedAt", java.time.Instant.now().toString())
         json.put("gameplayVersion", packageInfo?.versionName ?: "unknown")
         json.put("gameplayVersionCode", packageInfo?.longVersionCode?.toString() ?: "unknown")
@@ -77,7 +78,6 @@ object LaunchReport {
             )
         }
 
-        val events = LaunchTrace.eventsSnapshot()
         json.put("events", JSONArray().apply {
             events.forEach { e ->
                 put(JSONObject()

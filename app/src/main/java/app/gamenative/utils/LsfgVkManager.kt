@@ -1,8 +1,10 @@
 package app.gamenative.utils
 
 import android.content.Context
+import app.gamenative.display.GameNativeDrm
 import app.gamenative.service.SteamService
 import com.winlator.container.Container
+import com.winlator.container.ContainerManager
 import com.winlator.core.FileUtils
 import com.winlator.core.envvars.EnvVars
 import java.io.File
@@ -65,12 +67,15 @@ object LsfgVkManager {
     private const val ENV_CONFIG = "LSFG_CONFIG"
     private const val ENV_PROCESS = "LSFG_PROCESS"
 
-    // Current runtime version (bumped when the bundled .so changes)
-    private const val RUNTIME_VERSION = "v1.0.2-gameplay-recovery-arm64-v8a"
+    private const val EXTRA_FPS_LIMITER_ENABLED = "fpsLimiterEnabled"
+    private const val EXTRA_FPS_LIMITER_TARGET = "fpsLimiterTarget"
 
-    // Asset paths
+    // Current runtime version (bumped when the bundled .so changes)
+    private const val RUNTIME_VERSION = "v1.3.3-android-arm64-v8a"
+
+    // The manifest stays in assets; the Vulkan layer itself is packaged as a
+    // native library so Android extracts it through the normal jniLibs path.
     private const val ASSET_DIR = "lsfg_vk/android_arm64_v8a"
-    private const val ASSET_LIB = "$ASSET_DIR/$LIB_FILENAME"
     private const val ASSET_MANIFEST = "$ASSET_DIR/$MANIFEST_FILENAME"
 
     // ---- Public API --------------------------------------------------------
@@ -91,6 +96,25 @@ object LsfgVkManager {
     @JvmStatic
     fun isDllAvailable(): Boolean = findSteamDll() != null
 
+    @JvmStatic
+    fun gamescopeFpsLimit(container: Container): Int {
+        if (!parseBool(container.getExtra(EXTRA_FPS_LIMITER_ENABLED, "true"))) return 0
+        return container.getExtra(EXTRA_FPS_LIMITER_TARGET, "").toIntOrNull()?.takeIf { it > 0 } ?: 60
+    }
+
+    fun applyDrmRuntime(container: Container, settings: LsfgQuickMenuHelper.Settings, fpsLimit: Int) {
+        val dllPath = containerDllPath(container)
+        GameNativeDrm.nativeSetLsfgConfig(
+            dllPath != null && isArmed(container) && settings.multiplier >= 2,
+            settings.multiplier.coerceAtLeast(2),
+            (settings.flowScale * 1000f).toInt(),
+            settings.performanceMode,
+            fpsLimit,
+            if (presentMode(container) == "fifo") 1 else 0,
+            dllPath.orEmpty(),
+        )
+    }
+
     /** Whether the user owns Lossless Scaling in their Steam library. */
     @JvmStatic
     fun ownsLosslessScaling(): Boolean =
@@ -104,12 +128,14 @@ object LsfgVkManager {
     }
 
     /** Get the multiplier (0=Off, 2-4, default 2). */
+    @JvmStatic
     fun multiplier(container: Container): Int {
         val raw = container.getExtra(EXTRA_MULTIPLIER, "2").toIntOrNull() ?: 2
         return if (raw == 0) 0 else raw.coerceIn(2, 4)
     }
 
     /** Get the flow scale (0.25-1.0, default 0.80). */
+    @JvmStatic
     fun flowScale(container: Container): Float =
         container.getExtra(EXTRA_FLOW_SCALE, "0.80").toFloatOrNull()?.coerceIn(0.25f, 1.0f) ?: 0.80f
 
@@ -152,7 +178,6 @@ object LsfgVkManager {
         val rootDir = container.rootDir
         val localLibDir = File(rootDir, LIB_RELATIVE_DIR)
         val layerDir = File(rootDir, LAYER_RELATIVE_DIR)
-        val dllDir = File(rootDir, DLL_RELATIVE_DIR)
         val libFile = File(localLibDir, LIB_FILENAME)
         val manifestFile = File(layerDir, MANIFEST_FILENAME)
         val brokenV2Manifest = File(layerDir, BROKEN_V2_MANIFEST_FILENAME)
@@ -174,8 +199,14 @@ object LsfgVkManager {
                 localLibDir.mkdirs()
                 layerDir.mkdirs()
 
-                // Copy the layer .so from assets
-                FileUtils.copy(context, ASSET_LIB, libFile)
+                val sourceLib = File(context.applicationInfo.nativeLibraryDir, LIB_FILENAME)
+                if (!sourceLib.isFile) {
+                    Timber.tag(TAG).e("Bundled LSFG native library is missing: %s", sourceLib.absolutePath)
+                    return false
+                }
+                sourceLib.inputStream().use { input ->
+                    libFile.outputStream().use { output -> input.copyTo(output) }
+                }
                 // Write the manifest with patched library_path
                 val manifestText = context.assets.open(ASSET_MANIFEST)
                     .bufferedReader().use { it.readText() }
@@ -206,7 +237,20 @@ object LsfgVkManager {
             Timber.tag(TAG).d("Runtime %s already installed in %s", RUNTIME_VERSION, rootDir)
         }
 
-        // Copy Lossless.dll from Steam install dir into the container
+        return installLosslessDll(context, container) && success
+    }
+
+    @JvmStatic
+    fun prepareDrmRuntime(context: Context, container: Container) {
+        disableLayer(container)
+        if (isArmed(container)) installLosslessDll(context, container)
+    }
+
+    private fun installLosslessDll(context: Context, container: Container): Boolean {
+        val dllDir = File(container.rootDir, DLL_RELATIVE_DIR)
+        // Copy Lossless.dll from Steam install dir into the container.
+        // Only after it is present can the legacy utility container be safely
+        // removed: users must never lose the only usable copy of the DLL.
         val dllFile = File(dllDir, LOSSLESS_DLL_NAME)
         val steamDll = findSteamDll()
         if (steamDll != null) {
@@ -221,16 +265,17 @@ object LsfgVkManager {
                     if (dllFile.exists()) FileUtils.chmod(dllFile, 0b110100100)
                     Timber.tag(TAG).i("Copied Lossless.dll (%d bytes) into %s", dllFile.length(), dllDir)
                 }
+                removeLegacyLosslessScalingContainer(context)
             } catch (t: Throwable) {
                 Timber.tag(TAG).e(t, "Failed to copy Lossless.dll into container")
-                success = false
+                return false
             }
         } else if (parseBool(container.getExtra(EXTRA_ARMED, "false"))) {
             Timber.tag(TAG).w("LSFG enabled but Lossless.dll not found in Steam dir")
-            success = false
+            return false
         }
 
-        return success
+        return true
     }
 
     /**
@@ -295,7 +340,7 @@ object LsfgVkManager {
 
         if (!isSupported(container)) {
             // Remove the manifest so the Vulkan loader can't find the layer
-            disableLayerInContainer(container)
+            disableLayer(container)
             return false
         }
 
@@ -304,7 +349,7 @@ object LsfgVkManager {
 
         if (!armed) {
             // Remove the manifest so the Vulkan loader can't find the layer
-            disableLayerInContainer(container)
+            disableLayer(container)
             Timber.tag(TAG).i("LSFG disabled (enabled=%s, dll=%s)",
                 container.getExtra(EXTRA_ARMED, "false"), dllPath ?: "null")
             return false
@@ -337,7 +382,8 @@ object LsfgVkManager {
      * Remove the layer manifest so the Vulkan loader can't discover it.
      * Called when LSFG is disabled to ensure no stale layer is loaded.
      */
-    private fun disableLayerInContainer(container: Container) {
+    @JvmStatic
+    fun disableLayer(container: Container) {
         val layerDir = File(container.rootDir, LAYER_RELATIVE_DIR)
         listOf(MANIFEST_FILENAME, BROKEN_V2_MANIFEST_FILENAME).forEach { name ->
             val manifest = File(layerDir, name)
@@ -357,7 +403,31 @@ object LsfgVkManager {
     private fun findSteamDll(): File? {
         val appDir = SteamService.getAppDirPath(LOSSLESS_SCALING_APP_ID)
         val dll = File(appDir, LOSSLESS_DLL_NAME)
-        return dll.takeIf { it.isFile }
+        if (dll.isFile) return dll
+
+        // Keep a fallback for stale app metadata or manually renamed Steam
+        // directories. getAppDirPath already covers the normal storage paths.
+        SteamService.allInstallPaths.forEach { basePath ->
+            File(basePath).listFiles()?.firstNotNullOfOrNull { directory ->
+                File(directory, LOSSLESS_DLL_NAME).takeIf { it.isFile }
+            }?.let { return it }
+        }
+        return null
+    }
+
+    private fun removeLegacyLosslessScalingContainer(context: Context) {
+        try {
+            val manager = ContainerManager(context)
+            val legacyContainer = manager.getContainerById("STEAM_$LOSSLESS_SCALING_APP_ID") ?: return
+            if (FileUtils.delete(legacyContainer.rootDir)) {
+                manager.containers.remove(legacyContainer)
+                Timber.tag(TAG).i("Removed obsolete Lossless Scaling utility container")
+            } else {
+                Timber.tag(TAG).w("Could not remove obsolete Lossless Scaling utility container")
+            }
+        } catch (error: Throwable) {
+            Timber.tag(TAG).w(error, "Could not clean up legacy Lossless Scaling container")
+        }
     }
 
     // ---- Helpers -----------------------------------------------------------

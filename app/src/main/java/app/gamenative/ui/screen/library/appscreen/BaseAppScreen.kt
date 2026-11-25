@@ -1,6 +1,10 @@
 package app.gamenative.ui.screen.library.appscreen
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.heightIn
 import android.content.Context
+import com.winlator.container.ContainerManager
 import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.ActivityResultLauncher
@@ -48,6 +52,7 @@ import app.gamenative.ui.component.dialog.LoadingToast
 import app.gamenative.ui.component.dialog.NexusModsDialog
 import app.gamenative.ui.data.AppMenuOption
 import app.gamenative.ui.data.Achievement
+import app.gamenative.ui.component.dialog.GameControllerLayouts
 import app.gamenative.ui.data.GameDisplayInfo
 import app.gamenative.ui.enums.AppOptionMenuType
 import app.gamenative.ui.util.ContainerConfigTransfer
@@ -580,14 +585,22 @@ abstract class BaseAppScreen {
         container: Container?,
         onDismiss: () -> Unit,
     ) {
-        val envVars = remember { mutableStateOf<com.winlator.core.envvars.EnvVars?>(null) }
-        val contents = remember { mutableStateOf<app.gamenative.diagnostics.SupportBundle.BundleContents?>(null) }
+        val contents = remember(libraryItem.appId) { mutableStateOf<app.gamenative.diagnostics.SupportBundle.BundleContents?>(null) }
         val exporting = remember { mutableStateOf(false) }
+        var failure by remember(libraryItem.appId) { mutableStateOf<String?>(null) }
+        var attempt by remember(libraryItem.appId) { mutableIntStateOf(0) }
         val scope = rememberCoroutineScope()
 
-        LaunchedEffect(Unit) {
-            contents.value = withContext(Dispatchers.IO) {
-                app.gamenative.diagnostics.SupportBundle.collect(context, container, envVars.value)
+        LaunchedEffect(libraryItem.appId, attempt) {
+            failure = null
+            try {
+                contents.value = withContext(Dispatchers.IO) {
+                    app.gamenative.diagnostics.SupportBundle.collect(context, container, libraryItem.appId, libraryItem.name)
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                failure = e.localizedMessage ?: e.javaClass.simpleName
             }
         }
 
@@ -596,7 +609,9 @@ abstract class BaseAppScreen {
             title = { Text(stringResource(R.string.support_bundle_title)) },
             text = {
                 val bundle = contents.value
-                if (bundle == null) {
+                if (failure != null) {
+                    Text(stringResource(R.string.support_bundle_error, failure.orEmpty()))
+                } else if (bundle == null) {
                     Text(stringResource(R.string.support_bundle_exporting))
                 } else {
                     Column {
@@ -611,30 +626,37 @@ abstract class BaseAppScreen {
             },
             confirmButton = {
                 TextButton(
-                    enabled = contents.value != null && !exporting.value,
+                    enabled = (contents.value != null || failure != null) && !exporting.value,
                     onClick = {
-                        val bundle = contents.value ?: return@TextButton
+                        val bundle = contents.value
+                        if (bundle == null) {
+                            attempt++
+                            return@TextButton
+                        }
+                        failure = null
                         exporting.value = true
                         scope.launch {
-                            val zip = withContext(Dispatchers.IO) {
-                                val dest = File(
-                                    context.getExternalFilesDir(null),
-                                    "support_bundles/gameplay_support_${libraryItem.appId}.zip",
-                                )
-                                app.gamenative.diagnostics.SupportBundle.export(
-                                    context,
-                                    container,
-                                    envVars.value,
-                                    dest,
-                                )
+                            try {
+                                val zip = withContext(Dispatchers.IO) {
+                                    val dest = File(
+                                        context.getExternalFilesDir(null),
+                                        "support_bundles/gameplay_support_${libraryItem.appId}.zip",
+                                    )
+                                    app.gamenative.diagnostics.SupportBundle.export(bundle, dest)
+                                }
+                                shareSupportBundle(context, zip)
+                                onDismiss()
+                            } catch (e: CancellationException) {
+                                throw e
+                            } catch (e: Exception) {
+                                failure = e.localizedMessage ?: e.javaClass.simpleName
+                            } finally {
+                                exporting.value = false
                             }
-                            exporting.value = false
-                            onDismiss()
-                            shareSupportBundle(context, zip)
                         }
                     },
                 ) {
-                    Text(stringResource(R.string.support_bundle_export))
+                    Text(stringResource(if (failure == null) R.string.support_bundle_export else R.string.support_bundle_retry))
                 }
             },
             dismissButton = {
@@ -1250,6 +1272,7 @@ abstract class BaseAppScreen {
         onClickPlay: (Boolean) -> Unit,
         onTestGraphics: () -> Unit,
         onPlayWithDiagnostics: () -> Unit,
+        onControllerLayouts: () -> Unit,
         exportFrontendLauncher: ActivityResultLauncher<String>,
     ): List<AppMenuOption> {
         val isInstalled = isInstalled(context, libraryItem)
@@ -1259,6 +1282,7 @@ abstract class BaseAppScreen {
         menuOptions.add(getEditContainerOption(context, libraryItem, onEditContainer))
 
         if (isInstalled) {
+            menuOptions.add(AppMenuOption(AppOptionMenuType.ControllerLayouts, onControllerLayouts))
             // Options only available when game is installed
             getRunContainerOption(context, libraryItem, onClickPlay)?.let { menuOptions.add(it) }
             getTestGraphicsOption(context, libraryItem, onTestGraphics)?.let { menuOptions.add(it) }
@@ -1467,10 +1491,10 @@ abstract class BaseAppScreen {
             }
         }
 
-        var showConfigDialog by androidx.compose.runtime.remember {
+        var showConfigDialog by androidx.compose.runtime.remember(appId) {
             androidx.compose.runtime.mutableStateOf(false)
         }
-        var containerData by androidx.compose.runtime.remember {
+        var containerData by androidx.compose.runtime.remember(appId) {
             androidx.compose.runtime.mutableStateOf(ContainerData())
         }
         var containerDataLoaded by remember(libraryItem.appId) { mutableStateOf(false) }
@@ -1478,25 +1502,37 @@ abstract class BaseAppScreen {
             mutableStateOf<ContainerData?>(null)
         }
 
-        val onEditContainer: () -> Unit = {
-            // loadContainerData() reads/parses the container's JSON off disk (and may create it
-            // on first access) — do that off the main thread so opening this dialog doesn't
-            // freeze the screen while it loads.
-            uiScope.launch {
-                val data = withContext(Dispatchers.IO) { loadContainerData(context, libraryItem) }
-                containerData = data
+        var openingConfig by remember(appId) { mutableStateOf(false) }
+        val onEditContainer: () -> Unit = { openingConfig = true }
+
+        LaunchedEffect(appId, openingConfig) {
+            if (!openingConfig) return@LaunchedEffect
+            try {
+                containerData = withContext(Dispatchers.IO) { loadContainerData(context, libraryItem) }
+                containerDataLoaded = true
                 showConfigDialog = true
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                Timber.w(error, "Could not open container settings for %s", appId)
+                SnackbarManager.show(context.getString(R.string.container_settings_load_failed))
+            } finally {
+                openingConfig = false
             }
         }
+        if (openingConfig) {
+            LoadingDialog(visible = true, onDismissRequest = { openingConfig = false },
+                progress = -1f, message = stringResource(R.string.working))
+        }
 
-        LaunchedEffect(libraryItem.appId, isInstalledState) {
-            if (isInstalledState) {
-                containerData = withContext(Dispatchers.IO) {
-                    loadContainerData(context, libraryItem)
-                }
+        LaunchedEffect(appId, isInstalledState) {
+            // Showing the game card may read an existing config, but must never provision a game.
+            val existing = if (isInstalledState) withContext(Dispatchers.IO) {
+                ContainerManager(context).getContainerById(appId)?.let(ContainerUtils::toContainerData)
+            } else null
+            if (existing != null && !openingConfig && !showConfigDialog) {
+                containerData = existing
                 containerDataLoaded = true
-            } else {
-                containerDataLoaded = false
             }
         }
 
@@ -1573,50 +1609,64 @@ abstract class BaseAppScreen {
                 }
         }
 
-        val importConfigLauncher =
-            rememberLauncherForActivityResult(
-                contract = ActivityResultContracts.OpenDocument(),
-            ) { uri ->
-                if (uri == null) {
-                    clearImportConfigRequest(appId)
-                    return@rememberLauncherForActivityResult
-                }
-
-                uiScope.launch {
-                    try {
-                        ContainerConfigTransfer.importConfig(
-                            context = context,
-                            appId = appId,
-                            uri = uri,
-                            onInstallStateChange = { visible, progress, label ->
-                                uiScope.launch(Dispatchers.Main.immediate) {
-                                    if (visible) {
-                                        showKnownConfigInstallState(
-                                            libraryItem.gameId,
-                                            KnownConfigInstallState(
-                                                visible = true,
-                                                progress = progress,
-                                                label = label,
-                                            ),
-                                        )
-                                    } else {
-                                        hideKnownConfigInstallState(libraryItem.gameId)
-                                    }
+        fun applyGameConfig(uri: android.net.Uri? = null, profile: String? = null) {
+            clearImportConfigRequest(appId)
+            uiScope.launch {
+                try {
+                    ContainerConfigTransfer.importConfig(
+                        context = context,
+                        appId = appId,
+                        uri = uri,
+                        bundledProfile = profile,
+                        onInstallStateChange = { visible, progress, label ->
+                            uiScope.launch(Dispatchers.Main.immediate) {
+                                if (visible) {
+                                    showKnownConfigInstallState(
+                                        libraryItem.gameId,
+                                        KnownConfigInstallState(
+                                            visible = true,
+                                            progress = progress,
+                                            label = label,
+                                        ),
+                                    )
+                                } else {
+                                    hideKnownConfigInstallState(libraryItem.gameId)
                                 }
-                            },
-                        )
-                    } finally {
-                        clearImportConfigRequest(appId)
-                    }
+                            }
+                        },
+                    )
+                } finally {
+                    clearImportConfigRequest(appId)
                 }
             }
+        }
 
-        LaunchedEffect(importConfigRequested) {
-            if (importConfigRequested) {
-                importConfigLauncher.launch(
-                    arrayOf("application/json", "text/json", "text/plain"),
-                )
-            }
+        val importConfigLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            if (uri != null) applyGameConfig(uri = uri)
+        }
+
+        if (importConfigRequested) {
+            AlertDialog(
+                onDismissRequest = { clearImportConfigRequest(appId) },
+                title = { Text(stringResource(R.string.game_profiles)) },
+                text = {
+                    Column {
+                        TextButton(onClick = { applyGameConfig(profile = "Mali-DX9-System.json") }) {
+                            Text("Mali DX9 · System")
+                        }
+                        TextButton(onClick = { applyGameConfig(profile = "Neo-Pocket-System-DX9.json") }) {
+                            Text("Neo Pocket DX9 · 3 GB")
+                        }
+                        TextButton(onClick = {
+                            clearImportConfigRequest(appId)
+                            importConfigLauncher.launch(arrayOf("application/json", "text/json", "text/plain"))
+                        }) { Text(stringResource(R.string.import_config)) }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { clearImportConfigRequest(appId) }) { Text(stringResource(R.string.cancel)) }
+                },
+            )
         }
 
         var exportSavesRequested by remember(appId) {
@@ -1718,7 +1768,11 @@ abstract class BaseAppScreen {
                 }
         }
 
-        val optionsMenu = getOptionsMenu(context, libraryItem, onEditContainer, onBack, onClickPlay, onTestGraphics, onPlayWithDiagnostics, exportFrontendLauncher)
+        var openControllerLayouts by remember(appId) { mutableStateOf(false) }
+        if (openControllerLayouts) {
+            GameControllerLayouts(appId, displayInfo.name, onDismiss = { openControllerLayouts = false })
+        }
+        val optionsMenu = getOptionsMenu(context, libraryItem, onEditContainer, onBack, onClickPlay, onTestGraphics, onPlayWithDiagnostics, { openControllerLayouts = true }, exportFrontendLauncher)
 
         // Get download info based on game source for progress tracking
         val downloadInfo = when (libraryItem.gameSource) {
@@ -1797,7 +1851,7 @@ abstract class BaseAppScreen {
             },
             onBack = onBack,
             optionsMenu = optionsMenu,
-            dialogOpen = showConfigDialog || communityConfigsRequested || manageModsRequested,
+            dialogOpen = openControllerLayouts || showConfigDialog || communityConfigsRequested || manageModsRequested,
             otherSources = libraryItem.otherSources,
             isInstalledOnOtherSource = libraryItem.isInstalledOnOtherSource,
             onSourceClick = onSourceClick,
@@ -1949,10 +2003,13 @@ abstract class BaseAppScreen {
                             R.string.best_config_missing_components_message,
                             missingState.components.joinToString("\n"),
                         ),
+                        modifier = Modifier
+                            .heightIn(max = 224.dp)
+                            .verticalScroll(rememberScrollState()),
                     )
                 },
                 confirmButton = {
-                    TextButton(onClick = {
+                    TextButton(modifier = Modifier.heightIn(min = 48.dp), onClick = {
                         hideMissingComponentsDialog(appId)
                     }) {
                         Text(stringResource(R.string.ok))
@@ -1960,7 +2017,7 @@ abstract class BaseAppScreen {
                 },
                 dismissButton = if (missingState.onApplyAnyway != null) {
                     {
-                        TextButton(onClick = {
+                        TextButton(modifier = Modifier.heightIn(min = 48.dp), onClick = {
                             hideMissingComponentsDialog(appId)
                             missingState.onApplyAnyway.invoke()
                         }) {

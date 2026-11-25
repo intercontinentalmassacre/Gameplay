@@ -167,7 +167,7 @@ public abstract class ImageFsInstaller {
                 ContainerManager containerManager = new ContainerManager(context);
 
                 installWineFromDownloads(context);
-                installGuestLibs(context);
+                if (!installGuestLibs(context)) return false;
                 imageFs.createImgVersionFile(LATEST_VERSION);
                 imageFs.createVariantFile(containerVariant);
                 resetContainerImgVersions(context);
@@ -187,17 +187,17 @@ public abstract class ImageFsInstaller {
         });
     }
 
-    private static void installGuestLibs(Context ctx) {
+    private static boolean installGuestLibs(Context ctx) {
         final String ASSET_TAR = "redirect.tzst";          // ➊  add this to assets/
         File imagefs = new File(ctx.getFilesDir(), "imagefs");
         // ➋  Unpack straight into imagefs, preserving relative paths.
         try (InputStream in  = ctx.getAssets().open(ASSET_TAR)) {
-            TarCompressorUtils.extract(
+            if (!TarCompressorUtils.extract(
                     TarCompressorUtils.Type.ZSTD,      // you said .tzst
-                    in, imagefs);                      // helper already exists in the project
+                    in, imagefs)) return false;
         } catch (IOException e) {
             Log.e("ImageFsInstaller", "redirect deploy failed", e);
-            return;
+            return false;
         }
 
         // ➌  Make sure the new libs are world-readable / executable
@@ -221,24 +221,23 @@ public abstract class ImageFsInstaller {
                     }
                 );
 
-                if (extrasFile != null && extrasFile.exists()) {
-                    TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, extrasFile, imagefs);
-                } else {
-                    Log.e("ImageFsInstaller", "Failed to download extras.tzst");
-                    return;
+                if (extrasFile == null || !TarCompressorUtils.extract(
+                        TarCompressorUtils.Type.ZSTD, extrasFile, imagefs)) {
+                    Log.e("ImageFsInstaller", "Failed to install extras.tzst");
+                    return false;
                 }
             } catch (Exception e) {
                 Log.e("ImageFsInstaller", "extras download/extract failed", e);
-                return;
+                return false;
             }
         } else {
             // Legacy variant: use bundled assets
             final String EXTRAS_TAR = "extras.tzst";
             try (InputStream in = ctx.getAssets().open(EXTRAS_TAR)) {
-                TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, in, imagefs);
+                if (!TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, in, imagefs)) return false;
             } catch (IOException e) {
                 Log.e("ImageFsInstaller", "extras deploy failed", e);
-                return;
+                return false;
             }
         }
 
@@ -246,6 +245,7 @@ public abstract class ImageFsInstaller {
         chmod(new File(imagefs, "generate_interfaces_file.exe"));
         chmod(new File(imagefs, "Steamless/Steamless.CLI.exe"));
         chmod(new File(imagefs, "opt/mono-gecko-offline/wine-mono-11.0.0-x86.msi"));
+        return true;
     }
 
     private static void chmod(File f) { if (f.exists()) FileUtils.chmod(f, 0755);}

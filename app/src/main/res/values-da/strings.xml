@@ -14,7 +14,7 @@
     <string name="achievements_unlocked_by_percent">Låst op af %1$.1f%% af spillerne</string>
     <string name="action_add_to_home">Tilføj til startskærm</string>
     <string name="add_custom_game_choose_folder">Vælg eksisterende mappe</string>
-    <string name="add_custom_game_import_exe">Importer bærbar EXE</string>
+    <string name="add_custom_game_import_exe">Importér EXE eller AppImage</string>
     <string name="add_custom_game_install">Installér et spil</string>
     <string name="app_name">Gameplay</string>
     <string name="base_app_images_fetching">Henter billeder...</string>
@@ -442,6 +442,7 @@
 
     <string name="downloads_empty">Ingen aktive downloads</string>
     <string name="downloads_overview_subtitle">Følg aktive, pausede og genoptagelige downloads</string>
+    <string name="library_cancel_download_keep_game_message">Stop download af %1$s? Det installerede spil beholdes.</string>
     <string name="downloads_cancel_confirm">Annuller download og slet filer for %1$s?</string>
     <string name="downloads_cancel_all">Annuller alle</string>
     <string name="downloads_clear_finished">Ryd færdige</string>
@@ -1660,6 +1661,7 @@
     <string name="custom_games_folders_found">%d mapper fundet</string>
     <string name="custom_games_scan_description">Mapper i disse stier scannes for .exe-filer og vises som tilpassede spil.</string>
     <string name="custom_game_folder_picker_error">Kunne ikke løse mappesti</string>
+    <string name="custom_game_folder_add_failed">Mappen kunne ikke tilføjes. Åbn enhedens lager i mappevælgeren, og vælg mappen der.</string>
     <string name="container_config_drive_letter_missing">Drevbogstav mangler</string>
     <string name="container_config_invalid_drive_path">Ugyldig drevsti</string>
     <string name="custom_game_settings">Tilpassede spilindstillinger</string>
@@ -1680,7 +1682,7 @@
     <string name="calculating_space_requirements">Beregner pladskrav...</string>
     <string name="add_custom_game_content_desc">Tilføj tilpasset spil</string>
     <string name="add_custom_game_dialog_title">Tilføj tilpasset spil</string>
-    <string name="add_custom_game_dialog_message">Vælg venligst mappen der indeholder spilfilerne du vil tilføje som et tilpasset spil.</string>
+    <string name="add_custom_game_dialog_message">Vælg en AppImage af type 2 til ARM64 til Linux-spil.</string>
     <string name="custom_game_importing">Importerer spil…</string>
     <string name="custom_game_import_success">Spil importeret</string>
     <string name="custom_game_import_failed">Import mislykkedes</string>
@@ -2464,7 +2466,7 @@
     <string name="local_mod_folder_single">Vælg én mappe ad gangen.</string>
     <string name="local_mod_reselect">Vælg det lokale indhold igen for at fortsætte denne import.</string>
     <string name="local_mod_invalid_request">Anmodningen om import af det lokale mod er ugyldig.</string>
-    <string name="local_mod_too_large">Det valgte indhold overstiger importgrænsen på 20 GiB.</string>
+    <string name="local_mod_too_large">Det valgte indhold overstiger importgrænsen på %1$d GiB.</string>
     <string name="local_mod_uri_payload_too_large">De valgte filreferencer er for store til at blive importeret sammen. Vælg i stedet den mappe, der indeholder dem.</string>
     <string name="local_mod_already_importing">Dette lokale mod importeres allerede.</string>
     <string name="local_mod_import_failed">Det lokale mod kunne ikke importeres.</string>
@@ -2574,4 +2576,6 @@
     <string name="downloads_containers_legacy_unavailable">Containerfiler medfølger i denne build; ingen download nødvendig.</string>
     <string name="downloads_containers_bundled_runtime_description">Medfølgende runtime tilgængelig til containerkonfiguration. Ingen separat download nødvendig.</string>
     <string name="downloads_containers_empty">Ingen containerfiler i denne build</string>
+    <string name="gnaudio_low_latency">GNAudio lav latenstilstand</string>
+    <string name="suspend_behavior_reclaim">Frigør hukommelse og genoptag automatisk</string>
 </resources>

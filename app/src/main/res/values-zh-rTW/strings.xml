@@ -94,6 +94,7 @@
     <!-- Library Tabs -->
     <string name="downloads_empty">目前沒有進行中的下載</string>
     <string name="downloads_overview_subtitle">追蹤進行中、已暫停與可繼續的下載</string>
+    <string name="library_cancel_download_keep_game_message">停止下載 %1$s？已安裝的遊戲將保留。</string>
     <string name="downloads_cancel_confirm">要取消下載並刪除 %1$s 的檔案嗎？</string>
     <string name="downloads_cancel_all">全部取消</string>
     <string name="downloads_clear_finished">清除已完成項目</string>
@@ -177,6 +178,7 @@
     <string name="custom_games_folders_found">找到 %d 個文件夾</string>
     <string name="custom_games_scan_description">將掃描這些路徑中的文件夾中的 .exe 文件並將其列為自定義遊戲, 這可能會減慢應用程序的啟動時間</string>
     <string name="custom_game_folder_picker_error">無法解析文件夾路徑</string>
+    <string name="custom_game_folder_add_failed">無法新增此資料夾。請在資料夾選擇器中開啟裝置儲存空間，然後從那裡選擇該資料夾。</string>
     <string name="container_config_drive_letter_missing">缺少磁碟機代號</string>
     <string name="container_config_invalid_drive_path">磁碟機路徑無效</string>
     <string name="custom_game_settings">自定義遊戲設置</string>
@@ -576,7 +578,7 @@
     <string name="playtime">遊戲時間</string>
     <string name="add_custom_game_content_desc">添加自定義遊戲</string>
     <string name="add_custom_game_dialog_title">添加自定義遊戲</string>
-    <string name="add_custom_game_dialog_message">請選擇包含您要添加為自定義遊戲的遊戲的文件夾</string>
+    <string name="add_custom_game_dialog_message">若要匯入 Linux 遊戲，請選擇適用於 ARM64 的 Type 2 AppImage。</string>
     <string name="custom_game_importing">正在匯入遊戲…</string>
     <string name="custom_game_import_success">遊戲已匯入</string>
     <string name="custom_game_import_failed">匯入失敗</string>
@@ -2208,7 +2210,7 @@
     <string name="local_mod_folder_single">每次請選擇一個資料夾。</string>
     <string name="local_mod_reselect">請重新選擇本機內容以繼續此匯入。</string>
     <string name="local_mod_invalid_request">本機模組匯入要求無效。</string>
-    <string name="local_mod_too_large">所選內容超過 20 GiB 的匯入限制。</string>
+    <string name="local_mod_too_large">所選內容超過 %1$d GiB 的匯入限制。</string>
     <string name="local_mod_uri_payload_too_large">所選檔案參照過大，無法一起匯入。請改為選擇包含這些檔案的資料夾。</string>
     <string name="local_mod_already_importing">此本機模組已在匯入中。</string>
     <string name="local_mod_import_failed">匯入本機模組失敗。</string>
@@ -2245,7 +2247,7 @@
     <string name="achievements_unlocked_by_percent">已有 %1$.1f%% 的玩家解鎖</string>
     <string name="action_add_to_home">新增到主畫面</string>
     <string name="add_custom_game_choose_folder">選擇現有資料夾</string>
-    <string name="add_custom_game_import_exe">匯入可攜式 EXE</string>
+    <string name="add_custom_game_import_exe">匯入 EXE 或 AppImage</string>
     <string name="add_custom_game_install">安裝遊戲</string>
     <string name="base_app_images_fetching">正在取得圖片...</string>
     <string name="compat_preset_applied">已套用</string>
@@ -2578,4 +2580,6 @@
     <string name="downloads_containers_legacy_unavailable">此版本內建容器檔案；無需下載。</string>
     <string name="downloads_containers_bundled_runtime_description">內建的執行環境可用於容器設定。無需另行下載。</string>
     <string name="downloads_containers_empty">此版本中沒有容器檔案</string>
+    <string name="gnaudio_low_latency">GNAudio 低延遲模式</string>
+    <string name="suspend_behavior_reclaim">釋放記憶體並自動繼續</string>
 </resources>

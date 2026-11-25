@@ -4,10 +4,23 @@ import android.content.res.AssetManager
 import com.winlator.core.TarCompressorUtils
 import timber.log.Timber
 import java.io.File
+import java.nio.file.Files
+import java.nio.file.LinkOption
 
 object AssetUtils {
     fun log() : Timber.Tree {
         return Timber.tag("AssetUtils")
+    }
+
+    /** Delete an extracted payload without following symbolic links. */
+    internal fun deleteTree(file: File) {
+        val path = file.toPath()
+        if (Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS)) {
+            file.setWritable(true, true)
+            file.setExecutable(true, true)
+            file.listFiles()?.forEach(::deleteTree)
+        }
+        Files.deleteIfExists(path)
     }
 
     /**

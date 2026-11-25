@@ -4,6 +4,7 @@ import android.app.Application
 import android.hardware.display.DisplayManager
 import android.os.StrictMode
 import android.view.Display
+import app.gamenative.display.GamescopeCommandQueue
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -253,8 +254,11 @@ class PluviaApp : Application() {
                 .onFailure { Timber.e(it, "shutdownEnvironment: releasePointerCapture") }
             runCatching { radialMenuCoordinator?.detach() }
                 .onFailure { Timber.e(it, "shutdownEnvironment: radialMenuCoordinator.detach") }
+            runCatching { (xServerView as? com.winlator.widget.XServerView)?.stopGamescope() }
+                .onFailure { Timber.e(it, "shutdownEnvironment: stopGamescope") }
             runCatching { env?.stopEnvironmentComponents() }
                 .onFailure { Timber.e(it, "shutdownEnvironment: stopEnvironmentComponents") }
+            GamescopeCommandQueue.reset()
 
             xEnvironment = null
             inputControlsView = null
@@ -279,6 +283,19 @@ class PluviaApp : Application() {
         fun isNeverSuspendMode(): Boolean = activeSuspendPolicy.equals(Container.SUSPEND_POLICY_NEVER, ignoreCase = true)
 
         fun isManualSuspendMode(): Boolean = activeSuspendPolicy.equals(Container.SUSPEND_POLICY_MANUAL, ignoreCase = true)
+
+        @JvmStatic
+        fun getDisplayHdrCapabilities(): Display.HdrCapabilities? =
+            runCatching {
+                val manager = instance?.getSystemService(DISPLAY_SERVICE) as? DisplayManager
+                manager?.getDisplay(Display.DEFAULT_DISPLAY)?.hdrCapabilities
+                    ?.takeIf { it.supportedHdrTypes.isNotEmpty() }
+            }.onFailure { Timber.w(it, "Unable to detect HDR capabilities") }.getOrNull()
+
+        /** The full panel geometry in landscape order for Gamescope's device resolution. */
+        @JvmStatic
+        fun getNativeDisplaySize(): String? =
+            getPhysicalDisplaySize()?.let { (width, height) -> "${width}x$height" }
 
         /** Returns full physical display dimensions in landscape order, independent of split-screen bounds. */
         @JvmStatic

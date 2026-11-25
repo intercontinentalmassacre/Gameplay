@@ -1,5 +1,18 @@
 # Component catalog sources
 
+## Importable game profiles
+
+| Profile | Intended use |
+| --- | --- |
+| [Mali DX9 · System](profiles/Mali-DX9-System.json) | DirectX 9 games on Mali with the Android system driver, Bionic, Proton 11 ARM64EC and bundled DXVK-Sarek 1.11.1. The game keeps its own resolution, frame limit and memory budget. |
+| [Neo Pocket System DX9 · 3 GB](profiles/Neo-Pocket-System-DX9.json) | Pocket-specific settings for 640×480, a 30 FPS target and a 256 MB DXVK memory budget. Uses the [Pocket DXVK component](profiles/Pocket-System-DX9.wcp) with the 32-bit D3D9 library tested with Batman: Arkham Asylum GOTY. |
+
+In builds with the **Game profiles** menu, select a game, open its options and choose **Game profiles**. Select **Mali DX9 · System** or **Neo Pocket DX9 · 3 GB**. Both presets are packaged with the app. Selecting the Pocket preset also installs its bundled DXVK component if needed.
+
+For builds with only the file importer, download the JSON and select **Import Config** in the game's menu. For the Pocket profile, install its DXVK component first if it is missing. In **Edit Container**, select X11 and, for the Pocket profile, 640×480. The current JSON importer leaves those two settings at their existing values.
+
+## Component manifest
+
 `manifest.json` is generated. Do not edit it directly.
 
 Edit the typed source files in this directory, then run:

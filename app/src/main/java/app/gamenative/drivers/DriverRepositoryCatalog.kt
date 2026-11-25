@@ -1,5 +1,10 @@
 package app.gamenative.drivers
 
+import android.content.Context
+import app.gamenative.utils.ManifestContentTypes
+import app.gamenative.utils.ManifestEntry
+import app.gamenative.utils.ManifestInstaller
+import app.gamenative.utils.ManifestRepository
 import app.gamenative.utils.Net
 import java.io.File
 import java.io.FileOutputStream
@@ -32,7 +37,10 @@ data class RemoteDriverPackage(
     val downloadUrl: String,
     val sizeBytes: Long,
     val repositoryName: String,
-)
+    val catalogEntry: ManifestEntry? = null,
+) {
+    val installedId: String get() = catalogEntry?.id ?: fileName
+}
 
 /**
  * Trusted driver sources shipped with Gameplay.
@@ -90,6 +98,30 @@ object DriverRepositoryCatalog {
             category = DriverCategory.ADRENO_PACKAGED,
             targets = setOf(AdrenoTarget.A6XX, AdrenoTarget.A7XX, AdrenoTarget.A8XX, AdrenoTarget.GENERIC),
         ),
+        DriverRepository(
+            id = "bmdhacks-mali",
+            name = "MaliSX2",
+            apiUrl = "https://api.github.com/repos/bmdhacks/malisx2/releases",
+            description = "MaliSX2 Vulkan driver for Arm Mali.",
+            category = DriverCategory.MALI,
+            targets = setOf(AdrenoTarget.MALI),
+        ),
+        DriverRepository(
+            id = "fristonerr-mali",
+            name = "FristOneRR PanVK",
+            apiUrl = "https://api.github.com/repos/FristOneRR/FristOneRR-Panvk-Driver/releases",
+            description = "FristOneRR PanVK Vulkan driver for Arm Mali.",
+            category = DriverCategory.MALI,
+            targets = setOf(AdrenoTarget.MALI),
+        ),
+        DriverRepository(
+            id = "minegraph-bilibili-mali",
+            name = "MineGraph PanVK",
+            apiUrl = "https://api.github.com/repos/MineGraph-bilibili/panvk-Android/releases",
+            description = "MineGraph PanVK Vulkan driver for Arm Mali.",
+            category = DriverCategory.MALI,
+            targets = setOf(AdrenoTarget.MALI),
+        ),
     )
 
     val categories: List<DriverCategory> = DriverCategory.entries.sortedBy { it.sortOrder }
@@ -98,10 +130,30 @@ object DriverRepositoryCatalog {
         trustedRepositories.filter { it.category == category }
 
     fun repositoriesForTarget(target: AdrenoTarget): List<DriverRepository> =
-        trustedRepositories.filter { target in it.targets || AdrenoTarget.GENERIC in it.targets }
+        trustedRepositories.filter { supportsTarget(it, target) }
 
-    suspend fun fetchPackages(repository: DriverRepository): List<RemoteDriverPackage> =
+    fun supportsTarget(repository: DriverRepository, target: AdrenoTarget): Boolean =
+        target in repository.targets || (target != AdrenoTarget.MALI && AdrenoTarget.GENERIC in repository.targets)
+
+    suspend fun fetchPackages(context: Context, repository: DriverRepository): List<RemoteDriverPackage> =
         withContext(Dispatchers.IO) {
+            if (repository.category == DriverCategory.MALI) {
+                val entries = ManifestRepository.readLocalManifest(context)?.items?.get(ManifestContentTypes.DRIVER).orEmpty()
+                return@withContext entries.filter {
+                    val repo = it.sourceRepository?.removePrefix("https://github.com/")
+                    repo != null && repository.apiUrl == "https://api.github.com/repos/$repo/releases"
+                }.map { entry ->
+                    RemoteDriverPackage(
+                        id = entry.id,
+                        displayName = entry.name,
+                        fileName = entry.url.substringAfterLast('/'),
+                        downloadUrl = entry.url,
+                        sizeBytes = entry.sizeBytes ?: -1L,
+                        repositoryName = repository.name,
+                        catalogEntry = entry,
+                    )
+                }
+            }
             val request = Request.Builder()
                 .url(repository.apiUrl)
                 .header("Accept", "application/vnd.github+json")
@@ -189,5 +241,7 @@ object DriverRepositoryCatalog {
                 }
             }
         }
+        driverPackage.catalogEntry?.let { ManifestInstaller.validateDownloadedArtifact(destination, it) }
+        Unit
     }
 }

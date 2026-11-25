@@ -1,8 +1,10 @@
-name: Pull Request build check
+name: Gameplay build check
 
 on:
+  push:
+    branches: [ "working-builds" ]
   pull_request:
-    branches: [ "master" ]
+    branches: [ "working-builds" ]
     paths-ignore:
       - '**.md'
       - '.gitignore'
@@ -59,11 +61,29 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
       - name: Run unit tests
-        run: ./gradlew :app:testLegacyDebugUnitTest :app:testModernDebugUnitTest
+        id: unit_tests
+        env:
+          JAVA_TOOL_OPTIONS: -Drobolectric.dependency.repo.url=https://repo.maven.apache.org/maven2
+        run: ./gradlew :app:testLegacyDebugUnitTest :app:testModernDebugUnitTest --continue
+      - name: Upload failed unit test reports
+        if: failure() && steps.unit_tests.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-unit-test-reports
+          path: app/build/test-results/test*UnitTest/TEST-*.xml
       - name: Assemble legacy debug
         run: ./gradlew :app:assembleLegacyDebug
       - name: Assemble modern debug
         run: ./gradlew :app:assembleModernDebug
+      - name: Upload debug APKs
+        if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+        uses: actions/upload-artifact@v4
+        with:
+          name: gameplay-debug-apks
+          path: |
+            app/build/outputs/apk/legacy/debug/*.apk
+            app/build/outputs/apk/modern/debug/*.apk
+          if-no-files-found: error
       - name: Lint legacy debug
         continue-on-error: true
         run: ./gradlew :app:lintLegacyDebug

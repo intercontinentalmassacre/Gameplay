@@ -14,12 +14,14 @@ import app.gamenative.enums.Marker
 import app.gamenative.enums.SpecialGameSaveMapping
 import app.gamenative.enums.SteamRealm
 import app.gamenative.events.SteamEvent
+import app.gamenative.gamefixes.withDragonsDogma2LaunchFix
 import app.gamenative.service.SteamService
 import app.gamenative.service.SteamService.Companion.getAppDirName
 import app.gamenative.service.SteamService.Companion.getAppInfoOf
 import app.gamenative.ui.component.TIMEOUT_SHOW_OFFLINE_OPTION_SECONDS
 import app.gamenative.workshop.compatibility.SlayTheSpireModTheSpireCompatibility
 import com.winlator.container.Container
+import com.winlator.core.FileUtils as WineFileUtils
 import com.winlator.core.TarCompressorUtils
 import com.winlator.core.WineRegistryEditor
 import com.winlator.xenvironment.ImageFs
@@ -32,6 +34,7 @@ import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
 import java.nio.file.Files
+import java.nio.file.LinkOption.NOFOLLOW_LINKS
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.nio.file.StandardCopyOption
@@ -535,7 +538,7 @@ object SteamUtils {
 
         return ColdClientLaunchConfig(
             executablePath = sanitizedExecutablePath,
-            exeCommandLine = sanitizedExeCommandLine,
+            exeCommandLine = withDragonsDogma2LaunchFix(steamAppId, sanitizedExeCommandLine),
         )
     }
 
@@ -688,34 +691,26 @@ object SteamUtils {
      */
     private fun restoreUnpackedExecutable(context: Context, steamAppId: Int) {
         try {
-            val imageFs = ImageFs.find(context)
-            val appDirPath = SteamService.getAppDirPath(steamAppId)
-
-            // Convert to Wine path format
+            val appDir = executableRestoreRoot(steamAppId) ?: return
             val container = ContainerUtils.getContainer(context, "STEAM_$steamAppId")
-            val executablePath = container.executablePath
-            val drives = container.drives
-            val driveIndex = drives.indexOf(appDirPath)
-            val drive = if (driveIndex > 1) {
-                drives[driveIndex - 2]
-            } else {
-                Timber.e("Could not locate game drive")
-                'D'
-            }
-            val executableFile = "$drive:\\${executablePath}"
+            val executablePath = container.executablePath.removeSurrounding("\"").replace('\\', '/')
+            if (executablePath.isBlank() || executablePath.startsWith('/') || executablePath.getOrNull(1) == ':') return
+            val relativeExe = appDir.resolve(executablePath).normalize()
+            if (relativeExe == appDir || !relativeExe.startsWith(appDir)) return
+            val parent = relativeExe.parent.toRealPath()
+            if (!parent.startsWith(appDir)) return
 
-            val exe = File(imageFs.wineprefix + "/dosdevices/" + executableFile.replace("A:", "a:").replace('\\', '/'))
-            val unpackedExe = File(imageFs.wineprefix + "/dosdevices/" + executableFile.replace("A:", "a:").replace('\\', '/') + ".unpacked.exe")
+            val exe = parent.resolve(relativeExe.fileName)
+            val unpackedExe = parent.resolve("${exe.fileName}.unpacked.exe")
 
-            if (unpackedExe.exists()) {
-                // Check if files are different (compare size and last modified time for efficiency)
-                val areFilesDifferent = !exe.exists() ||
-                    exe.length() != unpackedExe.length() ||
-                    exe.lastModified() != unpackedExe.lastModified()
+            if (Files.isRegularFile(unpackedExe, NOFOLLOW_LINKS) &&
+                (!Files.exists(exe, NOFOLLOW_LINKS) || Files.isRegularFile(exe, NOFOLLOW_LINKS))
+            ) {
+                val areFilesDifferent = !WineFileUtils.contentEquals(exe.toFile(), unpackedExe.toFile())
 
                 if (areFilesDifferent) {
-                    Files.copy(unpackedExe.toPath(), exe.toPath(), StandardCopyOption.REPLACE_EXISTING)
-                    Timber.i("Restored unpacked executable from ${unpackedExe.name} to ${exe.name}")
+                    Files.copy(unpackedExe, exe, NOFOLLOW_LINKS, StandardCopyOption.REPLACE_EXISTING)
+                    Timber.i("Restored unpacked executable from ${unpackedExe.fileName} to ${exe.fileName}")
                 } else {
                     Timber.i("Unpacked executable is already current, no restore needed")
                 }
@@ -868,9 +863,11 @@ object SteamUtils {
         }
     }
 
-    private fun escapeString(input: String?): String {
+    internal fun escapeString(input: String?): String {
         if (input == null) return ""
-        return input.replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r")
+        // Backslash first: KeyValues text treats it as the escape character, so a CheckGuid path like
+        // Binaries\Win32\XComGame.exe must be written Binaries\\Win32\\XComGame.exe, as Steam writes it.
+        return input.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r")
     }
 
     private fun calculateDirectorySize(directory: File): Long {
@@ -910,7 +907,8 @@ object SteamUtils {
         }
 
         // Update or modify localconfig.vdf
-        updateOrModifyLocalConfig(imageFs, container, steamAppId.toString(), SteamService.userSteamId!!.accountID.toString())
+        val accountId = getSteam3AccountId()?.toString()
+        accountId?.let { updateOrModifyLocalConfig(imageFs, container, steamAppId.toString(), it) }
 
         skipFirstTimeSteamSetup(imageFs.rootDir)
         val appDirPath = SteamService.getAppDirPath(steamAppId)
@@ -922,14 +920,14 @@ object SteamUtils {
         Timber.i("Checking directory: $appDirPath")
 
         autoLoginUserChanges(imageFs)
-        setupLightweightSteamConfig(imageFs, SteamService.userSteamId!!.accountID.toString())
+        accountId?.let { setupLightweightSteamConfig(imageFs, it) }
 
         putBackSteamDlls(appDirPath)
 
         Timber.i("Finished restoreSteamApi for appId: ${appId}")
 
         // Restore original executable if it exists (real Steam + bionic Steam)
-        restoreOriginalExecutable(context, steamAppId)
+        restoreOriginalExecutable(steamAppId)
 
         // Restore original steamclient.dll files if they exist
         restoreSteamclientFiles(context, steamAppId)
@@ -1006,30 +1004,29 @@ object SteamUtils {
      * Restores the original executable files from their .original.exe backups
      * if they exist. Does not error if backup files are not found.
      */
-    fun restoreOriginalExecutable(context: Context, steamAppId: Int) {
+    fun restoreOriginalExecutable(steamAppId: Int) {
         Timber.i("Starting restoreOriginalExecutable for appId: $steamAppId")
-        val appDirPath = SteamService.getAppDirPath(steamAppId)
-        Timber.i("Checking directory: $appDirPath")
+        val appDir = executableRestoreRoot(steamAppId)?.toFile() ?: return
+        Timber.i("Checking directory: $appDir")
         var restoredCount = 0
 
-        val imageFs = ImageFs.find(context)
-        val dosDevicesPath = File(imageFs.wineprefix, "dosdevices/a:")
-
-        dosDevicesPath.walkTopDown().maxDepth(10)
-            .filter { it.isFile && it.name.endsWith(".original.exe", ignoreCase = true) }
+        val suffix = ".original.exe"
+        appDir.walkTopDown().maxDepth(10)
+            .onEnter { !Files.isSymbolicLink(it.toPath()) }
+            .filter {
+                it.name.length > suffix.length && it.name.endsWith(suffix, ignoreCase = true) &&
+                    Files.isRegularFile(it.toPath(), NOFOLLOW_LINKS)
+            }
             .forEach { file ->
                 try {
                     val origPath = file.toPath()
-                    val originalPath = origPath.parent.resolve(origPath.name.removeSuffix(".original.exe"))
+                    val originalPath = origPath.resolveSibling(file.name.dropLast(suffix.length))
+                    if (Files.exists(originalPath, NOFOLLOW_LINKS) && !Files.isRegularFile(originalPath, NOFOLLOW_LINKS)) {
+                        return@forEach
+                    }
                     Timber.i("Found ${origPath.name} at ${origPath.absolutePathString()}, restoring...")
 
-                    // Delete the current exe if it exists
-                    if (Files.exists(originalPath)) {
-                        Files.delete(originalPath)
-                    }
-
-                    // Copy the backup back to the original location
-                    Files.copy(origPath, originalPath)
+                    Files.copy(origPath, originalPath, NOFOLLOW_LINKS, StandardCopyOption.REPLACE_EXISTING)
 
                     Timber.i("Restored ${originalPath.fileName} from backup")
                     restoredCount++
@@ -1039,6 +1036,22 @@ object SteamUtils {
             }
 
         Timber.i("Finished restoreOriginalExecutable for appId: $steamAppId. Restored $restoredCount executable(s)")
+    }
+
+    private fun executableRestoreRoot(steamAppId: Int): Path? {
+        val appDir = SteamService.getAppDirPath(steamAppId).takeIf(String::isNotBlank) ?: return null
+        val root = try {
+            Paths.get(appDir).toRealPath()
+        } catch (e: IOException) {
+            Timber.w(e, "Cannot resolve the executable restore directory for appId: $steamAppId")
+            return null
+        }
+        // Missing app metadata can make getAppDirPath fall back to the whole Steam library.
+        if (!Files.isDirectory(root) || SteamService.allInstallPaths.any { installPath ->
+                runCatching { Files.isSameFile(root, Paths.get(installPath)) }.getOrDefault(false)
+            }
+        ) return null
+        return root
     }
 
     /**

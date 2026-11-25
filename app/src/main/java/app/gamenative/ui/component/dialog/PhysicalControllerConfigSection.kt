@@ -1,11 +1,17 @@
 package app.gamenative.ui.component.dialog
 
+import android.content.Context
 import android.util.Log
 import android.view.KeyEvent
 import android.view.MotionEvent
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -15,7 +21,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -23,13 +32,21 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import app.gamenative.R
 import app.gamenative.externaldisplay.DsHomeSecondScreen
+import app.gamenative.ui.component.ConsoleIconButton
 import app.gamenative.ui.component.GamepadButton
 import app.gamenative.ui.component.GamepadHint
+import app.gamenative.ui.component.focusRing
 import app.gamenative.ui.gcds.GcdsAdaptiveCategoryLayout
+import app.gamenative.ui.theme.PluviaTheme
 import app.gamenative.utils.rememberHasExternalDisplay
 import com.winlator.inputcontrols.Binding
 import com.winlator.inputcontrols.ControlsProfile
 import com.winlator.inputcontrols.ExternalControllerBinding
+import java.io.File
+import org.json.JSONObject
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Data classes for controller configuration
@@ -48,8 +65,12 @@ private data class AnalogConfig(val label: String, val axis: Int, val sign: Int)
 internal fun PhysicalControllerConfigSection(
     profile: ControlsProfile,
     onDismiss: () -> Unit,
-    onSave: () -> Unit,
+    resolveSaveProfile: () -> ControlsProfile?,
+    onSave: (ControlsProfile) -> Unit,
     embedded: Boolean = false,
+    layoutsOnly: Boolean = false,
+    steamAppId: Int? = null,
+    gameName: String = "",
 ) {
     val hasExternalDisplay = rememberHasExternalDisplay()
     val alreadyOnSecondScreen = LocalSecondScreenDialogWindowType.current != null
@@ -58,8 +79,12 @@ internal fun PhysicalControllerConfigSection(
             PhysicalControllerConfigSection(
                 profile = profile,
                 onDismiss = onDismiss,
+                resolveSaveProfile = resolveSaveProfile,
                 onSave = onSave,
                 embedded = true,
+                layoutsOnly = layoutsOnly,
+                steamAppId = steamAppId,
+                gameName = gameName,
             )
         }
         SideEffect {
@@ -80,78 +105,75 @@ internal fun PhysicalControllerConfigSection(
 
     val context = LocalContext.current
 
-    // Ensure a wildcard controller exists for all physical controllers
-    val controller = remember {
-        var ctrl = profile.getController("*")
-        if (ctrl == null) {
-            Log.d("gncontrol", "=== Physical Controller Init: Creating wildcard controller for profile: ${profile.name} (ID: ${profile.id}) ===")
-            ctrl = profile.addController("*")
-
-            // Copy default bindings from the Physical Controller Default profile (ID 0)
-            val manager = com.winlator.inputcontrols.InputControlsManager(context)
-            val defaultProfile = manager.getProfile(0)
-            if (defaultProfile != null) {
-                Log.d("gncontrol", "Loading defaults from profile: ${defaultProfile.name} (ID: ${defaultProfile.id})")
-                val defaultControllers = defaultProfile.getControllers()
-                if (defaultControllers.isNotEmpty()) {
-                    val defaultController = defaultControllers[0]
-                    val bindingCount = defaultController.getControllerBindings().size
-                    Log.d("gncontrol", "Copying $bindingCount default controller bindings from ${defaultProfile.name}")
-                    for (binding in defaultController.getControllerBindings()) {
-                        val newBinding = ExternalControllerBinding()
-                        newBinding.setKeyCode(binding.getKeyCodeForAxis())
-                        newBinding.setBinding(binding.getBinding())
-                        ctrl.addControllerBinding(newBinding)
+    val defaultProfile = remember(context) { readPhysicalControllerDefaults(context) }
+    val defaultBindings = remember(defaultProfile) {
+        defaultProfile?.optJSONArray("controllers")
+            ?.optJSONObject(0)
+            ?.optJSONArray("controllerBindings")
+            ?.let { bindings ->
+                buildMap {
+                    for (index in 0 until bindings.length()) {
+                        val entry = bindings.optJSONObject(index) ?: continue
+                        val keyCode = entry.optInt("keyCode", Int.MIN_VALUE)
+                        val binding = entry.optString("binding")
+                        if (keyCode != Int.MIN_VALUE && binding.isNotBlank()) {
+                            put(keyCode, Binding.fromString(binding))
+                        }
                     }
-
-                    // Ensure Home/Guide/PS button is always set to OPEN_NAVIGATION_MENU
-                    val homeButtonBinding = ExternalControllerBinding()
-                    homeButtonBinding.setKeyCode(KeyEvent.KEYCODE_BUTTON_MODE)
-                    homeButtonBinding.setBinding(com.winlator.inputcontrols.Binding.OPEN_NAVIGATION_MENU)
-                    // Remove any existing home button binding first
-                    val existingHomeBinding = ctrl.getControllerBindings().find {
-                        it.getKeyCodeForAxis() == KeyEvent.KEYCODE_BUTTON_MODE
-                    }
-                    if (existingHomeBinding != null) {
-                        ctrl.removeControllerBinding(existingHomeBinding)
-                    }
-                    ctrl.addControllerBinding(homeButtonBinding)
-                    Log.d("gncontrol", "Set Home button (KEYCODE_BUTTON_MODE) to OPEN_NAVIGATION_MENU")
-                } else {
-                    Log.w("gncontrol", "No controllers found in default profile ${defaultProfile.name}")
+                    put(KeyEvent.KEYCODE_BUTTON_MODE, Binding.OPEN_NAVIGATION_MENU)
                 }
-
-                // Copy on-screen elements from default profile if current profile has empty/NONE elements
-                copyElementsIfNeeded(context, profile, defaultProfile)
+            }.orEmpty()
+    }
+    val workingBindings = remember(profile, defaultBindings) {
+        val controller = profile.getController("*")
+        mutableStateMapOf<Int, Binding?>().apply {
+            if (controller != null) {
+                controller.getControllerBindings().forEach {
+                    put(it.getKeyCodeForAxis(), it.getBinding())
+                }
             } else {
-                Log.w("gncontrol", "Default profile 0 not found, wildcard controller will be empty")
+                putAll(defaultBindings)
             }
-
-            profile.save()
         }
-        ctrl
     }
 
-    // Create a snapshot of original bindings for cancel behavior
-    val originalBindings = remember {
-        controller?.getControllerBindings()?.map {
-            it.getKeyCodeForAxis() to it.getBinding()
-        }?.toMap() ?: emptyMap()
+    fun saveBindings(bindings: Map<Int, Binding?>) {
+        val target = resolveSaveProfile() ?: return
+        val controller = target.getController("*") ?: target.addController("*")
+        controller.getControllerBindings().toList().forEach(controller::removeControllerBinding)
+        bindings.forEach { (keyCode, binding) ->
+            if (binding != null) {
+                val newBinding = ExternalControllerBinding()
+                newBinding.setKeyCode(keyCode)
+                newBinding.setBinding(binding)
+                controller.addControllerBinding(newBinding)
+            }
+        }
+        if (!layoutsOnly) defaultProfile?.let { copyElementsIfNeeded(context, target, it) }
+        target.save()
+        onSave(target)
     }
 
-    // Working copy of bindings (memory only until Save is clicked)
-    val workingBindings = remember { mutableStateMapOf<Int, com.winlator.inputcontrols.Binding?>() }
-
-    // Initialize working copy with current bindings
-    LaunchedEffect(controller) {
-        controller?.getControllerBindings()?.forEach {
-            workingBindings[it.getKeyCodeForAxis()] = it.getBinding()
-        }
+    if (layoutsOnly) {
+        if (embedded) BackHandler(onBack = onDismiss)
+        PhysicalControllerLayoutPicker(gameName, steamAppId, embedded, workingBindings, defaultBindings, ::saveBindings, onDismiss)
+        return
     }
 
     var selectedCategory by remember { mutableStateOf(0) } // 0 = Face, 1 = Shoulder, 2 = Menu, 3 = Thumbstick, 4 = Left Stick, 5 = Right Stick, 6 = D-Pad
     var showBindingDialog by remember { mutableStateOf<Pair<Int, String>?>(null) }
-    var refreshKey by remember { mutableIntStateOf(0) }
+    val rowFocusRequesters = remember { mutableMapOf<Int, FocusRequester>() }
+    val editorScrollState = rememberScrollState()
+    var bindingRowFocus by remember { mutableStateOf<FocusRequester?>(null) }
+
+    fun rowFocusRequester(keyCode: Int): FocusRequester = rowFocusRequesters.getOrPut(keyCode) {
+        FocusRequester()
+    }
+
+    fun openBinding(keyCode: Int, label: String) {
+        bindingRowFocus = rowFocusRequester(keyCode)
+        showBindingDialog = keyCode to label
+    }
 
     // Pre-compute all button configurations
     // Face buttons
@@ -221,31 +243,30 @@ internal fun PhysicalControllerConfigSection(
         )
     }
 
-    Dialog(
-        onDismissRequest = {
-            // Cancel: Restore original bindings
-            controller?.let { ctrl ->
-                val existingBindings = ctrl.getControllerBindings().toList()
-                for (binding in existingBindings) {
-                    ctrl.removeControllerBinding(binding)
-                }
-                for ((keyCode, binding) in originalBindings) {
-                    val newBinding = ExternalControllerBinding()
-                    newBinding.setKeyCode(keyCode)
-                    newBinding.setBinding(binding)
-                    ctrl.addControllerBinding(newBinding)
+    val renderInline = embedded || alreadyOnSecondScreen
+    val dismissPicker = { showBindingDialog = null }
+    if (renderInline) {
+        BackHandler {
+            if (showBindingDialog == null) onDismiss() else dismissPicker()
+        }
+    }
+
+    val editorContent: @Composable () -> Unit = {
+        val windowInfo = LocalWindowInfo.current
+        LaunchedEffect(showBindingDialog) {
+            if (showBindingDialog != null) return@LaunchedEffect
+            val requester = bindingRowFocus ?: if (renderInline) rowFocusRequester(KeyEvent.KEYCODE_BUTTON_A) else return@LaunchedEffect
+            if (!renderInline) {
+                withTimeoutOrNull(2_000) {
+                    snapshotFlow { windowInfo.isWindowFocused }.first { it }
                 }
             }
-            onDismiss()
-        },
-        properties = secondScreenDialogProperties(
-            DialogProperties(
-                usePlatformDefaultWidth = false,
-                dismissOnBackPress = true,
-                dismissOnClickOutside = false,
-            ),
-        )
-    ) {
+            repeat(8) {
+                if (runCatching { requester.requestFocus() }.getOrDefault(false)) return@LaunchedEffect
+                delay(32)
+            }
+        }
+
         Scaffold(
             modifier = Modifier.fillMaxSize(),
             topBar = {
@@ -258,83 +279,31 @@ internal fun PhysicalControllerConfigSection(
                         )
                     },
                     navigationIcon = {
-                        IconButton(onClick = {
-                            // Cancel: Restore original bindings
-                            controller?.let { ctrl ->
-                                val existingBindings = ctrl.getControllerBindings().toList()
-                                for (binding in existingBindings) {
-                                    ctrl.removeControllerBinding(binding)
-                                }
-                                for ((keyCode, binding) in originalBindings) {
-                                    val newBinding = ExternalControllerBinding()
-                                    newBinding.setKeyCode(keyCode)
-                                    newBinding.setBinding(binding)
-                                    ctrl.addControllerBinding(newBinding)
-                                }
-                            }
-                            onDismiss()
-                        }) {
-                            Icon(Icons.Default.Close, null)
-                        }
+                        ConsoleIconButton(
+                            onClick = onDismiss,
+                            icon = Icons.Default.Close,
+                            contentDescription = stringResource(R.string.close),
+                        )
                     },
                     actions = {
                         // Reset button
-                        IconButton(onClick = {
-                            Log.d("gncontrol", "=== Reset: Resetting controller bindings ===")
-                            workingBindings.clear()
+                        ConsoleIconButton(
+                            icon = Icons.Default.Refresh,
+                            contentDescription = stringResource(R.string.reset_to_default_bindings),
+                            onClick = {
+                                workingBindings.clear()
+                                workingBindings.putAll(defaultBindings)
+                                workingBindings[KeyEvent.KEYCODE_BUTTON_MODE] = Binding.OPEN_NAVIGATION_MENU
+                            },
+                        )
 
-                            val manager = com.winlator.inputcontrols.InputControlsManager(context)
-                            val defaultProfile = manager.getProfile(0)
-                            if (defaultProfile != null) {
-                                val defaultControllers = defaultProfile.getControllers()
-                                if (defaultControllers.isNotEmpty()) {
-                                    val defaultController = defaultControllers[0]
-                                    for (binding in defaultController.getControllerBindings()) {
-                                        workingBindings[binding.getKeyCodeForAxis()] = binding.getBinding()
-                                    }
-                                }
-                            }
-
-                            // Ensure Home/Guide/PS button is always set to OPEN_NAVIGATION_MENU
-                            workingBindings[KeyEvent.KEYCODE_BUTTON_MODE] = com.winlator.inputcontrols.Binding.OPEN_NAVIGATION_MENU
-                            Log.d("gncontrol", "Set Home button (KEYCODE_BUTTON_MODE) to OPEN_NAVIGATION_MENU")
-
-                            refreshKey++
-                        }) {
-                            Icon(Icons.Default.Refresh, null)
-                        }
-
-                        // Save button
-                        IconButton(onClick = {
-                            Log.d("gncontrol", "=== Save: Applying ${workingBindings.size} bindings ===")
-                            controller?.let { ctrl ->
-                                val existingBindings = ctrl.getControllerBindings().toList()
-                                for (binding in existingBindings) {
-                                    ctrl.removeControllerBinding(binding)
-                                }
-
-                                for ((keyCode, binding) in workingBindings) {
-                                    if (binding != null) {
-                                        val newBinding = ExternalControllerBinding()
-                                        newBinding.setKeyCode(keyCode)
-                                        newBinding.setBinding(binding)
-                                        ctrl.addControllerBinding(newBinding)
-                                    }
-                                }
-
-                                val manager = com.winlator.inputcontrols.InputControlsManager(context)
-                                val defaultProfile = manager.getProfile(0)
-                                if (defaultProfile != null) {
-                                    copyElementsIfNeeded(context, profile, defaultProfile)
-                                }
-
-                                profile.save()
-                                Log.d("gncontrol", "Saved profile ${profile.name}")
-                            }
-                            onSave()
-                        }) {
-                            Icon(Icons.Default.Save, null)
-                        }
+                        ConsoleIconButton(
+                            icon = Icons.Default.Save,
+                            contentDescription = stringResource(R.string.save),
+                            onClick = {
+                                saveBindings(workingBindings)
+                            },
+                        )
                     }
                 )
             }
@@ -370,147 +339,150 @@ internal fun PhysicalControllerConfigSection(
                         GamepadHint(GamepadButton.B, R.string.back),
                     ),
                     railWidth = 220.dp,
+                    requestInitialFocus = !renderInline && bindingRowFocus == null,
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(horizontal = 12.dp),
                 ) {
-                    key(refreshKey) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .verticalScroll(rememberScrollState())
-                                .padding(horizontal = 12.dp, vertical = 8.dp),
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            when (selectedCategory) {
-                                0 -> {
-                                    // Face Buttons
-                                    faceButtons.forEach { buttonConfig ->
-                                        ControllerBindingItem(
-                                            label = buttonConfig.label,
-                                            keyCode = buttonConfig.keyCode,
-                                            workingBindings = workingBindings,
-                                            onClick = {
-                                                showBindingDialog = Pair(buttonConfig.keyCode, buttonConfig.label)
-                                            }
-                                        )
-                                    }
-                                }
-                                1 -> {
-                                    // Shoulder Buttons
-                                    shoulderButtons.forEach { buttonConfig ->
-                                        ControllerBindingItem(
-                                            label = buttonConfig.label,
-                                            keyCode = buttonConfig.keyCode,
-                                            workingBindings = workingBindings,
-                                            onClick = {
-                                                showBindingDialog = Pair(buttonConfig.keyCode, buttonConfig.label)
-                                            }
-                                        )
-                                    }
-                                }
-                                2 -> {
-                                    // Menu Buttons
-                                    menuButtons.forEach { buttonConfig ->
-                                        ControllerBindingItem(
-                                            label = buttonConfig.label,
-                                            keyCode = buttonConfig.keyCode,
-                                            workingBindings = workingBindings,
-                                            onClick = {
-                                                showBindingDialog = Pair(buttonConfig.keyCode, buttonConfig.label)
-                                            }
-                                        )
-                                    }
-                                }
-                                3 -> {
-                                    // Thumbstick Buttons
-                                    thumbstickButtons.forEach { buttonConfig ->
-                                        ControllerBindingItem(
-                                            label = buttonConfig.label,
-                                            keyCode = buttonConfig.keyCode,
-                                            workingBindings = workingBindings,
-                                            onClick = {
-                                                showBindingDialog = Pair(buttonConfig.keyCode, buttonConfig.label)
-                                            }
-                                        )
-                                    }
-                                }
-                                4 -> {
-                                    // Left Stick - Quick Presets
-                                    PhysicalControlPresets(
-                                        presetType = PhysicalPresetTarget.LEFT_STICK,
-                                        leftStickAxes = leftStickAxes,
-                                        rightStickAxes = rightStickAxes,
-                                        dpadButtons = dpadButtons,
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(editorScrollState)
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        when (selectedCategory) {
+                            0 -> {
+                                // Face Buttons
+                                faceButtons.forEach { buttonConfig ->
+                                    ControllerBindingItem(
+                                        label = buttonConfig.label,
+                                        keyCode = buttonConfig.keyCode,
+                                        focusRequester = rowFocusRequester(buttonConfig.keyCode),
                                         workingBindings = workingBindings,
-                                        onPresetsApplied = { refreshKey++ }
+                                        onClick = {
+                                            openBinding(buttonConfig.keyCode, buttonConfig.label)
+                                        }
                                     )
-
-                                    // Left Stick bindings
-                                    leftStickAxes.forEach { analogConfig ->
-                                        val keyCode = ExternalControllerBinding.getKeyCodeForAxis(
-                                            analogConfig.axis,
-                                            analogConfig.sign.toByte()
-                                        )
-                                        ControllerBindingItem(
-                                            label = analogConfig.label,
-                                            keyCode = keyCode,
-                                            workingBindings = workingBindings,
-                                            onClick = {
-                                                showBindingDialog = Pair(keyCode, analogConfig.label)
-                                            }
-                                        )
-                                    }
                                 }
-                                5 -> {
-                                    // Right Stick - Quick Presets
-                                    PhysicalControlPresets(
-                                        presetType = PhysicalPresetTarget.RIGHT_STICK,
-                                        leftStickAxes = leftStickAxes,
-                                        rightStickAxes = rightStickAxes,
-                                        dpadButtons = dpadButtons,
+                            }
+                            1 -> {
+                                // Shoulder Buttons
+                                shoulderButtons.forEach { buttonConfig ->
+                                    ControllerBindingItem(
+                                        label = buttonConfig.label,
+                                        keyCode = buttonConfig.keyCode,
+                                        focusRequester = rowFocusRequester(buttonConfig.keyCode),
                                         workingBindings = workingBindings,
-                                        onPresetsApplied = { refreshKey++ }
+                                        onClick = {
+                                            openBinding(buttonConfig.keyCode, buttonConfig.label)
+                                        }
                                     )
-
-                                    // Right Stick bindings
-                                    rightStickAxes.forEach { analogConfig ->
-                                        val keyCode = ExternalControllerBinding.getKeyCodeForAxis(
-                                            analogConfig.axis,
-                                            analogConfig.sign.toByte()
-                                        )
-                                        ControllerBindingItem(
-                                            label = analogConfig.label,
-                                            keyCode = keyCode,
-                                            workingBindings = workingBindings,
-                                            onClick = {
-                                                showBindingDialog = Pair(keyCode, analogConfig.label)
-                                            }
-                                        )
-                                    }
                                 }
-                                6 -> {
-                                    // D-Pad - Quick Presets
-                                    PhysicalControlPresets(
-                                        presetType = PhysicalPresetTarget.DPAD,
-                                        leftStickAxes = leftStickAxes,
-                                        rightStickAxes = rightStickAxes,
-                                        dpadButtons = dpadButtons,
+                            }
+                            2 -> {
+                                // Menu Buttons
+                                menuButtons.forEach { buttonConfig ->
+                                    ControllerBindingItem(
+                                        label = buttonConfig.label,
+                                        keyCode = buttonConfig.keyCode,
+                                        focusRequester = rowFocusRequester(buttonConfig.keyCode),
                                         workingBindings = workingBindings,
-                                        onPresetsApplied = { refreshKey++ }
+                                        onClick = {
+                                            openBinding(buttonConfig.keyCode, buttonConfig.label)
+                                        }
                                     )
+                                }
+                            }
+                            3 -> {
+                                // Thumbstick Buttons
+                                thumbstickButtons.forEach { buttonConfig ->
+                                    ControllerBindingItem(
+                                        label = buttonConfig.label,
+                                        keyCode = buttonConfig.keyCode,
+                                        focusRequester = rowFocusRequester(buttonConfig.keyCode),
+                                        workingBindings = workingBindings,
+                                        onClick = {
+                                            openBinding(buttonConfig.keyCode, buttonConfig.label)
+                                        }
+                                    )
+                                }
+                            }
+                            4 -> {
+                                // Left Stick - Quick Presets
+                                PhysicalControlPresets(
+                                    presetType = PhysicalPresetTarget.LEFT_STICK,
+                                    leftStickAxes = leftStickAxes,
+                                    rightStickAxes = rightStickAxes,
+                                    dpadButtons = dpadButtons,
+                                    workingBindings = workingBindings,
+                                )
 
-                                    // D-Pad bindings
-                                    dpadButtons.forEach { buttonConfig ->
-                                        ControllerBindingItem(
-                                            label = buttonConfig.label,
-                                            keyCode = buttonConfig.keyCode,
-                                            workingBindings = workingBindings,
-                                            onClick = {
-                                                showBindingDialog = Pair(buttonConfig.keyCode, buttonConfig.label)
-                                            }
-                                        )
-                                    }
+                                // Left Stick bindings
+                                leftStickAxes.forEach { analogConfig ->
+                                    val keyCode = ExternalControllerBinding.getKeyCodeForAxis(
+                                        analogConfig.axis,
+                                        analogConfig.sign.toByte()
+                                    )
+                                    ControllerBindingItem(
+                                        label = analogConfig.label,
+                                        keyCode = keyCode,
+                                        focusRequester = rowFocusRequester(keyCode),
+                                        workingBindings = workingBindings,
+                                        onClick = {
+                                            openBinding(keyCode, analogConfig.label)
+                                        }
+                                    )
+                                }
+                            }
+                            5 -> {
+                                // Right Stick - Quick Presets
+                                PhysicalControlPresets(
+                                    presetType = PhysicalPresetTarget.RIGHT_STICK,
+                                    leftStickAxes = leftStickAxes,
+                                    rightStickAxes = rightStickAxes,
+                                    dpadButtons = dpadButtons,
+                                    workingBindings = workingBindings,
+                                )
+
+                                // Right Stick bindings
+                                rightStickAxes.forEach { analogConfig ->
+                                    val keyCode = ExternalControllerBinding.getKeyCodeForAxis(
+                                        analogConfig.axis,
+                                        analogConfig.sign.toByte()
+                                    )
+                                    ControllerBindingItem(
+                                        label = analogConfig.label,
+                                        keyCode = keyCode,
+                                        focusRequester = rowFocusRequester(keyCode),
+                                        workingBindings = workingBindings,
+                                        onClick = {
+                                            openBinding(keyCode, analogConfig.label)
+                                        }
+                                    )
+                                }
+                            }
+                            6 -> {
+                                // D-Pad - Quick Presets
+                                PhysicalControlPresets(
+                                    presetType = PhysicalPresetTarget.DPAD,
+                                    leftStickAxes = leftStickAxes,
+                                    rightStickAxes = rightStickAxes,
+                                    dpadButtons = dpadButtons,
+                                    workingBindings = workingBindings,
+                                )
+
+                                // D-Pad bindings
+                                dpadButtons.forEach { buttonConfig ->
+                                    ControllerBindingItem(
+                                        label = buttonConfig.label,
+                                        keyCode = buttonConfig.keyCode,
+                                        focusRequester = rowFocusRequester(buttonConfig.keyCode),
+                                        workingBindings = workingBindings,
+                                        onClick = {
+                                            openBinding(buttonConfig.keyCode, buttonConfig.label)
+                                        }
+                                    )
                                 }
                             }
                         }
@@ -520,6 +492,21 @@ internal fun PhysicalControllerConfigSection(
         }
     }
 
+    if (renderInline) {
+        if (showBindingDialog == null) editorContent()
+    } else {
+        Dialog(
+            onDismissRequest = onDismiss,
+            properties = secondScreenDialogProperties(
+                DialogProperties(
+                    usePlatformDefaultWidth = false,
+                    dismissOnBackPress = true,
+                    dismissOnClickOutside = false,
+                ),
+            )
+        ) { editorContent() }
+    }
+
     // Binding selector dialog
     showBindingDialog?.let { (keyCode, label) ->
         val currentBinding = workingBindings[keyCode]
@@ -527,7 +514,8 @@ internal fun PhysicalControllerConfigSection(
         ControllerBindingDialog(
             buttonName = label,
             currentBinding = currentBinding,
-            onDismiss = { showBindingDialog = null },
+            embedded = renderInline,
+            onDismiss = dismissPicker,
             onBindingSelected = { binding ->
                 if (binding != null) {
                     workingBindings[keyCode] = binding
@@ -537,7 +525,6 @@ internal fun PhysicalControllerConfigSection(
                     Log.d("gncontrol", "Removed binding for keyCode $keyCode")
                 }
 
-                refreshKey++
                 showBindingDialog = null
             }
         )
@@ -574,26 +561,34 @@ private fun ControllerBindingItem(
     label: String,
     keyCode: Int,
     workingBindings: Map<Int, com.winlator.inputcontrols.Binding?>,
+    focusRequester: FocusRequester,
     onClick: () -> Unit
 ) {
     val binding = workingBindings[keyCode]
     val bindingText = binding?.toString() ?: stringResource(R.string.not_set)
+    val compact = PluviaTheme.tokens.densityCompact
+    val shape = RoundedCornerShape(PluviaTheme.tokens.cornerMd)
+    val interactionSource = remember { MutableInteractionSource() }
+    val isFocused by interactionSource.collectIsFocusedAsState()
 
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        shape = MaterialTheme.shapes.small
+            .focusRequester(focusRequester)
+            .focusRing(interactionSource, shape)
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
+            .focusable(interactionSource = interactionSource),
+        color = if (isFocused) MaterialTheme.colorScheme.surfaceContainerHighest else MaterialTheme.colorScheme.surfaceContainerLow,
+        shape = shape,
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
+                .heightIn(min = 48.dp)
+                .padding(horizontal = if (compact) 10.dp else 16.dp, vertical = if (compact) 5.dp else 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(modifier = Modifier.weight(1f)) {
+            Column {
                 Text(
                     text = label,
                     style = MaterialTheme.typography.bodyMedium,
@@ -619,7 +614,6 @@ private fun PhysicalControlPresets(
     rightStickAxes: List<AnalogConfig>,
     dpadButtons: List<ButtonConfig>,
     workingBindings: MutableMap<Int, Binding?>,
-    onPresetsApplied: () -> Unit = {}
 ) {
     Card(
         modifier = Modifier
@@ -655,7 +649,6 @@ private fun PhysicalControlPresets(
                             dpadButtons,
                             workingBindings
                         )
-                        onPresetsApplied()
                     },
                     modifier = Modifier.weight(1f),
                     contentPadding = PaddingValues(horizontal = 2.dp, vertical = 2.dp)
@@ -672,7 +665,6 @@ private fun PhysicalControlPresets(
                             dpadButtons,
                             workingBindings
                         )
-                        onPresetsApplied()
                     },
                     modifier = Modifier.weight(1f),
                     contentPadding = PaddingValues(horizontal = 2.dp, vertical = 2.dp)
@@ -689,7 +681,6 @@ private fun PhysicalControlPresets(
                             dpadButtons,
                             workingBindings
                         )
-                        onPresetsApplied()
                     },
                     modifier = Modifier.weight(1f),
                     contentPadding = PaddingValues(horizontal = 2.dp, vertical = 2.dp)
@@ -713,7 +704,6 @@ private fun PhysicalControlPresets(
                             dpadButtons,
                             workingBindings
                         )
-                        onPresetsApplied()
                     },
                     modifier = Modifier.weight(1f),
                     contentPadding = PaddingValues(horizontal = 2.dp, vertical = 2.dp)
@@ -730,7 +720,6 @@ private fun PhysicalControlPresets(
                             dpadButtons,
                             workingBindings
                         )
-                        onPresetsApplied()
                     },
                     modifier = Modifier.weight(1f),
                     contentPadding = PaddingValues(horizontal = 2.dp, vertical = 2.dp)
@@ -747,7 +736,6 @@ private fun PhysicalControlPresets(
                             dpadButtons,
                             workingBindings
                         )
-                        onPresetsApplied()
                     },
                     modifier = Modifier.weight(1f),
                     contentPadding = PaddingValues(horizontal = 2.dp, vertical = 2.dp)
@@ -854,20 +842,23 @@ private fun applyPhysicalPreset(
     }
 }
 
+private fun readPhysicalControllerDefaults(context: Context): JSONObject? {
+    val profilePath = "profiles/controls-0.icp"
+    val installed = File(context.filesDir, profilePath)
+    return runCatching {
+        val json = if (installed.isFile) installed.readText() else {
+            context.assets.open("inputcontrols/$profilePath").bufferedReader().use { it.readText() }
+        }
+        JSONObject(json)
+    }.getOrNull()
+}
+
 /**
  * Copies on-screen elements from source profile to destination profile if needed.
  */
-private fun copyElementsIfNeeded(context: android.content.Context, destProfile: ControlsProfile, sourceProfile: ControlsProfile) {
+private fun copyElementsIfNeeded(context: Context, destProfile: ControlsProfile, sourceJson: JSONObject) {
     try {
         val destFile = ControlsProfile.getProfileFile(context, destProfile.id)
-        val sourceFile = ControlsProfile.getProfileFile(context, sourceProfile.id)
-
-        if (!sourceFile.isFile()) {
-            Log.w("gncontrol", "copyElements: Source profile file not found")
-            return
-        }
-
-        val sourceJson = org.json.JSONObject(com.winlator.core.FileUtils.readString(sourceFile))
         if (!sourceJson.has("elements")) {
             Log.w("gncontrol", "copyElements: Source profile has no elements")
             return

@@ -3,9 +3,16 @@ package app.gamenative.service.epic
 import android.content.Context
 import app.gamenative.data.EpicGame
 import app.gamenative.service.epic.manifest.EpicManifest
+import app.gamenative.service.epic.manifest.FileManifest
 import app.gamenative.utils.FileUtils
 import app.gamenative.utils.Net
 import java.io.File
+import java.io.IOException
+import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.StandardCopyOption
+import java.security.DigestOutputStream
+import java.security.MessageDigest
 import java.time.Instant
 import java.util.zip.GZIPInputStream
 import kotlinx.coroutines.Dispatchers
@@ -627,63 +634,61 @@ object EpicCloudSavesManager {
                 }
             }
 
-            if (chunks.isEmpty()) {
-                Timber.tag("Epic").e("[Cloud Saves] No chunks were downloaded, aborting")
-                return@withContext false
-            }
-
             // 8. Reconstruct files from chunks
             val saveDir = resolveSaveDirectory(context, game, accountId) ?: run {
                 Timber.tag("Epic").e("[Cloud Saves] Failed to resolve save directory")
                 return@withContext false
             }
 
-            saveDir.mkdirs()
-
-            var downloadedFiles = 0
-
-            manifest.fileManifestList?.elements?.forEach { fileManifest ->
-                try {
-                    val outputFile = File(saveDir, fileManifest.filename)
-                    if (!outputFile.canonicalPath.startsWith(saveDir.canonicalPath)) {
-                        Timber.tag("Epic").w("[Cloud Saves] Skipping path traversal: ${fileManifest.filename}")
-                        return@forEach
-                    }
-                    outputFile.parentFile?.mkdirs()
-
-                    Timber.tag("Epic").d("[Cloud Saves] Reconstructing file: ${fileManifest.filename}")
-
-                    outputFile.outputStream().use { output ->
-                        fileManifest.chunkParts.forEach { chunkPart ->
-                            val chunkData = chunks[chunkPart.guidStr]
-                            if (chunkData == null) {
-                                Timber.tag("Epic").e("[Cloud Saves] Chunk missing for ${fileManifest.filename}: ${chunkPart.guidStr}")
-                            } else {
-                                // Extract the specific part of the chunk for this file
-                                val partData = chunkData.copyOfRange(
-                                    chunkPart.offset.toInt(),
-                                    (chunkPart.offset + chunkPart.size).toInt(),
-                                )
-                                output.write(partData)
-                            }
-                        }
-                    }
-
-                    downloadedFiles++
-                    Timber.tag("Epic").i("[Cloud Saves] Reconstructed: ${fileManifest.filename} (${outputFile.length()} bytes)")
-                } catch (e: Exception) {
-                    Timber.tag("Epic").e(e, "[Cloud Saves] Failed to reconstruct file: ${fileManifest.filename}")
-                }
-            }
+            val files = manifest.fileManifestList?.elements.orEmpty()
+            if (files.isEmpty()) return@withContext false
+            restoreSaveFiles(saveDir, files, chunks)
 
             // 9. Update sync timestamp
             setSyncTimestamp(context, appId, manifestInfo.lastModified)
 
-            Timber.tag("Epic").i("[Cloud Saves] Download complete: $downloadedFiles files reconstructed")
-            downloadedFiles > 0
+            Timber.tag("Epic").i("[Cloud Saves] Download complete: ${files.size} files reconstructed")
+            true
         } catch (e: Exception) {
             Timber.tag("Epic").e(e, "[Cloud Saves] Download failed")
             false
+        }
+    }
+
+    internal fun restoreSaveFiles(saveDir: File, files: List<FileManifest>, chunks: Map<String, ByteArray>) {
+        val root = saveDir.canonicalFile.toPath()
+        val stagedFiles = mutableListOf<Pair<Path, Path>>()
+        try {
+            for (file in files) {
+                val destination = File(saveDir, file.filename).canonicalFile.toPath()
+                if (destination == root || !destination.startsWith(root)) {
+                    throw IOException("Save path outside save directory: ${file.filename}")
+                }
+                Files.createDirectories(destination.parent)
+                val staged = Files.createTempFile(destination.parent, ".epic-save-", ".tmp")
+                stagedFiles.add(staged to destination)
+                val digest = MessageDigest.getInstance("SHA-1")
+                DigestOutputStream(Files.newOutputStream(staged), digest).use { output ->
+                    for (part in file.chunkParts) {
+                        val data = chunks[part.guidStr]
+                            ?: throw IOException("Missing chunk for ${file.filename}: ${part.guidStr}")
+                        if (part.offset < 0 || part.size < 0 || part.offset.toLong() + part.size > data.size) {
+                            throw IOException("Invalid chunk range for ${file.filename}: ${part.guidStr}")
+                        }
+                        output.write(data, part.offset, part.size)
+                    }
+                }
+                if (!digest.digest().contentEquals(file.hash)) {
+                    throw IOException("Save checksum mismatch: ${file.filename}")
+                }
+            }
+            for ((staged, destination) in stagedFiles) {
+                Files.move(staged, destination, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+            }
+        } finally {
+            for ((staged, _) in stagedFiles) {
+                Files.deleteIfExists(staged)
+            }
         }
     }
 

@@ -12,6 +12,7 @@ import java.io.StringWriter
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import timber.log.Timber
 
 /**
  * A local running crash handler.
@@ -42,11 +43,13 @@ class CrashHandler(
          */
         private fun logcatCommand(count: Int): String = "logcat -d -t $count --pid=${android.os.Process.myPid()}"
 
+        @Synchronized
         fun initialize(context: Context) {
-            val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
-            val crashHandler = CrashHandler(context.applicationContext, defaultHandler)
-            Thread.setDefaultUncaughtExceptionHandler(crashHandler)
-            LaunchTrace.init(context.applicationContext)
+            val appContext = context.applicationContext
+            val current = Thread.getDefaultUncaughtExceptionHandler()
+            val defaultHandler = if (current is CrashHandler) current.defaultHandler else current
+            Thread.setDefaultUncaughtExceptionHandler(CrashHandler(appContext, defaultHandler))
+            LaunchTrace.init(appContext)
         }
 
         /**
@@ -140,11 +143,15 @@ class CrashHandler(
     }
 
     override fun uncaughtException(thread: Thread, throwable: Throwable) {
-        PrefManager.recentlyCrashed = true
-
-        saveCrashToFile(throwable)
-        LaunchTrace.finish("failed")
-        defaultHandler?.uncaughtException(thread, throwable)
+        try {
+            PrefManager.recentlyCrashed = true
+            saveCrashToFile(throwable)
+            LaunchTrace.finish("failed")
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to record crash diagnostics")
+        } finally {
+            defaultHandler?.uncaughtException(thread, throwable)
+        }
     }
 
     private fun saveCrashToFile(throwable: Throwable) {
@@ -193,7 +200,7 @@ class CrashHandler(
 
             cleanupOldCrashFiles()
         } catch (e: Exception) {
-            defaultHandler?.uncaughtException(Thread.currentThread(), throwable)
+            Timber.e(e, "Failed to save crash report")
         }
     }
 }

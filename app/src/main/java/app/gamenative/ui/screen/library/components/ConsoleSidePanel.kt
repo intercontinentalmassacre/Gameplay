@@ -229,7 +229,7 @@ fun ConsoleMenuActionItem(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .focusRing(interactionSource, shape, width = 2.dp)
+            .focusRing(interactionSource, shape)
             .background(
                 when {
                     focused -> MaterialTheme.colorScheme.primaryContainer

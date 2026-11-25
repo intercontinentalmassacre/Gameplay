@@ -151,7 +151,7 @@ internal fun LibraryCompactRowPane(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
-                        .padding(bottom = 76.dp, start = 20.dp, end = 20.dp),
+                        .padding(bottom = 48.dp, start = 20.dp, end = 20.dp),
                     horizontalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
                     repeat(5) {
@@ -171,7 +171,7 @@ internal fun LibraryCompactRowPane(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(top = 64.dp),
-                    contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 76.dp),
+                    contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 48.dp),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                     userScrollEnabled = false,
@@ -228,7 +228,7 @@ internal fun LibraryCompactRowPane(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
-                    .padding(bottom = 76.dp)
+                    .padding(bottom = 48.dp)
                     // Remember the focused cell when focus leaves and re-enters
                     // the row (jump under the last selected game, not to start).
                     .focusGroup()
@@ -276,7 +276,7 @@ internal fun LibraryCompactRowPane(
                     .fillMaxSize()
                     .padding(top = 64.dp)
                     .focusGroup(),
-                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 76.dp),
+                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 48.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
@@ -319,7 +319,7 @@ private fun CompactIconCell(
     val context = LocalContext.current
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
-    val shape = RoundedCornerShape(12.dp)
+    val shape = RoundedCornerShape(PluviaTheme.tokens.cornerMd)
     val scale by animateFloatAsState(
         targetValue = if (isFocused) 1.04f else 1f,
         animationSpec = motionSpec(tween(PluviaTheme.tokens.motionFastMs)),
@@ -360,7 +360,7 @@ private fun CompactIconCell(
                 .aspectRatio(1f)
                 .clip(shape)
                 .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                .focusRing(interactionSource, shape, width = 2.dp)
+                .focusRing(interactionSource, shape)
                 .selectable(
                     selected = isFocused,
                     interactionSource = interactionSource,

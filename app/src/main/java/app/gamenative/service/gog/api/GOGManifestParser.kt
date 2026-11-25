@@ -19,6 +19,28 @@ class GOGManifestParser @Inject constructor() {
 
     companion object {
         private const val TAG = "GOG"
+
+        /** Select one file per destination. Content wins first, then DLC, then manifest order. */
+        internal fun <T> effectiveEntries(
+            entries: List<T>,
+            path: (T) -> String,
+            isBase: (T) -> Boolean,
+            hasContent: (T) -> Boolean = { true },
+        ): List<T> {
+            fun rank(entry: T) = (if (hasContent(entry)) 2 else 0) + (if (isBase(entry)) 0 else 1)
+            val winners = mutableMapOf<String, Int>()
+            entries.forEachIndexed { index, entry ->
+                val relative = path(entry).replace('\\', '/')
+                val segments = relative.split('/')
+                if (relative.startsWith('/') || '\u0000' in relative || ".." in segments) return@forEachIndexed
+                val key = segments.filter { it.isNotEmpty() && it != "." }.joinToString("/").lowercase()
+                if (key.isEmpty()) return@forEachIndexed
+                val current = winners[key]
+                if (current == null || rank(entry) >= rank(entries[current])) winners[key] = index
+            }
+            val kept = winners.values.toHashSet()
+            return entries.filterIndexed { index, _ -> index in kept }
+        }
     }
 
     /**

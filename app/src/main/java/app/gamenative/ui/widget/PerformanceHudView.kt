@@ -11,6 +11,8 @@ import android.graphics.Path
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.BatteryManager
+import android.os.Build
+import android.os.PowerManager
 import android.media.AudioManager
 import android.media.ToneGenerator
 import android.text.TextUtils
@@ -23,6 +25,7 @@ import android.os.SystemClock
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
+import app.gamenative.R
 import app.gamenative.ui.data.PerformanceHudConfig
 import app.gamenative.ui.data.PerformanceHudSize
 import app.gamenative.utils.DateTimeUtils.formatRuntimeHours
@@ -154,6 +157,7 @@ class PerformanceHudView(
     private val cpuTempMetric = createMetricViews(MetricId.CPU_TEMP, 0xFFBDBDBD.toInt())
     private val gpuTempMetric = createMetricViews(MetricId.GPU_TEMP, 0xFFBDBDBD.toInt())
     private val batteryTempMetric = createMetricViews(MetricId.BATTERY_TEMP, 0xFFBDBDBD.toInt())
+    private val thermalMetric = createMetricViews(MetricId.THERMAL_THROTTLING, 0xFFFFB74D.toInt())
 
     private val allMetrics = listOf(
         fpsMetric,
@@ -167,10 +171,27 @@ class PerformanceHudView(
         cpuTempMetric,
         gpuTempMetric,
         batteryTempMetric,
+        thermalMetric,
     )
 
     private val allTextRows = allMetrics.flatMap { listOf(it.stackedText, it.compactText) }
     private val allGraphs = allMetrics.flatMap { listOfNotNull(it.stackedGraph, it.compactGraph) }
+
+    private val thermalThrottle = ThermalThrottle(
+        platformStatus = {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                runCatching { context.getSystemService(PowerManager::class.java)?.currentThermalStatus }
+                    .getOrNull() ?: PowerManager.THERMAL_STATUS_NONE
+            } else 0
+        },
+        platformHeadroom = {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                runCatching { context.getSystemService(PowerManager::class.java)?.getThermalHeadroom(0) }
+                    .getOrNull() ?: Float.NaN
+            } else Float.NaN
+        },
+        kernelStatus = KernelThermal()::readStatus,
+    )
 
     private var lastCpuTotal: Long? = null
     private var lastCpuIdle: Long? = null
@@ -388,6 +409,7 @@ class PerformanceHudView(
             clock = readClockText(),
             cpuTemp = readCpuTempC()?.let { "CPU TEMP ${it}°C" },
             gpuTemp = readGpuTempC()?.let { "GPU TEMP ${it}°C" },
+            thermalThrottling = (thermalThrottle.read(SystemClock.elapsedRealtime()) ?: 0) > 0,
         )
     }
 
@@ -514,6 +536,10 @@ class PerformanceHudView(
         updateMetricText(clockMetric, snapshot.clock)
         updateMetricText(cpuTempMetric, snapshot.cpuTemp)
         updateMetricText(gpuTempMetric, snapshot.gpuTemp)
+        updateMetricText(
+            thermalMetric,
+            if (snapshot.thermalThrottling) context.getString(R.string.hud_thermal_throttling) else null,
+        )
     }
 
     private fun updateMetricText(metric: MetricViews, text: String?) {
@@ -535,6 +561,7 @@ class PerformanceHudView(
             addMetricIfVisible(cpuTempMetric, config.showCpuTemperature)
             addMetricIfVisible(gpuTempMetric, config.showGpuTemperature)
             addMetricIfVisible(batteryTempMetric, config.showBatteryTemperature)
+            addMetricIfVisible(thermalMetric, enabled = true)
         }
 
         val signatures = visibleMetrics.map {

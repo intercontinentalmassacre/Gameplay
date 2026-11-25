@@ -220,6 +220,11 @@ class LibraryViewModel @Inject constructor(
         }
     }
 
+    private val observedDownloads = mutableMapOf<String, ObservedDownload>()
+
+    /** App ids with an active install/download, tracked to detect membership changes. */
+    @Volatile private var activeInstallationAppIds: Set<String> = emptySet()
+
     init {
         viewModelScope.launch(Dispatchers.IO) {
             if (gpuName != "Unknown GPU") {
@@ -259,15 +264,23 @@ class LibraryViewModel @Inject constructor(
                 }
                 .collect { apps ->
                     Timber.tag("LibraryViewModel").d("Collecting ${apps.size} apps")
+                    val initialSteamSnapshot = !hasReceivedSteamLibrary
                     hasReceivedSteamLibrary = true
-                    // Check if the list has actually changed before triggering a re-filter
                     if (appList != apps) {
                         appList = apps
                         steamSizeCache.clear()
                         invalidateLibrarySnapshot()
                         onFilterApps(paginationCurrentPage)
+                    } else if (initialSteamSnapshot) {
+                        onFilterApps(paginationCurrentPage)
                     }
                 }
+        }
+
+        viewModelScope.launch {
+            SteamService.familyMembers.collect {
+                if (hasReceivedSteamLibrary) onFilterApps(paginationCurrentPage)
+            }
         }
 
         viewModelScope.launch(Dispatchers.IO) {
@@ -604,6 +617,10 @@ class LibraryViewModel @Inject constructor(
             val libraryItem = CustomGameScanner.createLibraryItemFromFolder(normalizedPath)
             if (libraryItem == null) {
                 Timber.tag("LibraryViewModel").w("Selected folder is not a valid custom game: $normalizedPath")
+                // without storage access the access request is already on screen
+                if (CustomGameScanner.hasStoragePermission(context, normalizedPath)) {
+                    SnackbarManager.show(context.getString(R.string.custom_game_folder_add_failed))
+                }
                 return@launch
             }
 
@@ -732,11 +749,6 @@ class LibraryViewModel @Inject constructor(
             info.removeProgressListener(progressListener)
         }
     }
-
-    private val observedDownloads = mutableMapOf<String, ObservedDownload>()
-
-    /** App ids with an active install/download, tracked to detect membership changes. */
-    @Volatile private var activeInstallationAppIds: Set<String> = emptySet()
 
     private fun scheduleRefreshInstallProgress() {
         viewModelScope.launch(Dispatchers.IO) {
@@ -994,31 +1006,20 @@ class LibraryViewModel @Inject constructor(
                 )
             }
 
+            val liveSteamAccountId = SteamService.userSteamId?.accountID?.toInt()
+            val steamAccountId = liveSteamAccountId ?: PrefManager.steamUserAccountId
+            val visibleSteamOwners = if (currentState.appInfoSortType.contains(AppFilter.SHARED)) {
+                SteamService.familyMembers.value.ifEmpty { listOfNotNull(liveSteamAccountId) }.toSet()
+            } else if (steamAccountId != 0) {
+                setOf(steamAccountId)
+            } else {
+                emptySet()
+            }
             val steamOwnerTypeSearchFiltered: List<SteamApp> = appList
                 .asSequence()
-                .filter { item ->
-                    SteamService.familyMembers.ifEmpty {
-                        // Handle the case where userSteamId might be null
-                        SteamService.userSteamId?.let { steamId ->
-                            listOf(steamId.accountID.toInt())
-                        } ?: emptyList()
-                    }.let { owners ->
-                        if (owners.isEmpty()) {
-                            true // no owner info ⇒ don’t filter the item out
-                        } else {
-                            owners.any { item.ownerAccountId.contains(it) }
-                        }
-                    }
-                }
+                .filter { visibleSteamOwners.isEmpty() || it.ownerAccountId.any(visibleSteamOwners::contains) }
                 .filter { item ->
                     currentFilter.any { item.type == it }
-                }
-                .filter { item ->
-                    if (currentState.appInfoSortType.contains(AppFilter.SHARED)) {
-                        true
-                    } else {
-                        item.ownerAccountId.contains(PrefManager.steamUserAccountId) || PrefManager.steamUserAccountId == 0
-                    }
                 }
                 .filter { item ->
                     if (currentState.searchQuery.isNotEmpty()) {
@@ -1150,7 +1151,7 @@ class LibraryViewModel @Inject constructor(
                         capsuleImageUrl = item.getCapsuleUrl(),
                         headerImageUrl = item.headerUrl,
                         heroImageUrl = item.getHeroUrl(),
-                        isShared = (PrefManager.steamUserAccountId != 0 && !item.ownerAccountId.contains(PrefManager.steamUserAccountId)),
+                        isShared = steamAccountId != 0 && steamAccountId !in item.ownerAccountId,
                         sizeBytes = totalSizeBytes,
                     ),
                     isInstalled = isInstalled,

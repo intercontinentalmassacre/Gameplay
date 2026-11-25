@@ -103,6 +103,7 @@
 
     <string name="downloads_empty">No hay descargas activas</string>
     <string name="downloads_overview_subtitle">Sigue las descargas activas, pausadas y reanudables</string>
+    <string name="library_cancel_download_keep_game_message">¿Detener la descarga de %1$s? El juego instalado se conserva.</string>
     <string name="downloads_cancel_confirm">¿Cancelar la descarga y eliminar los archivos de %1$s?</string>
     <string name="downloads_cancel_all">Cancelar todo</string>
     <string name="downloads_clear_finished">Limpiar finalizados</string>
@@ -188,6 +189,7 @@
     <string name="custom_games_folders_found">%d carpetas encontradas.</string>
     <string name="custom_games_scan_description">Se escanearán las carpetas en estas rutas en busca de archivos .exe para listarlos como juegos personalizados. Esto puede ralentizar el inicio de la aplicación.</string>
     <string name="custom_game_folder_picker_error">Error al resolver la ruta de la carpeta.</string>
+    <string name="custom_game_folder_add_failed">No se pudo añadir esta carpeta. En el selector de carpetas, abre el almacenamiento del dispositivo y selecciona la carpeta allí.</string>
     <string name="container_config_drive_letter_missing">Falta la letra de la unidad.</string>
     <string name="container_config_invalid_drive_path">Ruta de la unidad no válida.</string>
     <string name="custom_game_exe_selection_title">Selección de ejecutable requerida</string>
@@ -630,7 +632,7 @@
     <string name="playtime">Tiempo de juego</string>
     <string name="add_custom_game_content_desc">Añadir juego personalizado</string>
     <string name="add_custom_game_dialog_title">Añadir juego personalizado</string>
-    <string name="add_custom_game_dialog_message">Selecciona la carpeta que contiene los archivos del juego que quieres añadir como juego personalizado.</string>
+    <string name="add_custom_game_dialog_message">Para juegos de Linux, elige una AppImage de tipo 2 para ARM64.</string>
     <string name="custom_game_importing">Importando juego…</string>
     <string name="custom_game_import_success">Juego importado</string>
     <string name="custom_game_import_failed">Error al importar</string>
@@ -2200,7 +2202,7 @@
     <string name="local_mod_folder_single">Selecciona una sola carpeta cada vez.</string>
     <string name="local_mod_reselect">Vuelve a seleccionar el contenido local para continuar esta importación.</string>
     <string name="local_mod_invalid_request">La solicitud de importación del mod local no es válida.</string>
-    <string name="local_mod_too_large">El contenido seleccionado supera el límite de importación de 20 GiB.</string>
+    <string name="local_mod_too_large">El contenido seleccionado supera el límite de importación de %1$d GiB.</string>
     <string name="local_mod_uri_payload_too_large">Las referencias de archivos seleccionadas son demasiado grandes para importarlas juntas. Selecciona en su lugar la carpeta que las contiene.</string>
     <string name="local_mod_already_importing">Este mod local ya se está importando.</string>
     <string name="local_mod_import_failed">No se pudo importar el mod local.</string>
@@ -2238,7 +2240,7 @@
     <string name="achievements_unlocked_by_percent">Desbloqueado por el %1$.1f%% de los jugadores</string>
     <string name="action_add_to_home">Añadir a la pantalla de inicio</string>
     <string name="add_custom_game_choose_folder">Elegir carpeta existente</string>
-    <string name="add_custom_game_import_exe">Importar EXE portátil</string>
+    <string name="add_custom_game_import_exe">Importar EXE o AppImage</string>
     <string name="add_custom_game_install">Instalar un juego</string>
     <string name="base_app_images_fetching">Obteniendo imágenes…</string>
     <string name="compat_preset_applied">Aplicado</string>
@@ -2571,4 +2573,6 @@
     <string name="downloads_containers_legacy_unavailable">Los archivos del contenedor vienen incluidos con esta compilación; no se requiere descarga.</string>
     <string name="downloads_containers_bundled_runtime_description">Runtime incluido disponible para la configuración del contenedor. No se requiere descarga por separado.</string>
     <string name="downloads_containers_empty">Esta compilación no incluye archivos de contenedor</string>
+    <string name="gnaudio_low_latency">Modo de baja latencia GNAudio</string>
+    <string name="suspend_behavior_reclaim">Liberar memoria y reanudar automáticamente</string>
 </resources>

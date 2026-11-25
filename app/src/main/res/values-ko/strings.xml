@@ -103,6 +103,7 @@
 
     <string name="downloads_empty">진행 중인 다운로드 없음</string>
     <string name="downloads_overview_subtitle">진행 중, 일시 중지됨, 다시 시작 가능한 다운로드를 추적합니다</string>
+    <string name="library_cancel_download_keep_game_message">%1$s 다운로드를 중지할까요? 설치된 게임은 유지됩니다.</string>
     <string name="downloads_cancel_confirm">%1$s의 다운로드를 취소하고 파일을 삭제할까요?</string>
     <string name="downloads_cancel_all">모두 취소</string>
     <string name="downloads_clear_finished">완료 항목 지우기</string>
@@ -188,6 +189,7 @@
     <string name="custom_games_folders_found">%d개의 폴더를 찾았습니다</string>
     <string name="custom_games_scan_description">이 경로의 폴더들은 .exe 파일을 검색하여 사용자 지정 게임으로 표시됩니다. 앱 시작 시간이 느려질 수 있습니다.</string>
     <string name="custom_game_folder_picker_error">폴더 경로를 확인할 수 없습니다</string>
+    <string name="custom_game_folder_add_failed">이 폴더를 추가할 수 없습니다. 폴더 선택 화면에서 기기 저장공간을 열고 거기에서 폴더를 선택하세요.</string>
     <string name="container_config_drive_letter_missing">드라이브 문자가 없습니다</string>
     <string name="container_config_invalid_drive_path">잘못된 드라이브 경로</string>
     <string name="custom_game_settings">사용자 지정 게임 설정</string>
@@ -592,7 +594,7 @@
     <string name="playtime">플레이 시간</string>
     <string name="add_custom_game_content_desc">커스텀 게임 추가</string>
     <string name="add_custom_game_dialog_title">커스텀 게임 추가</string>
-    <string name="add_custom_game_dialog_message">커스텀 게임으로 추가할 게임 파일이 있는 폴더를 선택하세요.</string>
+    <string name="add_custom_game_dialog_message">Linux 게임은 ARM64용 유형 2 AppImage를 선택하세요.</string>
     <string name="custom_game_importing">게임 가져오는 중…</string>
     <string name="custom_game_import_success">게임을 가져왔습니다</string>
     <string name="custom_game_import_failed">가져오기 실패</string>
@@ -2199,7 +2201,7 @@
     <string name="local_mod_folder_single">폴더를 한 번에 하나만 선택하세요.</string>
     <string name="local_mod_reselect">이 가져오기를 계속하려면 로컬 콘텐츠를 다시 선택하세요.</string>
     <string name="local_mod_invalid_request">로컬 모드 가져오기 요청이 잘못되었습니다.</string>
-    <string name="local_mod_too_large">선택한 콘텐츠가 가져오기 제한인 20GiB를 초과합니다.</string>
+    <string name="local_mod_too_large">선택한 콘텐츠가 가져오기 제한인 %1$dGiB를 초과합니다.</string>
     <string name="local_mod_uri_payload_too_large">선택한 파일 참조가 너무 커서 함께 가져올 수 없습니다. 대신 해당 파일이 들어 있는 폴더를 선택하세요.</string>
     <string name="local_mod_already_importing">이 로컬 모드는 이미 가져오는 중입니다.</string>
     <string name="local_mod_import_failed">로컬 모드를 가져오지 못했습니다.</string>
@@ -2236,7 +2238,7 @@
     <string name="achievements_unlocked_by_percent">플레이어의 %1$.1f%%가 달성</string>
     <string name="action_add_to_home">홈 화면에 추가</string>
     <string name="add_custom_game_choose_folder">기존 폴더 선택</string>
-    <string name="add_custom_game_import_exe">휴대용 EXE 가져오기</string>
+    <string name="add_custom_game_import_exe">EXE 또는 AppImage 가져오기</string>
     <string name="add_custom_game_install">게임 설치</string>
     <string name="base_app_images_fetching">이미지 가져오는 중...</string>
     <string name="compat_preset_applied">적용됨</string>
@@ -2569,4 +2571,6 @@
     <string name="downloads_containers_legacy_unavailable">컨테이너 파일이 이 빌드에 번들로 포함되어 있습니다. 다운로드가 필요하지 않습니다.</string>
     <string name="downloads_containers_bundled_runtime_description">컨테이너 구성용 번들 런타임을 사용할 수 있습니다. 별도 다운로드가 필요하지 않습니다.</string>
     <string name="downloads_containers_empty">이 빌드에는 컨테이너 파일이 없습니다</string>
+    <string name="gnaudio_low_latency">GNAudio 저지연 모드</string>
+    <string name="suspend_behavior_reclaim">메모리 확보 후 자동 재개</string>
 </resources>

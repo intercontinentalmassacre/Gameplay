@@ -55,6 +55,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.res.stringResource
 import app.gamenative.R
 import app.gamenative.ui.component.focusRing
+import app.gamenative.ui.theme.PluviaTheme
 
 @Composable
 fun SettingsListDropdownSearchable(
@@ -96,7 +97,7 @@ fun SettingsListDropdownSearchable(
 
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
-    val tileShape = RoundedCornerShape(0.dp)
+    val tileShape = RoundedCornerShape(PluviaTheme.tokens.cornerMd)
 
     val selectedText =
         if (value >= 0 && value < items.size) items[value] else fallbackDisplay
@@ -111,8 +112,9 @@ fun SettingsListDropdownSearchable(
                 } else {
                     Color.Transparent
                 },
+                shape = tileShape,
             )
-            .focusRing(interactionSource, tileShape, width = 2.dp)
+            .focusRing(interactionSource, tileShape)
             .clickable(
                 interactionSource = interactionSource,
                 indication = LocalIndication.current,

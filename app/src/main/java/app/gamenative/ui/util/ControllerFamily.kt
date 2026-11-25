@@ -4,6 +4,7 @@ import android.content.Context
 import android.hardware.input.InputManager
 import android.os.Handler
 import android.os.Looper
+import com.winlator.inputcontrols.ExternalController
 import android.view.InputDevice
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -44,15 +45,9 @@ private val playStationNameMarkers = listOf(
  * controller cannot be classified (generic/XInput devices included).
  */
 fun detectControllerFamily(): ControllerFamily {
-    var sawGamepad = false
     for (id in InputDevice.getDeviceIds()) {
         val device = InputDevice.getDevice(id) ?: continue
-        if (device.isVirtual) continue
-        val sources = device.sources
-        val isGamepad = sources and InputDevice.SOURCE_GAMEPAD == InputDevice.SOURCE_GAMEPAD ||
-            sources and InputDevice.SOURCE_JOYSTICK == InputDevice.SOURCE_JOYSTICK
-        if (!isGamepad) continue
-        sawGamepad = true
+        if (!ExternalController.isGameController(device)) continue
 
         if (device.vendorId == VENDOR_SONY) return ControllerFamily.PLAYSTATION
         if (device.vendorId == VENDOR_MICROSOFT) continue
@@ -65,11 +60,7 @@ fun detectControllerFamily(): ControllerFamily {
 }
 
 fun hasConnectedController(): Boolean = InputDevice.getDeviceIds().any { id ->
-    val device = InputDevice.getDevice(id) ?: return@any false
-    if (device.isVirtual) return@any false
-    val sources = device.sources
-    sources and InputDevice.SOURCE_GAMEPAD == InputDevice.SOURCE_GAMEPAD ||
-        sources and InputDevice.SOURCE_JOYSTICK == InputDevice.SOURCE_JOYSTICK
+    ExternalController.isGameController(InputDevice.getDevice(id))
 }
 
 fun controllerConnectionChanged(

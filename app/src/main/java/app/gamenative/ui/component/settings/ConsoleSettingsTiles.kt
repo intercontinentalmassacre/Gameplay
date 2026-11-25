@@ -22,6 +22,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import app.gamenative.ui.component.focusRing
+import app.gamenative.ui.theme.PluviaTheme
 import com.alorma.compose.settings.ui.base.internal.LocalSettingsGroupEnabled
 import com.alorma.compose.settings.ui.base.internal.SettingsTileColors
 import com.alorma.compose.settings.ui.base.internal.SettingsTileDefaults
@@ -34,7 +35,7 @@ import com.alorma.compose.settings.ui.base.internal.SettingsTileDefaults
 @Composable
 fun Modifier.consoleSettingsTile(): Modifier {
     var isFocused by remember { mutableStateOf(false) }
-    val shape = RoundedCornerShape(0.dp)
+    val shape = RoundedCornerShape(PluviaTheme.tokens.cornerMd)
     return this
         .padding(vertical = 4.dp)
         .onFocusChanged { isFocused = it.isFocused }
@@ -42,7 +43,7 @@ fun Modifier.consoleSettingsTile(): Modifier {
             if (isFocused) Modifier.background(MaterialTheme.colorScheme.surfaceContainerHighest, shape)
             else Modifier,
         )
-        .focusRing(isFocused, shape, width = 2.dp)
+        .focusRing(isFocused, shape)
 }
 
 /** Drop-in replacement for the alorma tile with the console focus treatment. */

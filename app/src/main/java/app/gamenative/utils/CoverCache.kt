@@ -3,14 +3,10 @@ package app.gamenative.utils
 import app.gamenative.PluviaApp
 import app.gamenative.PrefManager
 import java.io.File
-import java.util.concurrent.ConcurrentHashMap
+import java.io.IOException
 import java.util.concurrent.Executors
-import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import java.util.concurrent.TimeUnit
+import okhttp3.Call
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import timber.log.Timber
@@ -25,7 +21,7 @@ import timber.log.Timber
  *   2. CoverCache (this) — file:// on disk
  *   3. SteamGridDB / Steam CDN URLs
  *
- * Concurrency: network work is bounded by a single-thread executor; downloads
+ * Concurrency: network work is bounded by a two-thread executor; downloads
  * are de-duplicated by (appId, type) inside [inflight]. Disk writes go through
  * a temp file + atomic rename so partial files are never observed.
  *
@@ -47,8 +43,8 @@ object CoverCache {
 
     private const val TAG = "CoverCache"
     private const val SCHEME_FILE = "file://"
+    private const val TEMP_SUFFIX = ".tmp"
 
-    private val ioScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val executor = Executors.newFixedThreadPool(2) { r ->
         Thread(r, "CoverCache-IO").apply { isDaemon = true }
     }
@@ -61,7 +57,7 @@ object CoverCache {
         dir
     }
 
-    private val inflight = ConcurrentHashMap<String, CompletableDeferred<File?>>()
+    private val inflight = mutableMapOf<String, Download>()
 
     /**
      * Resolve a cached file URI for the given (appId, type). Returns null if
@@ -92,28 +88,34 @@ object CoverCache {
      * coalesced. Failures are logged and silently dropped; the cache stays
      * best-effort.
      */
-    fun enqueue(
+    private fun enqueue(
         appId: String,
         type: Type,
-        url: String?,
-        client: OkHttpClient = Net.http,
+        urls: List<String>,
+        client: OkHttpClient,
     ) {
         if (!PrefManager.coverCacheEnabled) return
-        if (appId.isEmpty() || url.isNullOrEmpty()) return
+        if (appId.isEmpty() || urls.isEmpty()) return
         val key = key(appId, type)
-        if (fileFor(appId, type)?.let { it.exists() && it.length() > 0L } == true) return
+        val dest = fileFor(appId, type) ?: return
+        val download = Download()
+        synchronized(inflight) {
+            if (dest.isFile && dest.length() > 0L) return
+            if (key in inflight) return
+            inflight[key] = download
+        }
 
-        val existing = inflight.putIfAbsent(key, CompletableDeferred())
-        if (existing != null) return
-
-        ioScope.launch {
+        executor.execute {
             val file = try {
-                withContext(Dispatchers.IO) { download(client, url, fileFor(appId, type)!!) }
+                download.fetch(client, urls, dest)
             } catch (e: Exception) {
                 Timber.tag(TAG).w(e, "download failed appId=%s type=%s", appId, type)
                 null
+            } finally {
+                synchronized(inflight) {
+                    if (inflight[key] === download) inflight.remove(key)
+                }
             }
-            inflight.remove(key)?.complete(file)
             if (file != null) enforceSizeCap()
         }
     }
@@ -124,10 +126,10 @@ object CoverCache {
      */
     fun enqueueAll(
         appId: String,
-        urls: Map<Type, String?>,
+        urls: Map<Type, List<String>>,
         client: OkHttpClient = Net.http,
     ) {
-        for ((type, url) in urls) enqueue(appId, type, url, client)
+        for ((type, candidates) in urls) enqueue(appId, type, candidates, client)
     }
 
     /**
@@ -136,8 +138,14 @@ object CoverCache {
      */
     fun evict(appId: String) {
         if (appId.isEmpty()) return
-        cacheDir.listFiles()?.forEach { f ->
-            if (f.name.startsWith(prefix(appId))) f.delete()
+        synchronized(inflight) {
+            val keyPrefix = sanitize(appId) + ":"
+            inflight.entries.removeAll { (key, download) ->
+                key.startsWith(keyPrefix).also { if (it) download.cancel() }
+            }
+            cacheDir.listFiles()?.forEach { f ->
+                if (f.name.startsWith(prefix(appId))) f.delete()
+            }
         }
     }
 
@@ -148,7 +156,7 @@ object CoverCache {
     fun pruneOrphans(knownAppIds: Set<String>) {
         executor.execute {
             val known = knownAppIds.map { prefix(it) }.toHashSet()
-            val files = cacheDir.listFiles() ?: return@execute
+            val files = cacheDir.listFiles { _, name -> !name.endsWith(TEMP_SUFFIX) } ?: return@execute
             var pruned = 0
             for (f in files) {
                 val p = f.name.substringBefore("__")
@@ -170,7 +178,11 @@ object CoverCache {
     }
 
     fun clear() {
-        cacheDir.listFiles()?.forEach { it.delete() }
+        synchronized(inflight) {
+            inflight.values.forEach { it.cancel() }
+            inflight.clear()
+            cacheDir.listFiles()?.forEach { it.delete() }
+        }
     }
 
     fun fileCount(): Int = cacheDir.listFiles()?.size ?: 0
@@ -194,33 +206,63 @@ object CoverCache {
         return sb.toString()
     }
 
-    private fun download(client: OkHttpClient, url: String, dest: File): File? {
-        val req = Request.Builder().url(url).build()
-        client.newCall(req).execute().use { resp ->
-            if (!resp.isSuccessful) return null
-            val body = resp.body ?: return null
-            val tmp = File(cacheDir, dest.name + ".tmp")
-            tmp.outputStream().use { out ->
-                body.byteStream().copyTo(out)
+    internal class Download {
+        private var cancelled = false
+        private var activeCall: Call? = null
+
+        @Synchronized
+        fun cancel() {
+            cancelled = true
+            activeCall?.cancel()
+        }
+
+        fun fetch(client: OkHttpClient, urls: List<String>, dest: File): File? {
+            for (url in urls.distinct()) {
+                val call = synchronized(this) {
+                    if (cancelled) return null
+                    client.newCall(Request.Builder().url(url).build()).also {
+                        it.timeout().timeout(10, TimeUnit.SECONDS)
+                        activeCall = it
+                    }
+                }
+                try {
+                    download(call, dest)?.let { return it }
+                } catch (e: IOException) {
+                    if (!call.isCanceled()) Timber.tag(TAG).w(e, "cover download failed")
+                } finally {
+                    synchronized(this) { activeCall = null }
+                }
             }
-            if (tmp.length() == 0L) {
-                tmp.delete()
-                return null
+            return null
+        }
+
+        private fun download(call: Call, dest: File): File? {
+            call.execute().use { resp ->
+                if (!resp.isSuccessful) return null
+                val body = resp.body ?: return null
+                val tmp = File.createTempFile(dest.name, TEMP_SUFFIX, dest.parentFile)
+                try {
+                    tmp.outputStream().use { out ->
+                        body.byteStream().copyTo(out)
+                    }
+                    if (tmp.length() == 0L) return null
+                    synchronized(this) {
+                        if (cancelled) return null
+                        if (dest.exists()) dest.delete()
+                        if (!tmp.renameTo(dest)) tmp.copyTo(dest, overwrite = true)
+                    }
+                    return dest
+                } finally {
+                    tmp.delete()
+                }
             }
-            if (dest.exists()) dest.delete()
-            if (!tmp.renameTo(dest)) {
-                // renameTo across some filesystems can fail; fall back.
-                tmp.copyTo(dest, overwrite = true)
-                tmp.delete()
-            }
-            return dest
         }
     }
 
     private fun enforceSizeCap() {
         val capBytes = PrefManager.coverCacheMaxMb.toLong() * 1024L * 1024L
         if (capBytes <= 0L) return
-        val files = cacheDir.listFiles()?.toList() ?: return
+        val files = cacheDir.listFiles { _, name -> !name.endsWith(TEMP_SUFFIX) } ?: return
         var total = files.sumOf { it.length() }
         if (total <= capBytes) return
         val sorted = files.sortedBy { it.lastModified() }

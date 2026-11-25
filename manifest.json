@@ -1,8 +1,50 @@
 {
   "version": 1,
-  "updatedAt": "2026-08-08",
+  "updatedAt": "2026-11-24",
   "items": {
     "driver": [
+      {
+        "id": "malisx2 0.5.1 (308fe121c7)",
+        "name": "MaliSX2 0.5.1",
+        "url": "https://github.com/bmdhacks/malisx2/releases/download/v0.5.1/malisx2-0.5.1-308fe121c7.zip",
+        "variant": "bionic",
+        "archiveFormat": "zip",
+        "sizeBytes": 3815046,
+        "sha256": "9619ec33ebd9cb8714026f5668e1f4669b5d43a17c1fbb216819ca78eb3d61c5",
+        "sourceRepository": "https://github.com/bmdhacks/malisx2"
+      },
+      {
+        "id": "PanVK-FristOneRR-V.3.7.0",
+        "name": "Mali PanVK 3.7.0 (Bifrost / Valhall)",
+        "url": "https://github.com/FristOneRR/FristOneRR-Panvk-Driver/releases/download/v3.7.0/PanVK-FristOneRR-V.3.7.0.zip",
+        "variant": "bionic",
+        "archiveFormat": "zip",
+        "sizeBytes": 6259246,
+        "sha256": "6e9129a3b9db5204c315df2ba5836fb88dea063686a0d11426de992e9e2409c5",
+        "sourceRepository": "https://github.com/FristOneRR/FristOneRR-Panvk-Driver"
+      },
+      {
+        "id": "Mesa 26.3.0 panvk.8",
+        "name": "Mali PanVK 26.3.0 (G610 / G615 / G710 / G715 / G720)",
+        "url": "https://github.com/MineGraph-bilibili/panvk-Android/releases/download/Mesa.26.3.0-panvk.8/Mesa.26.3.0-panvk.8.zip",
+        "variant": "bionic",
+        "archiveFormat": "zip",
+        "sizeBytes": 7529991,
+        "sha256": "e71e23cdd2ddf52f72d7c348b5754df323cd56fbe6e0087b4c5c9b116565be4b",
+        "sourceRepository": "https://github.com/MineGraph-bilibili/panvk-Android"
+      },
+      {
+        "id": "Turnip Gen8 V38",
+        "name": "Turnip_Gen8_V38",
+        "url": "https://downloads.gamenative.app/drivers/Turnip_Gen8_V38.zip",
+        "variant": "bionic"
+      },
+      {
+        "id": "Turnip v27.0.0-R1",
+        "name": "Turnip_v27.0.0-R1",
+        "url": "https://downloads.gamenative.app/drivers/Turnip_v27.0.0-R1.zip",
+        "variant": "bionic"
+      },
       {
         "id": "A8XX Turnip v29",
         "name": "Turnip A8XX v29",
@@ -140,9 +182,19 @@
         "variant": "bionic"
       },
       {
+        "id": "Turnip 27.0.0-R2",
+        "name": "Turnip_v27.0.0-R2",
+        "url": "https://github.com/StevenMXZ/Adreno-Tools-Drivers/releases/download/v39/Turnip_v27.0.0-R2.zip",
+        "sha256": "8d30be022582d0c03b1918c019540491d00439e14e9e5e1359fe0bb19004f781",
+        "sizeBytes": 2663719,
+        "variant": "bionic"
+      },
+      {
         "id": "Turnip v26.2.0 R4",
         "name": "Turnip_v26.2.0_R4",
         "url": "https://downloads.gamenative.app/drivers/Turnio_v26.2.0_R4.zip",
+        "sha256": "2f61896810e82aa9aa309b852326261e90bd2b9bfbb52f47ab036b65afd7524d",
+        "sizeBytes": 2700091,
         "variant": "bionic"
       },
       {
@@ -748,6 +800,12 @@
     ],
     "dxvk": [
       {
+        "id": "3.1.1-0",
+        "name": "DXVK 3.1.1",
+        "url": "https://github.com/Arihany/WinlatorWCPHub/releases/download/DXVK/dxvk-3.1.1.wcp",
+        "variant": "bionic"
+      },
+      {
         "id": "3.0.2-0",
         "name": "DXVK 3.0.2",
         "url": "https://github.com/The412Banner/Nightlies/releases/download/Dxvk/dxvk-3.0.2.wcp",
@@ -903,6 +961,8 @@
         "id": "proton-10.0-arm64ec-2",
         "name": "Proton 10.0 ARM64ec",
         "url": "https://downloads.gamenative.app/proton-10.0-arm64ec.wcp",
+        "sha256": "c1638b1f830304222660e338bc032099145ad210d4e36a07d91f39c750a062f7",
+        "sizeBytes": 262671004,
         "variant": "bionic"
       },
       {
@@ -927,6 +987,24 @@
         "id": "proton-11.0-1-arm64ec-1",
         "name": "Proton 11.0-1 ARM64ec",
         "url": "https://downloads.gamenative.app/proton-11.0-1-arm64ec.wcp",
+        "sha256": "be248bf8baf354c4426f997605c6b78debbc93b091a3be3339c1bbc2176b596f",
+        "sizeBytes": 276851384,
+        "variant": "bionic"
+      },
+      {
+        "id": "proton-11.0-2-x86_64-13",
+        "name": "Proton 11.0-2 x86-64 (13)",
+        "url": "https://downloads.gamenative.app/proton-11.0-2-x86_64-13.wcp",
+        "sha256": "6e8064d9eb91e1bf4296894de544b8658aaedcb8e99586c84e4d8d12035d68d8",
+        "sizeBytes": 64722993,
+        "variant": "bionic"
+      },
+      {
+        "id": "proton-11.0-2-arm64ec-13",
+        "name": "Proton 11.0-2 ARM64ec (13)",
+        "url": "https://downloads.gamenative.app/proton-11.0-2-arm64ec-13.wcp",
+        "sha256": "2c53d73c0e2f762d39a1421e62c0ba1b4beda8c60b4af5253512edb7525918ad",
+        "sizeBytes": 100059303,
         "variant": "bionic"
       }
     ],
@@ -935,6 +1013,14 @@
         "id": "2601-217d039-0",
         "name": "FEX 2601-217d039",
         "url": "https://downloads.gamenative.app/FEXCore-2601-217d039.wcp",
+        "variant": "bionic"
+      },
+      {
+        "id": "2611-gn-8",
+        "name": "FEX 2611-gn (8)",
+        "url": "https://downloads.gamenative.app/FEXCore-2611-gn-8.wcp",
+        "sha256": "17c330056e425088e38033321619792725d39a4839df6d0fdf8de530468fc43e",
+        "sizeBytes": 1959704,
         "variant": "bionic"
       }
     ],
@@ -947,6 +1033,12 @@
       }
     ],
     "vkd3d": [
+      {
+        "id": "3.1-gn1-0",
+        "name": "VKD3D 3.1",
+        "url": "https://downloads.gamenative.app/dxwrapper/vkd3d-proton-3.1-gn1.wcp",
+        "variant": "bionic"
+      },
       {
         "id": "2.6",
         "name": "VKD3D 2.6",

@@ -9,6 +9,8 @@ data class SteamAppPicsMeta(
     val packageId: Int,
     @ColumnInfo("last_change_number")
     val lastChangeNumber: Int,
+    @ColumnInfo("received_pics")
+    val receivedPics: Boolean,
     @ColumnInfo("ufs_parse_version")
     val ufsParseVersion: Int,
 )

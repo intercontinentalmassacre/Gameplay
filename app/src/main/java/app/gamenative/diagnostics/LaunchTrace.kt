@@ -33,6 +33,14 @@ object LaunchTrace {
     @Volatile
     private var lastStageAtMs: Long = 0L
 
+    private var gameId: String? = null
+
+    data class Snapshot(val sessionId: String?, val events: List<StageEvent>)
+
+    fun snapshot(appId: String): Snapshot = lock.withLock {
+        if (gameId == appId) Snapshot(sessionId, events.toList()) else Snapshot(null, emptyList())
+    }
+
     private val events = mutableListOf<StageEvent>()
     private val lock = ReentrantLock()
 
@@ -48,9 +56,10 @@ object LaunchTrace {
     fun session(): String? = sessionId
 
     /** Begins a trace for a fresh [sessionId]. */
-    fun begin(sessionId: String = UUID.randomUUID().toString()) {
+    fun begin(sessionId: String = UUID.randomUUID().toString(), appId: String? = null) {
         lock.withLock {
             this.sessionId = sessionId
+            gameId = appId
             val now = System.currentTimeMillis()
             startedAtMs = now
             lastStageAtMs = now
@@ -86,6 +95,7 @@ object LaunchTrace {
             appendEventLocked(terminal, result)
             persistLocked()
             sessionId = null
+            gameId = null
             events.clear()
             startedAtMs = 0L
             lastStageAtMs = 0L
@@ -94,8 +104,7 @@ object LaunchTrace {
 
     fun eventsSnapshot(): List<StageEvent> = lock.withLock { events.toList() }
 
-    fun toJsonLines(events: List<StageEvent> = eventsSnapshot()): String {
-        val session = sessionId
+    fun toJsonLines(events: List<StageEvent> = eventsSnapshot(), session: String? = sessionId): String {
         return events.joinToString("\n") { e ->
             JSONObject()
                 .put("time", java.time.Instant.ofEpochMilli(e.timeMs).toString())

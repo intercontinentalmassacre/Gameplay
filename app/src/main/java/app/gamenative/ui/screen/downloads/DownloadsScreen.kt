@@ -3,9 +3,8 @@ package app.gamenative.ui.screen.downloads
 import android.content.res.Configuration
 import android.text.format.Formatter
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -33,7 +32,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
@@ -68,7 +66,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
@@ -83,6 +80,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -93,6 +91,7 @@ import app.gamenative.R
 import app.gamenative.externaldisplay.DsHomeSecondScreen
 import app.gamenative.data.GameSource
 import app.gamenative.data.LibraryItem
+import app.gamenative.ui.component.ConsoleIconButton
 import app.gamenative.ui.component.DualScreenAmbientStage
 import app.gamenative.ui.component.dialog.MessageDialog
 import app.gamenative.ui.component.focusRing
@@ -111,7 +110,6 @@ import app.gamenative.ui.screen.settings.ContainerStorageManagerContent
 import app.gamenative.ui.screen.settings.ContainerStorageManagerTransientUi
 import app.gamenative.ui.screen.settings.rememberContainerStorageManagerUiState
 import app.gamenative.ui.theme.PluviaTheme
-import app.gamenative.ui.theme.motionSpec
 import app.gamenative.utils.rememberHasExternalDisplay
 import com.skydoves.landscapist.ImageOptions
 import com.skydoves.landscapist.coil.CoilImage
@@ -216,13 +214,15 @@ fun HomeDownloadsScreen(
                 .statusBarsPadding()
                 .displayCutoutPadding(),
         ) {
+            val configuration = LocalConfiguration.current
+            val isPortrait = configuration.orientation == Configuration.ORIENTATION_PORTRAIT
+            val compactQueue = PluviaTheme.tokens.densityCompact && !isPortrait && configuration.screenHeightDp <= 480 &&
+                selectedSection == DownloadsSection.Downloads
             DownloadsHeader(
                 title = stringResource(selectedSection.titleResId),
                 onBack = onBack,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = if (compactQueue) 4.dp else 12.dp),
             )
-
-            val isPortrait = LocalConfiguration.current.orientation == Configuration.ORIENTATION_PORTRAIT
 
             if (isPortrait) {
                 // Portrait: horizontal tab row above the content
@@ -239,11 +239,11 @@ fun HomeDownloadsScreen(
             Row(
                 modifier = Modifier
                     .weight(1f)
-                    .padding(horizontal = 16.dp, vertical = if (isPortrait) 0.dp else 8.dp),
+                    .padding(horizontal = 16.dp, vertical = if (isPortrait || compactQueue) 0.dp else 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 if (!isPortrait) {
-                    val sidebarWidth = if (LocalConfiguration.current.screenWidthDp >= 1000) {
+                    val sidebarWidth = if (configuration.screenWidthDp >= 1000) {
                         220.dp
                     } else {
                         184.dp
@@ -262,7 +262,7 @@ fun HomeDownloadsScreen(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight(),
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(PluviaTheme.tokens.cornerMd),
                     color = PluviaTheme.colors.surfacePanel.copy(alpha = 0.94f),
                     tonalElevation = 0.dp,
                     shadowElevation = 0.dp,
@@ -270,6 +270,7 @@ fun HomeDownloadsScreen(
                     when (selectedSection) {
                         DownloadsSection.Downloads -> DownloadsContent(
                             state = state,
+                            compact = compactQueue,
                             onResumeDownload = viewModel::onResumeDownload,
                             onPauseDownload = viewModel::onPauseDownload,
                             onCancelDownload = viewModel::onCancelDownload,
@@ -282,7 +283,7 @@ fun HomeDownloadsScreen(
                             },
                             modifier = Modifier
                                 .fillMaxSize()
-                                .padding(20.dp),
+                                .padding(horizontal = if (compactQueue) 12.dp else 20.dp, vertical = if (compactQueue) 8.dp else 20.dp),
                         )
 
                         DownloadsSection.Containers -> ContainerFilesContent(
@@ -354,10 +355,13 @@ fun HomeDownloadsScreen(
     MessageDialog(
         visible = confirmation != null,
         title = stringResource(R.string.cancel_download_prompt_title),
-        message = confirmation?.gameName?.let {
-            stringResource(R.string.downloads_cancel_confirm, it)
+        message = confirmation?.let {
+            stringResource(
+                if (it.keepsInstalledGame) R.string.library_cancel_download_keep_game_message else R.string.downloads_cancel_confirm,
+                it.gameName,
+            )
         },
-        confirmBtnText = stringResource(R.string.yes),
+        confirmBtnText = stringResource(R.string.cancel_download_prompt_title),
         dismissBtnText = stringResource(R.string.no),
         onConfirmClick = { viewModel.onConfirmCancel() },
         onDismissClick = { viewModel.onDismissCancel() },
@@ -507,7 +511,11 @@ private fun DownloadsHeader(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        BackButton(onClick = onBack)
+        ConsoleIconButton(
+            icon = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+            contentDescription = stringResource(R.string.back),
+            onClick = onBack,
+        )
 
         Text(
             text = title,
@@ -534,7 +542,7 @@ private fun DownloadsSidebar(
 
     Surface(
         modifier = modifier,
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(PluviaTheme.tokens.cornerLg),
         color = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.96f),
         tonalElevation = 0.dp,
         shadowElevation = 0.dp,
@@ -593,29 +601,28 @@ private fun DownloadsTabRow(
     ) {
         sections.forEach { section ->
             val isSelected = selectedSection == section
-            val accentColor = PluviaTheme.colors.accentPurple
+            val interactionSource = remember { MutableInteractionSource() }
+            val shape = RoundedCornerShape(PluviaTheme.tokens.cornerMd)
+            val colors = MaterialTheme.colorScheme
 
             Surface(
                 modifier = Modifier
                     .weight(1f)
-                    .clip(RoundedCornerShape(16.dp))
+                    .focusRing(interactionSource, shape)
+                    .clip(shape)
                     .selectable(
                         selected = isSelected,
+                        interactionSource = interactionSource,
+                        indication = LocalIndication.current,
+                        role = Role.Tab,
                         onClick = { onSectionSelected(section) },
                     ),
-                shape = RoundedCornerShape(16.dp),
-                color = if (isSelected) {
-                    accentColor.copy(alpha = 0.16f)
-                } else {
-                    PluviaTheme.colors.surfacePanel.copy(alpha = 0.88f)
-                },
+                shape = shape,
+                color = if (isSelected) colors.primaryContainer else colors.surfaceContainerLow,
+                contentColor = if (isSelected) colors.onPrimaryContainer else colors.onSurfaceVariant,
                 border = BorderStroke(
-                    width = if (isSelected) 1.5.dp else 1.dp,
-                    color = if (isSelected) {
-                        accentColor.copy(alpha = 0.45f)
-                    } else {
-                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.15f)
-                    },
+                    width = 1.dp,
+                    color = colors.outlineVariant.copy(alpha = 0.24f),
                 ),
             ) {
                 Row(
@@ -627,14 +634,12 @@ private fun DownloadsTabRow(
                 ) {
                     Icon(
                         imageVector = section.icon,
-                        contentDescription = stringResource(section.titleResId),
-                        tint = if (isSelected) accentColor else MaterialTheme.colorScheme.onSurfaceVariant,
+                        contentDescription = null,
                         modifier = Modifier.size(20.dp),
                     )
                     Text(
                         text = stringResource(section.titleResId),
                         style = MaterialTheme.typography.labelLarge,
-                        color = if (isSelected) accentColor else MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
@@ -653,7 +658,7 @@ private fun DownloadsSidebarItem(
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
     val accentColor = MaterialTheme.colorScheme.primary
-    val itemShape = RoundedCornerShape(12.dp)
+    val itemShape = RoundedCornerShape(PluviaTheme.tokens.cornerMd)
     val containerColor = when {
         isFocused -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
         selected -> MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.72f)
@@ -668,9 +673,9 @@ private fun DownloadsSidebarItem(
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .focusRing(interactionSource, itemShape)
             .clip(itemShape)
             .background(containerColor)
-            .focusRing(interactionSource, itemShape, width = 2.dp)
             .focusRequester(focusRequester)
             .selectable(
                 selected = selected,
@@ -695,7 +700,7 @@ private fun DownloadsSidebarItem(
         Box(
             modifier = Modifier
                 .size(36.dp)
-                .clip(RoundedCornerShape(9.dp))
+                .clip(RoundedCornerShape(PluviaTheme.tokens.cornerMd))
                 .background(
                     if (selected || isFocused) {
                         contentColor.copy(alpha = 0.10f)
@@ -707,7 +712,7 @@ private fun DownloadsSidebarItem(
         ) {
             Icon(
                 imageVector = section.icon,
-                contentDescription = stringResource(section.titleResId),
+                contentDescription = null,
                 tint = contentColor,
                 modifier = Modifier.size(20.dp),
             )
@@ -729,6 +734,7 @@ private fun DownloadsSidebarItem(
 @Composable
 private fun DownloadsContent(
     state: DownloadsState,
+    compact: Boolean,
     onResumeDownload: (DownloadItemState) -> Unit,
     onPauseDownload: (DownloadItemState) -> Unit,
     onCancelDownload: (DownloadItemState) -> Unit,
@@ -764,14 +770,16 @@ private fun DownloadsContent(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
 
-        Spacer(modifier = Modifier.height(10.dp))
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(if (compact) 4.dp else 10.dp))
+        if (!compact) {
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+            Spacer(modifier = Modifier.height(16.dp))
+        }
 
         if (items.isNotEmpty()) {
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(if (compact) 4.dp else 10.dp),
             ) {
                 DownloadsToolbarButton(
                     text = primaryActionLabel,
@@ -798,7 +806,7 @@ private fun DownloadsContent(
                     contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(if (compact) 8.dp else 16.dp))
         }
 
         if (items.isEmpty()) {
@@ -806,7 +814,7 @@ private fun DownloadsContent(
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 12.dp),
                 contentPadding = PaddingValues(bottom = 24.dp),
             ) {
                 items(
@@ -815,6 +823,7 @@ private fun DownloadsContent(
                 ) { item ->
                     DownloadItemCard(
                         item = item,
+                        compact = compact,
                         onOpenGame = { onOpenGame(item) },
                         onResume = { onResumeDownload(item) },
                         onPause = { onPauseDownload(item) },
@@ -971,7 +980,7 @@ private fun ContainerFilesContent(
                             .fillMaxWidth()
                             .padding(8.dp),
                         color = MaterialTheme.colorScheme.secondaryContainer,
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(PluviaTheme.tokens.cornerMd),
                     ) {
                         Row(
                             modifier = Modifier.padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
@@ -1111,25 +1120,25 @@ private fun ContainerFileCard(
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     when {
-                        item.canPause -> ContainerFileActionButton(
-                            imageVector = Icons.Default.Pause,
+                        item.canPause -> ConsoleIconButton(
+                            icon = Icons.Default.Pause,
                             contentDescription = stringResource(R.string.downloads_containers_action_pause),
                             onClick = onPause,
                         )
-                        item.canResume -> ContainerFileActionButton(
-                            imageVector = Icons.Default.PlayArrow,
+                        item.canResume -> ConsoleIconButton(
+                            icon = Icons.Default.PlayArrow,
                             contentDescription = stringResource(R.string.downloads_containers_action_resume),
                             onClick = onResume,
                         )
-                        item.canDownload -> ContainerFileActionButton(
-                            imageVector = Icons.Default.CloudDownload,
+                        item.canDownload -> ConsoleIconButton(
+                            icon = Icons.Default.CloudDownload,
                             contentDescription = stringResource(R.string.downloads_containers_action_download),
                             onClick = onDownload,
                         )
                     }
                     if (item.canRemove) {
-                        ContainerFileActionButton(
-                            imageVector = Icons.Default.Delete,
+                        ConsoleIconButton(
+                            icon = Icons.Default.Delete,
                             contentDescription = stringResource(R.string.downloads_containers_action_remove),
                             onClick = onRemove,
                         )
@@ -1148,53 +1157,6 @@ private fun ContainerFileCard(
             }
             }
         }
-    }
-}
-
-@Composable
-private fun ContainerFileActionButton(
-    imageVector: ImageVector,
-    contentDescription: String,
-    onClick: () -> Unit,
-) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val isFocused by interactionSource.collectIsFocusedAsState()
-    val scale by animateFloatAsState(
-        targetValue = if (isFocused) 1.04f else 1f,
-        animationSpec = motionSpec(tween(PluviaTheme.tokens.motionFastMs)),
-        label = "containerFileActionButtonScale",
-    )
-    val accentColor = PluviaTheme.colors.accentPurple
-
-    Box(
-        modifier = Modifier
-            .scale(scale)
-            .size(40.dp)
-            .clip(CircleShape)
-            .background(
-                if (isFocused) accentColor.copy(alpha = 0.18f)
-                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-            )
-            .border(
-                width = if (isFocused) 2.dp else 1.dp,
-                color = if (isFocused) accentColor.copy(alpha = 0.65f)
-                else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f),
-                shape = CircleShape,
-            )
-            .selectable(
-                selected = isFocused,
-                interactionSource = interactionSource,
-                indication = null,
-                onClick = onClick,
-            ),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            imageVector = imageVector,
-            contentDescription = contentDescription,
-            tint = if (isFocused) accentColor else MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(20.dp),
-        )
     }
 }
 
@@ -1229,29 +1191,16 @@ private fun DownloadsToolbarButton(
     contentColor: Color,
     modifier: Modifier = Modifier,
 ) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val isFocused by interactionSource.collectIsFocusedAsState()
-    val accentColor = PluviaTheme.colors.accentPurple
-
     FilledTonalButton(
         onClick = onClick,
         enabled = enabled,
         modifier = modifier.then(
             if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier,
         ),
-        shape = RoundedCornerShape(16.dp),
-        interactionSource = interactionSource,
-        border = BorderStroke(
-            width = if (isFocused) 2.dp else 1.dp,
-            color = if (isFocused) {
-                accentColor.copy(alpha = 0.7f)
-            } else {
-                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f)
-            },
-        ),
+        shape = RoundedCornerShape(PluviaTheme.tokens.cornerMd),
         colors = ButtonDefaults.filledTonalButtonColors(
-            containerColor = if (isFocused) accentColor.copy(alpha = 0.18f) else containerColor,
-            contentColor = if (isFocused) accentColor else contentColor,
+            containerColor = containerColor,
+            contentColor = contentColor,
         ),
     ) {
         if (icon != null) {
@@ -1263,56 +1212,6 @@ private fun DownloadsToolbarButton(
             Spacer(modifier = Modifier.width(6.dp))
         }
         Text(text = text)
-    }
-}
-
-@Composable
-private fun BackButton(
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val isFocused by interactionSource.collectIsFocusedAsState()
-
-    val scale by animateFloatAsState(
-        targetValue = if (isFocused) 1.04f else 1f,
-        animationSpec = motionSpec(tween(PluviaTheme.tokens.motionFastMs)),
-        label = "backButtonScale",
-    )
-
-    Box(
-        modifier = modifier
-            .scale(scale)
-            .size(44.dp)
-            .clip(CircleShape)
-            .background(
-                if (isFocused) {
-                    PluviaTheme.colors.accentPurple.copy(alpha = 0.2f)
-                } else {
-                    PluviaTheme.colors.surfaceElevated
-                }
-            )
-            .then(
-                if (isFocused) {
-                    Modifier.border(2.dp, PluviaTheme.colors.accentPurple.copy(alpha = 0.6f), CircleShape)
-                } else {
-                    Modifier.border(1.dp, PluviaTheme.colors.borderDefault.copy(alpha = 0.3f), CircleShape)
-                }
-            )
-            .selectable(
-                selected = isFocused,
-                interactionSource = interactionSource,
-                indication = null,
-                onClick = onClick,
-            ),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-            contentDescription = stringResource(R.string.back),
-            tint = if (isFocused) PluviaTheme.colors.accentPurple else Color.White.copy(alpha = 0.8f),
-            modifier = Modifier.size(24.dp),
-        )
     }
 }
 
@@ -1335,6 +1234,7 @@ private fun EmptyDownloadsContent(
 @Composable
 private fun DownloadItemCard(
     item: DownloadItemState,
+    compact: Boolean,
     onOpenGame: () -> Unit,
     onResume: () -> Unit,
     onPause: () -> Unit,
@@ -1344,6 +1244,12 @@ private fun DownloadItemCard(
     val statusText = statusLabel(item.status)
     val detailText = item.statusMessage?.takeIf { !it.equals(statusText, ignoreCase = true) }
     val etaText = item.etaMs?.let(::formatEta)
+    val bytesText = when {
+        item.bytesDownloaded != null && item.bytesTotal != null && item.bytesTotal > 0L ->
+            "${Formatter.formatFileSize(context, item.bytesDownloaded)} / ${Formatter.formatFileSize(context, item.bytesTotal)}"
+        item.bytesDownloaded != null -> Formatter.formatFileSize(context, item.bytesDownloaded)
+        else -> null
+    }
     val progressColor = when (item.status) {
         DownloadItemStatus.COMPLETED -> PluviaTheme.colors.accentSuccess
         DownloadItemStatus.CANCELLED,
@@ -1367,22 +1273,22 @@ private fun DownloadItemCard(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     if (item.canResume) {
-                        DownloadActionButton(
-                            imageVector = Icons.Default.PlayArrow,
+                        ConsoleIconButton(
+                            icon = Icons.Default.PlayArrow,
                             contentDescription = stringResource(R.string.resume_download),
                             onClick = onResume,
                         )
                     } else if (item.canPause) {
-                        DownloadActionButton(
-                            imageVector = Icons.Default.Pause,
+                        ConsoleIconButton(
+                            icon = Icons.Default.Pause,
                             contentDescription = stringResource(R.string.pause_download),
                             onClick = onPause,
                         )
                     }
 
                     if (item.canCancel) {
-                        DownloadActionButton(
-                            imageVector = Icons.Default.Delete,
+                        ConsoleIconButton(
+                            icon = Icons.Default.Delete,
                             contentDescription = stringResource(R.string.delete),
                             onClick = onCancel,
                         )
@@ -1395,7 +1301,7 @@ private fun DownloadItemCard(
             Column(modifier = infoModifier) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
@@ -1417,44 +1323,47 @@ private fun DownloadItemCard(
                 }
 
                 item.progress?.let { progress ->
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(if (compact) 4.dp else 8.dp))
                     GcdsProgressBar(
                         progress = progress,
                         color = progressColor,
                     )
                 }
 
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(if (compact) 4.dp else 10.dp))
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(if (compact) 2.dp else 8.dp),
                 ) {
-                    MetadataChip(
-                        text = sourceLabel(item.gameSource),
-                        containerColor = sourceContainerColor(item.gameSource),
-                        contentColor = sourceContentColor(item.gameSource),
-                    )
-                    MetadataChip(
-                        text = statusText,
-                        containerColor = statusContainerColor(item.status),
-                        contentColor = statusContentColor(item.status),
-                    )
+                    if (compact) {
+                        listOfNotNull(statusText, bytesText, etaText, sourceLabel(item.gameSource)).forEach { value ->
+                            Text(
+                                text = value,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    } else {
+                        MetadataChip(
+                            text = sourceLabel(item.gameSource),
+                            containerColor = sourceContainerColor(item.gameSource),
+                            contentColor = sourceContentColor(item.gameSource),
+                        )
+                        MetadataChip(
+                            text = statusText,
+                            containerColor = statusContainerColor(item.status),
+                            contentColor = statusContentColor(item.status),
+                        )
+                    }
                 }
 
-                if (item.bytesDownloaded != null || etaText != null) {
+                if (!compact && (bytesText != null || etaText != null)) {
                     Spacer(modifier = Modifier.height(10.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        val bytesText = when {
-                            item.bytesDownloaded != null && item.bytesTotal != null && item.bytesTotal > 0L -> {
-                                "${Formatter.formatFileSize(context, item.bytesDownloaded)} / ${Formatter.formatFileSize(context, item.bytesTotal)}"
-                            }
-                            item.bytesDownloaded != null -> Formatter.formatFileSize(context, item.bytesDownloaded)
-                            else -> null
-                        }
                         if (bytesText != null) {
                             Text(
                                 text = bytesText,
@@ -1478,7 +1387,7 @@ private fun DownloadItemCard(
                 }
 
                 if (!detailText.isNullOrBlank()) {
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(if (compact) 2.dp else 8.dp))
                     Text(
                         text = detailText,
                         style = MaterialTheme.typography.labelSmall,
@@ -1526,7 +1435,8 @@ private fun DownloadItemCard(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(14.dp),
+                    .padding(horizontal = if (compact) 10.dp else 14.dp, vertical = if (compact) 6.dp else 14.dp),
+                horizontalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 GameArtworkButton(
@@ -1536,14 +1446,9 @@ private fun DownloadItemCard(
                     onClick = onOpenGame,
                 )
 
-                Spacer(modifier = Modifier.width(12.dp))
-
                 infoContent(Modifier.weight(1f))
 
-                if (item.canPause || item.canResume || item.canCancel) {
-                    Spacer(modifier = Modifier.width(12.dp))
-                    actionButtons()
-                }
+                actionButtons()
             }
         }
     }
@@ -1559,32 +1464,20 @@ private fun GameArtworkButton(
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
-    val accentColor = PluviaTheme.colors.accentPurple
+    val colors = MaterialTheme.colorScheme
+    val shape = RoundedCornerShape(PluviaTheme.tokens.cornerMd)
 
     Box(
         modifier = modifier
             .size(52.dp)
-            .clip(RoundedCornerShape(10.dp))
-            .background(
-                if (isFocused) {
-                    accentColor.copy(alpha = 0.18f)
-                } else {
-                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
-                }
-            )
-            .border(
-                width = if (isFocused) 2.dp else 1.dp,
-                color = if (isFocused) {
-                    accentColor.copy(alpha = 0.7f)
-                } else {
-                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f)
-                },
-                shape = RoundedCornerShape(10.dp),
-            )
-            .selectable(
-                selected = isFocused,
+            .focusRing(interactionSource, shape)
+            .clip(shape)
+            .background(if (isFocused) colors.primaryContainer else colors.surfaceContainerHighest)
+            .border(1.dp, colors.outlineVariant.copy(alpha = 0.24f), shape)
+            .clickable(
                 interactionSource = interactionSource,
-                indication = null,
+                indication = LocalIndication.current,
+                role = Role.Button,
                 onClick = onClick,
             ),
         contentAlignment = Alignment.Center,
@@ -1596,15 +1489,13 @@ private fun GameArtworkButton(
                     contentScale = ContentScale.Crop,
                     contentDescription = contentDescription,
                 ),
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clip(RoundedCornerShape(10.dp)),
+                modifier = Modifier.fillMaxSize(),
             )
         } else {
             Icon(
                 imageVector = placeholderIcon,
                 contentDescription = contentDescription,
-                tint = if (isFocused) accentColor else MaterialTheme.colorScheme.onSurfaceVariant,
+                tint = if (isFocused) colors.onPrimaryContainer else colors.onSurfaceVariant,
                 modifier = Modifier.size(22.dp),
             )
         }
@@ -1689,60 +1580,6 @@ private fun statusContentColor(status: DownloadItemStatus): Color = when (status
     DownloadItemStatus.CANCELLED,
     DownloadItemStatus.FAILED,
     -> MaterialTheme.colorScheme.onErrorContainer
-}
-
-@Composable
-private fun DownloadActionButton(
-    imageVector: ImageVector,
-    contentDescription: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val isFocused by interactionSource.collectIsFocusedAsState()
-    val scale by animateFloatAsState(
-        targetValue = if (isFocused) 1.04f else 1f,
-        animationSpec = motionSpec(tween(PluviaTheme.tokens.motionFastMs)),
-        label = "downloadActionButtonScale",
-    )
-    val accentColor = PluviaTheme.colors.accentPurple
-
-    Box(
-        modifier = modifier
-            .scale(scale)
-            .size(40.dp)
-            .clip(CircleShape)
-            .background(
-                if (isFocused) {
-                    accentColor.copy(alpha = 0.18f)
-                } else {
-                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                }
-            )
-            .border(
-                width = if (isFocused) 2.dp else 1.dp,
-                color = if (isFocused) {
-                    accentColor.copy(alpha = 0.65f)
-                } else {
-                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f)
-                },
-                shape = CircleShape,
-            )
-            .selectable(
-                selected = isFocused,
-                interactionSource = interactionSource,
-                indication = null,
-                onClick = onClick,
-            ),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            imageVector = imageVector,
-            contentDescription = contentDescription,
-            tint = if (isFocused) accentColor else MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(20.dp),
-        )
-    }
 }
 
 private fun formatEta(etaMs: Long): String {

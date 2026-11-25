@@ -23,7 +23,7 @@ public abstract class DefaultVersion {
     public static String STEAM_TYPE = STEAM_TYPE_NORMAL;
     public static String VARIANT = Container.GLIBC;
     public static String DEFAULT_GRAPHICS_DRIVER = "vortek";
-    public static String WINE_VERSION = com.winlator.core.WineInfo.MAIN_WINE_VERSION.identifier();
+    public static final String BIONIC_WINE_VERSION = "proton-10.0-arm64ec-2";
     public static String ASYNC = "1";
     public static String ASYNC_CACHE = "0";
 }

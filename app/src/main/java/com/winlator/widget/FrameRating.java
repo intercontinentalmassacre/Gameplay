@@ -54,11 +54,15 @@ public class FrameRating extends FrameLayout implements Runnable {
     }
 
     public void update() {
+        update(SystemClock.elapsedRealtime());
+    }
+
+    /** Uses the original publish time for frames counted after Gamescope detects game content. */
+    public void update(long time) {
         if (lastTime == 0) {
-            lastTime = SystemClock.elapsedRealtime();
-            sessionStartTime = SystemClock.elapsedRealtime();
+            lastTime = time;
+            sessionStartTime = time;
         }
-        long time = SystemClock.elapsedRealtime();
         if (time >= lastTime + 500) {
             lastFPS = ((float)(frameCount * 1000) / (time - lastTime));
 

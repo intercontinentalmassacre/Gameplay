@@ -16,6 +16,7 @@ import app.gamenative.db.dao.EpicGameDao
 import app.gamenative.db.dao.GOGGameDao
 import app.gamenative.db.dao.SteamAppDao
 import app.gamenative.events.AndroidEvent
+import app.gamenative.service.GameDownloadQueue
 import app.gamenative.service.SteamService
 import app.gamenative.service.amazon.AmazonConstants
 import app.gamenative.service.amazon.AmazonService
@@ -601,8 +602,12 @@ class DownloadsViewModel @Inject constructor(
             val disappearedKeys = lastTrackedDownloads.keys - liveDownloads.keys
             for (key in disappearedKeys) {
                 val previousItem = lastTrackedDownloads[key] ?: continue
+                val observedFailure = observedDownloads[key]?.info?.getStatusMessageFlow()?.value
+                    ?.takeIf { it.startsWith("Failed", ignoreCase = true) }
+                val failure = observedFailure ?: recentFailureMessages[key]
                 val finishedStatus = when {
                     pendingCancelledDownloads.remove(key) -> DownloadItemStatus.CANCELLED
+                    failure != null -> DownloadItemStatus.FAILED
                     isInstalled(previousItem.gameSource, previousItem.appId) -> DownloadItemStatus.COMPLETED
                     else -> DownloadItemStatus.FAILED
                 }
@@ -610,7 +615,7 @@ class DownloadsViewModel @Inject constructor(
                 val finishedMessage = when (finishedStatus) {
                     DownloadItemStatus.COMPLETED -> appContext.getString(R.string.downloads_status_complete)
                     DownloadItemStatus.CANCELLED -> appContext.getString(R.string.downloads_status_cancelled)
-                    DownloadItemStatus.FAILED -> recentFailureMessages[key] ?: appContext.getString(R.string.downloads_status_failed)
+                    DownloadItemStatus.FAILED -> failureMessage(failure)
                     else -> previousItem.statusMessage
                 }
 
@@ -729,9 +734,16 @@ class DownloadsViewModel @Inject constructor(
     }
 
     fun onPauseAll() {
-        state.value.downloads.values
-            .filter { it.canPause }
-            .forEach(::onPauseDownload)
+        viewModelScope.launch(Dispatchers.IO) {
+            val downloads = GameDownloadQueue.drainForPause()
+            downloads.forEach { entry ->
+                val key = downloadKey(entry.gameSource, entry.gameId)
+                pausedDownloads.add(key)
+                recentFailureMessages.remove(key)
+            }
+            downloads.forEach { it.downloadInfo.pause() }
+            scheduleRefreshDownloads()
+        }
     }
 
     fun onResumeAll() {
@@ -754,9 +766,15 @@ class DownloadsViewModel @Inject constructor(
     }
 
     fun onCancelDownload(item: DownloadItemState) {
+        val keepsInstalledGame = when (item.gameSource) {
+            GameSource.STEAM -> item.appId.toIntOrNull()?.let { SteamService.isAppInstalled(it) } == true
+            GameSource.AMAZON -> AmazonService.getInstallPath(item.appId) != null
+            else -> false
+        }
         _state.update {
             it.copy(
                 cancelConfirmation = CancelConfirmation(
+                    keepsInstalledGame = keepsInstalledGame,
                     appId = item.appId,
                     gameSource = item.gameSource,
                     gameName = item.gameName,
@@ -785,8 +803,7 @@ class DownloadsViewModel @Inject constructor(
             when (gameSource) {
                 GameSource.STEAM -> {
                     val id = appId.toIntOrNull() ?: return@launch
-                    SteamService.getAppDownloadInfo(id)?.cancel()
-                    SteamService.deleteApp(id)
+                    SteamService.cancelAppDownload(id)
                     PluviaApp.events.emit(AndroidEvent.LibraryInstallStatusChanged(id, GameSource.STEAM))
                     scheduleRefreshDownloads()
                 }
@@ -815,8 +832,7 @@ class DownloadsViewModel @Inject constructor(
                 }
 
                 GameSource.AMAZON -> {
-                    AmazonService.cancelDownload(appId)
-                    AmazonService.deleteGame(appContext, appId)
+                    AmazonService.cancelInstallation(appContext, appId)
                     scheduleRefreshDownloads()
                 }
 

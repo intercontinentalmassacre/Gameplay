@@ -2,6 +2,118 @@
   "type": "driver",
   "components": [
     {
+      "id": "malisx2 0.5.1 (308fe121c7)",
+      "name": "MaliSX2 0.5.1",
+      "url": "https://github.com/bmdhacks/malisx2/releases/download/v0.5.1/malisx2-0.5.1-308fe121c7.zip",
+      "variant": "bionic",
+      "archiveFormat": "zip",
+      "sizeBytes": 3815046,
+      "sha256": "9619ec33ebd9cb8714026f5668e1f4669b5d43a17c1fbb216819ca78eb3d61c5",
+      "sourceRepository": "https://github.com/bmdhacks/malisx2"
+    },
+    {
+      "id": "PanVK-FristOneRR-V.3.7.0",
+      "name": "Mali PanVK 3.7.0 (Bifrost / Valhall)",
+      "url": "https://github.com/FristOneRR/FristOneRR-Panvk-Driver/releases/download/v3.7.0/PanVK-FristOneRR-V.3.7.0.zip",
+      "variant": "bionic",
+      "archiveFormat": "zip",
+      "sizeBytes": 6259246,
+      "sha256": "6e9129a3b9db5204c315df2ba5836fb88dea063686a0d11426de992e9e2409c5",
+      "sourceRepository": "https://github.com/FristOneRR/FristOneRR-Panvk-Driver"
+    },
+    {
+      "id": "Mesa 26.3.0 panvk.8",
+      "name": "Mali PanVK 26.3.0 (G610 / G615 / G710 / G715 / G720)",
+      "url": "https://github.com/MineGraph-bilibili/panvk-Android/releases/download/Mesa.26.3.0-panvk.8/Mesa.26.3.0-panvk.8.zip",
+      "variant": "bionic",
+      "archiveFormat": "zip",
+      "sizeBytes": 7529991,
+      "sha256": "e71e23cdd2ddf52f72d7c348b5754df323cd56fbe6e0087b4c5c9b116565be4b",
+      "sourceRepository": "https://github.com/MineGraph-bilibili/panvk-Android"
+    },
+    {
+      "id": "Turnip Gen8 V38",
+      "name": "Turnip_Gen8_V38",
+      "url": "https://downloads.gamenative.app/drivers/Turnip_Gen8_V38.zip",
+      "variant": "bionic"
+    },
+    {
+      "id": "Turnip v27.0.0-R1",
+      "name": "Turnip_v27.0.0-R1",
+      "url": "https://downloads.gamenative.app/drivers/Turnip_v27.0.0-R1.zip",
+      "variant": "bionic"
+    },
+    {
+      "id": "A8XX Turnip v29",
+      "name": "Turnip A8XX v29",
+      "url": "https://github.com/whitebelyash/AdrenoToolsDrivers/releases/download/tu_v29/a8xx-turnip-gen8-V29.zip",
+      "variant": "bionic",
+      "archiveFormat": "zip",
+      "sizeBytes": 2661564,
+      "sha256": "d0b70db415f58d4ff94b9ded883c3c5ffb90fa3e8f653b9582c7ea6dec262efc",
+      "sourceRepository": "https://github.com/whitebelyash/AdrenoToolsDrivers"
+    },
+    {
+      "id": "Mesa Turnip v26.3.0-20260808-r9-710-720-Test",
+      "name": "Turnip v26.3.0 r9 710-720 Test",
+      "url": "https://github.com/The412Banner/Banners-Turnip/releases/download/v26.3.0-20260808-r9/Turnip-v26.3.0-20260808-r9-710-720-Test.zip",
+      "variant": "bionic",
+      "archiveFormat": "zip",
+      "sizeBytes": 2680181,
+      "sha256": "5c80c4d76fbab1fb734f22b945f932bb4a01641120c82081e518609426a880b4",
+      "sourceRepository": "https://github.com/The412Banner/Banners-Turnip"
+    },
+    {
+      "id": "Mesa Turnip v26.3.0-20260808-r9-A8xx",
+      "name": "Turnip v26.3.0 r9 A8xx",
+      "url": "https://github.com/The412Banner/Banners-Turnip/releases/download/v26.3.0-20260808-r9/Turnip-v26.3.0-20260808-r9-A8xx.zip",
+      "variant": "bionic",
+      "archiveFormat": "zip",
+      "sizeBytes": 2679959,
+      "sha256": "b0cf7bf09bb6656e0900b923b699a7c817842483046ceb3964bee9fd4399b4e3",
+      "sourceRepository": "https://github.com/The412Banner/Banners-Turnip"
+    },
+    {
+      "id": "Mesa Turnip v26.3.0-20260808-r9",
+      "name": "Turnip v26.3.0 r9",
+      "url": "https://github.com/The412Banner/Banners-Turnip/releases/download/v26.3.0-20260808-r9/Turnip-v26.3.0-20260808-r9.zip",
+      "variant": "bionic",
+      "archiveFormat": "zip",
+      "sizeBytes": 2680107,
+      "sha256": "40b1ff4d5003b4e9d145bce34a8a8d0192affd8febac1b111e4f2dffcd641725",
+      "sourceRepository": "https://github.com/The412Banner/Banners-Turnip"
+    },
+    {
+      "id": "Mainline Turnip v31",
+      "name": "Mainline Turnip v31",
+      "url": "https://github.com/whitebelyash/AdrenoToolsDrivers/releases/download/tu_v31/mainline-turnip-V31.zip",
+      "variant": "bionic",
+      "archiveFormat": "zip",
+      "sizeBytes": 2679911,
+      "sha256": "de95d77367f0a3f0d3f785737e6e1e5265fb157a6bfe76dab42ef34593b0d237",
+      "sourceRepository": "https://github.com/whitebelyash/AdrenoToolsDrivers"
+    },
+    {
+      "id": "Mainline Turnip v30",
+      "name": "Mainline Turnip v30",
+      "url": "https://github.com/whitebelyash/AdrenoToolsDrivers/releases/download/tu_v30/mainline-turnip-V30.zip",
+      "variant": "bionic",
+      "archiveFormat": "zip",
+      "sizeBytes": 2674315,
+      "sha256": "94d40683498cfbdaf140bc2fc0b8f54464170e6c3f29ab3cdec847f1506c5de9",
+      "sourceRepository": "https://github.com/whitebelyash/AdrenoToolsDrivers"
+    },
+    {
+      "id": "Stable Turnip v1",
+      "name": "Stable Turnip v1",
+      "url": "https://github.com/whitebelyash/AdrenoToolsDrivers/releases/download/stu_v1/stable-turnip-V1.zip",
+      "variant": "bionic",
+      "archiveFormat": "zip",
+      "sizeBytes": 2656730,
+      "sha256": "22337708bc628b24983321582f2382bac40ecb2e7cc3a580340eda31b66571a3",
+      "sourceRepository": "https://github.com/whitebelyash/AdrenoToolsDrivers"
+    },
+    {
       "id": "Turnip v26.1.0 A12 Fix",
       "name": "Turnip_v26.1.0_A12Fix",
       "url": "https://downloads.gamenative.app/drivers/Turnip_v26.1.0_A12Fix.zip",
@@ -68,9 +180,19 @@
       "variant": "bionic"
     },
     {
+      "id": "Turnip 27.0.0-R2",
+      "name": "Turnip_v27.0.0-R2",
+      "url": "https://github.com/StevenMXZ/Adreno-Tools-Drivers/releases/download/v39/Turnip_v27.0.0-R2.zip",
+      "sha256": "8d30be022582d0c03b1918c019540491d00439e14e9e5e1359fe0bb19004f781",
+      "sizeBytes": 2663719,
+      "variant": "bionic"
+    },
+    {
       "id": "Turnip v26.2.0 R4",
       "name": "Turnip_v26.2.0_R4",
       "url": "https://downloads.gamenative.app/drivers/Turnio_v26.2.0_R4.zip",
+      "sha256": "2f61896810e82aa9aa309b852326261e90bd2b9bfbb52f47ab036b65afd7524d",
+      "sizeBytes": 2700091,
       "variant": "bionic"
     },
     {

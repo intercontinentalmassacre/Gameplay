@@ -596,7 +596,7 @@ class GOGManager @Inject constructor(
         val gameId = libraryItem.gameId.toString()
         try {
             val game = getGameFromDbById(gameId) ?: return@withContext ""
-            val installPath = getGameInstallPath(game.id, game.title)
+            val installPath = game.installPath.ifEmpty { getGameInstallPath(game.id, game.title) }
 
             // Try V2 structure first (game_$gameId subdirectory)
             val v2GameDir = File(installPath, "game_$gameId")
@@ -737,7 +737,7 @@ class GOGManager @Inject constructor(
             return "\"explorer.exe\""
         }
 
-        val gameInstallPath = getGameInstallPath(gameId.toString(), game.title)
+        val gameInstallPath = game.installPath.ifEmpty { getGameInstallPath(gameId.toString(), game.title) }
         val gameDir = File(gameInstallPath)
 
         if (!gameDir.exists()) {
@@ -942,6 +942,15 @@ class GOGManager @Inject constructor(
         }
     }
 
+    // some installs omit clientId from goggame-<id>.info and carry `client_id` only in GalaxyConfig.json.
+    private fun galaxyConfigClientId(installPath: String): String {
+        return runCatching {
+            val cfg = File(installPath, "GalaxyConfig.json")
+            if (!cfg.isFile) return@runCatching ""
+            JSONObject(cfg.readText()).optString("client_id", "")
+        }.getOrDefault("")
+    }
+
     /**
      * Fetch save locations from GOG Remote Config API
      * @param context Android context
@@ -968,9 +977,11 @@ class GOGManager @Inject constructor(
             // clientId is optional and missing for many games (e.g. Dead Cells), so prefer the .info value
             // only as a hint and fall back to the build metadata, which always carries both.
             val buildCredentials = GOGApiClient.getClientCredentials(context, gameId.toString(), installPath)
-            val clientId = infoJson.optString("clientId", "").ifEmpty { buildCredentials?.first ?: "" }
+            val clientId = infoJson.optString("clientId", "")
+                .ifEmpty { buildCredentials?.first ?: "" }
+                .ifEmpty { galaxyConfigClientId(installPath) }
             if (clientId.isEmpty()) {
-                Timber.tag("GOG").w("[Cloud Saves] No clientId in info file or build metadata for game $gameId")
+                Timber.tag("GOG").w("[Cloud Saves] No clientId in info file, build metadata, or GalaxyConfig.json for game $gameId")
                 return@withContext null
             }
             Timber.tag("GOG").d("[Cloud Saves] Client ID: $clientId")

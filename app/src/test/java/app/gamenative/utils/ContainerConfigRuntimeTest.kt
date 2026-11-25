@@ -19,6 +19,16 @@ class ContainerConfigRuntimeTest {
     )
 
     @Test
+    fun `local shader cache defaults off and requires a restart`() {
+        val old = baseConfig()
+        assertFalse(old.fossilizeEnabled)
+        assertEquals(
+            setOf("fossilizeEnabled"),
+            ContainerConfigRuntime.restartRequiredChangedFields(old, old.copy(fossilizeEnabled = true)),
+        )
+    }
+
+    @Test
     fun `identical configs report no changes`() {
         val old = baseConfig()
         val new = baseConfig()
@@ -75,8 +85,23 @@ class ContainerConfigRuntimeTest {
     }
 
     @Test
-    fun `runtime changes require restart`() {
+    fun `gamescope is opt-in and changing display settings requires restart`() {
         val old = baseConfig()
+        assertEquals("x11", old.displayServer)
+        assertFalse(old.gamescopeExperimental)
+        for (updated in listOf(
+            old.copy(displayServer = "gamescope"),
+            old.copy(hdrEnabled = true),
+            old.copy(gamescopeOutputResolution = "device"),
+            old.copy(gamescopeExperimental = true),
+        )) {
+            assertTrue(ContainerConfigRuntime.requiresRestart(old, updated))
+        }
+    }
+
+    @Test
+    fun `runtime changes require restart`() {
+        val old = baseConfig().copy(cpuList = "0")
 
         val restartCases = listOf(
             old.copy(wineVersion = "proton-9.0") to "wineVersion",

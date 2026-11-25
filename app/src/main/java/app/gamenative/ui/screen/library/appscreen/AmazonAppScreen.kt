@@ -336,7 +336,11 @@ override fun isInstalled(context: Context, libraryItem: LibraryItem): Boolean =
                     visible = true,
                     type = DialogType.CANCEL_APP_DOWNLOAD,
                     title = context.getString(R.string.cancel_download_prompt_title),
-                    message = context.getString(R.string.epic_delete_download_message),
+                    message = if (AmazonService.getInstallPath(productId) != null) {
+                        context.getString(R.string.library_cancel_download_keep_game_message, libraryItem.name)
+                    } else {
+                        context.getString(R.string.epic_delete_download_message)
+                    },
                     confirmBtnText = context.getString(R.string.yes),
                     dismissBtnText = context.getString(R.string.no),
                 )
@@ -652,12 +656,9 @@ override fun isInstalled(context: Context, libraryItem: LibraryItem): Boolean =
                         Timber.tag(TAG).i("Confirmed cancel/delete download for: $productId")
                         BaseAppScreen.hideInstallDialog(appId)
                         showDeletingDialog = true
-                        val downloadInfo = AmazonService.getDownloadInfo(productId)
-                        downloadInfo?.cancel()
                         scope.launch {
                             try {
-                                downloadInfo?.awaitCompletion()
-                                AmazonService.deleteGame(context, productId)
+                                AmazonService.cancelInstallation(context, productId)
                                 DownloadService.invalidateCache()
                                 withContext(Dispatchers.Main) {
                                     val gameId = libraryItem.gameId

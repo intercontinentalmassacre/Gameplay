@@ -6,6 +6,15 @@ import java.nio.charset.Charset;
 import java.util.Locale;
 
 public class StringUtils {
+    public static boolean containsIgnoreCase(String value, String query) {
+        if (value == null || query == null) return false;
+        int length = query.length();
+        for (int i = 0; i <= value.length() - length; i++) {
+            if (value.regionMatches(true, i, query, 0, length)) return true;
+        }
+        return false;
+    }
+
     public static String removeEndSlash(String value) {
         while (value.endsWith("/") || value.endsWith("\\")) value = value.substring(0, value.length()-1);
         return value;

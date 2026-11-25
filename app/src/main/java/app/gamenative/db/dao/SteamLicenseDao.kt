@@ -32,11 +32,15 @@ interface SteamLicenseDao {
     suspend fun getAllLicenses(): List<SteamLicense>
 
     //lightweight difffs for steamlicences
-    @Query("SELECT packageId, last_change_number, access_token FROM steam_license")
+    @Query("SELECT packageId, last_change_number, access_token, owner_account_id, license_flags FROM steam_license")
     suspend fun getLicenseStubs(): List<SteamLicenseStub>
 
     @Query("SELECT packageId, access_token FROM steam_license")
     suspend fun getLicensesForPics(): List<SteamLicenseForPics>
+
+    // Older interrupted syncs may have saved a license without applying its package metadata.
+    @Query("SELECT packageId, access_token FROM steam_license WHERE app_ids = '[]' AND depot_ids = '[]'")
+    suspend fun getUnresolvedPackagesForPics(): List<SteamLicenseForPics>
 
     @Query("SELECT * FROM steam_license WHERE packageId = :packageId")
     suspend fun findLicense(packageId: Int): SteamLicense?

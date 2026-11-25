@@ -35,10 +35,12 @@ object GameFixesRegistry {
         STEAM_Fix_22370,
         STEAM_Fix_22380,
         STEAM_Fix_22490,
+        STEAM_Fix_200260,
         STEAM_Fix_312520,
         STEAM_Fix_413150,
         STEAM_Fix_413420,
         STEAM_Fix_752580,
+        STEAM_Fix_1167630,
         STEAM_Fix_1293830,
         STEAM_Fix_1637320,
         STEAM_Fix_1962700,
@@ -51,7 +53,7 @@ object GameFixesRegistry {
         EPIC_Fix_e345fdb9186645a48d30c3f85a8951dc,
         EPIC_Fix_59a0c86d02da42e8ba6444cb171e61bf,
         EPIC_Fix_864c7bc2c2394f7dbd1b534aa068ff56,
-    ).associateBy { it.gameSource to it.gameId }
+    ).plus(blackOpsIISteamFixes).associateBy { it.gameSource to it.gameId }
 
     private var fixesProvider: () -> Map<Pair<GameSource, String>, GameFix> = { fixes }
 

@@ -13,7 +13,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import app.gamenative.service.amazon.AmazonAuthManager
 import app.gamenative.ui.component.dialog.AuthWebViewDialog
-import app.gamenative.ui.theme.PluviaTheme
+import app.gamenative.ui.theme.currentGameplayAppearance
 import app.gamenative.utils.redactUrlForLogging
 import timber.log.Timber
 import java.util.concurrent.atomic.AtomicBoolean
@@ -39,7 +39,7 @@ class AmazonOAuthActivity : ComponentActivity() {
         val authUrl = AmazonAuthManager.startAuthFlow()
 
         setContent {
-            PluviaTheme {
+            currentGameplayAppearance().Provide {
                 AmazonAuthWebView(
                     authUrl = authUrl,
                     onCodeCaptured = { code ->

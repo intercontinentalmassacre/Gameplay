@@ -21,6 +21,7 @@ object SteamStoreDetails {
         val screenshots: List<String>,
         val metacriticScore: Int?,
         val controllerSupport: String?,
+        val achievementCount: Int?,
     )
 
     private val client = OkHttpClient.Builder()
@@ -33,7 +34,7 @@ object SteamStoreDetails {
             val request = Request.Builder()
                 .url(
                     "https://store.steampowered.com/api/appdetails?appids=$appId" +
-                        "&filters=short_description,genres,categories,screenshots,metacritic,controller_support",
+                        "&filters=short_description,genres,categories,screenshots,metacritic,controller_support,achievements",
                 )
                 .build()
             client.newCall(request).execute().use { response ->
@@ -62,6 +63,9 @@ object SteamStoreDetails {
             }.filter { it.isNotBlank() }
         }.orEmpty()
         val score = data.optJSONObject("metacritic")?.optInt("score", 0)?.takeIf { it > 0 }
+        val achievementCount = data.optJSONObject("achievements")
+            ?.optInt("total", 0)
+            ?.takeIf { it > 0 }
 
         return Details(
             shortDescription = data.optString("short_description").trim(),
@@ -70,6 +74,7 @@ object SteamStoreDetails {
             screenshots = screenshots,
             metacriticScore = score,
             controllerSupport = data.optString("controller_support").takeIf { it.isNotBlank() },
+            achievementCount = achievementCount,
         )
     }
 }

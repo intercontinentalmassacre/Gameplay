@@ -30,6 +30,7 @@ VulkanRendererContext::~VulkanRendererContext() {
     vk_.DeviceWaitIdle(device);
     for (auto& [id, wt] : texMap) destroyWinTex(wt);
     texMap.clear();
+    cleanupAllAHBCache();
     
     for (auto& wt : deleteQueue) {
         if (wt.ds   != VK_NULL_HANDLE) vk_.FreeDescriptorSets(device, winTexPool, 1, &wt.ds);
@@ -47,7 +48,6 @@ VulkanRendererContext::~VulkanRendererContext() {
     vk_.DestroyPipelineLayout(device, pipeLayout, nullptr);
     vk_.DestroyDescriptorSetLayout(device, dsLayout, nullptr);
     for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-        vk_.DestroySemaphore(device, renderDoneSems[i], nullptr);
         vk_.DestroySemaphore(device, imgAvailSems[i], nullptr);
         vk_.DestroyFence(device, inFlightFences[i], nullptr);
     }
@@ -286,6 +286,7 @@ void VulkanRendererContext::createSwapchain() {
     if (oldSwapchain!=VK_NULL_HANDLE) vk_.DestroySwapchainKHR(device,oldSwapchain,nullptr);
     vk_.GetSwapchainImagesKHR(device,swapchain,&imgCount,nullptr);
     swapchainImages.resize(imgCount); vk_.GetSwapchainImagesKHR(device,swapchain,&imgCount,swapchainImages.data());
+    swapchainImages.resize(imgCount);
     swapchainViews.resize(imgCount);
     for (size_t i=0;i<imgCount;i++) {
         VkImageViewCreateInfo vi{}; vi.sType=VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -298,6 +299,13 @@ void VulkanRendererContext::createSwapchain() {
         mapping.a = VK_COMPONENT_SWIZZLE_IDENTITY;
         vi.components = mapping;
         if (vk_.CreateImageView(device,&vi,nullptr,&swapchainViews[i])!=VK_SUCCESS) throw std::runtime_error("imgview");
+    }
+    renderDoneSems.resize(imgCount, VK_NULL_HANDLE);
+    VkSemaphoreCreateInfo si{};
+    si.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+    for (auto& semaphore : renderDoneSems) {
+        if (vk_.CreateSemaphore(device, &si, nullptr, &semaphore) != VK_SUCCESS)
+            throw std::runtime_error("present semaphore");
     }
 }
 
@@ -425,12 +433,11 @@ void VulkanRendererContext::createCmdBufs() {
 }
 
 void VulkanRendererContext::createSyncObjects() {
-    imgAvailSems.resize(MAX_FRAMES_IN_FLIGHT); renderDoneSems.resize(MAX_FRAMES_IN_FLIGHT); inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
+    imgAvailSems.resize(MAX_FRAMES_IN_FLIGHT); inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
     VkSemaphoreCreateInfo si{}; si.sType=VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
     VkFenceCreateInfo fi{}; fi.sType=VK_STRUCTURE_TYPE_FENCE_CREATE_INFO; fi.flags=VK_FENCE_CREATE_SIGNALED_BIT;
     for (uint32_t i=0;i<MAX_FRAMES_IN_FLIGHT;i++) {
         if (vk_.CreateSemaphore(device,&si,nullptr,&imgAvailSems[i])!=VK_SUCCESS||
-            vk_.CreateSemaphore(device,&si,nullptr,&renderDoneSems[i])!=VK_SUCCESS||
             vk_.CreateFence(device,&fi,nullptr,&inFlightFences[i])!=VK_SUCCESS) throw std::runtime_error("sync");
     }
 }
@@ -438,6 +445,10 @@ void VulkanRendererContext::createSyncObjects() {
 void VulkanRendererContext::cleanupSwapchain() {
     for (auto fb:swapchainFBs) vk_.DestroyFramebuffer(device,fb,nullptr); swapchainFBs.clear();
     for (auto iv:swapchainViews) vk_.DestroyImageView(device,iv,nullptr); swapchainViews.clear();
+    for (auto semaphore : renderDoneSems) {
+        if (semaphore != VK_NULL_HANDLE) vk_.DestroySemaphore(device, semaphore, nullptr);
+    }
+    renderDoneSems.clear();
     if (!cmdBufs.empty()){vk_.FreeCommandBuffers(device,cmdPool,(uint32_t)cmdBufs.size(),cmdBufs.data());cmdBufs.clear();}
     if (swapchain!=VK_NULL_HANDLE) { vk_.DestroySwapchainKHR(device,swapchain,nullptr); swapchain=VK_NULL_HANDLE; }
 }
@@ -863,7 +874,7 @@ void VulkanRendererContext::renderFrame() {
     if (surfaceWidth==0||surfaceHeight==0) return;
 
     if (fbResized.load()) {
-        for (auto& f:inFlightFences) vk_.WaitForFences(device,1,&f,VK_TRUE,UINT64_MAX);
+        vk_.DeviceWaitIdle(device);
         cleanupSwapchain();
         bool ok=false;
         try{createSwapchain();createFramebuffers();createCmdBufs();imgInFlight.assign(swapchainImages.size(),VK_NULL_HANDLE);
@@ -962,7 +973,8 @@ ok=true;}catch(...){}
         curUpload,hasCurUpload,
         ox,oy,sx,sy,cw,ch,ptrX,ptrY,curHotX,curHotY,curW,curH,effectiveCurVis);
 
-    VkSemaphore wSem[]={imgAvailSems[currentFrame]}, sSem[]={renderDoneSems[currentFrame]};
+    // Acquiring this image again makes its previous presentation wait safe to reuse.
+    VkSemaphore wSem[]={imgAvailSems[currentFrame]}, sSem[]={renderDoneSems[imgIdx]};
     VkPipelineStageFlags wStage[]={VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
     VkSubmitInfo si{}; si.sType=VK_STRUCTURE_TYPE_SUBMIT_INFO;
     si.waitSemaphoreCount=1; si.pWaitSemaphores=wSem; si.pWaitDstStageMask=wStage;
@@ -994,7 +1006,7 @@ void VulkanRendererContext::detachSurface() {
     surfaceDetached.store(true, std::memory_order_release);
     dirtyCV.notify_all();
 
-    { std::unique_lock<std::shared_mutex> frameLock(frameMutex); }
+    std::unique_lock<std::shared_mutex> frameLock(frameMutex);
 
     vk_.DeviceWaitIdle(device);
     cleanupSwapchain();
@@ -1093,13 +1105,20 @@ void VulkanRendererContext::updateWindowContent(int64_t id, void* px, short w, s
 
 void VulkanRendererContext::updateWindowContentAHB(int64_t id, AHardwareBuffer* ahb, short, short, int, int) {
     if (!ahb) return;
-    std::lock_guard<std::mutex> lk(renderMutex);
-
-
-
-
+    std::unique_lock<std::shared_mutex> frameLock(frameMutex, std::defer_lock);
+    std::unique_lock<std::mutex> renderLock(renderMutex);
 
     auto cit = ahbImportCache.find(ahb);
+    if (cit == ahbImportCache.end() && ahbImportCache.size() >= MAX_CACHED_AHB_IMPORTS) {
+        // Match renderFrame's lock order and keep the render thread out of the queues during pruning.
+        renderLock.unlock();
+        frameLock.lock();
+        renderLock.lock();
+        cit = ahbImportCache.find(ahb);
+        if (cit == ahbImportCache.end() && ahbImportCache.size() >= MAX_CACHED_AHB_IMPORTS) {
+            pruneStaleAHBImports();
+        }
+    }
     if (cit == ahbImportCache.end()) {
         WinTex tmp{};
         if (!importAHBToWinTex(tmp, ahb)) {
@@ -1117,6 +1136,7 @@ void VulkanRendererContext::updateWindowContentAHB(int64_t id, AHardwareBuffer* 
 
     WinTex& src = cit->second;
     WinTex& wt  = texMap[id];
+    if (!wt.isAHB) destroyWinTex(wt);
     wt.img  = src.img;
     wt.mem  = src.mem;
     wt.view = src.view;
@@ -1157,7 +1177,10 @@ void VulkanRendererContext::removeWindow(int64_t id) {
     if (wit != windowAhbs.end()) {
         for (AHardwareBuffer* ahb : wit->second) {
             auto cit = ahbImportCache.find(ahb);
-            if (cit != ahbImportCache.end()) {
+            const bool stillActive = std::any_of(texMap.begin(), texMap.end(), [ahb](const auto& entry) {
+                return entry.second.isAHB && entry.second.ahb == ahb;
+            });
+            if (cit != ahbImportCache.end() && !stillActive) {
                 WinTex deferred = cit->second;
                 deferred.isAHB  = false;
                 deleteQueue.push_back(deferred);
@@ -1173,14 +1196,50 @@ void VulkanRendererContext::removeWindow(int64_t id) {
     needsRender.store(true); dirtyCV.notify_one();
 }
 
-void VulkanRendererContext::cleanupAllAHBCache() {
-    for (auto& [ahb, wt] : ahbImportCache) {
-        if (wt.ds   != VK_NULL_HANDLE) vk_.FreeDescriptorSets(device, winTexPool, 1, &wt.ds);
-        if (wt.view != VK_NULL_HANDLE) vk_.DestroyImageView(device, wt.view, nullptr);
-        if (wt.img  != VK_NULL_HANDLE) vk_.DestroyImage(device, wt.img, nullptr);
-        if (wt.mem  != VK_NULL_HANDLE) vk_.FreeMemory(device, wt.mem, nullptr);
-        AHardwareBuffer_release(ahb);
+void VulkanRendererContext::pruneStaleAHBImports() {
+    std::vector<AHardwareBuffer*> active;
+    active.reserve(texMap.size());
+    for (const auto& entry : texMap) {
+        if (entry.second.isAHB) active.push_back(entry.second.ahb);
     }
+
+    // Never evict a texture still shown by a window. Avoid waiting for an idle
+    // device when all cached imports are in use.
+    auto isStale = [&active](const auto& entry) {
+        return std::find(active.begin(), active.end(), entry.first) == active.end();
+    };
+    if (std::none_of(ahbImportCache.begin(), ahbImportCache.end(), isStale)) return;
+    if (vk_.DeviceWaitIdle(device) != VK_SUCCESS) return;
+
+    for (auto it = ahbImportCache.begin(); it != ahbImportCache.end();) {
+        if (isStale(*it)) {
+            releaseAHBImport(it->first, it->second);
+            it = ahbImportCache.erase(it);
+        } else {
+            ++it;
+        }
+    }
+
+    for (auto it = windowAhbs.begin(); it != windowAhbs.end();) {
+        auto& buffers = it->second;
+        buffers.erase(std::remove_if(buffers.begin(), buffers.end(), [this](AHardwareBuffer* ahb) {
+            return ahbImportCache.find(ahb) == ahbImportCache.end();
+        }), buffers.end());
+        if (buffers.empty()) it = windowAhbs.erase(it);
+        else ++it;
+    }
+}
+
+void VulkanRendererContext::releaseAHBImport(AHardwareBuffer* ahb, WinTex& wt) {
+    if (wt.ds   != VK_NULL_HANDLE) vk_.FreeDescriptorSets(device, winTexPool, 1, &wt.ds);
+    if (wt.view != VK_NULL_HANDLE) vk_.DestroyImageView(device, wt.view, nullptr);
+    if (wt.img  != VK_NULL_HANDLE) vk_.DestroyImage(device, wt.img, nullptr);
+    if (wt.mem  != VK_NULL_HANDLE) vk_.FreeMemory(device, wt.mem, nullptr);
+    AHardwareBuffer_release(ahb);
+}
+
+void VulkanRendererContext::cleanupAllAHBCache() {
+    for (auto& [ahb, wt] : ahbImportCache) releaseAHBImport(ahb, wt);
     ahbImportCache.clear();
     windowAhbs.clear();
 }
@@ -1213,6 +1272,8 @@ void VulkanRendererContext::dumpRendererInfo() {
 }
 
 void VulkanRendererContext::setFilterMode(int mode) {
+    std::unique_lock<std::shared_mutex> frameLock(frameMutex);
+    std::lock_guard<std::mutex> renderLock(renderMutex);
     RLOG("setFilterMode: %d -> %d (%s->%s)", filterMode, mode,
         filterMode==2?(cubicSupported?"CUBIC":"LINEAR"):filterMode==1?"NEAREST":"LINEAR", mode==2?(cubicSupported?"CUBIC":"LINEAR"):mode==1?"NEAREST":"LINEAR");
     if (filterMode==mode) { RLOG("setFilterMode: already set, skipping"); return; }
