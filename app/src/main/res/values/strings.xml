@@ -2802,4 +2802,13 @@
     <string name="layout_apply">Apply to this game</string>
     <string name="layout_choose_game">Choose a game</string>
     <string name="layout_no_games">Install a game to choose its controller layout.</string>
+    <string name="community_layouts">Community layouts</string>
+    <string name="community_layout_search">Search layouts for this game</string>
+    <string name="community_layout_prev">Previous</string>
+    <string name="community_layout_next">Next</string>
+    <string name="community_layout_empty">No matching layouts for this game.</string>
+    <string name="community_layout_search_error">Could not reach Steam. Try again.</string>
+    <string name="community_layout_download_error">Could not load this layout.</string>
+    <string name="community_layout_unsupported">This layout has no bindings supported by this gamepad.</string>
+    <string name="community_layout_import">Supported bindings in the base set: %1$d. Gyro, trackpads and action layers are skipped.</string>
 </resources>
