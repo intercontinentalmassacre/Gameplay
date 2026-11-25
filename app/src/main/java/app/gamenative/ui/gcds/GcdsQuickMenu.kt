@@ -44,6 +44,11 @@ import app.gamenative.R
 import app.gamenative.data.SteamApp
 import app.gamenative.data.SteamCollection
 import app.gamenative.externaldisplay.DsHomeSecondScreen
+import androidx.compose.ui.viewinterop.AndroidView
+import app.gamenative.externaldisplay.ExternalDisplayInputController
+import app.gamenative.externaldisplay.HybridInputLayout
+import app.gamenative.ui.component.QuickMenuAction
+import com.winlator.xserver.XServer
 import app.gamenative.externaldisplay.secondScreenGameMode
 import app.gamenative.ui.component.QuickMenu
 import app.gamenative.ui.data.DownloadsState
@@ -110,6 +115,7 @@ fun GcdsQuickMenu(
     fpsLimiterTarget: Int = 60,
     fpsLimiterMax: Int = 60,
     game: SteamApp? = null,
+    gameInputServer: XServer? = null,
     frameRating: FrameRating? = null,
     onPerformanceHudConfigChanged: (PerformanceHudConfig) -> Unit = {},
     onFpsLimiterEnabledChanged: (Boolean) -> Unit = {},
@@ -171,6 +177,7 @@ fun GcdsQuickMenu(
             fpsLimiterTarget = fpsLimiterTarget,
             fpsLimiterMax = fpsLimiterMax,
             game = game,
+            gameInputServer = gameInputServer,
             frameRating = frameRating,
             onPerformanceHudConfigChanged = onPerformanceHudConfigChanged,
             onFpsLimiterEnabledChanged = onFpsLimiterEnabledChanged,
@@ -250,6 +257,7 @@ private fun GcdsGameQuickMenu(
     fpsLimiterTarget: Int = 60,
     fpsLimiterMax: Int = 60,
     game: SteamApp? = null,
+    gameInputServer: XServer? = null,
     frameRating: FrameRating? = null,
     onPerformanceHudConfigChanged: (PerformanceHudConfig) -> Unit = {},
     onFpsLimiterEnabledChanged: (Boolean) -> Unit = {},
@@ -288,12 +296,35 @@ private fun GcdsGameQuickMenu(
         mutableStateOf(PrefManager.dualScreenGameDefaultPanel == 1)
     }
 
+    val configuredInput = ExternalDisplayInputController.fromConfig(container?.externalDisplayMode)
+    val inputAvailable = gameInputServer != null && container?.isExternalDisplaySwap != true
+    val showInput = remember(container?.id, configuredInput) {
+        mutableStateOf(configuredInput != ExternalDisplayInputController.Mode.OFF)
+    }
     if (hasExternalDisplay) {
         SideEffect {
             DsHomeSecondScreen.publish(DsHomeSecondScreen.Model(
                 owner = DsHomeSecondScreen.Owner.GAME,
-                mode = secondScreenGameMode(menuActive = isVisible, showPassiveMenu = showPassiveMenu.value),
+                mode = secondScreenGameMode(menuActive = isVisible, showPassiveMenu = showPassiveMenu.value, showInput = inputAvailable && showInput.value),
                 onBack = onDismiss,
+                gameInputContent = gameInputServer?.takeIf { inputAvailable }?.let { server ->
+                    @Composable {
+                        AndroidView(
+                            modifier = Modifier.fillMaxSize(),
+                            factory = { context ->
+                                HybridInputLayout(context, server, { null },
+                                    keyboardInitiallyOpen = configuredInput == ExternalDisplayInputController.Mode.KEYBOARD)
+                            },
+                        )
+                    }
+                },
+                onShowGameInput = {
+                    if (!InGameContainerSettings.overlayActive) {
+                        showInput.value = true
+                        onItemSelected(QuickMenuAction.LIVE_INPUT)
+                        if (isVisible) onDismiss()
+                    }
+                },
                 dashboardTitle = dashboardTitle,
                 dashboardSubtitle = dashboardSubtitle,
                 dashboardImageUrl = dashboardImageUrl,
@@ -307,11 +338,13 @@ private fun GcdsGameQuickMenu(
                 performanceHudKey = 31 * System.identityHashCode(frameRating),
                 onShowDashboard = {
                     if (!InGameContainerSettings.overlayActive) {
+                        showInput.value = false
                         showPassiveMenu.value = false
                         if (isVisible) onDismiss()
                     }
                 },
                 onShowMenu = {
+                    showInput.value = false
                     showPassiveMenu.value = true
                     if (!isVisible) onRequestOpen()
                 },
@@ -371,6 +404,7 @@ private fun GcdsGameQuickMenu(
         LaunchedEffect(isVisible, presentationActive) {
             if (presentationActive && reportedActive.value != isVisible) {
                 onAnimationComplete(isVisible)
+                if (!isVisible && inputAvailable && showInput.value) onItemSelected(QuickMenuAction.LIVE_INPUT)
                 reportedActive.value = isVisible
             }
         }

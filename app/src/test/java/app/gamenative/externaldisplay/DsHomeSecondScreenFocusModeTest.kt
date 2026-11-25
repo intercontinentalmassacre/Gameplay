@@ -17,6 +17,9 @@ class DsHomeSecondScreenFocusModeTest {
         assertFalse(DsHomeSecondScreen.Mode.DETAILS.ownsControllerFocus())
         assertFalse(DsHomeSecondScreen.Mode.QUICK_MENU_PASSIVE.ownsControllerFocus())
         assertFalse(DsHomeSecondScreen.Mode.GAME_DASHBOARD.ownsControllerFocus())
+        assertFalse(DsHomeSecondScreen.Mode.GAME_INPUT.ownsControllerFocus())
+        assertEquals(DsHomeSecondScreen.Mode.GAME_INPUT, secondScreenGameMode(false, true, showInput = true))
+        assertEquals(DsHomeSecondScreen.Mode.QUICK_MENU, secondScreenGameMode(true, true, showInput = true))
     }
 
     @Test
