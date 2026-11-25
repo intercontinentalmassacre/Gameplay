@@ -4,6 +4,10 @@ import java.util.Locale
 
 internal fun parsePositiveFpsLimit(value: String): Int? = value.toIntOrNull()?.takeIf { it > 0 }
 
+/** The cap the gamescope shim gets: the user's cap even while LSFG is generating. */
+internal fun gamescopeFpsCap(limiterEnabled: Boolean, target: Int): Int =
+    if (limiterEnabled) target else 0
+
 internal fun parseBooleanExtra(value: String): Boolean? =
     when (value.trim().lowercase(Locale.US)) {
         "true" -> true
