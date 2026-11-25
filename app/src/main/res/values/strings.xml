@@ -2792,4 +2792,14 @@
     <string name="download_container_shared_hint">Store matching MSI, Mono and DirectX files once across games.</string>
     <string name="download_container_save_failed">Could not save the container settings. Try again.</string>
     <string name="download_container_auto">Automatic game configuration</string>
+    <string name="controller_layouts">Controller layouts</string>
+    <string name="layout_gamepad_description">Both sticks and buttons send gamepad input.</string>
+    <string name="layout_keyboard_mouse">Keyboard (WASD) and mouse</string>
+    <string name="layout_keyboard_mouse_description">Left stick sends WASD, right stick moves the mouse. RT left-clicks, A sends Space, X sends R, and Y sends E.</string>
+    <string name="layout_gamepad_mouse">Gamepad with mouse aim</string>
+    <string name="layout_gamepad_mouse_description">The right stick moves the mouse. Other controls send gamepad input.</string>
+    <string name="layout_current_custom">Current layout: Custom</string>
+    <string name="layout_apply">Apply to this game</string>
+    <string name="layout_choose_game">Choose a game</string>
+    <string name="layout_no_games">Install a game to choose its controller layout.</string>
 </resources>

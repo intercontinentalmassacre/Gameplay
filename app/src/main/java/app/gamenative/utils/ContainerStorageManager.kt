@@ -142,7 +142,7 @@ object ContainerStorageManager {
         val known: Boolean,
     )
 
-    private data class InstalledGame(
+    internal data class InstalledGame(
         val appId: String,
         val displayName: String,
         val gameSource: GameSource,
@@ -472,6 +472,11 @@ object ContainerStorageManager {
             Timber.tag("ContainerStorageManager").e(e, "Failed to uninstall game and container: %s", entry.containerId)
             Result.failure(e)
         }
+    }
+
+    internal suspend fun installedGamesForSelection(context: Context): List<InstalledGame> = withContext(Dispatchers.IO) {
+        val dao = EntryPointAccessors.fromApplication(context.applicationContext, StorageManagerDaoEntryPoint::class.java)
+        loadInstalledGames(context, dao).values.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.displayName })
     }
 
     private suspend fun loadInstalledGames(

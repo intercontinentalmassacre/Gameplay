@@ -79,6 +79,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import app.gamenative.R
+import app.gamenative.ui.component.dialog.PhysicalControllerEditorRoute
 import app.gamenative.shadercache.FossilizeManager
 import app.gamenative.ui.theme.PluviaTheme
 import app.gamenative.ui.util.SnackbarManager
@@ -572,7 +573,7 @@ var win32AppWorkarounds: Win32AppWorkarounds? by remember { mutableStateOf(null)
     var elementPositionsSnapshot by remember { mutableStateOf<Map<com.winlator.inputcontrols.ControlElement, Pair<Int, Int>>>(emptyMap()) }
     var showElementEditor by remember { mutableStateOf(false) }
     var elementToEdit by remember { mutableStateOf<com.winlator.inputcontrols.ControlElement?>(null) }
-    var showPhysicalControllerDialog by remember { mutableStateOf(false) }
+    var physicalControllerMenu by remember { mutableStateOf<Int?>(null) }
     // Steam Controller in-game live editors (shown from the QuickMenu CONTROLLER tab when an SC is connected).
     var showScRoot by remember { mutableStateOf(false) }
     var showScBindings by remember { mutableStateOf(false) }
@@ -1378,9 +1379,9 @@ var win32AppWorkarounds: Win32AppWorkarounds? by remember { mutableStateOf(null)
                 false
             }
 
-            QuickMenuAction.EDIT_PHYSICAL_CONTROLLER -> {
+            QuickMenuAction.CONTROLLER_LAYOUTS, QuickMenuAction.EDIT_PHYSICAL_CONTROLLER -> {
                 keepPausedForEditor = true
-                showPhysicalControllerDialog = true
+                physicalControllerMenu = itemId
                 true
             }
 
@@ -3089,15 +3090,16 @@ var win32AppWorkarounds: Win32AppWorkarounds? by remember { mutableStateOf(null)
         },
     )
 
-    if (showPhysicalControllerDialog) {
+    if (physicalControllerMenu != null) {
         val dismissPhysicalControllerEditor = {
-            showPhysicalControllerDialog = false
+            physicalControllerMenu = null
             keepPausedForEditor = false
             resumeIfAllowedAfterOverlay()
         }
         PhysicalControllerEditorRoute(
             container = container,
             gameName = currentAppInfo?.name ?: container.name,
+            layoutsOnly = physicalControllerMenu == QuickMenuAction.CONTROLLER_LAYOUTS,
             onDismiss = dismissPhysicalControllerEditor,
             onSaved = { profile ->
                 if (PluviaApp.inputControlsView?.profile != null) {
@@ -3144,52 +3146,6 @@ var win32AppWorkarounds: Win32AppWorkarounds? by remember { mutableStateOf(null)
     //
     //     }
     // }
-}
-
-@Composable
-private fun PhysicalControllerEditorRoute(
-    container: Container,
-    gameName: String,
-    onDismiss: () -> Unit,
-    onSaved: (ControlsProfile) -> Unit,
-) {
-    val context = LocalContext.current
-    val manager = remember(context) { PluviaApp.inputControlsManager ?: InputControlsManager(context) }
-    val profileId = container.getExtra("profileId", "0").toIntOrNull() ?: 0
-    val existingProfile = remember(manager, profileId) {
-        if (profileId == 0) null else manager.getProfile(profileId)
-    }
-    val sourceProfile = remember(manager, existingProfile) {
-        existingProfile ?: manager.getProfile(0)
-            ?: manager.getProfiles(false).let { profiles ->
-                profiles.firstOrNull { it.id == 2 } ?: profiles.firstOrNull()
-            }
-    }
-    if (sourceProfile == null) {
-        LaunchedEffect(Unit) { onDismiss() }
-        return
-    }
-
-    app.gamenative.ui.component.dialog.PhysicalControllerConfigSection(
-        profile = sourceProfile,
-        onDismiss = onDismiss,
-        resolveSaveProfile = {
-            existingProfile ?: try {
-                manager.duplicateProfile(sourceProfile)?.apply {
-                    setName("$gameName - Physical Controller")
-                }
-            } catch (e: Exception) {
-                Timber.e(e, "Failed to create profile for container ${container.name}")
-                null
-            }
-        },
-        onSave = { profile ->
-            container.putExtra("profileId", profile.id.toString())
-            container.saveData()
-            profile.loadControllers()
-            onSaved(profile)
-        },
-    )
 }
 
 /**

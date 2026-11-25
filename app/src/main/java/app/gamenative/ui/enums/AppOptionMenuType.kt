@@ -8,6 +8,7 @@ enum class AppOptionMenuType(@StringRes val title: Int) {
     CreateShortcut(R.string.create_shortcut),
     ExportFrontend(R.string.option_export_for_frontend),
     RunContainer(R.string.option_open_container),
+    ControllerLayouts(R.string.controller_layouts),
     EditContainer(R.string.option_edit_container),
     ResetToDefaults(R.string.option_reset_to_defaults),
     GetSupport(R.string.option_get_support),

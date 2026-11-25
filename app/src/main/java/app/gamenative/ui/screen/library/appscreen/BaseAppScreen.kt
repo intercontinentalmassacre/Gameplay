@@ -52,6 +52,7 @@ import app.gamenative.ui.component.dialog.LoadingToast
 import app.gamenative.ui.component.dialog.NexusModsDialog
 import app.gamenative.ui.data.AppMenuOption
 import app.gamenative.ui.data.Achievement
+import app.gamenative.ui.component.dialog.GameControllerLayouts
 import app.gamenative.ui.data.GameDisplayInfo
 import app.gamenative.ui.enums.AppOptionMenuType
 import app.gamenative.ui.util.ContainerConfigTransfer
@@ -1271,6 +1272,7 @@ abstract class BaseAppScreen {
         onClickPlay: (Boolean) -> Unit,
         onTestGraphics: () -> Unit,
         onPlayWithDiagnostics: () -> Unit,
+        onControllerLayouts: () -> Unit,
         exportFrontendLauncher: ActivityResultLauncher<String>,
     ): List<AppMenuOption> {
         val isInstalled = isInstalled(context, libraryItem)
@@ -1280,6 +1282,7 @@ abstract class BaseAppScreen {
         menuOptions.add(getEditContainerOption(context, libraryItem, onEditContainer))
 
         if (isInstalled) {
+            menuOptions.add(AppMenuOption(AppOptionMenuType.ControllerLayouts, onControllerLayouts))
             // Options only available when game is installed
             getRunContainerOption(context, libraryItem, onClickPlay)?.let { menuOptions.add(it) }
             getTestGraphicsOption(context, libraryItem, onTestGraphics)?.let { menuOptions.add(it) }
@@ -1765,7 +1768,11 @@ abstract class BaseAppScreen {
                 }
         }
 
-        val optionsMenu = getOptionsMenu(context, libraryItem, onEditContainer, onBack, onClickPlay, onTestGraphics, onPlayWithDiagnostics, exportFrontendLauncher)
+        var openControllerLayouts by remember(appId) { mutableStateOf(false) }
+        if (openControllerLayouts) {
+            GameControllerLayouts(appId, displayInfo.name, onDismiss = { openControllerLayouts = false })
+        }
+        val optionsMenu = getOptionsMenu(context, libraryItem, onEditContainer, onBack, onClickPlay, onTestGraphics, onPlayWithDiagnostics, { openControllerLayouts = true }, exportFrontendLauncher)
 
         // Get download info based on game source for progress tracking
         val downloadInfo = when (libraryItem.gameSource) {
@@ -1844,7 +1851,7 @@ abstract class BaseAppScreen {
             },
             onBack = onBack,
             optionsMenu = optionsMenu,
-            dialogOpen = showConfigDialog || communityConfigsRequested || manageModsRequested,
+            dialogOpen = openControllerLayouts || showConfigDialog || communityConfigsRequested || manageModsRequested,
             otherSources = libraryItem.otherSources,
             isInstalledOnOtherSource = libraryItem.isInstalledOnOtherSource,
             onSourceClick = onSourceClick,
