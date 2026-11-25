@@ -4,7 +4,6 @@ on:
   push:
     tags:
       - "v*"
-      - "[0-9]*"
   workflow_dispatch:
     inputs:
       tag:
@@ -30,8 +29,8 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Verify numeric release tag comes from working-builds
-        if: github.event_name == 'push' && !startsWith(github.ref_name, 'v')
+      - name: Verify release tag comes from working-builds
+        if: github.event_name == 'push'
         run: git merge-base --is-ancestor HEAD origin/working-builds
 
       - name: Set up Java

@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidatePattern('^v?\d+\.\d+(\.\d+)?([-.][0-9A-Za-z.-]+)?$')]
+    [ValidatePattern('^v\d+\.\d+(\.\d+)?([-.][0-9A-Za-z.-]+)?$')]
     [string]$Tag,
 
     [switch]$Offline
@@ -34,7 +34,7 @@ if (-not $versionCodeMatch.Success -or -not $versionNameMatch.Success) {
 
 $versionCode = [int]$versionCodeMatch.Groups[1].Value
 $versionName = $versionNameMatch.Groups[1].Value
-if (($Tag -replace '^v', '') -ne $versionName) {
+if ($Tag.Substring(1) -ne $versionName) {
     throw "Tag $Tag does not match versionName $versionName. Update the version before releasing."
 }
 
