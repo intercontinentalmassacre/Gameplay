@@ -2,6 +2,13 @@
 
 All notable changes to Gameplay are documented here.
 
+## 0.5 — 2026-11-25
+
+- Choose a physical controller preset per game, or search Steam community layouts and import supported buttons, sticks and triggers.
+- Use the companion screen as a touchpad and keyboard while the game keeps running. Touchpad clicks give haptic feedback.
+- Launch games with small executables declared by Steam, including Haiku, the Robot.
+- Handle interrupted Steam Cloud uploads and keep the local save available for another sync.
+
 ## 0.4.1 — 2026-11-24
 
 - Choose a compatibility preset and DXVK version while installing supported Steam and Epic games. Eligible Wine containers can share a base for common components.
