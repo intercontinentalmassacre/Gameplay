@@ -1977,8 +1977,19 @@ public class TouchpadView extends View implements View.OnCapturedPointerListener
         return null;
     }
 
+    private boolean clickHapticsEnabled;
+
+    public void setClickHapticsEnabled(boolean enabled) {
+        clickHapticsEnabled = enabled;
+    }
+
+    private void vibrateForClick() {
+        if (clickHapticsEnabled) performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY);
+    }
+
     private void pressPointerButtonLeft(Finger finger) {
         if (isEnabled() && this.pointerButtonLeftEnabled) {
+            vibrateForClick();
             // Relative mouse movement support
             if (this.xServer.isRelativeMouseMovement()) {
                 this.xServer.getWinHandler().mouseEvent(MouseEventFlags.LEFTDOWN, 0, 0, 0);
@@ -1997,6 +2008,7 @@ public class TouchpadView extends View implements View.OnCapturedPointerListener
 
     private void pressPointerButtonRight(Finger finger) {
         if (isEnabled() && this.pointerButtonRightEnabled) {
+            vibrateForClick();
             // Relative mouse movement support
             if (this.xServer.isRelativeMouseMovement()) {
                 this.xServer.getWinHandler().mouseEvent(MouseEventFlags.RIGHTDOWN, 0, 0, 0);

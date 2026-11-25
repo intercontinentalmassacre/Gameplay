@@ -1188,6 +1188,12 @@ var win32AppWorkarounds: Win32AppWorkarounds? by remember { mutableStateOf(null)
 
     val onQuickMenuItemSelected: (Int) -> Boolean = { itemId ->
         when (itemId) {
+            QuickMenuAction.LIVE_INPUT -> {
+                if (!isExiting.get() && !keepPausedForEditor && !showElementEditor && !isEditMode &&
+                    !InGameContainerSettings.overlayActive && PluviaApp.isOverlayPaused
+                ) forceResumeIfSuspended()
+                true
+            }
             QuickMenuAction.KEYBOARD -> {
                 keyboardRequestedFromOverlay = true
                 showSoftKeyboard(view)
@@ -2917,6 +2923,7 @@ var win32AppWorkarounds: Win32AppWorkarounds? by remember { mutableStateOf(null)
             fpsLimiterTarget = fpsLimiterTarget,
             fpsLimiterMax = detectedMaxRefreshRateHz,
             game = currentAppInfo,
+            gameInputServer = xServerView?.getxServer(),
             frameRating = frameRating,
             onPerformanceHudConfigChanged = ::applyPerformanceHudConfig,
             onFpsLimiterEnabledChanged = ::applyFpsLimiterEnabled,
