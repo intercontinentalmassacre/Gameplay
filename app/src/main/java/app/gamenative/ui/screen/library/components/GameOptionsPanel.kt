@@ -48,6 +48,7 @@ import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.Feedback
+import androidx.compose.material.icons.filled.Gamepad
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.PlayArrow
@@ -479,6 +480,7 @@ private fun getIconForOption(type: AppOptionMenuType): ImageVector {
         AppOptionMenuType.CreateShortcut -> Icons.AutoMirrored.Filled.AddToHomeScreen
         AppOptionMenuType.ExportFrontend -> Icons.Default.Share
         AppOptionMenuType.RunContainer -> Icons.Default.PlayArrow
+        AppOptionMenuType.ControllerLayouts -> Icons.Default.Gamepad
         AppOptionMenuType.EditContainer -> Icons.Default.Settings
         AppOptionMenuType.ResetToDefaults -> Icons.Default.RestartAlt
         AppOptionMenuType.GetSupport -> Icons.AutoMirrored.Filled.Help
@@ -539,6 +541,7 @@ private fun groupOptions(options: List<AppMenuOption>): Map<OptionCategory, List
             -> gameManagement.add(option)
 
             // Container Settings
+            AppOptionMenuType.ControllerLayouts,
             AppOptionMenuType.EditContainer,
             AppOptionMenuType.ResetToDefaults,
             AppOptionMenuType.ResetDrm,

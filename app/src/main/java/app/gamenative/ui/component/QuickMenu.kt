@@ -150,6 +150,7 @@ object QuickMenuAction {
     const val SC_LAYOUT = 15
     // Single root entry that opens the Steam Controller editor hub (lists the editors above).
     const val SC_ROOT = 16
+    const val CONTROLLER_LAYOUTS = 17
 }
 
 private object QuickMenuTab {
@@ -357,6 +358,7 @@ fun QuickMenu(
         )
         // The generic gamepad mapper doesn't apply to the BLE Steam Controller — hide it when an SC is live.
         if (hasPhysicalController && !isSteamControllerLive) {
+            add(QuickMenuItem(QuickMenuAction.CONTROLLER_LAYOUTS, Icons.Default.Gamepad, R.string.controller_layouts, PluviaTheme.colors.accentPurple))
             add(
                 QuickMenuItem(
                     id = QuickMenuAction.EDIT_PHYSICAL_CONTROLLER,
