@@ -2,6 +2,7 @@ package com.winlator.widget
 
 import android.app.Activity
 import android.app.Application
+import android.os.SystemClock
 import android.os.Build
 import android.view.HapticFeedbackConstants
 import android.view.InputDevice
@@ -23,6 +24,47 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(application = Application::class, sdk = [33, 35], shadows = [HeadlessDrawable::class])
 class TouchpadScrollHapticsTest {
+    @Test
+    fun singleFingerTravelTicksWhileMovingAndResetsAtLift() {
+        Robolectric.buildActivity(Activity::class.java).setup().use { controller ->
+            val feedback = mutableListOf<Int>()
+            val server = XServer(ScreenInfo(640, 480), false).apply { setRenderer(mock<XServerRenderer>()) }
+            val pad = object : TouchpadView(controller.get(), server, false) {
+                override fun performHapticFeedback(constant: Int): Boolean = feedback.add(constant)
+            }
+            pad.layout(0, 0, 640, 480)
+            val density = pad.resources.displayMetrics.density
+            var enabled = false
+            pad.setMotionHapticsEnabled { enabled }
+            fun finger(action: Int, xDp: Int) {
+                val now = SystemClock.uptimeMillis()
+                val event = MotionEvent.obtain(now, now, action, xDp * density, 50f, 0)
+                try { pad.onTouchEvent(event) } finally { event.recycle() }
+            }
+            SystemClock.sleep(100)
+            finger(MotionEvent.ACTION_DOWN, 0)
+            finger(MotionEvent.ACTION_MOVE, 30)
+            assertTrue(feedback.isEmpty())
+            enabled = true
+            finger(MotionEvent.ACTION_MOVE, 39)
+            assertTrue(feedback.isEmpty())
+            finger(MotionEvent.ACTION_MOVE, 62)
+            finger(MotionEvent.ACTION_MOVE, 92)
+            SystemClock.sleep(100)
+            finger(MotionEvent.ACTION_MOVE, 92)
+            assertEquals(listOf(HapticFeedbackConstants.VIRTUAL_KEY), feedback)
+            finger(MotionEvent.ACTION_MOVE, 97)
+            finger(MotionEvent.ACTION_MOVE, 105)
+            finger(MotionEvent.ACTION_UP, 105)
+            SystemClock.sleep(100)
+            finger(MotionEvent.ACTION_DOWN, 200)
+            finger(MotionEvent.ACTION_MOVE, 208)
+            assertEquals(List(2) { HapticFeedbackConstants.VIRTUAL_KEY }, feedback)
+            finger(MotionEvent.ACTION_MOVE, 232)
+            assertEquals(List(3) { HapticFeedbackConstants.VIRTUAL_KEY }, feedback)
+        }
+    }
+
     @Test
     fun onlyWheelStepsWithFeedbackEnabledProduceTicks() {
         Robolectric.buildActivity(Activity::class.java).setup().use { controller ->
@@ -57,7 +99,7 @@ class TouchpadScrollHapticsTest {
             assertTrue(feedback.isEmpty())
 
             var enabled = true
-            pad.setScrollHapticsEnabled { enabled }
+            pad.setMotionHapticsEnabled { enabled }
             steps.clear()
             touch(MotionEvent.ACTION_MOVE, 232)
             assertTrue(steps.isEmpty())

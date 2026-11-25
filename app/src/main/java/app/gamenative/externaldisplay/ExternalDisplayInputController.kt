@@ -159,7 +159,7 @@ private class ExternalInputPresentation(
             ExternalDisplayInputController.Mode.TOUCHPAD -> {
                 val pad = TouchpadView(context, xServer, false).apply {
                     setClickHapticsEnabled(true)
-                    setScrollHapticsEnabled { PrefManager.touchpadScrollHaptics }
+                    setMotionHapticsEnabled { PrefManager.touchpadMotionHaptics }
                     layoutParams = FrameLayout.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.MATCH_PARENT,
@@ -230,7 +230,7 @@ internal class HybridInputLayout(
 
     private val touchpad = TouchpadView(context, xServer, false).apply {
         setClickHapticsEnabled(true)
-        setScrollHapticsEnabled { PrefManager.touchpadScrollHaptics }
+        setMotionHapticsEnabled { PrefManager.touchpadMotionHaptics }
         layoutParams = LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.MATCH_PARENT,
