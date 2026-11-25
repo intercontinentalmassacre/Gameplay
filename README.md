@@ -92,7 +92,7 @@ Gameplay checks the latest non-prerelease GitHub Release for `intercontinentalma
 
 The APK is verified for package name, newer version code, size, and SHA-256 before Android's package installer is opened. The release workflow is [`.github/workflows/release.yml`](.github/workflows/release.yml). Production releases must use the same signing key as the installed `app.gameplay` package; losing that key makes in-place updates impossible.
 
-On Windows, use the tag that matches `versionName`. For 0.4.1, run `powershell -ExecutionPolicy Bypass -File .\scripts\release-preflight.ps1 -Tag v0.4.1` locally before publishing. It requires local `app/keystores/keystore.properties`, which must never be committed.
+Push the numeric release tag on a commit from `working-builds` to build the signed APK. On Windows, use the tag that matches `versionName`. For 0.5, run `powershell -ExecutionPolicy Bypass -File .\scripts\release-preflight.ps1 -Tag 0.5` locally before publishing. It requires local `app/keystores/keystore.properties`, which must never be committed.
 
 ### Optional artwork integration
 
