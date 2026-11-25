@@ -42,6 +42,24 @@ class LocalModImporterRobolectricTest {
     }
 
     @Test
+    fun validateImportRequest_accepts150GiBAndRejectsOneByteMore() {
+        val request = LocalModImportRequest(
+            installId = "local_safe-id",
+            appId = "STEAM_123",
+            sourceType = LocalModSourceType.ARCHIVE,
+            modName = "Test mod",
+            sourceName = "test.zip",
+            sizeBytes = 150L shl 30,
+        )
+        val sources = listOf(DocumentsContract.buildDocumentUri(AUTHORITY, SETTINGS_ID))
+        assertEquals(sources, LocalModImporter.validateImportRequest(context, request, sources, true))
+        val error = assertThrows(IOException::class.java) {
+            LocalModImporter.validateImportRequest(context, request.copy(sizeBytes = request.sizeBytes + 1), sources, true)
+        }
+        assertEquals(context.getString(R.string.local_mod_too_large, 150), error.message)
+    }
+
+    @Test
     fun inspectFolder_preservesRelativeTreeAndTotalsFiles() = runBlocking {
         val selection = LocalModImporter.inspectFolder(
             context,

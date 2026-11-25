@@ -9,6 +9,7 @@ import app.gamenative.R;
 import android.graphics.Rect;
 import timber.log.Timber;
 
+import com.winlator.core.StringUtils;
 import com.winlator.widget.FrameRating;
 import com.winlator.widget.XServerRendererView;
 import com.winlator.widget.XServerView;
@@ -659,7 +660,7 @@ public class ASurfaceRenderer implements WindowManager.OnWindowModificationListe
     private boolean isFullscreenWindow(Window window) {
         if (forceFullscreenWMClass != null) {
             String wc = window.getClassName();
-            return wc != null && wc.contains(forceFullscreenWMClass);
+            return StringUtils.containsIgnoreCase(wc, forceFullscreenWMClass);
         }
         return false;
     }

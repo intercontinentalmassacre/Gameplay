@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -138,6 +139,7 @@ internal val settingsSearchEntries = listOf(
     SettingsSearchEntry(SettingsCategory.INTERFACE, R.string.settings_custom_theme_edit, listOf("custom", "theme", "colors")),
     SettingsSearchEntry(SettingsCategory.INTERFACE, R.string.settings_interface_reduce_motion_title, listOf("accessibility", "animation", "motion")),
     SettingsSearchEntry(SettingsCategory.INTERFACE, R.string.settings_language, listOf("locale", "translation")),
+    SettingsSearchEntry(SettingsCategory.CONTROLS, R.string.controller_layouts, listOf("layout", "preset", "gamepad", "раскладка", "геймпад")),
     SettingsSearchEntry(SettingsCategory.CONTROLS, R.string.settings_achievement_show_notification, listOf("achievements", "notification")),
     SettingsSearchEntry(SettingsCategory.CONTROLS, R.string.settings_interface_show_gamepad_hints_title, listOf("controller", "gamepad", "hints")),
     SettingsSearchEntry(SettingsCategory.RUNTIME, R.string.settings_runtime_title, listOf("wine", "proton", "box64", "fex", "dxvk", "vkd3d")),
@@ -473,6 +475,7 @@ private fun DualSettingsWorkspace(
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
+    val verticalPadding = if (PluviaTheme.tokens.densityCompact) 4.dp else 8.dp
     val categories = remember { SettingsCategory.entries.toList() }
     val scrollState = rememberScrollState()
     val controllerFocusEpoch = DsHomeSecondScreen.controllerFocusEpoch
@@ -511,9 +514,7 @@ private fun DualSettingsWorkspace(
             },
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(bottom = 56.dp),
+            modifier = Modifier.fillMaxSize(),
         ) {
             SettingsHeader(
                 onBack = onBack,
@@ -522,7 +523,8 @@ private fun DualSettingsWorkspace(
                 onSearchQuery = onSearchQuery,
                 onSearchOpen = { onSearchActive(true) },
                 onSearchClose = closeSearch,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                showSubtitle = false,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = verticalPadding),
             )
 
             GcdsStrip(
@@ -540,7 +542,7 @@ private fun DualSettingsWorkspace(
                     .weight(1f)
                     .fillMaxWidth()
                     .verticalScroll(scrollState)
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                    .padding(horizontal = 16.dp, vertical = verticalPadding),
             ) {
                 if (searchActive && searchQuery.isNotBlank()) {
                     val results = filterSettings(
@@ -581,18 +583,18 @@ private fun DualSettingsWorkspace(
                     )
                 }
             }
-        }
 
-        GamepadActionBar(
-            actions = listOf(
-                GamepadAction(GamepadButton.LB, R.string.hint_categories),
-                GamepadAction(GamepadButton.RB, R.string.hint_categories),
-                GamepadAction(GamepadButton.B, R.string.back, onBack),
-            ),
-            modifier = Modifier.align(Alignment.BottomCenter),
-            forceVisible = true,
-            compact = true,
-        )
+            GamepadActionBar(
+                actions = listOf(
+                    GamepadAction(GamepadButton.LB, R.string.hint_categories),
+                    GamepadAction(GamepadButton.RB, R.string.hint_categories),
+                    GamepadAction(GamepadButton.B, R.string.back, onBack),
+                ),
+                forceVisible = true,
+                compact = true,
+                docked = true,
+            )
+        }
     }
 }
 
@@ -661,44 +663,47 @@ private fun SettingsHeader(
     onSearchOpen: () -> Unit,
     onSearchClose: () -> Unit,
     modifier: Modifier = Modifier,
+    showSubtitle: Boolean = true,
 ) {
-    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
-        val compact = maxWidth < 520.dp
-        val availableWidth = maxWidth
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 16.dp),
-        ) {
-            BackButton(onClick = onBack)
+    Surface(color = MaterialTheme.colorScheme.surfaceContainerLow) {
+        BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+            val compact = maxWidth < 520.dp
+            val availableWidth = maxWidth
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 16.dp),
+            ) {
+                BackButton(onClick = onBack)
 
-            if (!compact || !searchActive) {
-                Column {
-                    Text(
-                        text = stringResource(R.string.settings_title),
-                        style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold),
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                    if (!compact) {
+                if (!compact || !searchActive) {
+                    Column {
                         Text(
-                            text = stringResource(R.string.settings_subtitle),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = PluviaTheme.colors.textMuted,
+                            text = stringResource(R.string.settings_title),
+                            style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold),
+                            color = MaterialTheme.colorScheme.onSurface,
                         )
+                        if (!compact && showSubtitle) {
+                            Text(
+                                text = stringResource(R.string.settings_subtitle),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = PluviaTheme.colors.textMuted,
+                            )
+                        }
                     }
                 }
+
+                Spacer(modifier = Modifier.weight(1f))
+
+                SettingsSearchToggle(
+                    active = searchActive,
+                    query = searchQuery,
+                    onQueryChange = onSearchQuery,
+                    onOpen = onSearchOpen,
+                    onClose = onSearchClose,
+                    fieldWidth = if (compact) (availableWidth - 72.dp).coerceAtLeast(160.dp) else 300.dp,
+                )
             }
-
-            Spacer(modifier = Modifier.weight(1f))
-
-            SettingsSearchToggle(
-                active = searchActive,
-                query = searchQuery,
-                onQueryChange = onSearchQuery,
-                onOpen = onSearchOpen,
-                onClose = onSearchClose,
-                fieldWidth = if (compact) (availableWidth - 72.dp).coerceAtLeast(160.dp) else 300.dp,
-            )
         }
     }
 }

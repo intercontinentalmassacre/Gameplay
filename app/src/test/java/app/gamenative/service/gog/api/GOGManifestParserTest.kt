@@ -20,6 +20,27 @@ import org.robolectric.RobolectricTestRunner
 class GOGManifestParserTest {
     private lateinit var parser: GOGManifestParser
 
+    @Test
+    fun effectiveEntriesPreferSelectedDlcAndIgnoreUnusableDuplicates() {
+        data class Entry(val path: String, val base: Boolean, val hasContent: Boolean = true)
+
+        val dlc = Entry("Data\\Game.bin", base = false)
+        val base = Entry("data/game.bin", base = true)
+        val baseOther = Entry("data/other.bin", base = true)
+        val emptyDlc = Entry("DATA//other.bin", base = false, hasContent = false)
+        val unsafe = Entry("../outside.bin", base = false)
+        val entries = listOf(dlc, base, baseOther, emptyDlc, unsafe)
+
+        assertEquals(
+            listOf(dlc, baseOther),
+            GOGManifestParser.effectiveEntries(entries, Entry::path, Entry::base, Entry::hasContent),
+        )
+        assertEquals(
+            listOf(base, baseOther),
+            GOGManifestParser.effectiveEntries(entries.filter { it.base }, Entry::path, Entry::base),
+        )
+    }
+
     @Before
     fun setUp() {
         parser = GOGManifestParser()

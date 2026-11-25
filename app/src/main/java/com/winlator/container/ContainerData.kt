@@ -2,9 +2,9 @@ package com.winlator.container
 
 import androidx.compose.runtime.saveable.mapSaver
 import app.gamenative.PluviaApp
+import app.gamenative.display.GamescopeSettings
 import com.winlator.box86_64.Box86_64Preset
 import com.winlator.core.DefaultVersion
-import com.winlator.core.WineInfo
 import com.winlator.core.WineThemeManager
 import com.winlator.fexcore.FEXCorePreset
 import com.winlator.xenvironment.components.PulseAudioComponent
@@ -19,11 +19,13 @@ data class ContainerData(
     val graphicsDriverConfig: String = "",
     val rendererPresentMode: String = "fifo",
     val displayRenderer: String = Container.DEFAULT_DISPLAY_RENDERER,
+    val displayServer: String = Container.DISPLAY_SERVER_X11,
     val sfCompatMode: Boolean = true,
     var dxwrapper: String = Container.DEFAULT_DXWRAPPER,
     val dxwrapperConfig: String = "",
     val audioDriver: String = Container.DEFAULT_AUDIO_DRIVER,
     val pulseaudioLowLatency: Boolean = false,
+    val gnaudioLowLatency: Boolean = false,
     val wincomponents: String = Container.DEFAULT_WINCOMPONENTS,
     val drives: String = Container.DEFAULT_DRIVES,
     val execArgs: String = "",
@@ -52,7 +54,7 @@ data class ContainerData(
     // which Steam depot platform to download/install (windows or android)
     val platform: String = Container.PLATFORM_WINDOWS,
     // wine version identifier (used for bionic variant), defaults to main wine
-    val wineVersion: String = WineInfo.MAIN_WINE_VERSION.identifier(),
+    val wineVersion: String = Container.resolveWineVersion(containerVariant, null),
     // selected 32-bit emulator for WoW64 processes (FEXCore/Box64)
     val emulator: String = Container.DEFAULT_EMULATOR,
     // FEXCore version (used on arm64ec)
@@ -70,6 +72,10 @@ data class ContainerData(
     val offScreenRenderingMode: String = "fbo",
     val strictShaderMath: Boolean = true,
     val useDRI3: Boolean = true,
+    val hdrEnabled: Boolean = false,
+    val gamescopeOutputResolution: String = GamescopeSettings.OUTPUT_RESOLUTION_DEFAULT,
+    val gamescopeExperimental: Boolean = false,
+    val fossilizeEnabled: Boolean = false,
     val videoMemorySize: String = "2048",
     val mouseWarpOverride: String = "disable",
     val shaderBackend: String = "glsl",
@@ -130,11 +136,13 @@ data class ContainerData(
                     "graphicsDriverConfig" to state.graphicsDriverConfig,
                     "rendererPresentMode" to state.rendererPresentMode,
                     "displayRenderer" to state.displayRenderer,
+                    "displayServer" to state.displayServer,
                     "sfCompatMode" to state.sfCompatMode,
                     "dxwrapper" to state.dxwrapper,
                     "dxwrapperConfig" to state.dxwrapperConfig,
                     "audioDriver" to state.audioDriver,
                     "pulseaudioLowLatency" to state.pulseaudioLowLatency,
+                    "gnaudioLowLatency" to state.gnaudioLowLatency,
                     "wincomponents" to state.wincomponents,
                     "drives" to state.drives,
                     "execArgs" to state.execArgs,
@@ -178,6 +186,10 @@ data class ContainerData(
                     "externalDisplayMode" to state.externalDisplayMode,
                     "externalDisplaySwap" to state.externalDisplaySwap,
                     "useDRI3" to state.useDRI3,
+                    "hdrEnabled" to state.hdrEnabled,
+                    "gamescopeOutputResolution" to state.gamescopeOutputResolution,
+                    "gamescopeExperimental" to state.gamescopeExperimental,
+                    "fossilizeEnabled" to state.fossilizeEnabled,
                     "language" to state.language,
                     "forceDlc" to state.forceDlc,
                     "localSavesOnly" to state.localSavesOnly,
@@ -203,11 +215,13 @@ data class ContainerData(
                     graphicsDriverConfig = (savedMap["graphicsDriverConfig"] as? String) ?: "",
                     rendererPresentMode = (savedMap["rendererPresentMode"] as? String) ?: "fifo",
                     displayRenderer = (savedMap["displayRenderer"] as? String) ?: "vulkan",
+                    displayServer = (savedMap["displayServer"] as? String) ?: Container.DISPLAY_SERVER_X11,
                     sfCompatMode = (savedMap["sfCompatMode"] as? Boolean) ?: true,
                     dxwrapper = savedMap["dxwrapper"] as String,
                     dxwrapperConfig = savedMap["dxwrapperConfig"] as String,
                     audioDriver = savedMap["audioDriver"] as String,
                     pulseaudioLowLatency = (savedMap["pulseaudioLowLatency"] as? Boolean) ?: false,
+                    gnaudioLowLatency = (savedMap["gnaudioLowLatency"] as? Boolean) ?: false,
                     wincomponents = savedMap["wincomponents"] as String,
                     drives = savedMap["drives"] as String,
                     execArgs = savedMap["execArgs"] as String,
@@ -234,7 +248,10 @@ data class ContainerData(
                     desktopTheme = savedMap["desktopTheme"] as String,
                     containerVariant = (savedMap["containerVariant"] as? String) ?: Container.DEFAULT_VARIANT,
                     platform = (savedMap["platform"] as? String) ?: Container.PLATFORM_WINDOWS,
-                    wineVersion = (savedMap["wineVersion"] as? String) ?: WineInfo.MAIN_WINE_VERSION.identifier(),
+                    wineVersion = Container.resolveWineVersion(
+                        (savedMap["containerVariant"] as? String) ?: Container.DEFAULT_VARIANT,
+                        savedMap["wineVersion"] as? String,
+                    ),
                     emulator = (savedMap["emulator"] as? String) ?: Container.DEFAULT_EMULATOR,
                     fexcoreVersion = (savedMap["fexcoreVersion"] as? String) ?: DefaultVersion.FEXCORE,
                     fexcoreTSOMode = (savedMap["fexcoreTSOMode"] as? String) ?: "Fast",
@@ -254,6 +271,11 @@ data class ContainerData(
                     externalDisplayMode = (savedMap["externalDisplayMode"] as? String) ?: Container.DEFAULT_EXTERNAL_DISPLAY_MODE,
                     externalDisplaySwap = (savedMap["externalDisplaySwap"] as? Boolean) ?: false,
                     useDRI3 = (savedMap["useDRI3"] as? Boolean) ?: true,
+                    hdrEnabled = (savedMap["hdrEnabled"] as? Boolean) ?: false,
+                    gamescopeOutputResolution = (savedMap["gamescopeOutputResolution"] as? String)
+                        ?: GamescopeSettings.OUTPUT_RESOLUTION_DEFAULT,
+                    gamescopeExperimental = (savedMap["gamescopeExperimental"] as? Boolean) ?: false,
+                    fossilizeEnabled = (savedMap["fossilizeEnabled"] as? Boolean) ?: false,
                     language = (savedMap["language"] as? String) ?: "english",
                     forceDlc = (savedMap["forceDlc"] as? Boolean) ?: false,
                     localSavesOnly = (savedMap["localSavesOnly"] as? Boolean) ?: false,

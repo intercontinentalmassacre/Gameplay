@@ -49,3 +49,11 @@ data class SteamLicense(
     @ColumnInfo("depot_ids")
     var depotIds: List<Int> = emptyList(),
 )
+
+/** A package expires only when all incoming licenses for it have expired. */
+internal fun mergeSteamLicenseFlags(flags: List<EnumSet<ELicenseFlags>>): EnumSet<ELicenseFlags> {
+    val merged = EnumSet.noneOf(ELicenseFlags::class.java)
+    flags.forEach { merged.addAll(it) }
+    if (flags.any { ELicenseFlags.Expired !in it }) merged.remove(ELicenseFlags.Expired)
+    return merged
+}

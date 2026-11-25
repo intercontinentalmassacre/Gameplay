@@ -2,6 +2,12 @@
   "type": "vkd3d",
   "components": [
     {
+      "id": "3.1-gn1-0",
+      "name": "VKD3D 3.1",
+      "url": "https://downloads.gamenative.app/dxwrapper/vkd3d-proton-3.1-gn1.wcp",
+      "variant": "bionic"
+    },
+    {
       "id": "2.6",
       "name": "VKD3D 2.6",
       "url": "https://downloads.gamenative.app/dxwrapper/vkd3d-2.6.tzst",
@@ -28,7 +34,7 @@
     {
       "id": "3.0.1-0",
       "name": "VKD3D 3.0.1-0",
-      "url": "https://downloads.gamenative.app/drivers/vkd3d-proton-3.0.1.wcp",
+      "url": "https://github.com/The412Banner/Nightlies/releases/download/Vkd3d-proton/vkd3d-proton-3.0.1.wcp",
       "variant": "bionic"
     }
   ]

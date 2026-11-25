@@ -18,7 +18,7 @@ object CrashContext {
 
     fun beginLaunch(appId: String) {
         current = CrashContextSnapshot(appId = appId, launchStage = "launch_requested")
-        LaunchTrace.begin()
+        LaunchTrace.begin(appId = appId)
     }
 
     fun update(

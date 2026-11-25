@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -28,6 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -197,6 +199,7 @@ private fun GamepadButtonHint(
     controllerFamily: ControllerFamily,
     compact: Boolean,
     scale: Float = 1f,
+    docked: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val clickableModifier = if (action.onClick != null) {
@@ -220,10 +223,10 @@ private fun GamepadButtonHint(
     val iconRes = effectiveButton.iconFor(controllerFamily)
     val buttonLabel = stringResource(effectiveButton.accessibilityLabelFor(controllerFamily))
 
-    val baseLabelStyle = if (compact) MaterialTheme.typography.labelSmall else MaterialTheme.typography.labelMedium
+    val baseLabelStyle = if (compact && !docked) MaterialTheme.typography.labelSmall else MaterialTheme.typography.labelMedium
 
     Row(
-        modifier = clickableModifier.padding(
+        modifier = clickableModifier.heightIn(min = if (docked) 48.dp else 0.dp).padding(
             horizontal = (if (compact) 3.dp else 6.dp) * scale,
             vertical = (if (compact) 4.dp else 5.dp) * scale,
         ),
@@ -233,6 +236,9 @@ private fun GamepadButtonHint(
         Image(
             painter = painterResource(iconRes),
             contentDescription = buttonLabel,
+            colorFilter = if (docked && (effectiveButton == GamepadButton.START || effectiveButton == GamepadButton.SELECT)) {
+                ColorFilter.tint(MaterialTheme.colorScheme.onSurfaceVariant)
+            } else null,
             modifier = Modifier.size((if (compact) 20.dp else 22.dp) * scale),
         )
 
@@ -255,6 +261,7 @@ fun GamepadActionBar(
     forceVisible: Boolean = false,
     compact: Boolean = false,
     scale: Float = 1f,
+    docked: Boolean = false,
 ) {
     val showGamepadUI = shouldShowGamepadUI()
     val swapFaceButtons = PrefManager.swapFaceButtons
@@ -272,33 +279,34 @@ fun GamepadActionBar(
         ) + fadeOut(animationSpec = motionSpec(tween(durationMillis = 120))),
         modifier = modifier,
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .focusProperties { canFocus = false }
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            MaterialTheme.colorScheme.background.copy(alpha = 0f),
-                            MaterialTheme.colorScheme.background.copy(alpha = 0.72f),
-                            MaterialTheme.colorScheme.background.copy(alpha = 0.92f),
-                        ),
+        val background = if (docked) {
+            Modifier.background(MaterialTheme.colorScheme.surfaceContainer)
+        } else {
+            Modifier.background(
+                Brush.verticalGradient(
+                    listOf(
+                        MaterialTheme.colorScheme.background.copy(alpha = 0f),
+                        MaterialTheme.colorScheme.background.copy(alpha = 0.72f),
+                        MaterialTheme.colorScheme.background.copy(alpha = 0.92f),
                     ),
                 ),
-        ) {
+            )
+        }
+        Box(modifier = Modifier.fillMaxWidth().focusProperties { canFocus = false }.then(background)) {
             FlowRow(
                 modifier = Modifier
                     .fillMaxWidth()
                     .navigationBarsPadding()
                     .padding(
                         horizontal = (if (compact) 12.dp else 24.dp) * scale,
-                        vertical = (if (compact) 7.dp else 9.dp) * scale,
+                        vertical = if (docked) 0.dp else (if (compact) 7.dp else 9.dp) * scale,
                     ),
                 horizontalArrangement = Arrangement.spacedBy(
                     (if (compact) 8.dp else 16.dp) * scale,
-                    Alignment.End,
+                    if (docked) Alignment.Start else Alignment.End,
                 ),
-                verticalArrangement = Arrangement.spacedBy((if (compact) 2.dp else 4.dp) * scale),
+                maxItemsInEachRow = if (docked) 3 else Int.MAX_VALUE,
+                verticalArrangement = Arrangement.spacedBy(if (docked) 0.dp else (if (compact) 2.dp else 4.dp) * scale),
             ) {
                 actions.forEach { action ->
                     GamepadButtonHint(
@@ -307,6 +315,8 @@ fun GamepadActionBar(
                         controllerFamily = controllerFamily,
                         compact = compact,
                         scale = scale,
+                        docked = docked,
+                        modifier = if (docked) Modifier.weight(1f) else Modifier,
                     )
                 }
             }

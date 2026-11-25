@@ -1,0 +1,10 @@
+{
+  "containerVariant": "bionic",
+  "wineVersion": "proton-11.0-1-arm64ec-1",
+  "graphicsDriver": "Wrapper-gamenative",
+  "graphicsDriverConfig": "vulkanVersion=1.4,version=System,blacklistedExtensions=,maxDeviceMemory=0,presentMode=fifo,syncFrame=0,disablePresentWait=0,resourceType=auto,bcnEmulation=auto,bcnEmulationType=compute,bcnEmulationCache=0,gpuName=Device,adrenotoolsTurnip=0",
+  "displayServer": "x11",
+  "dxwrapper": "dxvk",
+  "dxwrapperConfig": "version=1.11.1-sarek",
+  "emulator": "FEXCore"
+}

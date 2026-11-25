@@ -1,5 +1,6 @@
 package app.gamenative
 
+import com.winlator.inputcontrols.JoyCon
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.ComponentCallbacks2
@@ -567,7 +568,8 @@ class MainActivity : ComponentActivity() {
     // }
 
     @SuppressLint("RestrictedApi")
-    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+    override fun dispatchKeyEvent(rawEvent: KeyEvent): Boolean {
+        val event = JoyCon.normalizeKey(rawEvent)
         // Log.d("MainActivity$index", "dispatchKeyEvent(${event.keyCode}):\n$event")
 
         if (DsHomeSecondScreen.dispatchControllerKeyEvent(event)) return true

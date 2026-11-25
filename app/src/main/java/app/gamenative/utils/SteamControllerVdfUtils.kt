@@ -1152,9 +1152,10 @@ private class VdfParser(text: String) {
     private val source = if (text.startsWith("\uFEFF")) text.substring(1) else text
     private var index = 0
 
-    fun parse(): VdfObject = parseObject()
+    fun parse(): VdfObject = parseObject(0)
 
-    private fun parseObject(): VdfObject {
+    private fun parseObject(depth: Int): VdfObject {
+        require(depth <= 100) { "Controller layout nesting limit exceeded" }
         val obj = VdfObject()
         while (true) {
             val token = nextToken() ?: break
@@ -1162,7 +1163,7 @@ private class VdfParser(text: String) {
             val key = token
             val valueToken = nextToken() ?: break
             if (valueToken == "{") {
-                obj.add(key, parseObject())
+                obj.add(key, parseObject(depth + 1))
             } else if (valueToken == "}") {
                 break
             } else {

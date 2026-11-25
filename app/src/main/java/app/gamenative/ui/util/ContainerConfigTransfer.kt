@@ -68,13 +68,19 @@ object ContainerConfigTransfer {
     suspend fun importConfig(
         context: Context,
         appId: String,
-        uri: Uri,
+        uri: Uri? = null,
+        bundledProfile: String? = null,
         onInstallStateChange: ((visible: Boolean, progress: Float, label: String) -> Unit)? = null,
     ): Boolean {
         return try {
             val jsonText =
                 withContext(Dispatchers.IO) {
-                    context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+                    if (bundledProfile != null) {
+                        if (bundledProfile == "Neo-Pocket-System-DX9.json") ManifestInstaller.ensurePocketDxvk(context)
+                        context.assets.open(bundledProfile).bufferedReader().use { it.readText() }
+                    } else {
+                        context.contentResolver.openInputStream(requireNotNull(uri))?.bufferedReader()?.use { it.readText() }
+                    }
                 }.orEmpty()
 
             if (jsonText.isBlank()) {
@@ -98,12 +104,14 @@ object ContainerConfigTransfer {
                 configJson = configJson,
                 matchType = matchType,
                 applyKnownConfig = true,
+                preserveConfigValues = bundledProfile != null,
             )
             val bestConfigMap = parsedResult.config
 
             val missingComponents = parsedResult.missingComponents
             if (bestConfigMap.isEmpty()) {
                 if (missingComponents.isNotEmpty()) {
+                    if (bundledProfile != null) error(missingComponents.joinToString())
                     BaseAppScreen.showMissingComponentsDialog(appId, missingComponents) {
                         // "apply anyway" — re-parse with defaults, install manifest entries, apply
                         CoroutineScope(Dispatchers.IO).launch {
@@ -158,6 +166,7 @@ object ContainerConfigTransfer {
                 context = context,
                 configJson = configJson,
                 matchType = matchType,
+                preserveConfigValues = bundledProfile != null,
             )
             if (missingRequests.isNotEmpty()) {
                 onInstallStateChange?.invoke(
@@ -195,7 +204,18 @@ object ContainerConfigTransfer {
                 val container = ContainerUtils.getOrCreateContainer(context, appId)
                 val currentData = ContainerUtils.toContainerData(container)
                 val updatedData = ContainerUtils.applyBestConfigMapToContainerData(currentData, bestConfigMap)
-                ContainerUtils.applyToContainer(context, container, updatedData)
+                val data = if (bundledProfile == null) updatedData else {
+                    val preset = JSONObject(jsonText)
+                    updatedData.copy(
+                        graphicsDriverVersion = "System",
+                        displayServer = preset.getString("displayServer"),
+                        screenSize = preset.optString("screenSize", currentData.screenSize),
+                        displayRenderer = preset.optString("displayRendererMode", currentData.displayRenderer),
+                        rendererPresentMode = preset.optString("rendererPresentMode", currentData.rendererPresentMode),
+                        useDRI3 = preset.optBoolean("useDRI3", currentData.useDRI3),
+                    )
+                }
+                ContainerUtils.applyToContainer(context, container, data)
             }
 
             SnackbarManager.show(

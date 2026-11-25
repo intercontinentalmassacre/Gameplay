@@ -26,6 +26,12 @@ jobs:
     steps:
       - name: Check out source
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify release tag comes from working-builds
+        if: github.event_name == 'push'
+        run: git merge-base --is-ancestor HEAD origin/working-builds
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -57,6 +63,9 @@ jobs:
         run: |
           apk="$(find app/build/outputs/apk -type f -name '*.apk' -print -quit)"
           test -n "$apk"
+          for profile in Mali-DX9-System.json Neo-Pocket-System-DX9.json Pocket-System-DX9.wcp; do
+            unzip -p "$apk" "assets/$profile" | cmp - "catalog/profiles/$profile"
+          done
           mkdir -p release-assets
           cp "$apk" release-assets/Gameplay-modern-release.apk
 
@@ -87,9 +96,21 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$RELEASE_TAG" \
-            release-assets/Gameplay-modern-release.apk \
-            release-assets/Gameplay-modern-release.json \
-            release-assets/SHA256SUMS.txt \
-            --title "Gameplay ${{ steps.assets.outputs.version_name }}" \
-            --generate-notes
+          awk -v version="${RELEASE_TAG#v}" '
+            /^## / { if (found) exit; found = ($2 == version); next }
+            found { print }
+          ' CHANGELOG.md > release-assets/notes.md
+          notes=(--generate-notes)
+          if grep -q '[^[:space:]]' release-assets/notes.md; then
+            notes=(--notes-file release-assets/notes.md)
+          fi
+          assets=(release-assets/Gameplay-modern-release.apk release-assets/Gameplay-modern-release.json release-assets/SHA256SUMS.txt)
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            test "$(git rev-parse HEAD)" = "$(git rev-list -n 1 "$RELEASE_TAG")"
+            gh release upload "$RELEASE_TAG" "${assets[@]}" --clobber
+            if [[ "${notes[0]}" == "--notes-file" ]]; then
+              gh release edit "$RELEASE_TAG" "${notes[@]}"
+            fi
+          else
+            gh release create "$RELEASE_TAG" "${assets[@]}" --title "Gameplay ${{ steps.assets.outputs.version_name }}" "${notes[@]}"
+          fi

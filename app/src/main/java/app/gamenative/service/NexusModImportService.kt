@@ -22,6 +22,7 @@ import app.gamenative.data.ModInstallSource
 import app.gamenative.data.ModInstallStatus
 import app.gamenative.db.dao.ModDao
 import app.gamenative.mods.LocalModImportRequest
+import app.gamenative.mods.ModImportSafetyLimits
 import app.gamenative.mods.LocalModImporter
 import app.gamenative.mods.LocalModSourceSelection
 import app.gamenative.mods.LocalModSourceType
@@ -454,7 +455,7 @@ class NexusModImportService : Service() {
         val current = currentResumableLocalInstall(dao, installId) ?: return
         val requiresReselection =
             error.message == getString(R.string.local_mod_invalid_request) ||
-                error.message == getString(R.string.local_mod_too_large)
+                error.message == ModImportSafetyLimits.sizeLimitMessage(this)
         val previousContentAvailable = try {
             NexusModManager.restorePreviousLocalInstall(
                 context = applicationContext,

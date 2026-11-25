@@ -1,27 +1,8 @@
 package app.gamenative.ui.component.dialog
 
 import android.content.Context
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
-import app.gamenative.ui.component.Button
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -29,35 +10,17 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Shadow
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import app.gamenative.R
 import app.gamenative.data.EpicGame
 import app.gamenative.service.epic.EpicConstants
 import app.gamenative.service.epic.EpicService
-import app.gamenative.ui.component.LoadingScreen
-import app.gamenative.ui.component.dialog.InstallSizeInfo
-import app.gamenative.ui.component.topbar.BackButton
 import app.gamenative.ui.data.GameDisplayInfo
 import app.gamenative.utils.StorageUtils
-import com.skydoves.landscapist.ImageOptions
-import com.skydoves.landscapist.coil.CoilImage
 import com.winlator.core.StringUtils
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -75,6 +38,15 @@ fun EpicGameManagerDialog(
 
     val displayInfo = onGetDisplayInfo(context)
     val gameId = displayInfo.gameId
+
+    val installOptions = if (visible && !remember(gameId) { EpicService.isGameInstalled(context, gameId) }) {
+        rememberInstallContainerOptions(context, "EPIC_$gameId")
+    } else null
+    val installScope = androidx.compose.runtime.rememberCoroutineScope()
+    fun installContent(ids: List<Int>) {
+        if (installOptions == null) onInstall(ids)
+        else installOptions.install(installScope) { onInstall(ids) }
+    }
 
     LaunchedEffect(visible) {
         scrollState.animateScrollTo(0)
@@ -149,6 +121,7 @@ fun EpicGameManagerDialog(
 
     fun installButtonEnabled(): Boolean {
         // Check if there's enough space
+        if (installOptions != null && (!installOptions.ready || installOptions.saving)) return false
         if (installSizeInfo.availableBytes < installSizeInfo.installBytes) {
             return false
         }
@@ -161,207 +134,41 @@ fun EpicGameManagerDialog(
         visible = visible,
         onDismissRequest = onDismissRequest,
     ) {
-            Dialog(
-                onDismissRequest = onDismissRequest,
-                properties = secondScreenDialogProperties(
-                    DialogProperties(
-                        usePlatformDefaultWidth = false,
-                        dismissOnClickOutside = false,
-                    ),
+        Dialog(
+            onDismissRequest = onDismissRequest,
+            properties = secondScreenDialogProperties(
+                DialogProperties(
+                    usePlatformDefaultWidth = false,
+                    dismissOnClickOutside = false,
                 ),
-                content = {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Color.Black)
-                            .verticalScroll(scrollState),
-                        horizontalAlignment = Alignment.Start,
-                    ) {
-                        // Hero Section with Game Image Background
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(250.dp)
-                        ) {
-                            // Hero background image
-                            if (displayInfo.heroImageUrl != null) {
-                                CoilImage(
-                                    modifier = Modifier.fillMaxSize(),
-                                    imageModel = { displayInfo.heroImageUrl },
-                                    imageOptions = ImageOptions(contentScale = ContentScale.Crop),
-                                    loading = { LoadingScreen() },
-                                    failure = {
-                                        Box(
-                                            modifier = Modifier.fillMaxSize(),
-                                            contentAlignment = Alignment.Center,
-                                        ) {
-                                            // Gradient background as fallback
-                                            Surface(
-                                                modifier = Modifier.fillMaxSize(),
-                                                color = MaterialTheme.colorScheme.primary
-                                            ) { }
-                                        }
-                                    },
-                                    previewPlaceholder = painterResource(R.drawable.testhero),
-                                )
-                            } else {
-                                // Fallback gradient background when no hero image
-                                Surface(
-                                    modifier = Modifier.fillMaxSize(),
-                                    color = MaterialTheme.colorScheme.primary
-                                ) { }
-                            }
-
-                            // Gradient overlay
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .background(
-                                        brush = Brush.verticalGradient(
-                                            colors = listOf(
-                                                Color.Transparent,
-                                                Color.Black.copy(alpha = 0.8f)
-                                            )
-                                        )
-                                    )
-                            )
-
-                            // Back button (top left)
-                            Box(
-                                modifier = Modifier
-                                    .padding(20.dp)
-                                    .background(
-                                        color = Color.Black.copy(alpha = 0.5f),
-                                        shape = RoundedCornerShape(12.dp)
-                                    )
-                            ) {
-                                BackButton(onClick = onDismissRequest)
-                            }
-
-                            // Game title and subtitle
-                            Column(
-                                modifier = Modifier
-                                    .align(Alignment.BottomStart)
-                                    .padding(20.dp)
-                            ) {
-                                Text(
-                                    text = displayInfo.name,
-                                    style = MaterialTheme.typography.headlineLarge.copy(
-                                        fontWeight = FontWeight.Bold,
-                                        shadow = Shadow(
-                                            color = Color.Black.copy(alpha = 0.5f),
-                                            offset = Offset(0f, 2f),
-                                            blurRadius = 10f
-                                        )
-                                    ),
-                                    color = Color.White
-                                )
-
-                                Text(
-                                    text = "${displayInfo.developer} • ${
-                                        remember(displayInfo.releaseDate) {
-                                            if (displayInfo.releaseDate > 0) {
-                                                SimpleDateFormat("yyyy", Locale.getDefault()).format(Date(displayInfo.releaseDate * 1000))
-                                            } else {
-                                                ""
-                                            }
-                                        }
-                                    }",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = Color.White.copy(alpha = 0.9f)
-                                )
-                            }
-                        }
-
-                        Column(
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            allDownloadableGames.forEach { game ->
-                                val gameIdValue = game.id ?: 0
-                                val checked = selectedGameIds[gameIdValue] ?: false
-                                val isBaseGame = gameIdValue == gameId
-
-                                ListItem(
-                                    headlineContent = {
-                                        Column {
-                                            Text(
-                                                text = game.title
-                                            )
-                                            // Add size display
-                                            val downloadSize = StringUtils.formatBytes(game.downloadSize)
-                                            val installSize = StringUtils.formatBytes(game.installSize)
-                                            Text(
-                                                text = "$downloadSize download • $installSize install",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                                            )
-                                            // Show if it's DLC
-                                            if (game.isDLC) {
-                                                Text(
-                                                    text = "DLC",
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    color = MaterialTheme.colorScheme.primary
-                                                )
-                                            }
-                                        }
-                                    },
-                                    trailingContent = {
-                                        Checkbox(
-                                            checked = checked,
-                                            enabled = !isBaseGame, // Base game can't be deselected
-                                            onCheckedChange = { isChecked ->
-                                                if (!isBaseGame) {
-                                                    selectedGameIds[gameIdValue] = isChecked
-                                                }
-                                            }
-                                        )
-                                    },
-                                    modifier = Modifier.clickable(enabled = !isBaseGame) {
-                                        if (!isBaseGame) {
-                                            selectedGameIds[gameIdValue] = !checked
-                                        }
-                                    }
-                                )
-
-                                HorizontalDivider(
-                                    modifier = Modifier.padding(horizontal = 16.dp),
-                                    thickness = 0.5.dp,
-                                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
-                                )
-                            }
-                        }
-
-                        Column(
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(top = 8.dp, start = 8.dp, bottom = 8.dp, end = 8.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    modifier = Modifier.weight(0.5f),
-                                    text = installSizeDisplay()
-                                )
-
-                                Button(
-                                    enabled = installButtonEnabled(),
-                                    onClick = {
-                                        val selectedIds = selectedGameIds
-                                            .filter { it.value }
-                                            .keys
-                                            .toList()
-                                        onInstall(selectedIds)
-                                    }
-                                ) {
-                                    Text(stringResource(R.string.install))
-                                }
-                            }
-                        }
-                    }
-                },
-            )
+            ),
+        ) {
+            InstallPage(
+                displayInfo = displayInfo,
+                scrollState = scrollState,
+                sizeSummary = installSizeDisplay(),
+                installEnabled = installButtonEnabled(),
+                onBack = onDismissRequest,
+                onInstall = { installContent(selectedGameIds.filterValues { it }.keys.toList()) },
+            ) {
+                installOptions?.let { InstallContainerSection(it) }
+                allDownloadableGames.forEach { game ->
+                    val gameIdValue = game.id ?: 0
+                    val checked = selectedGameIds[gameIdValue] ?: false
+                    InstallContentRow(
+                        title = game.title,
+                        subtitle = stringResource(
+                            R.string.install_download_and_install_size,
+                            StringUtils.formatBytes(game.downloadSize),
+                            StringUtils.formatBytes(game.installSize),
+                        ),
+                        checked = checked,
+                        enabled = gameIdValue != gameId,
+                        onToggle = { selectedGameIds[gameIdValue] = !checked },
+                        label = if (game.isDLC) "DLC" else null,
+                    )
+                }
+            }
+        }
     }
 }

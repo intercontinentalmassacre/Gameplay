@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -842,6 +843,8 @@ fun DualSystemMenu(
     var epicAccountName by remember { mutableStateOf<String?>(null) }
     val initialFocusRequester = remember { FocusRequester() }
     val windowInfo = LocalWindowInfo.current
+    val compactDensity = PluviaTheme.tokens.densityCompact
+    val avatarSize = if (compactDensity) 40.dp else 58.dp
 
     LaunchedEffect(Unit) {
         persona = SteamService.instance?.localPersona?.value
@@ -891,9 +894,12 @@ fun DualSystemMenu(
             modifier = Modifier
                 .weight(1f)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 10.dp)
+                .padding(
+                    horizontal = if (compactDensity) 12.dp else 16.dp,
+                    vertical = if (compactDensity) 6.dp else 10.dp,
+                )
                 .focusGroup(),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+            verticalArrangement = Arrangement.spacedBy(if (compactDensity) 6.dp else 14.dp),
         ) {
             Text(
                 text = stringResource(R.string.system_hub_profile_section),
@@ -908,20 +914,23 @@ fun DualSystemMenu(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(16.dp),
+                        .padding(
+                            horizontal = if (compactDensity) 12.dp else 16.dp,
+                            vertical = if (compactDensity) 8.dp else 16.dp,
+                        ),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    horizontalArrangement = Arrangement.spacedBy(if (compactDensity) 10.dp else 14.dp),
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(58.dp)
+                            .size(avatarSize)
                             .clip(RoundedCornerShape(PluviaTheme.tokens.cornerMd))
                             .background(MaterialTheme.colorScheme.surfaceVariant),
                         contentAlignment = Alignment.Center,
                     ) {
                         if (persona?.avatarHash?.isNotEmpty() == true) {
                             SteamIconImage(
-                                size = 58.dp,
+                                size = avatarSize,
                                 image = { persona?.avatarHash?.getAvatarURL() },
                             )
                         } else {
@@ -939,7 +948,11 @@ fun DualSystemMenu(
                             text = persona?.name ?: PrefManager.username.ifBlank {
                                 stringResource(R.string.default_user_name)
                             },
-                            style = MaterialTheme.typography.titleLarge,
+                            style = if (compactDensity) {
+                                MaterialTheme.typography.titleMedium
+                            } else {
+                                MaterialTheme.typography.titleLarge
+                            },
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onSurface,
                             maxLines = 1,
@@ -1073,8 +1086,6 @@ fun DualSystemMenu(
                     )
                 }
             }
-
-            Spacer(modifier = Modifier.height(6.dp))
         }
     }
 }
@@ -1112,6 +1123,7 @@ private fun SystemHubRow(
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val focused by interactionSource.collectIsFocusedAsState()
+    val compactDensity = PluviaTheme.tokens.densityCompact
     val contentColor = when {
         destructive -> MaterialTheme.colorScheme.error
         focused -> MaterialTheme.colorScheme.onPrimaryContainer
@@ -1122,6 +1134,7 @@ private fun SystemHubRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .heightIn(min = 48.dp)
             .then(
                 if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier,
             )
@@ -1152,8 +1165,11 @@ private fun SystemHubRow(
                 indication = null,
                 onClick = onClick,
             )
-            .padding(horizontal = 16.dp, vertical = 13.dp),
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
+            .padding(
+                horizontal = if (compactDensity) 12.dp else 16.dp,
+                vertical = if (compactDensity) 5.dp else 13.dp,
+            ),
+        horizontalArrangement = Arrangement.spacedBy(if (compactDensity) 10.dp else 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
@@ -1168,8 +1184,6 @@ private fun SystemHubRow(
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Medium,
                 color = contentColor,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
             )
             Text(
                 text = subtitle,
@@ -1179,8 +1193,6 @@ private fun SystemHubRow(
                 } else {
                     MaterialTheme.colorScheme.onSurfaceVariant
                 },
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
             )
         }
         Icon(

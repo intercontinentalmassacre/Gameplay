@@ -239,10 +239,21 @@ class MainViewModel @Inject constructor(
     }
 
     private val onSetBootingSplashText: (AndroidEvent.SetBootingSplashText) -> Unit = {
-        setBootingSplashText(it.text)
-        setShowBootingSplash(true)
+        if (!gamescopeFirstFramePresented) {
+            setBootingSplashText(it.text)
+            setShowBootingSplash(true)
+        }
     }
 
+    private val onClearBootingSplash: (AndroidEvent.ClearBootingSplash) -> Unit = {
+        gamescopeFirstFramePresented = true
+        bootingSplashTimeoutJob?.cancel()
+        bootingSplashTimeoutJob = null
+        setShowBootingSplash(false)
+    }
+
+    @Volatile
+    private var gamescopeFirstFramePresented = false
     private var bootingSplashTimeoutJob: Job? = null
     private var connectionTimeoutJob: Job? = null
 
@@ -277,6 +288,7 @@ class MainViewModel @Inject constructor(
         PluviaApp.events.on<AndroidEvent.BackPressed, Unit>(onBackPressed)
         PluviaApp.events.on<AndroidEvent.ExternalGameLaunch, Unit>(onExternalGameLaunch)
         PluviaApp.events.on<AndroidEvent.SetBootingSplashText, Unit>(onSetBootingSplashText)
+        PluviaApp.events.on<AndroidEvent.ClearBootingSplash, Unit>(onClearBootingSplash)
         PluviaApp.events.on<SteamEvent.Connected, Unit>(onSteamConnected)
         PluviaApp.events.on<SteamEvent.Disconnected, Unit>(onSteamDisconnected)
         PluviaApp.events.on<SteamEvent.RemotelyDisconnected, Unit>(onRemotelyDisconnected)
@@ -315,6 +327,7 @@ class MainViewModel @Inject constructor(
         PluviaApp.events.off<AndroidEvent.BackPressed, Unit>(onBackPressed)
         PluviaApp.events.off<AndroidEvent.ExternalGameLaunch, Unit>(onExternalGameLaunch)
         PluviaApp.events.off<AndroidEvent.SetBootingSplashText, Unit>(onSetBootingSplashText)
+        PluviaApp.events.off<AndroidEvent.ClearBootingSplash, Unit>(onClearBootingSplash)
         PluviaApp.events.off<SteamEvent.Connected, Unit>(onSteamConnected)
         PluviaApp.events.off<SteamEvent.Disconnected, Unit>(onSteamDisconnected)
         PluviaApp.events.off<SteamEvent.RemotelyDisconnected, Unit>(onRemotelyDisconnected)
@@ -526,6 +539,7 @@ class MainViewModel @Inject constructor(
     }
 
     fun launchApp(context: Context, appId: String) {
+        gamescopeFirstFramePresented = false
         // Show booting splash before launching the app
         CrashContext.setStage("preparing_launch")
         app.gamenative.diagnostics.LaunchTrace.stage(app.gamenative.diagnostics.LaunchStage.DEVICE_PROBED)
@@ -558,6 +572,7 @@ class MainViewModel @Inject constructor(
                 return@launch
             }
 
+            setLaunchedAppId(appId)
             setShowBootingSplash(true)
             PluviaApp.events.emit(AndroidEvent.SetAllowedOrientation(PrefManager.allowedOrientation))
 
@@ -981,7 +996,7 @@ class MainViewModel @Inject constructor(
                     val processes = mutableListOf<AppProcessInfo>()
                     var currentWindow: Window = window
                     do {
-                        var parentWindow: Window? = window.parent
+                        var parentWindow: Window? = currentWindow.parent
                         val process = if (parentWindow != null && parentWindow.className.lowercase() != "explorer.exe") {
                             val processId = currentWindow.processId
                             val parentProcessId = parentWindow.processId

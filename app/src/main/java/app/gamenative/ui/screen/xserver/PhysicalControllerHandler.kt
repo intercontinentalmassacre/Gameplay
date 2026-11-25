@@ -539,16 +539,16 @@ class PhysicalControllerHandler(
             } else if (binding == Binding.MOUSE_MOVE_LEFT || binding == Binding.MOUSE_MOVE_RIGHT) {
                 // Handle horizontal mouse movement - ADD contribution from this input
                 if (isActionDown) {
-                    val contribution = if (offset != 0f) offset else if (binding == Binding.MOUSE_MOVE_LEFT) -1f else 1f
-                    mouseMoveOffset.x += contribution
+                    val magnitude = if (offset == 0f) 1f else Math.abs(offset)
+                    mouseMoveOffset.x += if (binding == Binding.MOUSE_MOVE_LEFT) -magnitude else magnitude
                     createMouseMoveTimer()
                 }
                 // Don't reset when isActionDown=false - mouseMoveOffset is reset at the start of processJoystickInput
             } else if (binding == Binding.MOUSE_MOVE_DOWN || binding == Binding.MOUSE_MOVE_UP) {
                 // Handle vertical mouse movement - ADD contribution from this input
                 if (isActionDown) {
-                    val contribution = if (offset != 0f) offset else if (binding == Binding.MOUSE_MOVE_UP) -1f else 1f
-                    mouseMoveOffset.y += contribution
+                    val magnitude = if (offset == 0f) 1f else Math.abs(offset)
+                    mouseMoveOffset.y += if (binding == Binding.MOUSE_MOVE_UP) -magnitude else magnitude
                     createMouseMoveTimer()
                 }
                 // Don't reset when isActionDown=false - mouseMoveOffset is reset at the start of processJoystickInput

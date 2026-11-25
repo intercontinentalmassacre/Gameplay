@@ -24,6 +24,7 @@ internal fun LibraryStateSplash(
     @StringRes actionResId: Int,
     onAction: () -> Unit,
     modifier: Modifier = Modifier,
+    actionModifier: Modifier = Modifier,
 ) {
     Column(
         modifier = modifier
@@ -40,7 +41,7 @@ internal fun LibraryStateSplash(
             textAlign = TextAlign.Center,
         )
         Spacer(modifier = Modifier.height(32.dp))
-        Button(onClick = onAction) {
+        Button(onClick = onAction, modifier = actionModifier) {
             Text(stringResource(actionResId))
         }
     }

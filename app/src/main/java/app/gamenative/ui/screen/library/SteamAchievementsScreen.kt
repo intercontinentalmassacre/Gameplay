@@ -1,8 +1,10 @@
 package app.gamenative.ui.screen.library
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -14,15 +16,18 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.EmojiEvents
@@ -46,6 +51,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -87,7 +93,7 @@ internal fun AchievementSummaryButton(
 
     Surface(
         modifier = modifier
-            .focusRing(interactionSource, RoundedCornerShape(10.dp), width = 2.dp)
+            .focusRing(interactionSource, RoundedCornerShape(10.dp))
             .selectable(
                 selected = false,
                 interactionSource = interactionSource,
@@ -256,10 +262,15 @@ private fun AchievementHeader(
     total: Int,
     onBack: () -> Unit,
 ) {
+    val progress = unlocked.toFloat() / total.coerceAtLeast(1)
+    val compact = PluviaTheme.tokens.densityCompact
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 16.dp),
+        modifier = Modifier.fillMaxWidth().padding(
+            horizontal = if (compact) 12.dp else 22.dp,
+            vertical = if (compact) 4.dp else 14.dp,
+        ),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        horizontalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 16.dp),
     ) {
         ConsoleIconButton(
             onClick = onBack,
@@ -269,23 +280,39 @@ private fun AchievementHeader(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = stringResource(R.string.achievements),
-                style = MaterialTheme.typography.headlineSmall,
+                style = if (compact) MaterialTheme.typography.titleMedium else MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.SemiBold,
             )
             Text(
                 text = gameName,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        Text(
-            text = stringResource(R.string.achievements_count, unlocked, total),
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.primary,
-        )
+        Column(
+            modifier = Modifier.weight(0.55f),
+            horizontalAlignment = Alignment.End,
+        ) {
+            Text(
+                text = stringResource(R.string.achievements_count, unlocked, total),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Spacer(Modifier.height(if (compact) 4.dp else 8.dp))
+            LinearProgressIndicator(
+                progress = { progress },
+                modifier = Modifier
+                    .widthIn(max = 250.dp)
+                    .fillMaxWidth()
+                    .height(5.dp)
+                    .clip(RoundedCornerShape(3.dp)),
+                color = PluviaTheme.colors.statusInstalled,
+                trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+            )
+        }
     }
 }
 
@@ -294,12 +321,18 @@ private fun AchievementFilters(
     filter: AchievementFilter,
     onFilter: (AchievementFilter) -> Unit,
 ) {
+    val compact = PluviaTheme.tokens.densityCompact
+    val shape = RoundedCornerShape(PluviaTheme.tokens.cornerMd)
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 12.dp).focusGroup(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.fillMaxWidth().padding(
+            horizontal = if (compact) 12.dp else 22.dp,
+            vertical = if (compact) 2.dp else 12.dp,
+        ).focusGroup(),
+        horizontalArrangement = Arrangement.spacedBy(if (compact) 4.dp else 8.dp),
     ) {
-        AchievementFilter.entries.forEachIndexed { index, item ->
+        AchievementFilter.entries.forEach { item ->
             val interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+            val isFocused by interactionSource.collectIsFocusedAsState()
             val label = when (item) {
                 AchievementFilter.ALL -> stringResource(R.string.achievements_filter_all)
                 AchievementFilter.UNLOCKED -> stringResource(R.string.achievements_filter_unlocked)
@@ -307,16 +340,36 @@ private fun AchievementFilters(
             }
             Box(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
+                    .weight(1f)
+                    .heightIn(min = 48.dp)
+                    .focusRing(interactionSource, shape)
+                    .clip(shape)
                     .background(
-                        if (filter == item) MaterialTheme.colorScheme.primaryContainer
-                        else MaterialTheme.colorScheme.surfaceContainerLow,
+                        if (isFocused) MaterialTheme.colorScheme.surfaceContainerHigh
+                        else Color.Transparent,
                     )
-                    .focusRing(interactionSource, RoundedCornerShape(8.dp), width = 2.dp)
                     .selectable(filter == item, interactionSource, null) { onFilter(item) }
-                    .padding(horizontal = 18.dp, vertical = 11.dp),
+                    .padding(horizontal = if (compact) 6.dp else 12.dp, vertical = 6.dp),
+                contentAlignment = Alignment.Center,
             ) {
-                Text(label, style = MaterialTheme.typography.labelLarge)
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = if (filter == item) FontWeight.SemiBold else FontWeight.Medium,
+                        color = if (filter == item) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Box(
+                        modifier = Modifier
+                            .width(22.dp)
+                            .height(2.dp)
+                            .background(
+                                if (filter == item) MaterialTheme.colorScheme.primary else Color.Transparent,
+                                RoundedCornerShape(1.dp),
+                            ),
+                    )
+                }
             }
         }
     }
@@ -333,23 +386,22 @@ private fun AchievementList(
     rarity: Map<String, Float> = emptyMap(),
     showDescriptions: Boolean = false,
 ) {
+    val compact = PluviaTheme.tokens.densityCompact
     val firstRowFocus = remember { FocusRequester() }
     LaunchedEffect(achievements.isNotEmpty()) {
         if (achievements.isNotEmpty()) {
             repeat(3) {
                 try {
-                    firstRowFocus.requestFocus()
-                    return@LaunchedEffect
-                } catch (_: Exception) {
-                    kotlinx.coroutines.delay(80)
-                }
+                    if (firstRowFocus.requestFocus()) return@LaunchedEffect
+                } catch (_: IllegalStateException) {}
+                kotlinx.coroutines.delay(80)
             }
         }
     }
 
     LazyColumn(
-        modifier = modifier.padding(horizontal = 22.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+        modifier = modifier.padding(horizontal = if (compact) 12.dp else 22.dp),
+        verticalArrangement = Arrangement.spacedBy(if (compact) 4.dp else 6.dp),
     ) {
         items(achievements, key = { it.name ?: it.displayName }) { achievement ->
             AchievementListRow(
@@ -357,6 +409,7 @@ private fun AchievementList(
                 selected = achievement == selected,
                 showDescription = showDescriptions,
                 onClick = { onSelected(achievement) },
+                onFocused = { if (!showDescriptions) onSelected(achievement) },
                 rarityPercent = achievement.name?.let { rarity[it] },
                 focusRequester = if (achievement == achievements.first()) firstRowFocus else null,
             )
@@ -366,7 +419,7 @@ private fun AchievementList(
                 RevealSecretsRow(count = hiddenCount, onClick = onRevealSecrets)
             }
         }
-        item { Spacer(Modifier.height(18.dp)) }
+        item { Spacer(Modifier.height(if (compact) 6.dp else 18.dp)) }
     }
 }
 
@@ -376,13 +429,17 @@ private fun AchievementListRow(
     selected: Boolean,
     showDescription: Boolean,
     onClick: () -> Unit,
+    onFocused: () -> Unit,
     rarityPercent: Float? = null,
     focusRequester: FocusRequester? = null,
 ) {
     val interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val compact = PluviaTheme.tokens.densityCompact
+    val shape = RoundedCornerShape(PluviaTheme.tokens.cornerMd)
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .heightIn(min = 48.dp)
             .then(
                 if (focusRequester != null) {
                     Modifier.focusRequester(focusRequester)
@@ -390,24 +447,25 @@ private fun AchievementListRow(
                     Modifier
                 },
             )
-            .clip(RoundedCornerShape(0.dp))
+            .onFocusChanged { if (it.isFocused) onFocused() }
+            .focusRing(interactionSource, shape)
+            .clip(shape)
             .background(
                 if (selected) MaterialTheme.colorScheme.surfaceContainerHigh
                 else MaterialTheme.colorScheme.surfaceContainerLow,
             )
-            .focusRing(interactionSource, RoundedCornerShape(0.dp), width = 2.dp)
             .selectable(selected, interactionSource, null, onClick = onClick)
-            .padding(12.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(horizontal = if (compact) 8.dp else 12.dp, vertical = if (compact) 6.dp else 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        AchievementIcon(achievement, 48)
+        AchievementIcon(achievement, if (compact) 36 else 48)
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = achievement.displayName,
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = if (achievement.isUnlocked) FontWeight.SemiBold else FontWeight.Medium,
-                maxLines = 1,
+                maxLines = if (showDescription) Int.MAX_VALUE else 2,
                 overflow = TextOverflow.Ellipsis,
             )
             if (showDescription && achievement.description.isNotBlank()) {
@@ -426,7 +484,9 @@ private fun AchievementListRow(
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Icon(
                 imageVector = if (achievement.isUnlocked) Icons.Default.EmojiEvents else Icons.Default.Lock,
-                contentDescription = null,
+                contentDescription = stringResource(
+                    if (achievement.isUnlocked) R.string.achievements_filter_unlocked else R.string.achievements_locked,
+                ),
                 tint = if (achievement.isUnlocked) PluviaTheme.colors.statusInstalled else MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(20.dp),
             )
@@ -447,8 +507,12 @@ private fun AchievementDetails(
     rarity: Float? = null,
     modifier: Modifier = Modifier,
 ) {
+    val compact = PluviaTheme.tokens.densityCompact
+    val scrollState = remember(achievement?.name, achievement?.displayName) { ScrollState(0) }
     Column(
-        modifier = modifier.padding(horizontal = 28.dp, vertical = 18.dp),
+        modifier = modifier
+            .verticalScroll(scrollState)
+            .padding(horizontal = if (compact) 16.dp else 28.dp, vertical = if (compact) 8.dp else 18.dp),
         horizontalAlignment = Alignment.Start,
     ) {
         if (achievement == null) {
@@ -458,8 +522,8 @@ private fun AchievementDetails(
             )
             return@Column
         }
-        AchievementIcon(achievement, 88)
-        Spacer(Modifier.height(18.dp))
+        AchievementIcon(achievement, if (compact) 64 else 88)
+        Spacer(Modifier.height(if (compact) 8.dp else 18.dp))
         Text(
             text = achievement.displayName,
             style = MaterialTheme.typography.headlineSmall,
@@ -473,7 +537,7 @@ private fun AchievementDetails(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        Spacer(Modifier.height(18.dp))
+        Spacer(Modifier.height(if (compact) 8.dp else 18.dp))
         if (achievement.hasProgress && !achievement.isUnlocked) AchievementProgress(achievement)
         val unlockedAt = achievement.formattedUnlockDateTime()
         Text(
@@ -540,14 +604,17 @@ private fun AchievementProgress(achievement: Achievement, compact: Boolean = fal
 @Composable
 private fun RevealSecretsRow(count: Int, onClick: () -> Unit) {
     val interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val compact = PluviaTheme.tokens.densityCompact
+    val shape = RoundedCornerShape(PluviaTheme.tokens.cornerMd)
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(9.dp))
+            .heightIn(min = 48.dp)
+            .focusRing(interactionSource, shape)
+            .clip(shape)
             .background(MaterialTheme.colorScheme.surfaceContainerLow)
-            .focusRing(interactionSource, RoundedCornerShape(9.dp), width = 2.dp)
             .selectable(false, interactionSource, null, onClick = onClick)
-            .padding(16.dp),
+            .padding(if (compact) 8.dp else 16.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {

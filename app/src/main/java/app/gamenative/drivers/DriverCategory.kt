@@ -23,6 +23,7 @@ enum class DriverCategory(val sortOrder: Int) {
 
     /** Bionic Vulkan wrapper (Mesa Vulkan ICD + adrenotools hooks). */
     WRAPPER(4),
+    MALI(5),
 }
 
 /**
@@ -44,6 +45,7 @@ enum class AdrenoTarget(val displayKey: String) {
 
     /** Cross-generation / vendor-neutral packages. */
     GENERIC("adreno_target_generic"),
+    MALI("driver_category_mali"),
 }
 
 /**
@@ -64,7 +66,7 @@ enum class DriverPackagingFormat {
 /**
  * Detect this device's Adreno generation so the dialog can pre-select a
  * sensible category and show a one-line "Detected: Adreno X" hint. Returns
- * [AdrenoTarget.GENERIC] for non-Adreno GPUs (Mali, Xclipse, PowerVR) so the
+ * [AdrenoTarget.GENERIC] for non-Adreno GPUs outside the supported families (Xclipse, PowerVR) so the
  * caller falls back to the GENERIC-targeted repositories.
  *
  * The detection reuses [GPUInformation]'s regex helpers and only adds an
@@ -72,6 +74,7 @@ enum class DriverPackagingFormat {
  */
 fun detectAdrenoTarget(context: Context): AdrenoTarget {
     val renderer = GPUInformation.getRenderer(context).lowercase()
+    if ("mali" in renderer || "immortalis" in renderer) return AdrenoTarget.MALI
     if (!renderer.contains("adreno")) return AdrenoTarget.GENERIC
 
     return when {
@@ -106,6 +109,7 @@ fun preferredCategoryFor(target: AdrenoTarget): DriverCategory = when (target) {
     AdrenoTarget.A6XX,
     AdrenoTarget.A7XX -> DriverCategory.TURNIP_STABLE
 
+    AdrenoTarget.MALI -> DriverCategory.MALI
     AdrenoTarget.GENERIC -> DriverCategory.ADRENO_PACKAGED
 }
 

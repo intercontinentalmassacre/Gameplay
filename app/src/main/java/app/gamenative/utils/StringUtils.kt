@@ -28,7 +28,7 @@ fun CharSequence.unaccent(): String {
 }
 
 /** Stable, Unicode-safe key for matching the same title across different stores. */
-fun CharSequence.normalizeForComparison(): String = unaccent()
+fun CharSequence.normalizeForComparison(): String = toString().replace("™", "").unaccent()
     .lowercase(Locale.ROOT)
     .replace(REGEX_NON_LETTER_OR_DIGIT, "")
 

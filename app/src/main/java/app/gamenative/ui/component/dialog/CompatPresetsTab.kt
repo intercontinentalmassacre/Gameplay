@@ -37,7 +37,7 @@ import com.winlator.core.KeyValueSet
  * with plain-language explanations. Applying a preset only edits the in-memory
  * config; the user still saves explicitly and can fine-tune afterwards.
  */
-private data class CompatPreset(
+internal data class CompatPreset(
     val id: String,
     @StringRes val nameRes: Int,
     @StringRes val descRes: Int,
@@ -57,7 +57,7 @@ private fun mergedDriverConfig(config: ContainerData, vararg values: Pair<String
     return kvs.toString()
 }
 
-private val compatPresets = listOf(
+internal val compatPresets = listOf(
     CompatPreset(
         id = "PERFORMANCE",
         nameRes = R.string.compat_preset_performance_name,

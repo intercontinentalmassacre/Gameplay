@@ -29,6 +29,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import app.gamenative.ui.screen.library.directXSummary
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -87,6 +90,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
@@ -96,6 +100,15 @@ import androidx.compose.ui.unit.dp
 import app.gamenative.PrefManager
 import app.gamenative.data.GameSource
 import app.gamenative.R
+import app.gamenative.display.GameNativeDrm
+import app.gamenative.display.GamescopeCommandQueue
+import app.gamenative.display.GamescopeFeature
+import app.gamenative.display.GamescopeLook
+import app.gamenative.display.GamescopeScalingFilter
+import app.gamenative.display.GamescopeScalingMode
+import app.gamenative.display.GamescopeSettings
+import app.gamenative.ui.component.settings.SettingsListDropdown
+import app.gamenative.utils.LsfgQuickMenuHelper
 import app.gamenative.ui.data.PerformanceHudConfig
 import app.gamenative.ui.data.PerformanceHudSize
 import app.gamenative.ui.screen.xserver.InGameAchievements
@@ -114,10 +127,13 @@ import com.winlator.renderer.VulkanRenderer
 import com.winlator.winhandler.ProcessInfo
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import org.json.JSONArray
+import java.io.File
 import kotlin.math.roundToInt
 
 object QuickMenuAction {
     const val KEYBOARD = 1
+    const val LIVE_INPUT = 18
     const val INPUT_CONTROLS = 2
     const val EXIT_GAME = 3
     const val EDIT_CONTROLS = 4
@@ -135,6 +151,7 @@ object QuickMenuAction {
     const val SC_LAYOUT = 15
     // Single root entry that opens the Steam Controller editor hub (lists the editors above).
     const val SC_ROOT = 16
+    const val CONTROLLER_LAYOUTS = 17
 }
 
 private object QuickMenuTab {
@@ -302,6 +319,7 @@ fun QuickMenu(
     onRequestOpen: () -> Unit = {},
     fullScreen: Boolean = false,
     modifier: Modifier = Modifier,
+    isGamescopeSession: Boolean = false,
 ) {
     val exitGameItem = QuickMenuItem(
         id = QuickMenuAction.EXIT_GAME,
@@ -341,6 +359,7 @@ fun QuickMenu(
         )
         // The generic gamepad mapper doesn't apply to the BLE Steam Controller — hide it when an SC is live.
         if (hasPhysicalController && !isSteamControllerLive) {
+            add(QuickMenuItem(QuickMenuAction.CONTROLLER_LAYOUTS, Icons.Default.Gamepad, R.string.controller_layouts, PluviaTheme.colors.accentPurple))
             add(
                 QuickMenuItem(
                     id = QuickMenuAction.EDIT_PHYSICAL_CONTROLLER,
@@ -408,6 +427,8 @@ fun QuickMenu(
             ?.let { InGameAchievements(it) }
     }
 
+    val hasEffects = isGamescopeSession || renderer != null || glRenderer != null
+    val effectsTitle = if (isGamescopeSession) R.string.gamescope_tab_title else R.string.screen_effects
     var selectedTab by rememberSaveable {
         mutableIntStateOf(
             if ((PrefManager.quickMenuLastTab == QuickMenuTab.LSFG && !isLsfgAvailable) ||
@@ -418,9 +439,9 @@ fun QuickMenu(
         )
     }
     var lsfgFrameGenerationConfirmed by remember(container?.id) { mutableStateOf(false) }
-    LaunchedEffect(isVisible, selectedTab, isLsfgAvailable, container?.id) {
+    LaunchedEffect(isVisible, selectedTab, isLsfgAvailable, isGamescopeSession, container?.id) {
         val activeContainer = container
-        if (!isLsfgAvailable || activeContainer == null) {
+        if (!isLsfgAvailable || activeContainer == null || isGamescopeSession) {
             lsfgFrameGenerationConfirmed = false
             return@LaunchedEffect
         }
@@ -437,7 +458,7 @@ fun QuickMenu(
     val selectedTabLabelResId = when (selectedTab) {
         QuickMenuTab.HUD -> R.string.performance_hud
         QuickMenuTab.LSFG -> R.string.lsfg_tab_title
-        QuickMenuTab.EFFECTS -> R.string.screen_effects
+        QuickMenuTab.EFFECTS -> effectsTitle
         QuickMenuTab.TOOLS -> R.string.task_manager
         QuickMenuTab.INVITE -> R.string.steam_invite_tab_title
         else -> R.string.quick_menu_tab_controller
@@ -541,40 +562,49 @@ fun QuickMenu(
                         .fillMaxSize()
                         .statusBarsPadding(),
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(start = 20.dp, end = 8.dp, top = 16.dp, bottom = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                    ) {
-                        Text(
-                            text = stringResource(R.string.quick_menu_title),
-                            style = MaterialTheme.typography.titleLarge.copy(
-                                fontWeight = FontWeight.SemiBold,
-                            ),
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                        QuickMenuCloseButton(onClick = onDismiss)
-                    }
+                    val compact = fullScreen && PluviaTheme.tokens.densityCompact
+                    if (compact && container != null) {
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            QuickMenuRuntimeRow(container, Modifier.weight(1f))
+                            QuickMenuCloseButton(onClick = onDismiss)
+                        }
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    } else {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 20.dp, end = 8.dp, top = 16.dp, bottom = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                        ) {
+                            Text(
+                                text = stringResource(R.string.quick_menu_title),
+                                style = MaterialTheme.typography.titleLarge.copy(
+                                    fontWeight = FontWeight.SemiBold,
+                                ),
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                            QuickMenuCloseButton(onClick = onDismiss)
+                        }
 
-                    HorizontalDivider(
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
-                    )
-
-                    if (container != null) {
-                        QuickMenuRuntimeRow(container = container)
                         HorizontalDivider(
                             modifier = Modifier.padding(horizontal = 16.dp),
                             color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
                         )
+
+                        if (container != null) {
+                            QuickMenuRuntimeRow(container = container)
+                            HorizontalDivider(
+                                modifier = Modifier.padding(horizontal = 16.dp),
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
+                            )
+                        }
                     }
 
                     Row(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(horizontal = 12.dp, vertical = 12.dp),
+                            .padding(horizontal = if (compact) 8.dp else 12.dp, vertical = if (compact) 4.dp else 12.dp),
                     ) {
                         Column(
                             modifier = Modifier
@@ -633,10 +663,10 @@ fun QuickMenu(
                                         focusRequester = inviteTabFocusRequester,
                                     )
                                 }
-                                if (renderer != null || glRenderer != null) {
+                                if (hasEffects) {
                                     QuickMenuTabButton(
                                         icon = Icons.Default.AutoFixHigh,
-                                        contentDescriptionResId = R.string.screen_effects,
+                                        contentDescriptionResId = effectsTitle,
                                         selected = selectedTab == QuickMenuTab.EFFECTS,
                                         accentColor = PluviaTheme.colors.accentPurple,
                                         onSelected = {
@@ -765,6 +795,7 @@ fun QuickMenu(
                                             flowScale = lsfgFlowScale,
                                             performanceMode = lsfgPerformanceMode,
                                             runtimeConfirmed = lsfgFrameGenerationConfirmed,
+                                            gamescopeContainer = container.takeIf { isGamescopeSession },
                                             onMultiplierChanged = onLsfgMultiplierChanged,
                                             onFlowScaleChanged = onLsfgFlowScaleChanged,
                                             onPerformanceModeChanged = onLsfgPerformanceModeChanged,
@@ -785,7 +816,14 @@ fun QuickMenu(
                                     }
 
                                     QuickMenuTab.EFFECTS -> {
-                                        if (renderer != null) {
+                                        if (isGamescopeSession) {
+                                            GamescopeEffectsTab(
+                                                container = container,
+                                                scrollState = effectsScrollState,
+                                                focusRequester = effectsItemFocusRequester,
+                                                modifier = Modifier.fillMaxSize(),
+                                            )
+                                        } else if (renderer != null) {
                                             ScreenEffectsTabContent(
                                                 renderer = renderer,
                                                 container = container,
@@ -1446,11 +1484,151 @@ private fun PerformanceHudQuickMenuTab(
 }
 
 @Composable
+private fun GamescopeEffectsTab(
+    container: Container?,
+    scrollState: ScrollState,
+    focusRequester: FocusRequester,
+    modifier: Modifier = Modifier,
+) {
+    if (container == null) return
+    val context = LocalContext.current
+    val accent = PluviaTheme.colors.accentPurple
+    var featureMask by remember { mutableIntStateOf(0) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            featureMask = GameNativeDrm.nativeDisplayInfo().substringAfter("features=0x", "")
+                .substringBefore(';').toIntOrNull(16) ?: 0
+            delay(1000)
+        }
+    }
+    val filters = GamescopeScalingFilter.entries
+        .filter { it.feature == null || GamescopeFeature.advertised(featureMask, it.feature) }
+        .sortedBy { it == GamescopeScalingFilter.SGSR }
+    val scalingModes = GamescopeScalingMode.entries
+    val looks = GamescopeLook.entries
+    val shaders = remember(context) {
+        runCatching {
+            val entries = JSONArray(File(context.filesDir, "reshade/all_shaders.json").readText())
+            List(entries.length()) { index ->
+                val entry = entries.getJSONObject(index)
+                entry.getString("path") to entry.getString("name")
+            }
+        }.getOrDefault(emptyList())
+    }
+    var filter by remember(container) {
+        mutableStateOf(GamescopeScalingFilter.fromId(container.getExtra(GamescopeSettings.EXTRA_FILTER, ""))
+            ?: GamescopeScalingFilter.LINEAR)
+    }
+    var scaling by remember(container) {
+        mutableStateOf(GamescopeScalingMode.fromId(container.getExtra(GamescopeSettings.EXTRA_SCALER, ""))
+            ?: GamescopeScalingMode.DEFAULT)
+    }
+    var sharpness by remember(container) {
+        mutableIntStateOf(
+            container.getExtra(GamescopeSettings.EXTRA_SHARPNESS, "").toIntOrNull()
+                ?.coerceIn(0, GamescopeSettings.SHARPNESS_STEPS) ?: GamescopeSettings.SHARPNESS_DEFAULT,
+        )
+    }
+    var look by remember(container) {
+        mutableStateOf(GamescopeLook.fromId(container.getExtra(GamescopeSettings.EXTRA_LOOK, "")) ?: GamescopeLook.OFF)
+    }
+    var shader by remember(container) { mutableStateOf(container.getExtra(GamescopeSettings.EXTRA_RESHADE, "")) }
+
+    fun save(key: String, value: String) {
+        container.putExtra(key, value)
+        container.saveData()
+    }
+    fun setScaling(index: Int) {
+        scaling = scalingModes[index.coerceIn(scalingModes.indices)]
+        GamescopeCommandQueue.setScaler(scaling)
+        save(GamescopeSettings.EXTRA_SCALER, scaling.id)
+    }
+    fun setFilter(value: GamescopeScalingFilter) {
+        filter = value
+        GamescopeCommandQueue.setFilter(value)
+        save(GamescopeSettings.EXTRA_FILTER, value.id)
+    }
+    fun setSharpness(value: Int) {
+        sharpness = value.coerceIn(0, GamescopeSettings.SHARPNESS_STEPS)
+        GamescopeCommandQueue.setSharpness(sharpness)
+        save(GamescopeSettings.EXTRA_SHARPNESS, sharpness.toString())
+    }
+
+    Column(
+        modifier = modifier.verticalScroll(scrollState).focusGroup(),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        val modeIndex = scalingModes.indexOf(scaling).coerceAtLeast(0)
+        QuickMenuAdjustmentRow(
+            title = stringResource(R.string.gamescope_scaling_mode),
+            valueText = stringResource(scaling.labelRes),
+            progress = modeIndex.toFloat() / scalingModes.lastIndex,
+            onDecrease = { setScaling(modeIndex - 1) },
+            onIncrease = { setScaling(modeIndex + 1) },
+            accentColor = accent,
+            focusRequester = focusRequester,
+        )
+        SettingsListDropdown(
+            title = { Text(stringResource(R.string.gamescope_scaling_filter)) },
+            value = filters.indexOf(filter).coerceAtLeast(0),
+            items = filters.map { stringResource(it.labelRes) },
+            onItemSelected = { setFilter(filters[it]) },
+        )
+        if (filter in filters && filter.usesSharpness) {
+            QuickMenuAdjustmentRow(
+                title = stringResource(R.string.gamescope_scaling_sharpness),
+                valueText = sharpness.toString(),
+                progress = sharpness.toFloat() / GamescopeSettings.SHARPNESS_STEPS,
+                onDecrease = { setSharpness(sharpness - 1) },
+                onIncrease = { setSharpness(sharpness + 1) },
+                accentColor = accent,
+            )
+        }
+        QuickMenuChoiceChip(
+            text = stringResource(R.string.gamescope_reset_default),
+            selected = false,
+            accentColor = accent,
+            onClick = {
+                setFilter(GamescopeScalingFilter.LINEAR)
+                setSharpness(GamescopeSettings.SHARPNESS_DEFAULT)
+            },
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+        )
+        if (GamescopeFeature.advertised(featureMask, GamescopeFeature.LOOK)) {
+            SettingsListDropdown(
+                title = { Text(stringResource(R.string.gamescope_look)) },
+                value = looks.indexOf(look).coerceAtLeast(0),
+                items = looks.map { stringResource(it.labelRes) },
+                onItemSelected = { index ->
+                    look = looks[index]
+                    GamescopeCommandQueue.setLook(look)
+                    save(GamescopeSettings.EXTRA_LOOK, look.id)
+                },
+            )
+        }
+        if (shaders.isNotEmpty()) {
+            SettingsListDropdown(
+                title = { Text(stringResource(R.string.gamescope_reshade)) },
+                value = shaders.indexOfFirst { it.first == shader } + 1,
+                items = listOf(stringResource(R.string.disabled)) + shaders.map { it.second },
+                onItemSelected = { index ->
+                    shader = shaders.getOrNull(index - 1)?.first.orEmpty()
+                    if (shader.isEmpty()) GameNativeDrm.nativeReshadeDisable()
+                    else GameNativeDrm.nativeReshadeSetEffect(shader)
+                    save(GamescopeSettings.EXTRA_RESHADE, shader)
+                },
+            )
+        }
+    }
+}
+
+@Composable
 private fun LsfgQuickMenuTab(
     multiplier: Int,
     flowScale: Float,
     performanceMode: Boolean,
     runtimeConfirmed: Boolean,
+    gamescopeContainer: Container?,
     onMultiplierChanged: (Int) -> Unit,
     onFlowScaleChanged: (Float) -> Unit,
     onPerformanceModeChanged: (Boolean) -> Unit,
@@ -1495,22 +1673,39 @@ private fun LsfgQuickMenuTab(
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Spacer(modifier = Modifier.height(4.dp))
 
-                QuickMenuSectionHeader(
-                    title = stringResource(
-                        if (runtimeConfirmed) {
-                            R.string.lsfg_runtime_confirmed
-                        } else {
-                            R.string.lsfg_runtime_waiting
+                if (gamescopeContainer == null) {
+                    QuickMenuSectionHeader(
+                        title = stringResource(
+                            if (runtimeConfirmed) {
+                                R.string.lsfg_runtime_confirmed
+                            } else {
+                                R.string.lsfg_runtime_waiting
+                            },
+                        ),
+                        subtitle = stringResource(
+                            if (runtimeConfirmed) {
+                                R.string.lsfg_runtime_confirmed_desc
+                            } else {
+                                R.string.lsfg_runtime_waiting_desc
+                            },
+                        ),
+                    )
+
+                } else {
+                    val modes = listOf("mailbox", "fifo")
+                    var mode by remember(gamescopeContainer.id) { mutableStateOf(LsfgVkManager.presentMode(gamescopeContainer)) }
+                    SettingsListDropdown(
+                        title = { Text(stringResource(R.string.gamescope_lsfg_present_mode)) },
+                        value = modes.indexOf(mode),
+                        items = listOf("Mailbox", "FIFO"),
+                        onItemSelected = { index ->
+                            mode = modes[index]
+                            gamescopeContainer.putExtra(LsfgVkManager.EXTRA_PRESENT_MODE, mode)
+                            gamescopeContainer.saveData()
+                            LsfgQuickMenuHelper.applyDrmSettings(gamescopeContainer)
                         },
-                    ),
-                    subtitle = stringResource(
-                        if (runtimeConfirmed) {
-                            R.string.lsfg_runtime_confirmed_desc
-                        } else {
-                            R.string.lsfg_runtime_waiting_desc
-                        },
-                    ),
-                )
+                    )
+                }
 
                 // ── Flow Scale ────────────────────────────────────────────
                 QuickMenuAdjustmentRow(
@@ -1576,39 +1771,36 @@ private fun QuickMenuSectionHeader(
  * Compact runtime honesty row shown above the quick-menu tabs while a game is
  * running: Wine/Proton, graphics driver, DXVK wrapper and container variant.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun QuickMenuRuntimeRow(container: Container) {
+private fun QuickMenuRuntimeRow(container: Container, modifier: Modifier = Modifier) {
     val wineValue = container.wineVersion.ifBlank { container.containerVariant }
     val driverValue = container.graphicsDriver
-    val dxvkValue = container.dxWrapper
+    val directX = directXSummary(container.dxWrapper, container.dxWrapperConfig)
     val variantValue = container.containerVariant
 
-    Row(
-        modifier = Modifier
+    FlowRow(
+        modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 10.dp),
+            .padding(horizontal = 12.dp, vertical = if (PluviaTheme.tokens.densityCompact) 4.dp else 10.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.CenterVertically,
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         QuickMenuRuntimePill(
             label = stringResource(R.string.game_runtime_wine_proton),
             value = wineValue,
-            modifier = Modifier.weight(1f, fill = false),
         )
         QuickMenuRuntimePill(
             label = stringResource(R.string.game_runtime_driver),
             value = driverValue,
-            modifier = Modifier.weight(1f, fill = false),
         )
         QuickMenuRuntimePill(
-            label = stringResource(R.string.dxvk_version),
-            value = dxvkValue,
-            modifier = Modifier.weight(1f, fill = false),
+            label = stringResource(R.string.game_runtime_directx),
+            value = directX,
         )
         QuickMenuRuntimePill(
             label = stringResource(R.string.container_variant),
             value = variantValue,
-            modifier = Modifier.weight(1f, fill = false),
         )
     }
 }
@@ -1641,13 +1833,14 @@ private fun QuickMenuRuntimePill(
 private fun QuickMenuCloseButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-) {    val interactionSource = remember { MutableInteractionSource() }
+) {
+    val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
-    val shape = RoundedCornerShape(14.dp)
+    val shape = MaterialTheme.shapes.medium
 
     Box(
         modifier = modifier
-            .size(44.dp)
+            .size(48.dp)
             .clip(shape)
             .background(
                 if (isFocused) {

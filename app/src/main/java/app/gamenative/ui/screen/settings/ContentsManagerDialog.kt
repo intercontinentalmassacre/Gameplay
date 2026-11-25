@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -20,7 +21,7 @@ import androidx.compose.material.icons.filled.Delete
 import app.gamenative.ui.component.dialog.AlertDialog
 import app.gamenative.ui.component.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import app.gamenative.ui.component.NoExtractOutlinedTextField
 import app.gamenative.ui.component.DropdownMenuItem
@@ -39,12 +40,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import app.gamenative.R
 import app.gamenative.service.SteamService
+import app.gamenative.ui.theme.PluviaTheme
 import com.winlator.contents.ContentProfile
 import com.winlator.contents.ContentsManager
 import kotlinx.coroutines.Dispatchers
@@ -187,7 +190,7 @@ fun ContentsManagerDialog(open: Boolean, onDismiss: () -> Unit) {
                         importLauncher.launch(arrayOf("*/*"))
                     },
                     enabled = !isBusy,
-                    modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
+                    modifier = Modifier.padding(top = 4.dp, bottom = 8.dp).heightIn(min = 48.dp)
                 ) { Text(stringResource(R.string.import_wcp_from_device)) }
 
                 if (isBusy) {
@@ -203,7 +206,7 @@ fun ContentsManagerDialog(open: Boolean, onDismiss: () -> Unit) {
                 }
 
                 pendingProfile?.let { profile ->
-                    Divider(modifier = Modifier.padding(vertical = 8.dp))
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                     Text(text = stringResource(R.string.selected_content), style = MaterialTheme.typography.titleMedium)
                     Column(
                         modifier = Modifier
@@ -234,12 +237,12 @@ fun ContentsManagerDialog(open: Boolean, onDismiss: () -> Unit) {
                                 }
                             },
                             enabled = !isBusy,
-                            modifier = Modifier.padding(top = 8.dp)
+                            modifier = Modifier.padding(top = 6.dp).heightIn(min = 48.dp)
                         ) { Text(stringResource(R.string.install)) }
                     }
                 }
 
-                Divider(modifier = Modifier.padding(vertical = 12.dp))
+                HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
                 Text(text = stringResource(R.string.installed_contents), style = MaterialTheme.typography.titleMedium)
 
                 // Content type selector
@@ -288,7 +291,8 @@ fun ContentsManagerDialog(open: Boolean, onDismiss: () -> Unit) {
                     Text(
                         text = "No installed content for this type.",
                         style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(top = 8.dp)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 6.dp)
                     )
                 } else {
                     Column(
@@ -296,30 +300,13 @@ fun ContentsManagerDialog(open: Boolean, onDismiss: () -> Unit) {
                             .fillMaxWidth()
                             .padding(top = 8.dp)
                     ) {
-                        installedProfiles.forEach { p ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(text = "${p.verName} (${p.verCode})", style = MaterialTheme.typography.bodyMedium)
-                                    if (!p.desc.isNullOrEmpty()) {
-                                        Text(text = p.desc, style = MaterialTheme.typography.bodySmall)
-                                    }
-                                }
-                                IconButton(
-                                    onClick = { deleteTarget = p },
-                                    modifier = Modifier.padding(start = 8.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Delete,
-                                        contentDescription = "Delete",
-                                        tint = MaterialTheme.colorScheme.error
-                                    )
-                                }
-                            }
+                        installedProfiles.forEachIndexed { index, profile ->
+                            if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                            InstalledComponentRow(
+                                title = "${profile.verName} (${profile.verCode})",
+                                description = profile.desc,
+                                onDelete = { deleteTarget = profile },
+                            )
                         }
                     }
                 }
@@ -343,7 +330,7 @@ fun ContentsManagerDialog(open: Boolean, onDismiss: () -> Unit) {
                 }
             },
             confirmButton = {
-                TextButton(onClick = {
+                TextButton(modifier = Modifier.heightIn(min = 48.dp), onClick = {
                     val profile = pendingProfile ?: return@TextButton
                     showUntrustedConfirm = false
                     isBusy = true
@@ -359,7 +346,7 @@ fun ContentsManagerDialog(open: Boolean, onDismiss: () -> Unit) {
                 }) { Text(stringResource(R.string.install_anyway)) }
             },
             dismissButton = {
-                TextButton(onClick = { showUntrustedConfirm = false }) { Text(stringResource(R.string.cancel)) }
+                TextButton(modifier = Modifier.heightIn(min = 48.dp), onClick = { showUntrustedConfirm = false }) { Text(stringResource(R.string.cancel)) }
             }
         )
     }
@@ -371,7 +358,7 @@ fun ContentsManagerDialog(open: Boolean, onDismiss: () -> Unit) {
             title = { Text(stringResource(R.string.remove_content)) },
             text = { Text(stringResource(R.string.remove_content_confirmation, target.verName, target.verCode)) },
             confirmButton = {
-                TextButton(onClick = {
+                TextButton(modifier = Modifier.heightIn(min = 48.dp), onClick = {
                     scope.launch {
                         withContext(Dispatchers.IO) { mgr.removeContent(target) }
                         refreshInstalled()
@@ -380,8 +367,43 @@ fun ContentsManagerDialog(open: Boolean, onDismiss: () -> Unit) {
                     }
                 }) { Text(stringResource(R.string.remove)) }
             },
-            dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text(stringResource(R.string.cancel)) } }
+            dismissButton = { TextButton(modifier = Modifier.heightIn(min = 48.dp), onClick = { deleteTarget = null }) { Text(stringResource(R.string.cancel)) } }
         )
+    }
+}
+
+@Composable
+internal fun InstalledComponentRow(
+    title: String,
+    description: String?,
+    onDelete: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(vertical = if (PluviaTheme.tokens.densityCompact) 4.dp else 8.dp),
+        ) {
+            Text(text = title, style = MaterialTheme.typography.titleSmall)
+            if (!description.isNullOrBlank()) {
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        IconButton(onClick = onDelete, modifier = Modifier.size(48.dp)) {
+            Icon(
+                imageVector = Icons.Filled.Delete,
+                contentDescription = "${stringResource(R.string.delete)}: $title",
+                tint = MaterialTheme.colorScheme.error,
+            )
+        }
     }
 }
 

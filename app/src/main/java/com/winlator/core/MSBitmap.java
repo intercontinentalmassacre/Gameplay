@@ -13,7 +13,7 @@ public abstract class MSBitmap {
     public static Bitmap open(File targetFile) {
         if (!targetFile.isFile()) return null;
         byte[] bytes = FileUtils.read(targetFile);
-        if (bytes == null) return null;
+        if (bytes == null || bytes.length < 54) return null;
 
         ByteBuffer data = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN);
         if (data.getShort() != 0x4d42) return null;
@@ -35,7 +35,8 @@ public abstract class MSBitmap {
         int colorsUsed = data.getInt();
         int colorsImportant = data.getInt();
 
-        if (width == 0 || height == 0) return null;
+        if (width <= 0 || height == 0 || height == Integer.MIN_VALUE || compression != 0 ||
+                (bitCount != 24 && bitCount != 32) || dataOffset < 54 || dataOffset > bytes.length) return null;
 
         boolean invertY = true;
         if (height < 0) {
@@ -43,18 +44,24 @@ public abstract class MSBitmap {
             invertY = false;
         }
 
+        int bytesPerPixel = bitCount / 8;
+        long rowBytes = ((long)width * bytesPerPixel + 3) & ~3L;
+        if (height > (bytes.length - dataOffset) / rowBytes || (long)width * height > Integer.MAX_VALUE / 4) return null;
+
         ByteBuffer pixels = ByteBuffer.allocate(width * height * 4);
         byte r1 = 0, g1 = 0, b1 = 0, r2 = 0, g2 = 0, b2 = 0;
         boolean started = false;
         boolean blank = true;
-        for (int y = height - 1, i = data.position(), j, line; y >= 0; y--) {
+        for (int y = height - 1, j, line; y >= 0; y--) {
             line = invertY ? y : height - 1 - y;
+            int i = dataOffset + (int)((height - 1L - y) * rowBytes);
 
             for (int x = 0; x < width; x++) {
                 j = line * width * 4 + x * 4;
                 b1 = data.get(i++);
                 g1 = data.get(i++);
                 r1 = data.get(i++);
+                if (bytesPerPixel == 4) i++;
                 pixels.put(j+2, b1);
                 pixels.put(j+1, g1);
                 pixels.put(j+0, r1);
@@ -70,8 +77,6 @@ public abstract class MSBitmap {
                     blank = false;
                 }
             }
-
-            i += width % 4;
         }
 
         if (blank) return null;
@@ -88,11 +93,10 @@ public abstract class MSBitmap {
         int[] pixels = new int[width * height];
         bitmap.getPixels(pixels, 0, width, 0, 0, width, height);
 
-        int extraBytes = width % 4;
-        int imageSize = height * (3 * width + extraBytes);
+        int imageSize = height * width * 4;
         int infoHeaderSize = 40;
         int dataOffset = 54;
-        int bitCount = 24;
+        int bitCount = 32;
         int planes = 1;
         int compression = 0;
         int hr = 0;
@@ -119,19 +123,15 @@ public abstract class MSBitmap {
         buffer.putInt(colorsUsed);
         buffer.putInt(colorsImportant);
 
-        int rowBytes = 3 * width + extraBytes;
+        int rowBytes = width * 4;
         for (int y = height - 1, i = 0, j; y >= 0; y--) {
             for (int x = 0; x < width; x++) {
-                j = dataOffset + y * rowBytes + x * 3;
+                j = dataOffset + y * rowBytes + x * 4;
                 int pixel = pixels[i++];
                 buffer.put(j+0, (byte)Color.blue(pixel));
                 buffer.put(j+1, (byte)Color.green(pixel));
                 buffer.put(j+2, (byte)Color.red(pixel));
-            }
-
-            if (extraBytes > 0) {
-                int fillOffset = dataOffset + y * rowBytes + width * 3;
-                for (j = fillOffset; j < fillOffset + extraBytes; j++) buffer.put(j, (byte)255);
+                buffer.put(j+3, (byte)255);
             }
         }
 

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-07-17",
+  "updatedAt": "2026-11-20",
   "components": [
     {
       "id": "turnip-24.1.0",
@@ -109,8 +109,8 @@
     },
     {
       "id": "wrapper-gamenative",
-      "name": "wrapper-gamenative-20260724.tzst",
-      "url": "https://downloads.gamenative.app/graphics_driver/wrapper-gamenative-20260724.tzst"
+      "name": "wrapper-gamenative-20261120.tzst",
+      "url": "https://downloads.gamenative.app/graphics_driver/wrapper-gamenative-20261120.tzst"
     },
     {
       "id": "wrapper-legacy",
@@ -124,8 +124,8 @@
     },
     {
       "id": "extra_libs",
-      "name": "extra_libs.tzst",
-      "url": "https://downloads.gamenative.app/graphics_driver/extra_libs.tzst"
+      "name": "extra_libs-20261120.tzst",
+      "url": "https://downloads.gamenative.app/graphics_driver/extra_libs-20261120.tzst"
     },
     {
       "id": "zink_dlls",

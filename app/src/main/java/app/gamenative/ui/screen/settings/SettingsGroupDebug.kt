@@ -147,8 +147,9 @@ fun SettingsGroupDebug() {
     LaunchedEffect(Unit) {
         val wineLogDir = File(context.getExternalFilesDir(null), "wine_logs")
         wineLogDir.mkdirs()
-        val wineLogFile = File(wineLogDir, "wine_debug.log")
-        latestWineLogFile = if (wineLogFile.exists()) wineLogFile else null
+        latestWineLogFile = wineLogDir.listFiles()
+            ?.filter { it.isFile && it.name.startsWith("wine_") && it.extension == "log" }
+            ?.maxByOrNull { it.lastModified() }
     }
     val saveWineLogContract = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("text/plain"),

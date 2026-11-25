@@ -28,7 +28,7 @@ SOURCE_LAYOUT = (
     ("audio.yml", "audio"),
 )
 LEGACY_TYPES = {group for _, group in SOURCE_LAYOUT if group != "audio"}
-ENTRY_KEYS = {"id", "name", "url", "variant", "arch"}
+ENTRY_KEYS = {"id", "name", "url", "variant", "arch", "sizeBytes", "sha256", "archiveFormat", "sourceRepository"}
 V2_REQUIRED_KEYS = {
     "id",
     "name",
@@ -178,6 +178,7 @@ def load_and_validate_sources(index_path: Path = DEFAULT_INDEX) -> tuple[dict[st
     groups: dict[str, list[dict[str, Any]]] = {}
     group_schemas: dict[str, int] = {}
     ids: set[str] = set()
+    v2_ids: set[str] = set()
     for source in sources:
         if not isinstance(source, dict) or not {"path", "type"}.issubset(source) or set(source) - {"path", "type", "schemaVersion"}:
             raise CatalogError("each index source must contain path, type and optional schemaVersion")
@@ -202,6 +203,7 @@ def load_and_validate_sources(index_path: Path = DEFAULT_INDEX) -> tuple[dict[st
             raise CatalogError(f"{relative}: components must be a list")
 
         validated: list[dict[str, Any]] = []
+        group_ids: set[str] = set()
         for position, entry in enumerate(components):
             label = f"{relative} components[{position}]"
             if not isinstance(entry, dict):
@@ -216,8 +218,12 @@ def load_and_validate_sources(index_path: Path = DEFAULT_INDEX) -> tuple[dict[st
                 _validate_https_url(entry["url"], label, require_archive=True)
             else:
                 _validate_v2_entry(entry, label)
-            if entry["id"] in ids:
+            # Legacy IDs are scoped to their install type. V2 dependency IDs are global.
+            if entry["id"] in group_ids or entry["id"] in v2_ids or (entry_schema == 2 and entry["id"] in ids):
                 raise CatalogError(f"duplicate component id: {entry['id']}")
+            group_ids.add(entry["id"])
+            if entry_schema == 2:
+                v2_ids.add(entry["id"])
             ids.add(entry["id"])
             validated.append(entry)
         groups[expected_type] = validated

@@ -1,6 +1,7 @@
 package com.winlator.inputcontrols;
 
 import android.content.Context;
+import android.view.InputDevice;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
@@ -91,19 +92,10 @@ public class ControlsProfile implements Comparable<ControlsProfile> {
     }
 
     public ExternalController getController(int deviceId) {
-        if (!controllersLoaded) loadControllers();
-
-        // First try exact device ID match
-        for (ExternalController controller : controllers) {
-            if (controller.getDeviceId() == deviceId) return controller;
-        }
-
-        // Fall back to wildcard controller if no exact match
-        for (ExternalController controller : controllers) {
-            if (controller.getId().equals("*")) return controller;
-        }
-
-        return null;
+        InputDevice device = InputDevice.getDevice(deviceId);
+        if (!ExternalController.isGameController(device)) return null;
+        ExternalController exact = getController(device.getDescriptor());
+        return exact != null ? exact : getController("*");
     }
 
     public ArrayList<ExternalController> getControllers() {

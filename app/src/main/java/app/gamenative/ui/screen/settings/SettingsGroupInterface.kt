@@ -45,6 +45,9 @@ import app.gamenative.BuildConfig
 import app.gamenative.R
 import app.gamenative.PrefManager
 import app.gamenative.enums.AppTheme
+import app.gamenative.ui.component.dialog.GameControllerLayouts
+import app.gamenative.ui.component.dialog.ConsoleSettingsPage
+import app.gamenative.utils.ContainerStorageManager
 import app.gamenative.ui.component.dialog.SingleChoiceDialog
 import app.gamenative.ui.theme.settingsTileColorsAlt
 import com.alorma.compose.settings.ui.SettingsGroup
@@ -499,6 +502,7 @@ fun SettingsGroupInterface(
         }
 
         if (section == InterfaceSettingsSection.CONTROLS) {
+            ControllerLayoutsSetting()
         SettingsSwitch(
             colors = settingsTileColorsAlt(),
             title = { Text(text = stringResource(R.string.settings_achievement_show_notification)) },
@@ -917,7 +921,7 @@ fun SettingsGroupInterface(
         val ctx = LocalContext.current
         val sm = ctx.getSystemService(StorageManager::class.java)
 
-        // All writable non-primary volumes (SD / USB).
+        // All writable install target volumes (SD / USB / adopted primary storage).
         // getExternalFilesDirs misses USB OTG on most devices, so StorageUtils also
         // enumerates StorageManager.storageVolumes and synthesizes the per-app files dir.
         // Runs off the composition thread because synthesizing the USB candidate
@@ -927,7 +931,7 @@ fun SettingsGroupInterface(
             value = withContext(Dispatchers.IO) {
                 StorageUtils.getAllExternalFilesDirs(ctx)
                     .filter { Environment.getExternalStorageState(it) == Environment.MEDIA_MOUNTED }
-                    .filter { sm?.getStorageVolume(it)?.isPrimary != true }
+                    .filter { StorageUtils.isExternalInstallTarget(sm, it) }
             }
         }
 
@@ -1295,3 +1299,36 @@ private fun Preview_SettingsScreen() {
     }
 }
 
+
+
+@Composable
+private fun ControllerLayoutsSetting() {
+    var open by rememberSaveable { mutableStateOf(false) }
+    SettingsMenuLink(
+        colors = settingsTileColorsAlt(),
+        title = { Text(stringResource(R.string.controller_layouts)) },
+        subtitle = { Text(stringResource(R.string.layout_choose_game)) },
+        onClick = { open = true },
+    )
+    if (!open) return
+
+    val context = LocalContext.current
+    val games by produceState<List<ContainerStorageManager.InstalledGame>?>(null, context) {
+        value = ContainerStorageManager.installedGamesForSelection(context)
+    }
+    var gameId by rememberSaveable { mutableStateOf<String?>(null) }
+    val selected = games?.firstOrNull { it.appId == gameId }
+    val installed = games
+    if (selected != null) {
+        GameControllerLayouts(selected.appId, selected.displayName, onDismiss = { gameId = null })
+    } else if (!installed.isNullOrEmpty()) {
+        SingleChoiceDialog(openDialog = true, title = stringResource(R.string.layout_choose_game),
+            items = installed.map { it.displayName }, currentItem = -1,
+            itemDescription = { gameSourceLabel(installed[it].gameSource) },
+            onSelected = { gameId = installed[it].appId }, onDismiss = { open = false })
+    } else {
+        ConsoleSettingsPage(visible = true, title = stringResource(R.string.controller_layouts), onDismissRequest = { open = false }) {
+            if (installed == null) CircularProgressIndicator() else Text(stringResource(R.string.layout_no_games))
+        }
+    }
+}

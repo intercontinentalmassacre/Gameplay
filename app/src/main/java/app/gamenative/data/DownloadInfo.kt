@@ -14,7 +14,8 @@ data class DownloadInfo(
     val gameId: Int,
     var downloadingAppIds: CopyOnWriteArrayList<Int>,
 ) {
-    private var downloadJob: Job? = null
+    @Volatile private var downloadJob: Job? = null
+    @Volatile private var cancellationMessage: String? = null
     private val downloadProgressListeners = mutableListOf<((Float) -> Unit)>()
     private val progresses: Array<Float> = Array(jobCount) { 0f }
 
@@ -47,7 +48,7 @@ data class DownloadInfo(
         persistProgressSnapshot()
         setActive(false)
         setPostInstallSyncing(false)
-        downloadJob?.cancel(CancellationException(message))
+        cancelDownloadJob(message)
         if (!autoPaused) unregisterFromQueue()
     }
 
@@ -63,8 +64,13 @@ data class DownloadInfo(
         setActive(false)
         setPostInstallSyncing(false)
         resetSpeedTracking()
-        downloadJob?.cancel(CancellationException(message))
+        cancelDownloadJob(message)
         unregisterFromQueue()
+    }
+
+    suspend fun cancelAndJoin() {
+        cancel()
+        downloadJob?.join()
     }
 
     fun wasAutoPaused(): Boolean = autoPaused
@@ -83,11 +89,17 @@ data class DownloadInfo(
     private fun unregisterFromQueue() {
         val source = queueGameSource ?: return
         val id = queueGameId ?: return
-        app.gamenative.service.GameDownloadQueue.unregisterDownload(source, id)
+        app.gamenative.service.GameDownloadQueue.unregisterDownload(source, id, this)
     }
 
     fun setDownloadJob(job: Job) {
         downloadJob = job
+        cancellationMessage?.let { job.cancel(CancellationException(it)) }
+    }
+
+    private fun cancelDownloadJob(message: String) {
+        cancellationMessage = message
+        downloadJob?.cancel(CancellationException(message))
     }
 
     suspend fun awaitCompletion(timeoutMs: Long = 5000L) {

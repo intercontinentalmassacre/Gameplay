@@ -2,6 +2,8 @@ package app.gamenative.ui.component.dialog
 
 import android.util.Log
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -16,11 +18,15 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import app.gamenative.ui.component.NoExtractOutlinedTextField
+import app.gamenative.ui.component.focusRing
 import com.winlator.inputcontrols.Binding
+import kotlinx.coroutines.delay
 
 /**
  * Dialog for selecting controller button bindings.
@@ -37,6 +43,7 @@ import com.winlator.inputcontrols.Binding
 fun ControllerBindingDialog(
     buttonName: String,
     currentBinding: Binding?,
+    embedded: Boolean = false,
     onDismiss: () -> Unit,
     onBindingSelected: (Binding?) -> Unit
 ) {
@@ -109,7 +116,19 @@ fun ControllerBindingDialog(
         visible = true,
         title = stringResource(app.gamenative.R.string.bind_button, buttonName),
         onDismissRequest = onDismiss,
+        embedded = embedded,
     ) {
+            val searchFocusRequester = remember { FocusRequester() }
+            if (embedded) {
+                LaunchedEffect(Unit) {
+                    repeat(8) {
+                        if (runCatching { searchFocusRequester.requestFocus() }.getOrDefault(false)) {
+                            return@LaunchedEffect
+                        }
+                        delay(32)
+                    }
+                }
+            }
             Column(modifier = Modifier.fillMaxSize()) {
                 if (currentBinding != null) {
                     Text(
@@ -135,7 +154,8 @@ fun ControllerBindingDialog(
                     Column(
                         modifier = Modifier
                             .weight(0.4f)
-                            .fillMaxHeight(),
+                            .fillMaxHeight()
+                            .verticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         // Collapsible search - starts as icon button, expands to full search field
@@ -143,7 +163,7 @@ fun ControllerBindingDialog(
                             // Compact search button
                             OutlinedButton(
                                 onClick = { isSearchExpanded = true },
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier.fillMaxWidth().focusRequester(searchFocusRequester),
                                 contentPadding = PaddingValues(vertical = 8.dp)
                             ) {
                                 Icon(
@@ -375,15 +395,20 @@ fun BindingOption(
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val shape = MaterialTheme.shapes.small
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick),
+            .heightIn(min = 48.dp)
+            .focusRing(interactionSource, shape)
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
+            .focusable(interactionSource = interactionSource),
         color = if (isSelected)
             MaterialTheme.colorScheme.primaryContainer
         else
             MaterialTheme.colorScheme.surfaceVariant,
-        shape = MaterialTheme.shapes.small
+        shape = shape
     ) {
         Row(
             modifier = Modifier
@@ -394,6 +419,7 @@ fun BindingOption(
         ) {
             Text(
                 text = binding.toString(),
+                modifier = Modifier.weight(1f),
                 style = MaterialTheme.typography.bodyLarge,
                 color = if (isSelected)
                     MaterialTheme.colorScheme.onPrimaryContainer

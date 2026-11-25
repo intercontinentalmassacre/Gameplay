@@ -10,6 +10,7 @@ import android.view.View;
 // import com.winlator.R;
 // import com.winlator.XrActivity;
 import app.gamenative.R;
+import com.winlator.core.StringUtils;
 import com.winlator.math.Mathf;
 import com.winlator.math.XForm;
 import com.winlator.renderer.material.CursorMaterial;
@@ -380,8 +381,8 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
 
                     if (width >= 320 && height >= 200 && width < xServer.screenInfo.width && height < xServer.screenInfo.height) {
                         Window parent = window.getParent();
-                        boolean parentHasWMClass = parent.getClassName().contains(forceFullscreenWMClass);
-                        boolean hasWMClass = window.getClassName().contains(forceFullscreenWMClass);
+                        boolean parentHasWMClass = StringUtils.containsIgnoreCase(parent.getClassName(), forceFullscreenWMClass);
+                        boolean hasWMClass = StringUtils.containsIgnoreCase(window.getClassName(), forceFullscreenWMClass);
                         if (hasWMClass) {
                             forceFullscreen = !parentHasWMClass && window.getChildCount() == 0;
                         }

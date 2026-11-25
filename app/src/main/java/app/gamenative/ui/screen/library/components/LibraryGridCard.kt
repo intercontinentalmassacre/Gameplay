@@ -110,7 +110,7 @@ internal fun GridViewCard(
     val cardContentBottomPadding = if (isCapsule) 12.dp else 8.dp
     val topIconPadding = if (isCapsule) 10.dp else 8.dp
     val bottomGradientHeight = if (isCapsule) 80.dp else 56.dp
-    val cardShape = RoundedCornerShape(12.dp)
+    val cardShape = RoundedCornerShape(PluviaTheme.tokens.cornerMd)
     val interactionSource = remember { MutableInteractionSource() }
     val isItemFocused by interactionSource.collectIsFocusedAsState()
     val focusElevation by animateDpAsState(

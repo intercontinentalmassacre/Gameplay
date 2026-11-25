@@ -8,7 +8,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -84,22 +83,22 @@ private fun rememberQrBitmap(content: String, size: Dp): Bitmap? {
     val density = LocalDensity.current
     val sizePx = with(density) { size.roundToPx() }
 
-    var bitmap by remember(content) {
+    var bitmap by remember(content, sizePx) {
         mutableStateOf<Bitmap?>(null)
     }
 
     val ioScope = rememberCoroutineScope { Dispatchers.IO }
-    val bgColor = MaterialTheme.colorScheme.background.toArgb()
-    val onBgColor = MaterialTheme.colorScheme.onBackground.toArgb()
+    val bgColor = Color.White.toArgb()
+    val onBgColor = Color.Black.toArgb()
 
-    LaunchedEffect(bitmap) {
+    LaunchedEffect(content, sizePx, bitmap) {
         if (bitmap != null) return@LaunchedEffect
 
         ioScope.launch {
             val qrCodeWriter = QRCodeWriter()
 
             val encodeHints = mutableMapOf<EncodeHintType, Any?>().apply {
-                this[EncodeHintType.MARGIN] = 0
+                this[EncodeHintType.MARGIN] = 4
             }
 
             val bitmapMatrix = try {

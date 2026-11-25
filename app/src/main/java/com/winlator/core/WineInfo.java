@@ -12,6 +12,7 @@ import com.winlator.contents.ContentsManager;
 import com.winlator.xenvironment.ImageFs;
 
 import java.io.File;
+import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -154,7 +155,10 @@ public class WineInfo implements Parcelable {
         ContentProfile wineProfile = contentsManager.getProfileByEntryName(identifier);
 
         if (wineProfile != null && (wineProfile.type == ContentProfile.ContentType.CONTENT_TYPE_WINE || wineProfile.type == ContentProfile.ContentType.CONTENT_TYPE_PROTON)) {
-            identifier = identifier.substring(0, identifier.length() - 2).toLowerCase();
+            // ContentsManager also accepts the version name itself, with or without the type prefix.
+            String prefix = wineProfile.type.toString().toLowerCase(Locale.ROOT) + "-";
+            String versionName = wineProfile.verName.toLowerCase(Locale.ROOT);
+            identifier = versionName.startsWith(prefix) ? versionName : prefix + versionName;
         }
 
         Matcher matcher = pattern.matcher(identifier);
@@ -171,7 +175,7 @@ public class WineInfo implements Parcelable {
             if (wineProfile != null && (wineProfile.type == ContentProfile.ContentType.CONTENT_TYPE_WINE || wineProfile.type == ContentProfile.ContentType.CONTENT_TYPE_PROTON))
                 path = contentsManager.getInstallDir(context, wineProfile).getPath();
 
-            return new WineInfo(matcher.group(1), matcher.group(2), matcher.group(4), path);
+            return new WineInfo(matcher.group(1), matcher.group(2), matcher.group(3), matcher.group(4), path);
         }
         else return new WineInfo(MAIN_WINE_VERSION.type, MAIN_WINE_VERSION.version, MAIN_WINE_VERSION.arch, null);
     }

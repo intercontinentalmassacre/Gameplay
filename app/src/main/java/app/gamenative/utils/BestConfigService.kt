@@ -1,6 +1,7 @@
 package app.gamenative.utils
 
 import android.content.Context
+import android.os.Build
 import androidx.compose.ui.graphics.Color
 import app.gamenative.BuildConfig
 import app.gamenative.PrefManager
@@ -11,14 +12,18 @@ import com.winlator.contents.ContentProfile
 import com.winlator.core.DefaultVersion
 import com.winlator.fexcore.FEXCorePresetManager
 import com.winlator.core.KeyValueSet
+import com.winlator.core.envvars.EnvVars
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.Dns
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
@@ -29,7 +34,13 @@ import timber.log.Timber
  */
 object BestConfigService {
     private const val API_BASE_URL = "https://api.gamenative.app/api/best-config"
-    private val httpClient = Net.http
+    /** Total budget for optional configuration during container creation. */
+    const val AUTO_APPLY_TIMEOUT_MS = 4_000L
+    private const val LOOKUP_TIMEOUT_MS = 15_000L
+    private val httpClient by lazy {
+        // Keep cancellation on this call rather than adding an independent DoH lookup.
+        Net.http.newBuilder().dns(Dns.SYSTEM).build()
+    }
 
     // In-memory cache keyed by "${gameName}_${gpuName}"
     private val cache = ConcurrentHashMap<String, BestConfigResponse>()
@@ -81,7 +92,17 @@ object BestConfigService {
             return@withContext it
         }
 
-        try {
+        withTimeoutOrNull(LOOKUP_TIMEOUT_MS) {
+            requestBestConfig(gameName, gpuName, gameStore)
+        }?.also { cache[cacheKey] = it }
+    }
+
+    private suspend fun requestBestConfig(
+        gameName: String,
+        gpuName: String,
+        gameStore: String,
+    ): BestConfigResponse? {
+        return try {
             val requestBody = JSONObject().apply {
                 put("gameName", gameName)
                 put("gpuName", gpuName)
@@ -107,39 +128,40 @@ object BestConfigService {
                 .header("Content-Type", "application/json")
             val request = requestBuilder.build()
 
-            httpClient.newCall(request).execute().use { response ->
+            httpClient.newCall(request).readCancellable { response ->
                 if (!response.isSuccessful) {
                     Timber.tag("BestConfigService")
                         .w("API request failed - HTTP ${response.code}")
-                    return@withContext null
+                    return@readCancellable null
                 }
 
-                val responseBody = response.body?.string() ?: return@withContext null
-                val jsonResponse = JSONObject(responseBody)
-
-                val bestConfigJson = jsonResponse.getJSONObject("bestConfig")
-                val bestConfig = Json.parseToJsonElement(bestConfigJson.toString()).jsonObject
-
-                val bestConfigResponse = BestConfigResponse(
-                    bestConfig = bestConfig,
-                    matchType = jsonResponse.getString("matchType"),
-                    matchedGpu = jsonResponse.getString("matchedGpu"),
-                    matchedDeviceId = jsonResponse.getInt("matchedDeviceId"),
-                    matchedStore = jsonResponse.optString("matchedStore", gameStore),
-                )
-
-                cache[cacheKey] = bestConfigResponse
+                val responseBody = response.body?.string() ?: return@readCancellable null
+                val bestConfigResponse = decodeResponse(responseBody, gameStore)
 
                 Timber.tag("BestConfigService")
                     .d("Fetched best config for $gameName on $gpuName (matchType: ${bestConfigResponse.matchType})")
 
                 bestConfigResponse
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Timber.tag("BestConfigService")
                 .e(e, "Error fetching best config: ${e.message}")
             null
         }
+    }
+
+    internal fun decodeResponse(body: String, gameStore: String): BestConfigResponse {
+        val json = JSONObject(body)
+        val config = json.optJSONObject("bestConfig")
+        return BestConfigResponse(
+            bestConfig = config?.let { Json.parseToJsonElement(it.toString()).jsonObject } ?: JsonObject(emptyMap()),
+            matchType = if (config == null) "no_match" else json.optString("matchType", "no_match"),
+            matchedGpu = if (json.isNull("matchedGpu")) "" else json.optString("matchedGpu", ""),
+            matchedDeviceId = json.optInt("matchedDeviceId"),
+            matchedStore = if (json.isNull("matchedStore")) gameStore else json.optString("matchedStore", gameStore),
+        )
     }
 
     /**
@@ -218,7 +240,11 @@ object BestConfigService {
     /**
      * Returns list of human-readable descriptions of missing/unavailable components.
      */
-    private suspend fun validateComponentVersions(context: Context, filteredJson: JSONObject): List<String> {
+    private suspend fun validateComponentVersions(
+        context: Context,
+        filteredJson: JSONObject,
+        allowRemoteManifest: Boolean,
+    ): List<String> {
         val missing = mutableListOf<String>()
         // Get resource arrays (same as ContainerConfigDialog)
         val dxvkVersions = context.resources.getStringArray(R.array.dxvk_version_entries).toList()
@@ -230,7 +256,8 @@ object BestConfigService {
         val bionicWineEntries = context.resources.getStringArray(R.array.bionic_wine_entries).toList()
         val glibcWineEntries = context.resources.getStringArray(R.array.glibc_wine_entries).toList()
         val installed = ManifestComponentHelper.loadInstalledContentLists(context)
-        val manifest = ManifestRepository.loadManifest(context)
+        val manifest = if (allowRemoteManifest) ManifestRepository.loadManifest(context)
+        else ManifestRepository.loadCachedOrBundledManifest(context)
 
         // Get values from JSON (only if present)
         val dxwrapper = filteredJson.optString("dxwrapper", "")
@@ -685,7 +712,10 @@ object BestConfigService {
                     filteredJson.put("fexcoreVersion", DefaultVersion.FEXCORE)
                 }
                 entry.startsWith("Wine ") -> {
-                    filteredJson.put("wineVersion", DefaultVersion.WINE_VERSION)
+                    filteredJson.put(
+                        "wineVersion",
+                        Container.resolveWineVersion(filteredJson.optString("containerVariant", DefaultVersion.VARIANT), null),
+                    )
                 }
                 entry.startsWith("Graphics driver ") -> {
                     filteredJson.put("graphicsDriverConfig", PrefManager.graphicsDriverConfig)
@@ -711,6 +741,7 @@ object BestConfigService {
         forceApply: Boolean = false,
         matchedGpu: String = "",
         preserveConfigValues: Boolean = false,
+        allowRemoteManifest: Boolean = true,
     ): Map<String, Any?>? = parseConfigResult(
         context = context,
         configJson = configJson,
@@ -720,6 +751,7 @@ object BestConfigService {
         forceApply = forceApply,
         matchedGpu = matchedGpu,
         preserveConfigValues = preserveConfigValues,
+        allowRemoteManifest = allowRemoteManifest,
     ).config
 
     suspend fun parseConfigResult(
@@ -731,6 +763,7 @@ object BestConfigService {
         forceApply: Boolean = false,
         matchedGpu: String = "",
         preserveConfigValues: Boolean = false,
+        allowRemoteManifest: Boolean = true,
     ): ParsedConfigResult {
         try {
             val originalJson = JSONObject(configJson.toString())
@@ -753,6 +786,9 @@ object BestConfigService {
                 }
 
                 val containerVariant = originalJson.optString("containerVariant", "")
+                if (BuildConfig.MODERN_ANDROID && containerVariant.equals(Container.GLIBC, ignoreCase = true)) {
+                    return ParsedConfigResult(emptyMap())
+                }
 
                 if (!originalJson.has("wineVersion") || originalJson.isNull("wineVersion")) {
                     if (containerVariant.equals(Container.GLIBC, ignoreCase = true)) {
@@ -806,7 +842,7 @@ object BestConfigService {
                 )
 
                 // Step 2: check for unavailable component versions
-                val missingComponents = validateComponentVersions(context, filteredJson)
+                val missingComponents = validateComponentVersions(context, filteredJson, allowRemoteManifest)
                 if (missingComponents.isNotEmpty()) {
                     if (!forceApply) {
                         Timber.tag("BestConfigService").w("Config rejected: missing components: ${missingComponents.joinToString(", ")}")
@@ -888,6 +924,14 @@ object BestConfigService {
                     // Strip DXVK/VKD3D frame rate caps from backend config - client-side limiter handles this
                     envVars = envVars.replace(Regex("""\s*DXVK_FRAME_RATE=\d+"""), "")
                     envVars = envVars.replace(Regex("""\s*VKD3D_FRAME_RATE=\d+"""), "")
+                    // The Samsung flicker workaround can cause rendering artifacts on other devices.
+                    if (!preserveConfigValues && !Build.MANUFACTURER.equals("samsung", ignoreCase = true)) {
+                        val parsed = EnvVars(envVars)
+                        if (parsed.get("FD_DEV_FEATURES") == "enable_tp_ubwc_flag_hint=1") {
+                            parsed.remove("FD_DEV_FEATURES")
+                            envVars = parsed.toString()
+                        }
+                    }
                     resultMap["envVars"] = envVars.trim()
                 }
                 if (filteredJson.has("cpuList") && !filteredJson.isNull("cpuList")) {
@@ -899,6 +943,7 @@ object BestConfigService {
                 if (filteredJson.has("audioDriver") && !filteredJson.isNull("audioDriver")) {
                     resultMap["audioDriver"] = filteredJson.optString("audioDriver", PrefManager.audioDriver)
                 }
+                filteredJson.optString("inputType").toIntOrNull()?.let { resultMap["inputType"] = it }
                 if (filteredJson.has("wincomponents") && !filteredJson.isNull("wincomponents")) {
                     resultMap["wincomponents"] = filteredJson.optString("wincomponents", PrefManager.winComponents)
                 }
@@ -908,6 +953,8 @@ object BestConfigService {
 
                 return ParsedConfigResult(resultMap, missingComponents)
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Timber.tag("BestConfigService").e(e, "Failed to parse config to ContainerData: ${e.message}")
             return ParsedConfigResult(emptyMap())

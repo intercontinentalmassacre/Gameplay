@@ -8,6 +8,15 @@ import org.junit.Test
 
 class ComponentCatalogTest {
     @Test
+    fun `bundled catalog survives an older remote or an offline first launch`() {
+        val older = ManifestData(1, "2026-08-08", emptyMap())
+        val newer = older.copy(updatedAt = "2026-11-20")
+        assertEquals(newer, ManifestRepository.selectManifest(newer, older))
+        assertEquals(newer, ManifestRepository.selectManifest(newer, null))
+        assertEquals(newer, ManifestRepository.selectManifest(older, newer))
+    }
+
+    @Test
     fun `legacy manifest remains readable during migration`() {
         val parsed = ManifestRepository.parseManifest(
             """{"version":1,"updatedAt":"2026-06-30","items":{"dxvk":[{"id":"dxvk-2.7","name":"DXVK 2.7","url":"https://example.com/dxvk.wcp"}]}}""",

@@ -33,7 +33,7 @@ public class WindowAttributes {
     private boolean overrideRedirect = false;
     private boolean saveUnder = false;
     private boolean enabled = true;
-    private WinGravity winGravity = WinGravity.CENTER;
+    private WinGravity winGravity = WinGravity.NORTH_WEST;
     private WindowClass windowClass = WindowClass.INPUT_OUTPUT;
     public final Window window;
 

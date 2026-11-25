@@ -9,6 +9,8 @@ import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.drawOutline
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
@@ -46,6 +48,7 @@ fun Modifier.focusRing(
 
     val color = PluviaTheme.colors.focusRingColor
     val strokePx = with(LocalDensity.current) { (width ?: PluviaTheme.tokens.focusRingWidth).toPx() }
+    if (strokePx <= 0f) return this
     val pathEffect = if (PluviaTheme.tokens.focusRingStyle == "dashed") {
         PathEffect.dashPathEffect(floatArrayOf(strokePx * 2.5f, strokePx * 1.5f))
     } else {
@@ -53,10 +56,14 @@ fun Modifier.focusRing(
     }
 
     return drawWithCache {
-        val outline = shape.createOutline(size, layoutDirection, this)
+        val stroke = strokePx.coerceIn(0f, size.minDimension)
+        val inset = stroke / 2f
+        val outline = shape.createOutline(Size(size.width - stroke, size.height - stroke), layoutDirection, this)
         onDrawWithContent {
             drawContent()
-            drawOutline(outline, color = color, style = Stroke(strokePx, pathEffect = pathEffect))
+            if (stroke > 0f) translate(inset, inset) {
+                drawOutline(outline, color = color, style = Stroke(stroke, pathEffect = pathEffect))
+            }
         }
     }
 }

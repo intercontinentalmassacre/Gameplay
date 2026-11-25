@@ -44,6 +44,12 @@ import app.gamenative.R
 import app.gamenative.data.SteamApp
 import app.gamenative.data.SteamCollection
 import app.gamenative.externaldisplay.DsHomeSecondScreen
+import androidx.compose.ui.viewinterop.AndroidView
+import app.gamenative.externaldisplay.ExternalDisplayInputController
+import app.gamenative.externaldisplay.HybridInputLayout
+import app.gamenative.ui.component.QuickMenuAction
+import com.winlator.xserver.XServer
+import app.gamenative.externaldisplay.secondScreenGameMode
 import app.gamenative.ui.component.QuickMenu
 import app.gamenative.ui.data.DownloadsState
 import app.gamenative.ui.data.PerformanceHudConfig
@@ -54,6 +60,7 @@ import app.gamenative.ui.screen.library.components.ConsolePanelHeader
 import app.gamenative.ui.screen.library.components.ConsoleSidePanel
 import app.gamenative.ui.screen.library.components.LibraryOptionsPanel
 import app.gamenative.ui.screen.xserver.InGameContainerSettings
+import app.gamenative.ui.theme.PluviaTheme
 import app.gamenative.utils.rememberHasExternalDisplay
 import com.winlator.container.Container
 import com.winlator.renderer.GLRenderer
@@ -108,6 +115,7 @@ fun GcdsQuickMenu(
     fpsLimiterTarget: Int = 60,
     fpsLimiterMax: Int = 60,
     game: SteamApp? = null,
+    gameInputServer: XServer? = null,
     frameRating: FrameRating? = null,
     onPerformanceHudConfigChanged: (PerformanceHudConfig) -> Unit = {},
     onFpsLimiterEnabledChanged: (Boolean) -> Unit = {},
@@ -149,6 +157,7 @@ fun GcdsQuickMenu(
     onDownloadsResumeAll: () -> Unit = {},
     onDownloadsCancelAll: () -> Unit = {},
     onDownloadsClearFinished: () -> Unit = {},
+    isGamescopeSession: Boolean = false,
 ) {
     when (role) {
         GcdsQuickMenuRole.GAME -> GcdsGameQuickMenu(
@@ -168,6 +177,7 @@ fun GcdsQuickMenu(
             fpsLimiterTarget = fpsLimiterTarget,
             fpsLimiterMax = fpsLimiterMax,
             game = game,
+            gameInputServer = gameInputServer,
             frameRating = frameRating,
             onPerformanceHudConfigChanged = onPerformanceHudConfigChanged,
             onFpsLimiterEnabledChanged = onFpsLimiterEnabledChanged,
@@ -188,6 +198,7 @@ fun GcdsQuickMenu(
             onLsfgPerformanceModeChanged = onLsfgPerformanceModeChanged,
             onAnimationComplete = onAnimationComplete,
             onRequestOpen = onRequestOpen,
+            isGamescopeSession = isGamescopeSession,
             modifier = modifier,
         )
 
@@ -246,6 +257,7 @@ private fun GcdsGameQuickMenu(
     fpsLimiterTarget: Int = 60,
     fpsLimiterMax: Int = 60,
     game: SteamApp? = null,
+    gameInputServer: XServer? = null,
     frameRating: FrameRating? = null,
     onPerformanceHudConfigChanged: (PerformanceHudConfig) -> Unit = {},
     onFpsLimiterEnabledChanged: (Boolean) -> Unit = {},
@@ -266,6 +278,7 @@ private fun GcdsGameQuickMenu(
     onLsfgPerformanceModeChanged: (Boolean) -> Unit = {},
     onAnimationComplete: (Boolean) -> Unit = {},
     onRequestOpen: () -> Unit = {},
+    isGamescopeSession: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val hasExternalDisplay = rememberHasExternalDisplay()
@@ -279,26 +292,38 @@ private fun GcdsGameQuickMenu(
             ?: app.getLogoUrl()
             ?: app.logoUrl.takeIf { app.logoHash.isNotBlank() }
     }.orEmpty().takeIf { PrefManager.dualScreenGameUseLogo }.orEmpty()
-    val lowerPanel = remember(container?.id) {
-        mutableStateOf(PrefManager.dualScreenGameDefaultPanel)
+    val showPassiveMenu = remember(container?.id) {
+        mutableStateOf(PrefManager.dualScreenGameDefaultPanel == 1)
     }
 
-    LaunchedEffect(isVisible) {
-        if (isVisible) {
-            lowerPanel.value = 1
-        } else if (!InGameContainerSettings.overlayActive) {
-            lowerPanel.value = PrefManager.dualScreenGameDefaultPanel
-        }
+    val configuredInput = ExternalDisplayInputController.fromConfig(container?.externalDisplayMode)
+    val inputAvailable = gameInputServer != null && container?.isExternalDisplaySwap != true
+    val showInput = remember(container?.id, configuredInput) {
+        mutableStateOf(configuredInput != ExternalDisplayInputController.Mode.OFF)
     }
-
     if (hasExternalDisplay) {
         SideEffect {
             DsHomeSecondScreen.publish(DsHomeSecondScreen.Model(
                 owner = DsHomeSecondScreen.Owner.GAME,
-                mode = if (lowerPanel.value == 1) {
-                    DsHomeSecondScreen.Mode.QUICK_MENU
-                } else {
-                    DsHomeSecondScreen.Mode.GAME_DASHBOARD
+                mode = secondScreenGameMode(menuActive = isVisible, showPassiveMenu = showPassiveMenu.value, showInput = inputAvailable && showInput.value),
+                onBack = onDismiss,
+                gameInputContent = gameInputServer?.takeIf { inputAvailable }?.let { server ->
+                    @Composable {
+                        AndroidView(
+                            modifier = Modifier.fillMaxSize(),
+                            factory = { context ->
+                                HybridInputLayout(context, server, { null },
+                                    keyboardInitiallyOpen = configuredInput == ExternalDisplayInputController.Mode.KEYBOARD)
+                            },
+                        )
+                    }
+                },
+                onShowGameInput = {
+                    if (!InGameContainerSettings.overlayActive) {
+                        showInput.value = true
+                        onItemSelected(QuickMenuAction.LIVE_INPUT)
+                        if (isVisible) onDismiss()
+                    }
                 },
                 dashboardTitle = dashboardTitle,
                 dashboardSubtitle = dashboardSubtitle,
@@ -312,17 +337,15 @@ private fun GcdsGameQuickMenu(
                 },
                 performanceHudKey = 31 * System.identityHashCode(frameRating),
                 onShowDashboard = {
-                    lowerPanel.value = 0
-                    if (isVisible) onDismiss()
+                    if (!InGameContainerSettings.overlayActive) {
+                        showInput.value = false
+                        showPassiveMenu.value = false
+                        if (isVisible) onDismiss()
+                    }
                 },
                 onShowMenu = {
-                    lowerPanel.value = 1
-                    // Force an outer state change as well: the Presentation owns
-                    // a separate Compose frame clock, so changing only the state
-                    // captured by this callback is not enough to reliably wake
-                    // the main-display publisher on every device. The lower
-                    // window remains NOT_FOCUSABLE, so controller focus still
-                    // stays with the game.
+                    showInput.value = false
+                    showPassiveMenu.value = true
                     if (!isVisible) onRequestOpen()
                 },
                 menuContent = {
@@ -347,14 +370,14 @@ private fun GcdsGameQuickMenu(
                         onPerformanceHudConfigChanged = onPerformanceHudConfigChanged,
                         onFpsLimiterEnabledChanged = onFpsLimiterEnabledChanged,
                         onFpsLimiterChanged = onFpsLimiterChanged,
-hasPhysicalController = hasPhysicalController,
-            isSteamControllerLive = isSteamControllerLive,
-            isTouchscreenModeActive = isTouchscreenModeActive,
-            onTouchGestureSettingsClick = onTouchGestureSettingsClick,
-            isShooterModeActive = isShooterModeActive,
-            onShooterModeSettingsClick = onShooterModeSettingsClick,
-            activeToggleIds = activeToggleIds,
-            isLsfgAvailable = isLsfgAvailable,
+                        hasPhysicalController = hasPhysicalController,
+                        isSteamControllerLive = isSteamControllerLive,
+                        isTouchscreenModeActive = isTouchscreenModeActive,
+                        onTouchGestureSettingsClick = onTouchGestureSettingsClick,
+                        isShooterModeActive = isShooterModeActive,
+                        onShooterModeSettingsClick = onShooterModeSettingsClick,
+                        activeToggleIds = activeToggleIds,
+                        isLsfgAvailable = isLsfgAvailable,
                         lsfgMultiplier = lsfgMultiplier,
                         lsfgFlowScale = lsfgFlowScale,
                         lsfgPerformanceMode = lsfgPerformanceMode,
@@ -366,6 +389,7 @@ hasPhysicalController = hasPhysicalController,
                         // is reported by the outer effect below.
                         onAnimationComplete = {},
                         onRequestOpen = onRequestOpen,
+                        isGamescopeSession = isGamescopeSession,
                         fullScreen = true,
                         modifier = Modifier.fillMaxSize(),
                     )
@@ -380,6 +404,7 @@ hasPhysicalController = hasPhysicalController,
         LaunchedEffect(isVisible, presentationActive) {
             if (presentationActive && reportedActive.value != isVisible) {
                 onAnimationComplete(isVisible)
+                if (!isVisible && inputAvailable && showInput.value) onItemSelected(QuickMenuAction.LIVE_INPUT)
                 reportedActive.value = isVisible
             }
         }
@@ -437,6 +462,7 @@ hasPhysicalController = hasPhysicalController,
                 }
             },
             onRequestOpen = onRequestOpen,
+            isGamescopeSession = isGamescopeSession,
             modifier = modifier,
         )
     }
@@ -598,10 +624,12 @@ private fun GcdsQueueActionRow(
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
     isFocused: Boolean = false,
 ) {
+    val shape = RoundedCornerShape(PluviaTheme.tokens.cornerSm)
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .gcdsFocusRing(interactionSource, RoundedCornerShape(0.dp))
+            .focusRequester(focusRequester)
+            .gcdsFocusRing(interactionSource, shape)
             .background(
                 when {
                     !enabled -> Color.Transparent
@@ -609,7 +637,7 @@ private fun GcdsQueueActionRow(
                     emphasized -> MaterialTheme.colorScheme.surfaceContainerHigh
                     else -> Color.Transparent
                 },
-                RoundedCornerShape(0.dp),
+                shape,
             )
             .clickable(
                 interactionSource = interactionSource,
@@ -617,7 +645,6 @@ private fun GcdsQueueActionRow(
                 enabled = enabled,
                 onClick = onClick,
             )
-            .focusRequester(focusRequester)
             .padding(horizontal = 16.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp),

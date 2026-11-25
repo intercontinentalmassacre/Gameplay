@@ -11,7 +11,6 @@ import android.util.Log;
 import android.preference.PreferenceManager;
 import android.util.SparseArray;
 import android.view.InputDevice;
-import android.view.KeyEvent;
 import android.view.MotionEvent;
 
 import app.gamenative.PrefManager;
@@ -51,6 +50,7 @@ public class ControllerManager {
 
     // This list will hold all physical game controllers detected by Android.
     private final List<InputDevice> detectedDevices = new ArrayList<>();
+    private final JoyCon.Pairs joyCons = new JoyCon.Pairs();
     private final SparseArray<String> knownDeviceIdentifiers = new SparseArray<>();
 
     // This maps a player slot (0-3) to the unique identifier of the physical device.
@@ -101,6 +101,9 @@ public class ControllerManager {
     public void scanForDevices() {
         detectedDevices.clear();
         int[] deviceIds = inputManager.getInputDeviceIds();
+        Set<Integer> attached = new HashSet<>();
+        for (int id : deviceIds) attached.add(id);
+        joyCons.retain(attached);
         Set<String> present = new HashSet<>();
         for (int deviceId : deviceIds) {
             InputDevice device = inputManager.getInputDevice(deviceId);
@@ -183,32 +186,7 @@ public class ControllerManager {
      * @return True if the device is a game controller.
      */
     public static boolean isGameController(InputDevice device) {
-        if (device == null) return false;
-
-        boolean isGamepad = device.supportsSource(InputDevice.SOURCE_GAMEPAD);
-        boolean isJoystick = device.supportsSource(InputDevice.SOURCE_JOYSTICK);
-
-        boolean hasAxes =
-                device.getMotionRange(android.view.MotionEvent.AXIS_X) != null ||
-                        device.getMotionRange(android.view.MotionEvent.AXIS_Y) != null;
-
-        boolean[] hasGamepadKeysArray = device.hasKeys(
-                KeyEvent.KEYCODE_BUTTON_A,
-                KeyEvent.KEYCODE_BUTTON_B,
-                KeyEvent.KEYCODE_BUTTON_X,
-                KeyEvent.KEYCODE_BUTTON_Y
-        );
-
-        boolean hasGamepadKeys = false;
-        for (boolean hasKey : hasGamepadKeysArray) {
-            if (hasKey) {
-                hasGamepadKeys = true;
-                break;
-            }
-        }
-
-        return (isGamepad && hasGamepadKeys) ||
-                (isJoystick && hasAxes);
+        return ExternalController.isGameController(device);
     }
 
     /**
@@ -217,8 +195,14 @@ public class ControllerManager {
      * @param device The InputDevice.
      * @return A unique identifier string.
      */
-    public static String getDeviceIdentifier(InputDevice device) {
+    public String getDeviceIdentifier(InputDevice device) {
         if (device == null) return null;
+        int side = JoyCon.side(device);
+        if (side >= 0) return joyCons.identifier(device.getId(), side);
+        return physicalIdentifier(device);
+    }
+
+    private static String physicalIdentifier(InputDevice device) {
         // The descriptor is the most reliable unique ID for a device.
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
             return device.getDescriptor();
@@ -428,6 +412,16 @@ public class ControllerManager {
         scanForDevices();
         boolean changed = false;
         for (InputDevice device : detectedDevices) {
+            if (JoyCon.side(device) < 0) continue;
+            String pair = getDeviceIdentifier(device);
+            int oldSlot = getSlotForIdentifier(physicalIdentifier(device));
+            if (oldSlot >= 0) {
+                slotAssignments.remove(oldSlot);
+                if (getSlotForIdentifier(pair) < 0) assignDeviceIdentifierToSlot(oldSlot, pair);
+                changed = true;
+            }
+        }
+        for (InputDevice device : detectedDevices) {
             String deviceIdentifier = getDeviceIdentifier(device);
             if (deviceIdentifier == null || getSlotForDevice(device.getId()) >= 0) {
                 continue;
@@ -464,6 +458,10 @@ public class ControllerManager {
         knownDeviceIdentifiers.remove(deviceId);
         scanForDevices();
         if (slot >= 0) {
+            if (getAssignedDeviceForSlot(slot) != null) {
+                notifySlotsChanged();
+                return;
+            }
             slotAssignments.remove(slot);
             if (deviceIdentifier != null) {
                 lastKnownSlotByIdentifier.put(deviceIdentifier, slot);
