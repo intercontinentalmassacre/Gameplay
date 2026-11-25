@@ -198,6 +198,37 @@ public abstract class ProcessHelper {
         return execWithOutput(command, envp, workingDir, includeStderr, -1);
     }
 
+    /**
+     * Executes a program without the MODERN_ANDROID linker64 prefix. Used for system tools such as
+     * `/system/bin/sh`, where linker64 would become the program's argv[0] and break the child's
+     * self-location (Wine resolves its builtins from argv[0]).
+     */
+    public static String execWithOutputArgv(String[] argv, String[] envp, File workingDir) {
+        StringBuilder output = new StringBuilder();
+        try {
+            ProcessBuilder pb = new ProcessBuilder(argv);
+            Map<String, String> env = pb.environment();
+            env.clear();
+            if (envp != null) {
+                for (String kv : envp) {
+                    int eq = kv.indexOf('=');
+                    if (eq > 0) env.put(kv.substring(0, eq), kv.substring(eq + 1));
+                }
+            }
+            if (workingDir != null) pb.directory(workingDir);
+            pb.redirectErrorStream(true);
+            java.lang.Process process = pb.start();
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                String line;
+                while ((line = reader.readLine()) != null) output.append(line).append('\n');
+            }
+            process.waitFor();
+        } catch (Exception e) {
+            output.append("Error: ").append(e.getMessage());
+        }
+        return output.toString();
+    }
+
     public static String execWithOutput(String command, String[] envp, File workingDir, boolean includeStderr, int timeoutSeconds) {
         StringBuilder output = new StringBuilder();
         final StringBuilder stdoutBuf = new StringBuilder();

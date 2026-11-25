@@ -32,9 +32,11 @@ import com.winlator.core.DefaultVersion
 import com.winlator.xenvironment.components.PulseAudioComponent
 import `in`.dragonbra.javasteam.enums.EPersonaState
 import java.util.EnumSet
+import java.util.concurrent.Executors
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.flow.first
@@ -49,12 +51,18 @@ import timber.log.Timber
  */
 object PrefManager {
 
+    // NOT Dispatchers.IO: getPref runBlocking-waits on the datastore from IO threads, so if the read also
+    // needed an IO thread, enough concurrent readers would starve the pool and deadlock.
+    private val dataStoreDispatcher =
+        Executors.newSingleThreadExecutor { r -> Thread(r, "PrefDataStore") }.asCoroutineDispatcher()
+
     private val Context.datastore by preferencesDataStore(
         name = "PluviaPreferences",
         corruptionHandler = ReplaceFileCorruptionHandler {
             Timber.e("Preferences (somehow got) corrupted, resetting.")
             emptyPreferences()
         },
+        scope = CoroutineScope(dataStoreDispatcher + SupervisorJob()),
     )
 
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())

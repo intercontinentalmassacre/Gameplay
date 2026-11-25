@@ -1,8 +1,14 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-24",
+  "updatedAt": "2026-11-25",
   "items": {
     "driver": [
+      {
+        "id": "Rutabaga-26.10.10",
+        "name": "Turnip_Rutabaga_26.10.10",
+        "url": "https://downloads.gamenative.app/drivers/Turnip_Rutabaga_26.10.10.zip",
+        "variant": "bionic"
+      },
       {
         "id": "malisx2 0.5.1 (308fe121c7)",
         "name": "MaliSX2 0.5.1",

@@ -95,7 +95,8 @@ internal fun RecommendedGameScreen(
                 )
             } else {
                 HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
-                    val item = media[page]
+                    // media can shrink while the pager keeps an older page index
+                    val item = media.getOrNull(page) ?: return@HorizontalPager
                     if (item.first) {
                         VideoHero(
                             videoUrl = item.second,
