@@ -901,6 +901,11 @@ object PrefManager {
         get() = getPref(DUAL_SCREEN_GAME_USE_LOGO, false)
         set(value) { setPref(DUAL_SCREEN_GAME_USE_LOGO, value) }
 
+    private val TOUCHPAD_SCROLL_HAPTICS = booleanPreferencesKey("touchpad_scroll_haptics")
+    var touchpadScrollHaptics: Boolean
+        get() = getPref(TOUCHPAD_SCROLL_HAPTICS, false)
+        set(value) { setPref(TOUCHPAD_SCROLL_HAPTICS, value) }
+
     private val DUAL_SCREEN_GAME_DEFAULT_PANEL = intPreferencesKey("dual_screen_game_default_panel")
     var dualScreenGameDefaultPanel: Int
         get() = getPref(DUAL_SCREEN_GAME_DEFAULT_PANEL, 0).coerceIn(0, 1)

@@ -16,6 +16,7 @@ import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.ImageView
 import androidx.core.content.ContextCompat
+import app.gamenative.PrefManager
 import app.gamenative.R
 import com.winlator.container.Container
 import com.winlator.widget.TouchpadView
@@ -158,6 +159,7 @@ private class ExternalInputPresentation(
             ExternalDisplayInputController.Mode.TOUCHPAD -> {
                 val pad = TouchpadView(context, xServer, false).apply {
                     setClickHapticsEnabled(true)
+                    setScrollHapticsEnabled { PrefManager.touchpadScrollHaptics }
                     layoutParams = FrameLayout.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.MATCH_PARENT,
@@ -228,6 +230,7 @@ internal class HybridInputLayout(
 
     private val touchpad = TouchpadView(context, xServer, false).apply {
         setClickHapticsEnabled(true)
+        setScrollHapticsEnabled { PrefManager.touchpadScrollHaptics }
         layoutParams = LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.MATCH_PARENT,
