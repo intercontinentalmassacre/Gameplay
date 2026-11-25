@@ -9,9 +9,14 @@ import android.widget.Button
 import android.widget.ImageButton
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.test.click
+import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.core.view.descendants
 import app.gamenative.PrefManager
+import app.gamenative.R
 import app.gamenative.ui.component.QuickMenuAction
 import app.gamenative.ui.gcds.GcdsQuickMenu
 import app.gamenative.ui.gcds.GcdsQuickMenuRole
@@ -58,6 +63,7 @@ class LiveGameInputTest {
                 PluviaTheme {
                     GcdsQuickMenu(role = GcdsQuickMenuRole.GAME, isVisible = visible.value,
                         gameInputServer = server, onDismiss = { visible.value = false },
+                        onRequestOpen = { visible.value = true },
                         onItemSelected = { resumeRequested = it == QuickMenuAction.LIVE_INPUT; true })
                 }
             }
@@ -66,9 +72,8 @@ class LiveGameInputTest {
                     GameplayAppearance(true, false, PaletteStyle.TonalSpot, null, false)))
                 presentation!!.show()
                 DsHomeSecondScreen.markPresentationActive(true)
-                requireNotNull(DsHomeSecondScreen.model).onShowGameInput()
             }
-            compose.waitUntil(5000) { DsHomeSecondScreen.model?.mode == DsHomeSecondScreen.Mode.GAME_INPUT }
+            selectTab(R.string.live_input_tab, DsHomeSecondScreen.Mode.GAME_INPUT)
             compose.waitForIdle()
             compose.runOnIdle {
                 assertTrue(resumeRequested)
@@ -85,8 +90,15 @@ class LiveGameInputTest {
                 assertTrue(key.isShown)
                 tap(key)
                 assertEquals(listOf(XKeycode.KEY_W to true, XKeycode.KEY_W to false), keys)
-                visible.value = true
             }
+            selectTab(R.string.second_screen_tab_game, DsHomeSecondScreen.Mode.GAME_DASHBOARD)
+            selectTab(R.string.live_input_tab, DsHomeSecondScreen.Mode.GAME_INPUT)
+            selectTab(R.string.quick_menu_title, DsHomeSecondScreen.Mode.QUICK_MENU)
+            selectTab(R.string.second_screen_tab_game, DsHomeSecondScreen.Mode.GAME_DASHBOARD)
+            selectTab(R.string.quick_menu_title, DsHomeSecondScreen.Mode.QUICK_MENU)
+            selectTab(R.string.live_input_tab, DsHomeSecondScreen.Mode.GAME_INPUT)
+            // The hardware menu shortcut temporarily covers the selected input panel.
+            compose.runOnIdle { visible.value = true }
             compose.waitUntil(5000) { DsHomeSecondScreen.model?.mode == DsHomeSecondScreen.Mode.QUICK_MENU }
             compose.runOnIdle {
                 resumeRequested = false
@@ -100,6 +112,12 @@ class LiveGameInputTest {
                 PrefManager.dualScreenLauncher = initialEnabled
             }
         }
+    }
+
+    private fun selectTab(label: Int, expected: DsHomeSecondScreen.Mode) {
+        compose.onNode(hasText(compose.activity.getString(label)) and hasClickAction())
+            .performTouchInput { click() }
+        compose.waitUntil(5000) { DsHomeSecondScreen.model?.mode == expected }
     }
 
     private fun tap(view: View) {
