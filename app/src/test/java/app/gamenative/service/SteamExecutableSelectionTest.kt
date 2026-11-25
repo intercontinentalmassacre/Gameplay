@@ -5,7 +5,9 @@ import app.gamenative.utils.ExecutableSelectionUtils
 import org.junit.Rule
 import org.junit.rules.TemporaryFolder
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SteamExecutableSelectionTest {
@@ -35,6 +37,17 @@ class SteamExecutableSelectionTest {
     private fun exe(path: String, size: Long) = FileData().apply {
         fileName = path
         totalSize = size
+    }
+
+    @Test
+    fun `Steam launch entries can be smaller than the fallback size threshold`() {
+        val haiku = exe("Haiku.exe", 650_752)
+        with(SteamService) {
+            assertFalse(haiku.isStub(declaredLaunchTarget = true))
+            assertTrue(haiku.isStub())
+            assertTrue(exe("Haiku.exe", 0).isStub(declaredLaunchTarget = true))
+            assertTrue(exe("UnityCrashHandler64.exe", 1_077_848).isStub(declaredLaunchTarget = true))
+        }
     }
 
     @Test
