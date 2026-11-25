@@ -32,7 +32,8 @@ object ContainerConfigResolver {
      * when the matched GPU is from a different family than the user's actual GPU.
      *
      * - Adreno 6xx requires DXVK 1.11.1-sarek (newer DXVK 2.x is incompatible).
-     * - Adreno 8 Elite Gen5 (84x/85x) requires the MrPurple T26 driver.
+     * - Adreno 85x (8 Elite Gen 6) requires the Rutabaga Turnip driver.
+     * - Adreno 84x (8 Elite Gen 5) requires the MrPurple T26 driver.
      * - Adreno A12 requires the A12-fix Turnip driver.
      *
      * The override is skipped when the matched GPU is the same family (e.g. an
@@ -53,8 +54,16 @@ object ContainerConfigResolver {
             filteredJson.put("dxwrapperConfig", kvs.toString())
         }
 
+        if (GPUInformation.isAdreno85x(context) && !matched.matches(Regex(".*adreno.*\\b85[0-9]\\b.*"))) {
+            val kvs = KeyValueSet(filteredJson.optString("graphicsDriverConfig", ""))
+            kvs.put("version", ContainerUtils.WRAPPER_ADRENO_85X)
+            filteredJson.put("graphicsDriverConfig", kvs.toString())
+            filteredJson.put("graphicsDriverVersion", ContainerUtils.WRAPPER_ADRENO_85X)
+        }
+
         if (GPUInformation.isAdreno8EliteGen5(context) &&
-            !matched.matches(Regex(".*adreno.*\\b8(4[0-9]|5[0-9])\\b.*"))
+            !GPUInformation.isAdreno85x(context) &&
+            !matched.matches(Regex(".*adreno.*\\b84[0-9]\\b.*"))
         ) {
             val kvs = KeyValueSet(filteredJson.optString("graphicsDriverConfig", ""))
             kvs.put("version", ContainerUtils.WRAPPER_ADRENO_8ELITE_GEN5)
