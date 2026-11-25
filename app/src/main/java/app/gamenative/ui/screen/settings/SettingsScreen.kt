@@ -139,6 +139,7 @@ internal val settingsSearchEntries = listOf(
     SettingsSearchEntry(SettingsCategory.INTERFACE, R.string.settings_custom_theme_edit, listOf("custom", "theme", "colors")),
     SettingsSearchEntry(SettingsCategory.INTERFACE, R.string.settings_interface_reduce_motion_title, listOf("accessibility", "animation", "motion")),
     SettingsSearchEntry(SettingsCategory.INTERFACE, R.string.settings_language, listOf("locale", "translation")),
+    SettingsSearchEntry(SettingsCategory.CONTROLS, R.string.controller_layouts, listOf("layout", "preset", "gamepad", "раскладка", "геймпад")),
     SettingsSearchEntry(SettingsCategory.CONTROLS, R.string.settings_achievement_show_notification, listOf("achievements", "notification")),
     SettingsSearchEntry(SettingsCategory.CONTROLS, R.string.settings_interface_show_gamepad_hints_title, listOf("controller", "gamepad", "hints")),
     SettingsSearchEntry(SettingsCategory.RUNTIME, R.string.settings_runtime_title, listOf("wine", "proton", "box64", "fex", "dxvk", "vkd3d")),

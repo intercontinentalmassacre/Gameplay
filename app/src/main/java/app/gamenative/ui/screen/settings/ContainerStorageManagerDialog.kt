@@ -969,7 +969,7 @@ private fun sizeBreakdown(entry: ContainerStorageManager.Entry): String {
 }
 
 @Composable
-private fun gameSourceLabel(gameSource: GameSource?): String = when (gameSource) {
+internal fun gameSourceLabel(gameSource: GameSource?): String = when (gameSource) {
     GameSource.STEAM -> stringResource(R.string.library_source_steam)
     GameSource.CUSTOM_GAME -> stringResource(R.string.library_source_custom)
     GameSource.GOG -> stringResource(R.string.tab_gog)
