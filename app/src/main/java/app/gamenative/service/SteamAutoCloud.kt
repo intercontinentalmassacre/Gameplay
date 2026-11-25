@@ -88,6 +88,7 @@ object SteamAutoCloud {
         prefixToPath: (String) -> String,
     ): Path? {
         val token = EMBEDDED_ROOT_TOKEN.find(filename)?.value ?: return null
+        resolveCloudPrefixToLocal(filename, cloudPrefixToLocalPath)?.let { return Paths.get(it) }
         val localRoot = cloudPrefixToLocalPath[token]
             ?: runCatching { PathType.valueOf(token.trim('%')) }.getOrNull()?.let { prefixToPath(it.name) }
             ?: return null
