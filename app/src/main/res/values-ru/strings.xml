@@ -2739,4 +2739,13 @@ Ubuntu RootFs - releases.ubuntu.com/focal</string>
     <string name="layout_apply">Применить для этой игры</string>
     <string name="layout_choose_game">Выберите игру</string>
     <string name="layout_no_games">Установите игру, чтобы выбрать для неё раскладку.</string>
+    <string name="community_layouts">Раскладки сообщества</string>
+    <string name="community_layout_search">Поиск раскладок для этой игры</string>
+    <string name="community_layout_prev">Назад</string>
+    <string name="community_layout_next">Далее</string>
+    <string name="community_layout_empty">Для этой игры подходящих раскладок не найдено.</string>
+    <string name="community_layout_search_error">Не удалось получить список из Steam. Попробуйте ещё раз.</string>
+    <string name="community_layout_download_error">Не удалось загрузить эту раскладку.</string>
+    <string name="community_layout_unsupported">В этой раскладке нет назначений, которые поддерживает этот геймпад.</string>
+    <string name="community_layout_import">Поддерживаемых назначений в основном наборе — %1$d. Гироскоп, трекпады и слои пропускаются.</string>
 </resources>
