@@ -210,6 +210,7 @@ object DsHomeSecondScreen {
 
         // Passive, glanceable runtime status while the game owns controller focus.
         GAME_DASHBOARD,
+        GAME_INPUT,
 
         // Full settings workspace rendered on the lower display.
         SETTINGS,
@@ -257,6 +258,8 @@ object DsHomeSecondScreen {
         val cardContent: (@Composable () -> Unit)? = null,
         val menuContent: (@Composable () -> Unit)? = null,
         val settingsContent: (@Composable () -> Unit)? = null,
+        val gameInputContent: (@Composable () -> Unit)? = null,
+        val onShowGameInput: () -> Unit = {},
         val dashboardTitle: String = "",
         val dashboardSubtitle: String = "",
         val dashboardImageUrl: String = "",
@@ -573,11 +576,13 @@ internal fun DsHomeSecondScreen.Mode.ownsControllerFocus(): Boolean = when (this
     DsHomeSecondScreen.Mode.DETAILS,
     DsHomeSecondScreen.Mode.QUICK_MENU_PASSIVE,
     DsHomeSecondScreen.Mode.GAME_DASHBOARD,
+    DsHomeSecondScreen.Mode.GAME_INPUT,
     -> false
 }
 
-internal fun secondScreenGameMode(menuActive: Boolean, showPassiveMenu: Boolean): DsHomeSecondScreen.Mode = when {
+internal fun secondScreenGameMode(menuActive: Boolean, showPassiveMenu: Boolean, showInput: Boolean = false): DsHomeSecondScreen.Mode = when {
     menuActive -> DsHomeSecondScreen.Mode.QUICK_MENU
+    showInput -> DsHomeSecondScreen.Mode.GAME_INPUT
     showPassiveMenu -> DsHomeSecondScreen.Mode.QUICK_MENU_PASSIVE
     else -> DsHomeSecondScreen.Mode.GAME_DASHBOARD
 }
@@ -697,6 +702,7 @@ class DsHomePresentation internal constructor(
                                                 model = model,
                                                 showMenu = true,
                                             )
+                                            DsHomeSecondScreen.Mode.GAME_INPUT,
                                             DsHomeSecondScreen.Mode.GAME_DASHBOARD -> SecondScreenGamePanel(
                                                 model = model,
                                                 showMenu = false,
@@ -733,7 +739,7 @@ class DsHomePresentation internal constructor(
                     WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
             )
             requestComposeControllerFocus()
-        } else if (mode == DsHomeSecondScreen.Mode.GAME_DASHBOARD ||
+        } else if (mode == DsHomeSecondScreen.Mode.GAME_INPUT || mode == DsHomeSecondScreen.Mode.GAME_DASHBOARD ||
             mode == DsHomeSecondScreen.Mode.QUICK_MENU_PASSIVE
         ) {
             // In-game panels stay touchable on the lower screen while hardware
@@ -2148,7 +2154,7 @@ private fun SecondScreenGamePanel(
         ) {
             InGamePanelTab(
                 text = stringResource(app.gamenative.R.string.second_screen_tab_game),
-                selected = !showMenu,
+                selected = model.mode == DsHomeSecondScreen.Mode.GAME_DASHBOARD,
                 onClick = model.onShowDashboard,
             )
             InGamePanelTab(
@@ -2156,6 +2162,13 @@ private fun SecondScreenGamePanel(
                 selected = showMenu,
                 onClick = model.onShowMenu,
             )
+            if (model.gameInputContent != null) {
+                InGamePanelTab(
+                    text = stringResource(app.gamenative.R.string.live_input_tab),
+                    selected = model.mode == DsHomeSecondScreen.Mode.GAME_INPUT,
+                    onClick = model.onShowGameInput,
+                )
+            }
         }
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
         Box(
@@ -2170,7 +2183,9 @@ private fun SecondScreenGamePanel(
                     }
                 },
         ) {
-            if (showMenu) {
+            if (model.mode == DsHomeSecondScreen.Mode.GAME_INPUT) {
+                model.gameInputContent?.invoke()
+            } else if (showMenu) {
                 model.menuContent?.invoke()
             } else {
                 SecondScreenGameDashboard(model)

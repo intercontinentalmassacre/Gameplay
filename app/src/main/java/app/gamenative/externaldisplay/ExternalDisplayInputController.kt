@@ -157,6 +157,7 @@ private class ExternalInputPresentation(
         when (mode) {
             ExternalDisplayInputController.Mode.TOUCHPAD -> {
                 val pad = TouchpadView(context, xServer, false).apply {
+                    setClickHapticsEnabled(true)
                     layoutParams = FrameLayout.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.MATCH_PARENT,
@@ -218,13 +219,15 @@ private class ExternalInputPresentation(
     }
 }
 
-private class HybridInputLayout(
+internal class HybridInputLayout(
     context: Context,
     xServer: XServer,
     touchpadViewProvider: () -> TouchpadView?,
+    keyboardInitiallyOpen: Boolean = false,
 ) : FrameLayout(context) {
 
     private val touchpad = TouchpadView(context, xServer, false).apply {
+        setClickHapticsEnabled(true)
         layoutParams = LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.MATCH_PARENT,
@@ -241,7 +244,7 @@ private class HybridInputLayout(
         ).apply {
             gravity = Gravity.BOTTOM
         }
-        visibility = View.GONE
+        visibility = if (keyboardInitiallyOpen) View.VISIBLE else View.GONE
     }
 
     private val keyboardToggleButton = ImageButton(context).apply {
@@ -260,11 +263,19 @@ private class HybridInputLayout(
         setColorFilter(ContextCompat.getColor(context, R.color.external_display_key_color))
         scaleType = ImageView.ScaleType.CENTER_INSIDE
         setPadding(marginPx / 2, marginPx / 2, marginPx / 2, marginPx / 2)
+        contentDescription = context.getString(R.string.keyboard)
         setOnClickListener { toggleKeyboard() }
     }
 
     init {
         addView(touchpad)
+        addView(android.widget.TextView(context).apply {
+            text = context.getString(R.string.live_touchpad_hint)
+            gravity = Gravity.CENTER
+            setTextColor(ContextCompat.getColor(context, R.color.external_display_key_color))
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        }, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT, Gravity.CENTER))
+        touchpad.contentDescription = context.getString(R.string.live_touchpad_hint)
         addView(keyboardView)
         addView(keyboardToggleButton)
 
