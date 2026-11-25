@@ -1274,6 +1274,8 @@
     <string name="settings_interface_second_screen_game_title_subtitle">Choose how the running game is named on the lower screen.</string>
     <string name="settings_interface_second_screen_title_logo">Game logo</string>
     <string name="settings_interface_second_screen_title_text">Text title</string>
+    <string name="settings_touchpad_scroll_haptics">Touchpad haptics</string>
+    <string name="settings_touchpad_scroll_haptics_summary">Feel clicks as you move the pointer with one finger or scroll with two on the lower touchpad.</string>
     <string name="settings_interface_second_screen_default_panel_title">Default in-game panel</string>
     <string name="settings_interface_second_screen_default_panel_subtitle">The lower screen can start with the game dashboard and HUD or with Quick Menu.</string>
     <string name="settings_interface_second_screen_panel_game">Game dashboard and HUD</string>
