@@ -2437,6 +2437,39 @@ class SteamAutoCloudTest {
         assertTrue("Should have uploaded at least 1 file", result.filesUploaded > 0)
     }
 
+    @Test
+    fun dnsFailureDuringUploadKeepsTheLocalSavePending() = runBlocking {
+        val changeNumber = 5L
+        cacheCurrentLocalFiles(changeNumber)
+        val file = File(saveFilesDir, "SaveData_0.sav")
+        val content = "new offline progress"
+        file.writeText(content)
+        every { mockSteamCloud.getAppFileListChange(any(), any(), any()) } returns
+            CompletableFuture.completedFuture(makeCloudFileChangeList(changeNumber))
+
+        val block = mock<`in`.dragonbra.javasteam.steam.handlers.steamcloud.FileUploadBlockDetails>()
+        whenever(block.urlHost).thenReturn("cloud.invalid")
+        whenever(block.urlPath).thenReturn("/save")
+        whenever(block.blockLength).thenReturn(content.length)
+        val upload = mock<`in`.dragonbra.javasteam.steam.handlers.steamcloud.FileUploadInfo>()
+        whenever(upload.blockRequests).thenReturn(listOf(block))
+        every { mockSteamCloud.beginFileUpload(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any()) } returns
+            CompletableFuture.completedFuture(upload)
+        val http = OkHttpClient.Builder().addInterceptor { throw java.net.UnknownHostException("cloud.invalid") }.build()
+        val config = mock<SteamConfiguration>()
+        whenever(mockSteamService.steamClient!!.configuration).thenReturn(config)
+        whenever(config.httpClient).thenReturn(http)
+        val app = db.steamAppDao().findApp(steamAppId)!!
+        val result = SteamAutoCloud.syncUserFiles(app, clientId, mockSteamService, mockSteamCloud,
+            preferredSave = SaveLocation.Local, prefixToPath = makePrefixToPath()).await()!!
+
+        assertEquals(SyncResult.UpdateFail, result.syncResult)
+        assertFalse(result.uploadsCompleted)
+        assertEquals(changeNumber, db.appChangeNumbersDao().getByAppId(steamAppId)!!.changeNumber)
+        assertEquals(content, file.readText())
+        verify { mockSteamCloud.commitFileUpload(false, any(), any(), any(), any()) }
+    }
+
     // ── Scenario 4: User plays offline, meanwhile another device also played and uploaded ──
     // Both sides changed — must ask the user which saves to keep.
     @Test
