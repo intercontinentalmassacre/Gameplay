@@ -666,6 +666,8 @@
     <string name="joystick_size">Размер джойстика</string>
     <string name="joystick_size_subtitle">Множитель динамического размера джойстика</string>
     <string name="keyboard">Клавиатура</string>
+    <string name="live_input_tab">Тачпад и клавиши</string>
+    <string name="live_touchpad_hint">Касание — левый щелчок · Два пальца — правый</string>
     <string name="keyboard_bindings">Клавиатура</string>
     <string name="label">Метка</string>
     <string name="label_text">Текст метки</string>

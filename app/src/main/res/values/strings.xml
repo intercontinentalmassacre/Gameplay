@@ -260,6 +260,8 @@
     <string name="exit_game">Exit</string>
     <string name="exit">Exit Game</string>
     <string name="keyboard">Keyboard</string>
+    <string name="live_input_tab">Touchpad &amp; keys</string>
+    <string name="live_touchpad_hint">Tap to click · Two-finger tap to right-click</string>
     <string name="resume_game">Resume Game</string>
     <string name="extra">Extra</string>
     <string name="clear_search">Clear Search</string>
