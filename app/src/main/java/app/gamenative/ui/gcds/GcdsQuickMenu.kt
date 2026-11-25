@@ -302,10 +302,16 @@ private fun GcdsGameQuickMenu(
         mutableStateOf(configuredInput != ExternalDisplayInputController.Mode.OFF)
     }
     if (hasExternalDisplay) {
+        // Observe the selected panel in composition even when switching tabs leaves the game running.
+        val mode = secondScreenGameMode(
+            menuActive = isVisible,
+            showPassiveMenu = showPassiveMenu.value,
+            showInput = inputAvailable && showInput.value,
+        )
         SideEffect {
             DsHomeSecondScreen.publish(DsHomeSecondScreen.Model(
                 owner = DsHomeSecondScreen.Owner.GAME,
-                mode = secondScreenGameMode(menuActive = isVisible, showPassiveMenu = showPassiveMenu.value, showInput = inputAvailable && showInput.value),
+                mode = mode,
                 onBack = onDismiss,
                 gameInputContent = gameInputServer?.takeIf { inputAvailable }?.let { server ->
                     @Composable {

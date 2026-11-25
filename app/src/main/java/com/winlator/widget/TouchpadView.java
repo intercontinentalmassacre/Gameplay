@@ -3,7 +3,10 @@ package com.winlator.widget;
 import android.content.Context;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.StateListDrawable;
+import android.os.Build;
+import android.os.SystemClock;
 import android.util.Log;
+import android.view.HapticFeedbackConstants;
 import android.view.InputDevice;
 import android.view.MotionEvent;
 import android.view.View;
@@ -43,6 +46,11 @@ public class TouchpadView extends View implements View.OnCapturedPointerListener
     private byte numFingers;
     private boolean pointerButtonLeftEnabled;
     private boolean pointerButtonRightEnabled;
+    private static final float CURSOR_TICK_DISTANCE_DP = 28f;
+    private static final long CURSOR_TICK_INTERVAL_MS = 52L;
+    private float cursorTickDistance;
+    private float cursorTravel;
+    private long lastCursorTick;
     private float scrollAccumY;
     private boolean scrolling;
     private float sensitivity;
@@ -320,6 +328,7 @@ public class TouchpadView extends View implements View.OnCapturedPointerListener
         ViewTransformation viewTransformation = new ViewTransformation();
         viewTransformation.update(outerWidth, outerHeight, innerWidth, innerHeight);
         float invAspect = 1.0f / viewTransformation.aspect;
+        cursorTickDistance = CURSOR_TICK_DISTANCE_DP * getResources().getDisplayMetrics().density * invAspect;
         if (!this.xServer.getRenderer().isFullscreen()) {
             XForm.makeTranslation(this.xform, -viewTransformation.viewOffsetX, -viewTransformation.viewOffsetY);
             XForm.scale(this.xform, invAspect, invAspect);
@@ -490,6 +499,7 @@ public class TouchpadView extends View implements View.OnCapturedPointerListener
             case MotionEvent.ACTION_DOWN:
             case MotionEvent.ACTION_POINTER_DOWN:
                 if (event.isFromSource(InputDevice.SOURCE_MOUSE)) return true;
+                cursorTravel = 0f;
                 scrollAccumY = 0;
                 scrolling = false;
                 suppressNextLeftTap = false;
@@ -1702,8 +1712,7 @@ public class TouchpadView extends View implements View.OnCapturedPointerListener
         switch (action) {
             case TouchGestureConfig.ZOOM_SCROLL_WHEEL:
                 Pointer.Button scrollBtn = zoomIn ? Pointer.Button.BUTTON_SCROLL_UP : Pointer.Button.BUTTON_SCROLL_DOWN;
-                xServer.injectPointerButtonPress(scrollBtn);
-                xServer.injectPointerButtonRelease(scrollBtn);
+                sendScrollStep(scrollBtn);
                 break;
             case TouchGestureConfig.ZOOM_PLUS_MINUS:
                 XKeycode key = zoomIn ? XKeycode.KEY_EQUAL : XKeycode.KEY_MINUS;
@@ -1930,17 +1939,8 @@ public class TouchpadView extends View implements View.OnCapturedPointerListener
                 if (currDistance < MAX_TWO_FINGERS_SCROLL_DISTANCE) {
                     float f = this.scrollAccumY + (((finger1.y + finger2.y) * 0.5f) - ((finger1.lastY + finger2.lastY) * 0.5f));
                     this.scrollAccumY = f;
-                    if (f < -100.0f) {
-                        XServer xServer = this.xServer;
-                        Pointer.Button button = Pointer.Button.BUTTON_SCROLL_DOWN;
-                        xServer.injectPointerButtonPress(button);
-                        this.xServer.injectPointerButtonRelease(button);
-                        this.scrollAccumY = 0.0f;
-                    } else if (f > 100.0f) {
-                        XServer xServer2 = this.xServer;
-                        Pointer.Button button2 = Pointer.Button.BUTTON_SCROLL_UP;
-                        xServer2.injectPointerButtonPress(button2);
-                        this.xServer.injectPointerButtonRelease(button2);
+                    if (Math.abs(f) > 100.0f) {
+                        sendScrollStep(f < 0 ? Pointer.Button.BUTTON_SCROLL_DOWN : Pointer.Button.BUTTON_SCROLL_UP);
                         this.scrollAccumY = 0.0f;
                     }
                     scrolling = true;
@@ -1950,6 +1950,7 @@ public class TouchpadView extends View implements View.OnCapturedPointerListener
                 }
             }
             if (!this.scrolling && (b = this.numFingers) <= 2 && !skipPointerMove) {
+                if (b == 1) tickForCursorTravel(finger1);
                 if (!this.moveCursorToTouchpoint || b != 1) {
                 int dx = finger1.deltaX();
                 int dy = finger1.deltaY();
@@ -1975,6 +1976,38 @@ public class TouchpadView extends View implements View.OnCapturedPointerListener
             }
         }
         return null;
+    }
+
+    private BooleanSupplier motionHapticsEnabled = () -> false;
+
+    public void setMotionHapticsEnabled(BooleanSupplier enabled) {
+        motionHapticsEnabled = enabled;
+    }
+
+    private void tickForCursorTravel(Finger finger) {
+        if (!motionHapticsEnabled.getAsBoolean()) {
+            cursorTravel = 0f;
+            return;
+        }
+        int dx = finger.x - finger.lastX;
+        int dy = finger.y - finger.lastY;
+        if (dx == 0 && dy == 0) return;
+        cursorTravel += (float)Math.hypot(dx, dy);
+        if (cursorTravel < cursorTickDistance) return;
+        long now = SystemClock.uptimeMillis();
+        if (now - lastCursorTick < CURSOR_TICK_INTERVAL_MS) return;
+        cursorTravel %= cursorTickDistance;
+        lastCursorTick = now;
+        performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
+    }
+
+    private void sendScrollStep(Pointer.Button button) {
+        xServer.injectPointerButtonPress(button);
+        xServer.injectPointerButtonRelease(button);
+        if (motionHapticsEnabled.getAsBoolean()) {
+            performHapticFeedback(Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE
+                    ? HapticFeedbackConstants.SEGMENT_TICK : HapticFeedbackConstants.CLOCK_TICK);
+        }
     }
 
     private boolean clickHapticsEnabled;
