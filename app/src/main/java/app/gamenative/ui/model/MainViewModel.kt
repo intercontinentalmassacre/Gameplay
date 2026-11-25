@@ -71,6 +71,8 @@ class MainViewModel @Inject constructor(
     private val savedStateHandle: SavedStateHandle,
     private val appTheme: IAppTheme,
     private val libraryPlayHistoryDao: LibraryPlayHistoryDao,
+    private val itchLibraryRepository: app.gamenative.itch.ItchLibraryRepository,
+    private val itchInstallCoordinator: app.gamenative.itch.ItchInstallCoordinator,
 ) : ViewModel() {
 
     companion object {
@@ -538,6 +540,27 @@ class MainViewModel @Inject constructor(
         PrefManager.wrapperDiagnostics = value
     }
 
+    private suspend fun restoreItchInstallerIfNeeded(
+        session: app.gamenative.localgames.InstallationSession,
+    ) {
+        val appId = session.appId ?: return
+        if (!appId.startsWith("ITCH_")) return
+        val gameId = appId.removePrefix("ITCH_").toLongOrNull() ?: return
+        runCatching { itchInstallCoordinator.restorePreviousLaunch(gameId) }
+    }
+
+    private suspend fun completeItchInstallerIfNeeded(
+        session: app.gamenative.localgames.InstallationSession,
+    ) {
+        val appId = session.appId ?: return
+        if (!appId.startsWith("ITCH_")) return
+        val gameId = appId.removePrefix("ITCH_").toLongOrNull() ?: return
+        runCatching { itchInstallCoordinator.completeInstallerSession(session) }
+        PluviaApp.events.emitJava(
+            AndroidEvent.LibraryInstallStatusChanged(gameId.toInt(), GameSource.ITCH),
+        )
+    }
+
     fun launchApp(context: Context, appId: String) {
         gamescopeFirstFramePresented = false
         // Show booting splash before launching the app
@@ -619,6 +642,10 @@ class MainViewModel @Inject constructor(
                         }
                         heroFile?.let { android.net.Uri.fromFile(it).toString() } ?: ""
                     }
+                    GameSource.ITCH -> {
+                        itchLibraryRepository.getGame(gameId.toLong())?.coverUrl.orEmpty()
+                    }
+                    else -> ""
                 }
             }
             setBootingSplashHeroImageUrl(heroUrl)
@@ -695,10 +722,11 @@ class MainViewModel @Inject constructor(
                 SteamService.notifyRunningProcesses()
                 handleExitCloudSync(context, appId, gameId)
 
-                if (gameSource == GameSource.CUSTOM_GAME) {
+                if (gameSource == GameSource.CUSTOM_GAME || gameSource == GameSource.ITCH) {
                     when (val result = LocalInstallerCompletionCoordinator.handleInstallerExit(context, appId)) {
                         LocalInstallerCompletionCoordinator.Result.NotAnInstallerSession -> Unit
                         is LocalInstallerCompletionCoordinator.Result.Completed -> {
+                            completeItchInstallerIfNeeded(result.session)
                             _uiEvent.send(MainUiEvent.InstallerCompleted(result.session.title))
                         }
                         is LocalInstallerCompletionCoordinator.Result.NeedsExecutableSelection -> {
@@ -711,6 +739,7 @@ class MainViewModel @Inject constructor(
                             )
                         }
                         is LocalInstallerCompletionCoordinator.Result.Failed -> {
+                            restoreItchInstallerIfNeeded(result.session)
                             _uiEvent.send(
                                 MainUiEvent.InstallerCompletionFailed(
                                     title = result.session.title,
@@ -751,6 +780,7 @@ class MainViewModel @Inject constructor(
                 LocalInstallerCompletionCoordinator.selectExecutable(context, sessionId, relativePath)
             }.onSuccess { result ->
                 if (result is LocalInstallerCompletionCoordinator.Result.Completed) {
+                    completeItchInstallerIfNeeded(result.session)
                     _uiEvent.send(MainUiEvent.InstallerCompleted(result.session.title))
                 }
             }.onFailure { error ->
@@ -806,6 +836,15 @@ class MainViewModel @Inject constructor(
             runCatching {
                 LocalInstallerCompletionCoordinator.retryInstaller(context, sessionId)
             }.onSuccess { appId ->
+                if (appId.startsWith("ITCH_")) {
+                    // The failed update restored the installed game in the container;
+                    // point it back at the installer before relaunching it.
+                    runCatching {
+                        InstallationSessionStore(context).load(sessionId)?.let { session ->
+                            itchInstallCoordinator.armInstallerContainer(session)
+                        }
+                    }
+                }
                 _uiEvent.send(MainUiEvent.RetryInstallerLaunch(appId))
             }.onFailure { error ->
                 _uiEvent.send(
@@ -820,6 +859,9 @@ class MainViewModel @Inject constructor(
 
     fun recoverInstallerSessions(context: Context) {
         viewModelScope.launch(Dispatchers.IO) {
+            // Finish or discard itch.io ZIP updates interrupted on a previous run
+            // before looking at installer sessions: the old version must stay launchable.
+            runCatching { itchInstallCoordinator.recoverInterruptedInstalls() }
             val sessions = InstallationSessionStore(context).loadAll()
             val pendingSelection = sessions.firstOrNull {
                 it.state == InstallationState.CANDIDATE_SELECTION && it.candidateExecutablePaths.isNotEmpty()
@@ -866,6 +908,7 @@ class MainViewModel @Inject constructor(
                 when (val result = LocalInstallerCompletionCoordinator.handleInstallerExit(context, awaitingResult.appId!!)) {
                     LocalInstallerCompletionCoordinator.Result.NotAnInstallerSession -> Unit
                     is LocalInstallerCompletionCoordinator.Result.Completed -> {
+                        completeItchInstallerIfNeeded(result.session)
                         _uiEvent.send(MainUiEvent.InstallerCompleted(result.session.title))
                     }
                     is LocalInstallerCompletionCoordinator.Result.NeedsExecutableSelection -> {
@@ -878,6 +921,7 @@ class MainViewModel @Inject constructor(
                         )
                     }
                     is LocalInstallerCompletionCoordinator.Result.Failed -> {
+                        restoreItchInstallerIfNeeded(result.session)
                         _uiEvent.send(
                             MainUiEvent.InstallerCompletionFailed(
                                 title = result.session.title,
@@ -896,6 +940,7 @@ class MainViewModel @Inject constructor(
             if (interrupted != null) {
                 val result = LocalInstallerCompletionCoordinator.markInterrupted(context, interrupted.id)
                 if (result is LocalInstallerCompletionCoordinator.Result.Failed) {
+                    restoreItchInstallerIfNeeded(result.session)
                     _uiEvent.send(
                         MainUiEvent.InstallerCompletionFailed(
                             title = result.session.title,

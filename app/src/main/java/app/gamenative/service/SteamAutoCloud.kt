@@ -845,6 +845,26 @@ object SteamAutoCloud {
                 allLocalUserFiles = localUserFilesMap.map { it.value }.flatten()
             }.inWholeMicroseconds
 
+            // One snapshot session per sync: ensure() archives the pre-sync local save set at most
+            // once, and only when a destructive step (download overwrite or the local-only delete
+            // below) actually runs. Roots are the same per-file resolution the sync itself uses.
+            // A missing context (unit tests hold a bare service) means no backup, never a failure.
+            val saveBackupSession = runCatching { steamInstance.applicationContext }.getOrNull()?.let { backupContext ->
+                CloudSaveBackupManager.session(
+                    context = backupContext,
+                    provider = CloudSaveBackupManager.PROVIDER_STEAM,
+                    gameId = appInfo.id.toString(),
+                ) {
+                    allLocalUserFiles.groupBy { it.root }.map { (rootType, files) ->
+                        CloudSaveBackupManager.BackupRoot(
+                            id = rootType.name,
+                            dir = File(prefixToPath(rootType.toString())),
+                            files = files.map { it.getAbsPath(prefixToPath).toFile() },
+                        )
+                    }
+                }
+            }
+
             val effectiveLocalChangeNumber = if (cacheIsAbsentOrEmpty && allLocalUserFiles.isNotEmpty()) {
                 Timber.w("Cache absent/empty but local files exist — forcing full cloud fetch (storedCn=$localAppChangeNumber)")
                 -1L
@@ -857,6 +877,13 @@ object SteamAutoCloud {
                     Timber.i("Downloading cloud user files")
 
                     if (appFileListChange.isOnlyDelta) return@async PostSyncInfo(SyncResult.DownloadFail)
+
+                    // Snapshot before the first destructive step of this sync: the downloads below
+                    // overwrite local saves and the local-only delete loop afterwards removes them.
+                    // A skipped or failed snapshot is logged and never blocks the sync.
+                    if (saveBackupSession == null || !saveBackupSession.ensure()) {
+                        Timber.i("No pre-sync save backup for app ${appInfo.id} (skipped or failed)")
+                    }
 
                     microsecDownloadFiles = measureTime {
                         val downloadInfo = downloadFiles(appFileListChange.files, appFileListChange, parentScope).await()

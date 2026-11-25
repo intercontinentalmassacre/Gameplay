@@ -461,6 +461,16 @@ abstract class BaseAppScreen {
     abstract fun onUpdateClick(context: Context, libraryItem: LibraryItem)
 
     /**
+     * Optional per-source labels for the primary action. Sources that download and
+     * install in separate steps (itch.io) can distinguish "Download", "Install"
+     * and "Play" instead of the generic Install/Play wording.
+     */
+    protected open fun primaryActionLabel(
+        context: Context,
+        libraryItem: LibraryItem,
+    ): ((isInstalled: Boolean, isDownloading: Boolean, hasPartialDownload: Boolean) -> String?)? = null
+
+    /**
      * Get the game name for shortcuts and dialogs
      */
     @Composable
@@ -1584,6 +1594,24 @@ abstract class BaseAppScreen {
                 containerData = existing
                 containerDataLoaded = true
             }
+            if (isInstalledState && withContext(Dispatchers.IO) { app.gamenative.fexcache.FexCodeCache.finalizeIfNeeded(context, appId) }) {
+                containerData = withContext(Dispatchers.IO) {
+                    ContainerManager(context).getContainerById(appId)?.let(ContainerUtils::toContainerData)
+                } ?: containerData
+            }
+        }
+
+        val lifecycleOwner = LocalLifecycleOwner.current
+        DisposableEffect(lifecycleOwner, appId, isInstalledState) {
+            val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+                if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME && isInstalledState) {
+                    uiScope.launch(Dispatchers.IO) {
+                        app.gamenative.fexcache.FexCodeCache.finalizeIfNeeded(context, appId)
+                    }
+                }
+            }
+            lifecycleOwner.lifecycle.addObserver(observer)
+            onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
         }
 
         // Export for Frontend launcher
@@ -1842,6 +1870,10 @@ abstract class BaseAppScreen {
             app.gamenative.data.GameSource.GOG -> app.gamenative.service.gog.GOGService.getDownloadInfo(displayInfo.gameId.toString())
             app.gamenative.data.GameSource.CUSTOM_GAME -> null // Custom games don't support downloads yet
             app.gamenative.data.GameSource.AMAZON -> app.gamenative.service.amazon.AmazonService.getDownloadInfoByAppId(libraryItem.gameId)
+            app.gamenative.data.GameSource.ITCH ->
+                app.gamenative.itch.ItchAccess.downloads(context)
+                    .getDownloadInfo(libraryItem.gameId.toLong())
+            else -> null
         }
 
         DisposableEffect(libraryItem.appId) {
@@ -1920,6 +1952,7 @@ abstract class BaseAppScreen {
             runtimeConfig = containerData.takeIf { containerDataLoaded },
             achievements = achievementsState,
             achievementRarity = achievementRarityState,
+            primaryActionLabelOverride = primaryActionLabel(context, libraryItem),
         )
 
         if (showReadiness && launchActivity != null) {
@@ -1970,6 +2003,17 @@ abstract class BaseAppScreen {
                 mediaIconUrl = displayInfo.iconUrl,
                 gameId = displayInfo.gameId.takeIf { it != 0 },
                 appId = libraryItem.appId,
+                onPrepareCodeCache = { data ->
+                    saveContainerConfig(context, libraryItem, data)
+                    containerData = data
+                    containerDataLoaded = true
+                    showConfigDialog = false
+                    if (app.gamenative.fexcache.FexCodeCache.requestPreparation(context, appId)) {
+                        onDownloadInstallClick(context, libraryItem, onClickPlay)
+                    } else {
+                        SnackbarManager.show(context.getString(R.string.fex_cache_prepare_failed))
+                    }
+                },
             )
         }
 

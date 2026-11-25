@@ -14,7 +14,11 @@ import com.winlator.core.StringUtils
 import java.util.Locale
 
 @Composable
-fun EmulationTabContent(state: ContainerConfigState) {
+fun EmulationTabContent(
+    state: ContainerConfigState,
+    appId: String? = null,
+    onPrepareCodeCache: (() -> Unit)? = null,
+) {
     val config = state.config.value
     val wineIsX8664 = config.wineVersion.contains("x86_64", true)
     val wineIsArm64Ec = config.wineVersion.contains("arm64ec", true)
@@ -144,6 +148,13 @@ fun EmulationTabContent(state: ContainerConfigState) {
                     state.config.value = config.copy(fexcorePreset = state.fexcorePresets[it].id)
                 },
             )
+            if (appId != null) {
+                FexCodeCacheSection(
+                    appId = appId,
+                    enabled = true,
+                    onPrepare = onPrepareCodeCache,
+                )
+            }
         }
     }
 }
