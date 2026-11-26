@@ -6,6 +6,20 @@ import org.junit.Test
 
 class FpsLimiterUtilsTest {
 
+    // ── gamescopeFpsCap ─────────────────────────────────────────────────────
+
+    @Test
+    fun `gamescope keeps the user cap while frame generation is armed`() {
+        // Regression: the cap used to be sent as 0 whenever LSFG had a multiplier,
+        // so a requested 60 arrived at the shim uncapped.
+        assertEquals(60, gamescopeFpsCap(limiterEnabled = true, target = 60))
+    }
+
+    @Test
+    fun `gamescope sends no cap when the limiter is off`() {
+        assertEquals(0, gamescopeFpsCap(limiterEnabled = false, target = 60))
+    }
+
     // ── fpsLimiterSteps ──────────────────────────────────────────────────────
 
     @Test
