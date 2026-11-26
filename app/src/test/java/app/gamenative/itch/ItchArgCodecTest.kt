@@ -1,5 +1,6 @@
 package app.gamenative.itch
 
+import com.winlator.core.ProcessHelper
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -25,6 +26,16 @@ class ItchArgCodecTest {
             "--save-dir \"My Saves\" \"--name=John \\\"J\\\"\"",
             ItchArgCodec.toWindowsCommandLine(listOf("--save-dir", "My Saves", "--name=John \"J\"")),
         )
+    }
+
+    @Test
+    fun `manifest arguments survive native process tokenization`() {
+        val args = listOf("", "--name=John \"J\"", "C:\\My Saves\\", "C:\\Games\\", "'player'", "--next")
+        for (slashes in 0..4) {
+            val withQuote = args + ("caption " + "\\".repeat(slashes) + "\"quoted\"")
+            val command = ItchArgCodec.toWindowsCommandLine(withQuote)
+            assertEquals(withQuote, ProcessHelper.splitCommand(command).toList())
+        }
     }
 
     @Test

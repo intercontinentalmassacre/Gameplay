@@ -5,6 +5,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.heightIn
 import android.content.Context
 import com.winlator.container.ContainerManager
+import app.gamenative.html5.host.Html5GameActivity
+import androidx.compose.runtime.produceState
 import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.ActivityResultLauncher
@@ -1342,6 +1344,15 @@ abstract class BaseAppScreen {
         menuOptions.add(getEditContainerOption(context, libraryItem, onEditContainer))
 
         if (isInstalled) {
+            if (getGameSource(libraryItem) in setOf(GameSource.CUSTOM_GAME, GameSource.ITCH)) {
+                val path = getInstallPath(context, libraryItem)
+                val root by produceState<File?>(null, path) {
+                    value = withContext(Dispatchers.IO) { path?.let { Html5GameActivity.entryRoot(File(it)) } }
+                }
+                root?.let { folder ->
+                    menuOptions.add(AppMenuOption(AppOptionMenuType.PlayHtml5) { Html5GameActivity.launch(context, libraryItem.appId, folder) })
+                }
+            }
             menuOptions.add(AppMenuOption(AppOptionMenuType.ControllerLayouts, onControllerLayouts))
             // Options only available when game is installed
             getRunContainerOption(context, libraryItem, onClickPlay)?.let { menuOptions.add(it) }

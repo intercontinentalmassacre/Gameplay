@@ -407,6 +407,7 @@ object ContainerUtils {
             box64Preset = container.box64Preset,
             desktopTheme = container.desktopTheme,
             containerVariant = container.containerVariant,
+            gameRuntime = container.getExtra("gameRuntime", "auto"),
             platform = container.platform,
             wineVersion = container.wineVersion,
             emulator = container.emulator,
@@ -608,6 +609,7 @@ object ContainerUtils {
         container.desktopTheme = containerData.desktopTheme
         container.graphicsDriverVersion = containerData.graphicsDriverVersion
         container.containerVariant = containerData.containerVariant
+        container.putExtra("gameRuntime", containerData.gameRuntime)
         container.platform = containerData.platform
         container.wineVersion = Container.resolveWineVersion(containerData.containerVariant, containerData.wineVersion)
         container.emulator = containerData.emulator

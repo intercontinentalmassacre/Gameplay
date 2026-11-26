@@ -2,6 +2,7 @@ package app.gamenative.itch
 
 import android.content.Context
 import android.content.Intent
+import app.gamenative.ui.screen.auth.ItchOAuthRedirectActivity
 import android.net.Uri
 import androidx.browser.customtabs.CustomTabsIntent
 import app.gamenative.PluviaApp
@@ -72,6 +73,7 @@ object ItchAuthUi {
                 }
                 return@launch
             }
+            ItchOAuthRedirectActivity.updateRegistration(context)
             withContext(Dispatchers.Main) {
                 val uri = Uri.parse(request.url)
                 val result = runCatching {
@@ -89,6 +91,8 @@ object ItchAuthUi {
                     context.startActivity(fallback)
                 }
                 result.onFailure { error ->
+                    auth.clearPending()
+                    ItchOAuthRedirectActivity.updateRegistration(context)
                     onError(error.message ?: context.getString(app.gamenative.R.string.itch_login_failed))
                 }
             }
@@ -98,6 +102,7 @@ object ItchAuthUi {
     fun signOut(context: Context) {
         scope.launch {
             val result = ItchAccess.repository(context).signOut()
+            ItchOAuthRedirectActivity.updateRegistration(context)
             PluviaApp.events.emitJava(
                 AndroidEvent.ItchAuthStateChanged(
                     success = result.isSuccess,

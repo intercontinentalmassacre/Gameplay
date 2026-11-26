@@ -202,19 +202,20 @@ fun GeneralTabContent(
     }
     SettingsGroup(enabled = !state.isAndroidPlatform) {
         run {
-            val variantIndex = rememberSaveable {
-                mutableIntStateOf(
-                    state.containerVariants.indexOfFirst { it.equals(config.containerVariant, true) }.coerceAtLeast(0)
-                )
-            }
+            val variants = if (state.html5Available || config.gameRuntime == "html5")
+                state.containerVariants + "HTML5" else state.containerVariants
+            val selected = if (config.gameRuntime == "html5") "HTML5" else config.containerVariant
             SettingsListDropdown(
                 colors = settingsTileColors(),
                 title = { Text(text = stringResource(R.string.container_variant)) },
-                value = variantIndex.value,
-                items = state.containerVariants,
+                value = variants.indexOfFirst { it.equals(selected, true) }.coerceAtLeast(0),
+                items = variants,
                 onItemSelected = { idx ->
-                    variantIndex.value = idx
-                    val newVariant = state.containerVariants[idx]
+                    val newVariant = variants[idx]
+                    if (newVariant == "HTML5" || newVariant.equals(config.containerVariant, true)) {
+                        state.config.value = config.copy(gameRuntime = if (newVariant == "HTML5") "html5" else "wine")
+                        return@SettingsListDropdown
+                    }
                     if (newVariant.equals(Container.GLIBC, ignoreCase = true)) {
                         val defaultDriver = Container.DEFAULT_GRAPHICS_DRIVER
                         val newCfg = KeyValueSet(config.graphicsDriverConfig).apply {
@@ -238,6 +239,7 @@ fun GeneralTabContent(
 
                         val defaultGlibcWine = glibcWineEntries.firstOrNull() ?: Container.DEFAULT_WINE_VERSION
                         state.config.value = config.copy(
+                            gameRuntime = "wine",
                             containerVariant = newVariant,
                             wineVersion = defaultGlibcWine,
                             graphicsDriver = defaultDriver,
@@ -282,6 +284,7 @@ fun GeneralTabContent(
                         state.config.value = config.copy(dxwrapperConfig = currentConfig.toString())
 
                         state.config.value = config.copy(
+                            gameRuntime = "wine",
                             containerVariant = newVariant,
                             wineVersion = newWine,
                             graphicsDriver = defaultBionicDriver,
@@ -387,6 +390,17 @@ fun GeneralTabContent(
             state = config.portraitMode,
             onCheckedChange = { state.config.value = config.copy(portraitMode = it) },
         )
+        if (!state.isAndroidPlatform && config.gameRuntime != "html5") {
+            SettingsSwitch(
+                colors = settingsTileColors(),
+                title = { Text(stringResource(R.string.touchscreen_mode)) },
+                subtitle = { Text(stringResource(R.string.direct_game_touch_summary)) },
+                state = config.touchscreenMode && !config.disableMouseInput,
+                onCheckedChange = { enabled ->
+                    state.config.value = config.copy(touchscreenMode = enabled, disableMouseInput = false)
+                },
+            )
+        }
         // Sync audioDriverIndex when config.audioDriver changes (e.g., when wine version changes)
         LaunchedEffect(config.audioDriver) {
             val driverIndex = state.audioDrivers.indexOfFirst {

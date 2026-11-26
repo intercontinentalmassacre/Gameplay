@@ -999,6 +999,7 @@
     <string name="show_controller_debug_menu">Show Controller Debug Menu</string>
     <string name="show_controller_debug_menu_subtitle">Show the live P1-P4 controller slot panel in the in-game quick menu</string>
     <string name="disable_mouse_input">Disable Mouse Input</string>
+    <string name="direct_game_touch_summary">Tap the game screen to click at that position. Turn off to use it as a trackpad.</string>
     <string name="touchscreen_mode">Touchscreen Mode</string>
     <string name="shooter_mode_toggle">Shooter Mode</string>
     <string name="shooter_mode_toggle_description">Auto-replace stick elements with dynamic joysticks</string>
@@ -2897,4 +2898,20 @@
     <string name="itch_role_soundtrack">Soundtrack</string>
     <string name="itch_role_art">Art</string>
     <string name="itch_role_other">Other file</string>
+    <string name="option_play_html5">Launch in HTML5 player</string>
+    <string name="html5_entry_missing">The HTML5 game entry index.html is missing.</string>
+    <string name="itch_free_store">itch.io Store</string>
+    <string name="itch_free_store_subtitle">Free games</string>
+    <string name="itch_no_store_build">No installable build is available for this game.</string>
+    <string name="itch_store_build">Choose a build</string>
+    <string name="itch_store_search">Search free games</string>
+    <string name="itch_store_search_empty">No free games found</string>
+    <string name="itch_store_search_login">Sign in to itch.io to search</string>
+    <string name="itch_store_retry">Try again</string>
+    <string name="itch_sort_popular">Popular</string>
+    <string name="itch_sort_rated">Top rated</string>
+    <string name="itch_owned">My games</string>
+    <string name="itch_owned_badge">In your library</string>
+    <string name="itch_owned_empty">No games from this account yet</string>
+    <string name="itch_owned_search">Search my games</string>
 </resources>

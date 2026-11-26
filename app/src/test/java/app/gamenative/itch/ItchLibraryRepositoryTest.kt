@@ -91,16 +91,16 @@ class ItchLibraryRepositoryTest {
         server.shutdown()
     }
 
-    private fun gameJson(id: Long, title: String) =
+    private fun gameJson(id: Long, title: String, classification: String = "game") =
         """{"id":$id,"game_id":$id,"created_at":"2024-01-01T00:00:00Z",
-            "game":{"id":$id,"title":"$title","url":"https://dev.itch.io/$id",
+            "game":{"id":$id,"classification":"$classification","title":"$title","url":"https://dev.itch.io/$id",
             "cover_url":"https://img.itch.zone/$id.jpg",
             "user":{"username":"dev","display_name":"Dev"}}}"""
 
     private fun installDispatcher() {
         server.dispatcher = object : Dispatcher() {
             override fun dispatch(request: RecordedRequest): MockResponse {
-                val path = request.path.orEmpty()
+                val path = request.requestUrl?.encodedPath.orEmpty()
                 return when {
                     path.startsWith("/profile/owned-keys") -> {
                         val page = request.requestUrl?.queryParameter("page")?.toIntOrNull() ?: 1
@@ -145,6 +145,19 @@ class ItchLibraryRepositoryTest {
         assertTrue(refresh.await().exceptionOrNull() is ItchNotAuthenticatedException)
         assertTrue(dao.getAllAsList().isEmpty())
         assertNull(ItchGameCache.get(45))
+    }
+
+    @Test
+    fun `refresh hides previously cached assets and preserves their installation records`() = runBlocking {
+        dao.insertAll(listOf(ItchGame(gameId = 2, title = "Textures", isInstalled = true)))
+        val game = gameJson(1, "Smiling Terror")
+        val asset = gameJson(2, "Textures", "assets")
+        server.enqueue(MockResponse().setBody("""{"owned_keys":[$game,$asset]}"""))
+        server.enqueue(MockResponse().setBody("""{"owned_keys":{}}"""))
+        assertEquals(1, repository.refreshLibrary().getOrThrow().ownedGames)
+        assertEquals(listOf("Smiling Terror"), repository.observeGames().first().map { it.title })
+        assertTrue(repository.installedGames().isEmpty())
+        assertTrue(dao.getByGameId(2)!!.isInstalled)
     }
 
     @Test

@@ -59,11 +59,22 @@ object ItchUploadSelector {
     private val installableExtensions = listOf(".zip", ".exe", ".msi")
     private val nonGameTypes = setOf("soundtrack", "book", "art", "other", "html")
 
+    fun isCartridge(filename: String) =
+        filename.endsWith(".gb", true) || filename.endsWith(".gbc", true)
+
+    fun isCartridgeArchive(filename: String) =
+        filename.endsWith(".gb.zip", true) || filename.endsWith(".gbc.zip", true)
+
+    fun isHtmlArchive(upload: ItchUpload): Boolean =
+        upload.type.equals("html", true) && upload.filename.endsWith(".zip", true)
+
     fun isWindowsBuild(upload: ItchUpload): Boolean {
         val platforms = upload.platforms
         if (platforms.isNotEmpty()) {
             return platforms["windows"] == true
         }
+        if ("p_windows" in upload.traits) return true
+        if (upload.traits.any { it == "p_linux" || it == "p_osx" || it == "p_android" }) return false
         val channel = upload.channelName.lowercase()
         if (channel.startsWith("windows") || channel in setOf("win", "win32", "win64", "windows32", "windows64")) {
             return true
@@ -79,6 +90,7 @@ object ItchUploadSelector {
     fun isInstallableFile(upload: ItchUpload): Boolean {
         val name = upload.filename.lowercase()
         if (name.isBlank()) return false
+        if (isHtmlArchive(upload) || isCartridge(name)) return true
         if (nonGameTypes.contains(upload.type.lowercase())) return false
         return installableExtensions.any(name::endsWith)
     }
@@ -88,7 +100,7 @@ object ItchUploadSelector {
             "soundtrack" -> return ItchUploadRole.SOUNDTRACK
             "book" -> return ItchUploadRole.MANUAL
             "art" -> return ItchUploadRole.ART
-            "html" -> return ItchUploadRole.OTHER
+            "html" -> if (!isHtmlArchive(upload)) return ItchUploadRole.OTHER
         }
         val haystack = "${upload.filename} ${upload.displayName} ${upload.channelName}".lowercase()
         return when {
@@ -103,7 +115,7 @@ object ItchUploadSelector {
 
     fun candidates(uploads: List<ItchUpload>): List<ItchUploadCandidate> = uploads
         .asSequence()
-        .filter(::isWindowsBuild)
+        .filter { isWindowsBuild(it) || isHtmlArchive(it) || isCartridge(it.filename) || isCartridgeArchive(it.filename) }
         .filter(::isInstallableFile)
         .map(::toCandidate)
         .sortedWith(compareBy({ roleRank(it.role) }, { it.title.lowercase() }))

@@ -873,6 +873,20 @@ fun QuickMenu(
                                                 .focusGroup(),
                                             verticalArrangement = Arrangement.spacedBy(4.dp),
                                         ) {
+                                            if (fullScreen) {
+                                                var touchpadHaptics by remember { mutableStateOf(PrefManager.touchpadMotionHaptics) }
+                                                QuickMenuToggleRow(
+                                                    title = stringResource(R.string.settings_touchpad_scroll_haptics),
+                                                    subtitle = stringResource(R.string.settings_touchpad_scroll_haptics_summary),
+                                                    enabled = touchpadHaptics,
+                                                    onToggle = {
+                                                        touchpadHaptics = !touchpadHaptics
+                                                        PrefManager.touchpadMotionHaptics = touchpadHaptics
+                                                    },
+                                                    accentColor = MaterialTheme.colorScheme.primary,
+                                                    focusRequester = controllerItemFocusRequester,
+                                                )
+                                            }
                                             controllerItems.forEachIndexed { index, item ->
                                                 QuickMenuItemRow(
                                                     item = item,
@@ -882,7 +896,7 @@ fun QuickMenu(
                                                             onDismiss()
                                                         }
                                                     },
-                                                    focusRequester = if (index == 0) controllerItemFocusRequester else null,
+                                                    focusRequester = if (index == 0 && !fullScreen) controllerItemFocusRequester else null,
                                                     secondaryIcon = if (item.id == QuickMenuAction.TOUCHSCREEN_MODE && isTouchscreenModeActive)
                                                         Icons.Default.Settings
                                                     else if (item.id == QuickMenuAction.SHOOTER_MODE && isShooterModeActive)

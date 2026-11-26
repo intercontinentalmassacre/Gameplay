@@ -2,6 +2,21 @@
 
 All notable changes to Gameplay are documented here.
 
+## 0.7 — 2026-11-26
+
+### New features
+
+- Browse and search the free itch.io catalog from the system menu. Sort by popularity, newest or top rated, load more results, and switch categories with the shoulder buttons. The companion display previews the selected game.
+- Find owned games in **My games** and on the main **itch.io** library tab. Gameplay refreshes account ownership when you return to the library and filters out assets. A free build with optional donations can be installed directly.
+- Install supported itch.io HTML5 builds, PICO-8 web exports and standalone Game Boy or Game Boy Color cartridges. Launch from the game card and use physical controls or the cartridge player's on-screen buttons.
+- Select direct touch for a Windows game from its container settings. The companion opens on the game card and offers a touchpad with optional vibration.
+
+### Compatibility and fixes
+
+- Bring GameNative Web Audio compatibility and audio decoding fixes to the HTML5 player. Fix duplicate game windows and closing a PICO-8 cart from its close button.
+- Install the ARM64EC FEX library needed by 64-bit Proton when Box64 is selected for 32-bit games. Fix Gamescope launch paths for itch.io installs.
+- Prefetch shared runtime components and update per-game compatibility fixes.
+
 ## 0.6 — 2026-11-26
 
 - Connect itch.io from the sign-in screen or system hub. Its library tab appears after sign-in. Install and update supported Windows ZIP builds and installers; ZIP updates preserve changed player files and save a separate copy when the new build supplies the same path.

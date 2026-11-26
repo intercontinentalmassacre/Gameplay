@@ -26,6 +26,7 @@ class PhysicalControllerHandler(
     private val onShowKeyboard: (() -> Unit)? = null,
     private val onRadialMenuButtonStateChanged: ((Boolean, Boolean) -> Unit)? = null,
     private val onRadialMenuVectorChanged: ((Float, Float) -> Unit)? = null,
+    private val mappedDesktopInput: ((Binding, Boolean, Float) -> Unit)? = null,
 ) {
     companion object {
         private const val SCROLL_REPEAT_INTERVAL_MS = 90L
@@ -428,6 +429,10 @@ class PhysicalControllerHandler(
         sourceController: ExternalController? = null,
     ) {
         if (binding == Binding.NONE) return
+        if (mappedDesktopInput != null && !binding.isGamepad) {
+            mappedDesktopInput.invoke(binding, isActionDown, offset)
+            return
+        }
 
         if (binding == Binding.OPEN_RADIAL_MENU) {
             if (!isActionDown && radialMenuPressed && !isRadialMenuOpenerDevice(sourceDeviceId)) return

@@ -10,6 +10,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 
+internal class StaleItchCallback(message: String) : IllegalStateException(message)
+
 /** The connected itch.io account as persisted on the device. */
 @Serializable
 data class ItchAccount(
@@ -74,27 +76,29 @@ class ItchAuthManager @Inject constructor(
      * Starts a login: generates a PKCE verifier + state, persists them and
      * returns the authorization URL for the system browser.
      */
+    @Synchronized
     fun beginAuthorization(clientId: String = ItchConfig.clientId): Result<ItchAuthorizationRequest> = runCatching {
         check(clientId.isNotBlank()) {
             "itch.io is not configured: set ${ItchConfig.CLIENT_ID_PROPERTY} to the OAuth application client id"
         }
-        val verifier = ItchOAuth.generateVerifier()
-        val state = ItchOAuth.generateState()
-        val pending = PendingAuthorization(
-            state = state,
-            verifier = verifier,
+        val pending = readPendingAuthorization()?.takeIf {
+            it.clientId == clientId && System.currentTimeMillis() - it.createdAtMs in 0..PENDING_TTL_MS
+        } ?: PendingAuthorization(
+            state = ItchOAuth.generateState(),
+            verifier = ItchOAuth.generateVerifier(),
             clientId = clientId,
             redirectUri = ItchConfig.REDIRECT_URI,
             createdAtMs = System.currentTimeMillis(),
-        )
-        writeEncrypted(pendingFile, ItchJson.encodeToString(PendingAuthorization.serializer(), pending))
+        ).also {
+            writeEncrypted(pendingFile, ItchJson.encodeToString(PendingAuthorization.serializer(), it))
+        }
         val url = api.authorizationUrl(
             clientId = clientId,
             redirectUri = ItchConfig.REDIRECT_URI,
-            state = state,
-            codeChallenge = ItchOAuth.challenge(verifier),
+            state = pending.state,
+            codeChallenge = ItchOAuth.challenge(pending.verifier),
         )
-        ItchAuthorizationRequest(url = url, state = state)
+        ItchAuthorizationRequest(url = url, state = pending.state)
     }
 
     /**
@@ -111,7 +115,7 @@ class ItchAuthManager @Inject constructor(
         val pending = readPendingAuthorization()
         if (pending == null) {
             return@withContext Result.failure(
-                IllegalStateException("No itch.io sign-in is in progress. Start again from the account menu."),
+                StaleItchCallback("No pending itch.io sign-in"),
             )
         }
         if (System.currentTimeMillis() - pending.createdAtMs > PENDING_TTL_MS) {
@@ -122,9 +126,8 @@ class ItchAuthManager @Inject constructor(
         }
         if (!ItchOAuth.stateMatches(pending.state, redirect.state)) {
             // A mismatched state means the redirect cannot be trusted. Drop it.
-            clearPending()
             return@withContext Result.failure(
-                IllegalStateException("itch.io sign-in was rejected: the OAuth state did not match."),
+                StaleItchCallback("itch.io sign-in was rejected: the OAuth state did not match."),
             )
         }
         if (!redirect.error.isNullOrBlank()) {

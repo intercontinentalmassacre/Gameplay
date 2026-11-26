@@ -61,6 +61,10 @@
          android:windowSoftInputMode must always be in the activity block.
          IME padding with composables like 'Scaffold' will have terrible resizing consequences, if in the activity tag.
         -->
+        <activity android:name="app.gamenative.itch.ItchStoreActivity" android:exported="false" />
+        <activity android:name="app.gamenative.html5.host.Html5GameActivity"
+            android:exported="false" android:configChanges="orientation|screenSize|keyboardHidden"
+            android:theme="@android:style/Theme.Material.NoActionBar.Fullscreen" />
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -126,6 +130,8 @@
         -->
         <activity
             android:name=".ui.screen.auth.ItchOAuthRedirectActivity"
+            android:enabled="false"
+            android:taskAffinity="${applicationId}.itch.oauth"
             android:excludeFromRecents="true"
             android:exported="true"
             android:launchMode="singleTask"
@@ -139,7 +145,7 @@
 
                 <data
                     android:host="itch-oauth"
-                    android:pathPrefix="/callback"
+                    android:path="/callback"
                     android:scheme="gameplay" />
             </intent-filter>
         </activity>

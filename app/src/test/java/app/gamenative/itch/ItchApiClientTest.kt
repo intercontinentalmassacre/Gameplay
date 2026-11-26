@@ -89,6 +89,14 @@ class ItchApiClientTest {
     }
 
     @Test
+    fun `empty object on the final page preserves previously fetched keys`() = runBlocking {
+        server.enqueue(MockResponse().setBody("""{"page":1,"owned_keys":[${ownedKey(7, "seven")}]}"""))
+        server.enqueue(MockResponse().setBody("""{"page":2,"owned_keys":{}}"""))
+        val keys = client.fetchAllOwnedKeys("token", maxPages = 2)
+        assertEquals(listOf(7L), keys.map { it.gameId })
+    }
+
+    @Test
     fun `owned keys pagination is bounded`() = runBlocking {
         dispatcher { request ->
             val page = request.requestUrl!!.queryParameter("page")!!.toInt()
@@ -123,6 +131,19 @@ class ItchApiClientTest {
         } catch (error: ItchApiException) {
             assertEquals(ItchApiException.Kind.FORBIDDEN, error.kind)
         }
+    }
+
+    @Test
+    fun `owned download key is sent to itch for both list and download`() = runBlocking {
+        server.enqueue(MockResponse().setBody("""{"owned_keys":[{"id":12,"game_id":42}]}"""))
+        server.enqueue(MockResponse().setBody("""{"uploads":{}}"""))
+        server.enqueue(MockResponse().setResponseCode(302).setHeader("Location", "https://cdn.example/game.zip"))
+
+        val key = client.fetchOwnedKeys("token", page = 1, gameId = 42).ownedKeys.single()
+        assertTrue(client.fetchUploads("token", 42, key.id).isEmpty())
+        assertEquals("https://cdn.example/game.zip", client.requestDownloadUrl("token", 77, key.id))
+        assertEquals("42", server.takeRequest().requestUrl!!.queryParameter("game_ids"))
+        repeat(2) { assertEquals("12", server.takeRequest().requestUrl!!.queryParameter("download_key_id")) }
     }
 
     @Test

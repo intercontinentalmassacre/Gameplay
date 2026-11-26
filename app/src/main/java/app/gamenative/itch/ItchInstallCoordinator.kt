@@ -96,6 +96,9 @@ class ItchInstallCoordinator @Inject constructor(
     fun repointContainer(gameId: Long, meta: ItchVersionMeta) {
         val container = ContainerUtils.getOrCreateContainer(context, appIdOf(gameId))
         val target = driveCRelativeTarget(gameId, meta)
+        if (meta.launchTarget == "index.html" || meta.launchTarget == "www/index.html") {
+            container.putExtra("gameRuntime", "html5")
+        }
         container.executablePath = target
         container.putExtra(LocalContainerLaunch.EXTRA_MODE, LocalContainerLaunch.MODE_INSTALLED_EXE_C)
         container.putExtra(LocalContainerLaunch.EXTRA_TARGET, target)
@@ -172,8 +175,28 @@ class ItchInstallCoordinator @Inject constructor(
         try {
             ItchInstaller.recover(layout) { meta -> repointContainer(gameId, meta) }
 
-            val gameRoot = ItchInstaller.extractArchive(archive, staging)
-            val spec = when (val resolution = ItchInstaller.resolveLaunch(gameRoot)) {
+            val cartridge = ItchUploadSelector.isCartridge(upload.filename)
+            val gameRoot = if (cartridge) staging else ItchInstaller.extractArchive(archive, staging)
+            val spec = if (cartridge || ItchUploadSelector.isCartridgeArchive(upload.filename)) {
+                val rom = if (cartridge) archive else gameRoot.walkTopDown()
+                    .filter { it.isFile && ItchUploadSelector.isCartridge(it.name) }.singleOrNull()
+                    ?: throw IOException("Expected one Game Boy cartridge in the archive")
+                // Always create the player in a clean directory so archive entries cannot shadow its scripts.
+                val player = if (cartridge) staging else File(staging, ".gameplay-player")
+                if (player.exists() || !player.mkdirs()) throw IOException("Could not create the cartridge player directory")
+                if (rom.length() !in 0x150L..(8L * 1024 * 1024)) throw IOException("Invalid Game Boy cartridge size")
+                rom.copyTo(File(player, "cartridge.gb"))
+                for (name in context.assets.list("html5/binjgb").orEmpty()) {
+                    context.assets.open("html5/binjgb/$name").use { input ->
+                        File(player, name).outputStream().use { output -> input.copyTo(output) }
+                    }
+                }
+                ItchLaunchSpec(target = "index.html")
+            } else if (ItchUploadSelector.isHtmlArchive(upload)) {
+                val entry = listOf("index.html", "www/index.html").firstOrNull { File(gameRoot, it).isFile }
+                    ?: throw IOException("Missing HTML5 entry index.html")
+                ItchLaunchSpec(target = entry)
+            } else when (val resolution = ItchInstaller.resolveLaunch(gameRoot)) {
                 is ItchLaunchResolution.Selected -> resolution.spec
                 is ItchLaunchResolution.NeedsSelection -> {
                     // Several executables and no manifest: pick the highest-ranked one
@@ -186,7 +209,7 @@ class ItchInstallCoordinator @Inject constructor(
             }
 
             val meta = ItchInstaller.commitVersion(
-                gameRoot = gameRoot,
+                gameRoot = if (ItchUploadSelector.isCartridgeArchive(upload.filename)) File(staging, ".gameplay-player") else gameRoot,
                 layout = layout,
                 meta = ItchVersionMeta(
                     versionId = versionId,

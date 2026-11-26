@@ -74,6 +74,7 @@ import app.gamenative.NetworkMonitor
 import app.gamenative.PluviaApp
 import app.gamenative.PrefManager
 import app.gamenative.R
+import app.gamenative.gamefixes.configureWowForeverDxvk
 import app.gamenative.data.GameSource
 import app.gamenative.enums.LoginResult
 import app.gamenative.enums.PathType
@@ -2079,6 +2080,16 @@ fun preLaunchApp(
             return@launch
         }
 
+        if (!bootToContainer && container.getExtra("gameRuntime") == "html5") {
+            val root = app.gamenative.html5.host.Html5GameActivity.installedRoot(appId)
+            withContext(Dispatchers.Main) {
+                setLoadingDialogVisible(false)
+                if (root != null) app.gamenative.html5.host.Html5GameActivity.launch(context, appId, root)
+                else showSetupError(IllegalStateException(context.getString(R.string.html5_entry_missing)))
+            }
+            return@launch
+        }
+
         if (!bootToContainer && AppImageRuntime.selected(appId, container)) {
             try {
                 setLoadingMessage(context.getString(R.string.main_installing_glibc))
@@ -2135,6 +2146,20 @@ fun preLaunchApp(
                 else -> ""
             }
             if (effectiveExe.isBlank()) {
+                val folder = when (gameSource) {
+                    GameSource.CUSTOM_GAME -> CustomGameScanner.getFolderPathFromAppId(appId)
+                    GameSource.ITCH -> app.gamenative.itch.ItchGameCache.get(gameId.toLong())?.installRoot
+                    else -> null
+                }?.takeIf { it.isNotBlank() }?.let(::File)
+                val htmlRoot = folder?.let { app.gamenative.html5.host.Html5GameActivity.entryRoot(it) }
+                if (container.getExtra("gameRuntime") != "wine" && folder != null && htmlRoot != null && container.executablePath.isNullOrBlank() &&
+                    CustomGameScanner.findAllValidExeFiles(folder).isEmpty()) {
+                    withContext(Dispatchers.Main) {
+                        setLoadingDialogVisible(false)
+                        app.gamenative.html5.host.Html5GameActivity.launch(context, appId, htmlRoot)
+                    }
+                    return@launch
+                }
                 Timber.tag("preLaunchApp").w("Cannot launch $appId: no executable found (game source: $gameSource)")
                 setLoadingDialogVisible(false)
                 setMessageDialogState(
@@ -2148,6 +2173,14 @@ fun preLaunchApp(
                     ),
                 )
                 return@launch
+            }
+            if (gameSource == GameSource.CUSTOM_GAME) {
+                try {
+                    configureWowForeverDxvk(effectiveExe, container)
+                } catch (e: Exception) {
+                    showSetupError(e)
+                    return@launch
+                }
             }
         }
 

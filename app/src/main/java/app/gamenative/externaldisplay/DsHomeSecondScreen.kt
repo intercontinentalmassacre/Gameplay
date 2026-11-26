@@ -396,6 +396,10 @@ object DsHomeSecondScreen {
         updateActiveModel()
     }
 
+    fun clearIfCurrent(model: Model) {
+        if (models[model.owner] === model) clear(model.owner)
+    }
+
     fun clearAll() {
         models.clear()
         model = null
@@ -2157,7 +2161,7 @@ private fun SecondScreenGamePanel(
                 selected = model.mode == DsHomeSecondScreen.Mode.GAME_DASHBOARD,
                 onClick = model.onShowDashboard,
             )
-            InGamePanelTab(
+            if (model.menuContent != null) InGamePanelTab(
                 text = stringResource(app.gamenative.R.string.quick_menu_title),
                 selected = showMenu,
                 onClick = model.onShowMenu,

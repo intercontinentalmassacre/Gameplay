@@ -58,8 +58,8 @@ android {
         buildConfigField("boolean", "XR_BUILD", "false")
         buildConfigField("boolean", "MODERN_XR", "false")
 
-        versionCode = 28
-        versionName = "0.6"
+        versionCode = 29
+        versionName = "0.7"
 
         buildConfigField("boolean", "GOLD", "false")
         fun secret(name: String) =
@@ -334,6 +334,7 @@ dependencies {
 
     // Chrome Custom Tabs for GOG OAuth
     implementation("androidx.browser:browser:1.8.0")
+    implementation("androidx.webkit:webkit:1.12.1")
     implementation("androidx.documentfile:documentfile:1.0.1")
 
     // JavaSteam

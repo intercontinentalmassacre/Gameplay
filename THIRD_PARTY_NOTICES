@@ -4,6 +4,10 @@ This file contains notices for third-party assets and libraries used in this pro
 
 ---
 
+## Game Boy player
+
+The cartridge player bundles [binjgb](https://github.com/binji/binjgb/tree/6c04827f63d272f32afd86138a8e7262b3800344) and adapts its web frontend for local itch.io cartridges and Android controllers. The accompanying MIT notices for binjgb and the GB Studio frontend are included in `app/src/main/assets/html5/binjgb/LICENSE` and `LICENSE.gbstudio` in that directory.
+
 ## Scope and Completeness
 
 This list is **not exhaustive**. GameNative builds on the broader open-source

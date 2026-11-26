@@ -134,6 +134,12 @@
       "variant": "bionic"
     },
     {
+      "id": "2.4.1-wowfix-1",
+      "name": "DXVK 2.4.1 wowfix (ARM64 only)",
+      "url": "https://downloads.gamenative.app/dxwrapper/dxvk-2.4.1-wowfix.wcp",
+      "variant": "bionic"
+    },
+    {
       "id": "2.4.1-0",
       "name": "DXVK 2.4.1",
       "url": "https://github.com/The412Banner/Nightlies/releases/download/Dxvk/dxvk-2.4.1.wcp",

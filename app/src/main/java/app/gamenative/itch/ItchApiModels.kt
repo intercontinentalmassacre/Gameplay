@@ -1,8 +1,15 @@
 package app.gamenative.itch
 
 import kotlinx.serialization.SerialName
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.builtins.serializer
+import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonTransformingSerializer
 
 /** Shared, tolerant JSON configuration for every itch.io API payload. */
 internal val ItchJson: Json = Json {
@@ -34,7 +41,7 @@ data class ItchGameSummary(
     @SerialName("cover_url") val coverUrl: String = "",
     val classification: String = "",
     val type: String = "",
-    val traits: List<String> = emptyList(),
+    @Serializable(with = TraitsSerializer::class) val traits: List<String> = emptyList(),
     val user: ItchUser? = null,
     @SerialName("min_price") val minPrice: Long = 0,
 )
@@ -49,10 +56,38 @@ data class ItchOwnedKey(
     val game: ItchGameSummary? = null,
 )
 
+// itch.io can encode the terminal page's empty list as an empty JSON object.
+private open class ItchListSerializer<T>(item: KSerializer<T>) : JsonTransformingSerializer<List<T>>(ListSerializer(item)) {
+    override fun transformDeserialize(element: JsonElement): JsonElement =
+        if (element is JsonObject && element.isEmpty()) JsonArray(emptyList()) else element
+}
+
+private object TraitsSerializer : ItchListSerializer<String>(String.serializer())
+private object OwnedKeysSerializer : ItchListSerializer<ItchOwnedKey>(ItchOwnedKey.serializer())
+private object SearchGamesSerializer : ItchListSerializer<ItchSearchGame>(ItchSearchGame.serializer())
+
+@Serializable
+internal data class ItchSearchPage(
+    @Serializable(with = SearchGamesSerializer::class) val games: List<ItchSearchGame>,
+)
+
+@OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
+@Serializable
+internal data class ItchSearchGame(
+    val title: String,
+    val url: String,
+    val classification: String = "",
+    @kotlinx.serialization.json.JsonNames("min_price") val minPrice: Long = 0,
+    @kotlinx.serialization.json.JsonNames("cover_url") val coverUrl: String = "",
+)
+
+private object UploadsSerializer : ItchListSerializer<ItchUpload>(ItchUpload.serializer())
+
 @Serializable
 data class ItchOwnedKeysPage(
     val page: Int = 1,
     @SerialName("per_page") val perPage: Int = 0,
+    @Serializable(with = OwnedKeysSerializer::class)
     @SerialName("owned_keys") val ownedKeys: List<ItchOwnedKey> = emptyList(),
 ) {
     val isEmpty: Boolean get() = ownedKeys.isEmpty()
@@ -81,7 +116,7 @@ data class ItchUpload(
     val type: String = "",
     @SerialName("channel_name") val channelName: String = "",
     val platforms: Map<String, Boolean> = emptyMap(),
-    val traits: List<String> = emptyList(),
+    @Serializable(with = TraitsSerializer::class) val traits: List<String> = emptyList(),
     @SerialName("created_at") val createdAt: String = "",
     @SerialName("updated_at") val updatedAt: String = "",
     val build: ItchBuild? = null,
@@ -92,7 +127,7 @@ data class ItchUpload(
 }
 
 @Serializable
-data class ItchUploadsResponse(val uploads: List<ItchUpload> = emptyList())
+data class ItchUploadsResponse(@Serializable(with = UploadsSerializer::class) val uploads: List<ItchUpload> = emptyList())
 
 /** Response of `GET /uploads/:upload_id/download`: a short-lived CDN URL. */
 @Serializable

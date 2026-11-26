@@ -2,11 +2,20 @@
 
 **Play your PC games on Android.**
 
-Turn your Android phone or handheld into a console for the games you already own. Browse Steam, GOG, Epic Games Store and Amazon Games alongside your local Windows installs, then launch compatible games directly on the device. Gameplay is free, open source and designed for gamepads and touch.
+Turn your Android phone or handheld into a console for the games you already own. Browse Steam, GOG, Epic Games Store, Amazon Games and itch.io alongside your local Windows installs, then launch compatible games directly on the device. Gameplay is free, open source and designed for gamepads and touch.
 
 [**Download Gameplay for Android**](https://github.com/intercontinentalmassacre/Gameplay/releases/latest/download/Gameplay-modern-release.apk) · [Release notes and checksums](https://github.com/intercontinentalmassacre/Gameplay/releases/latest) · [Report an issue](https://github.com/intercontinentalmassacre/Gameplay/issues)
 
 <img width="834" height="887" alt="{3D316416-197D-442F-A4F2-363EDE8EA080}" src="https://github.com/user-attachments/assets/9dda553b-d0d0-40d0-80a0-05c2506df88f" />
+
+## New in Gameplay 0.7
+
+- **Browse itch.io from your handheld.** Open **System → itch.io Store** to search free games or browse by popularity, release date or rating. Use the shoulder buttons to switch categories and **Load more** to continue. On dual-screen devices the companion shows the selected game's artwork.
+- **Find the games you own.** Sign in to itch.io and open the **itch.io** library tab. Gameplay syncs your games, including uninstalled titles, when you return to the library. **My games** in the store shows the same account collection and excludes asset packs.
+- **Play browser games and Game Boy cartridges.** Install supported HTML5 builds and Game Boy or Game Boy Color cartridges, then launch them with **Play** on the game card. PICO-8 and the bundled Game Boy player support physical controls. The cartridge player also offers an on-screen D-pad, A, B, Start and Select when playing by touch.
+- **Choose how you touch a Windows game.** Enable **Touchscreen Mode** in the container settings or the in-game controller menu to click at the point you touch. On dual-screen handhelds, open the companion touchpad when you need it.
+
+The HTML5 integration includes patches from [GameNative](https://github.com/utkarshdalal/GameNative). The local cartridge player uses [binjgb](https://github.com/binji/binjgb).
 
 ## Bring your library with you
 
@@ -37,7 +46,7 @@ See the [changelog](CHANGELOG.md) for device results and the full list of change
 2. Connect a storefront, or open **Add game** and select **Import EXE or AppImage** for a local executable. Use the installer option for an EXE or MSI setup package.
 3. Install or launch the game from your library. Allow extra storage for game files and the shared runtime downloaded during setup.
 
-Games run on your device through Windows compatibility tools. Use your own game files and accounts. Compatibility varies by game, Android version, GPU and driver. Vulkan-capable hardware is recommended for modern DirectX titles. Anti-cheat, kernel drivers and some DRM can prevent games from running. ISO and DOS titles need a separate workflow.
+Games run on your device through Windows compatibility tools. Use your own game files and accounts. Compatibility varies by game, Android version, GPU and driver. Vulkan-capable hardware is recommended for modern DirectX titles. Anti-cheat, kernel drivers and some DRM can prevent games from running. The local importer also supports ISO9660 images containing a Windows installer or portable executable. Standalone DOS titles need a separate workflow.
 
 See [per-game compatibility notes](docs/game-compatibility.md) for specific fixes and optional graphics settings.
 
@@ -94,7 +103,7 @@ Gameplay checks the latest non-prerelease GitHub Release for `intercontinentalma
 
 The APK is verified for package name, newer version code, size, and SHA-256 before Android's package installer is opened. The release workflow is [`.github/workflows/release.yml`](.github/workflows/release.yml). Production releases must use the same signing key as the installed `app.gameplay` package; losing that key makes in-place updates impossible.
 
-Push the version tag (for example, `v0.5`) on a commit from `working-builds` to build the signed APK. On Windows, use `v` followed by `versionName`. For 0.5, run `powershell -ExecutionPolicy Bypass -File .\scripts\release-preflight.ps1 -Tag v0.5` locally before publishing. It requires local `app/keystores/keystore.properties`, which must never be committed.
+Push the version tag (for example, `v0.7`) on a commit from `working-builds` to build the signed APK. On Windows, use `v` followed by `versionName`. For 0.7, run `powershell -ExecutionPolicy Bypass -File .\scripts\release-preflight.ps1 -Tag v0.7` locally before publishing. It requires local `app/keystores/keystore.properties`, which must never be committed.
 
 ### Optional artwork integration
 

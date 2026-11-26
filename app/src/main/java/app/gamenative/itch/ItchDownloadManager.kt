@@ -190,7 +190,7 @@ class ItchDownloadManager @Inject constructor(
                     },
                 ) {
                     ItchDownloadSource(
-                        url = api.requestDownloadUrl(token, upload.id),
+                        url = api.requestDownloadUrl(token, upload.id, selection.downloadKeyId),
                         uploadId = upload.id,
                     )
                 }
@@ -198,7 +198,7 @@ class ItchDownloadManager @Inject constructor(
                     "itch.io download finished: game=$gameId upload=${upload.id} " +
                         "bytes=${result.bytes} resumedFrom=${result.resumedFrom}",
                 )
-                val installResult = if (isArchive(upload)) {
+                val installResult = if (isArchive(upload) || ItchUploadSelector.isCartridge(upload.filename)) {
                     coordinator.installZip(gameId, upload, archive)
                 } else {
                     coordinator.prepareInstaller(game, upload, archive)
@@ -272,7 +272,7 @@ class ItchDownloadManager @Inject constructor(
     private fun extensionFor(upload: ItchUpload): String {
         val extension = upload.filename.substringAfterLast('.', "").lowercase()
         return when (extension) {
-            "zip", "exe", "msi" -> ".$extension"
+            "gb", "gbc", "zip", "exe", "msi" -> ".$extension"
             else -> ".zip"
         }
     }
