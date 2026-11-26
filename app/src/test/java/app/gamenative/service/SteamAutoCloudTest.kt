@@ -16,6 +16,7 @@ import app.gamenative.enums.OS
 import app.gamenative.enums.PathType
 import app.gamenative.enums.ReleaseState
 import app.gamenative.enums.SaveLocation
+import app.gamenative.utils.CloudSaveBackupManager
 import app.gamenative.utils.Net
 import app.gamenative.service.DownloadService
 import app.gamenative.service.SteamService
@@ -62,6 +63,7 @@ import java.lang.reflect.Field
 import java.nio.file.Path
 import java.util.EnumSet
 import java.util.concurrent.CompletableFuture
+import java.util.zip.ZipFile
 
 @RunWith(RobolectricTestRunner::class)
 class SteamAutoCloudTest {
@@ -186,6 +188,7 @@ class SteamAutoCloudTest {
 
         // Mock SteamService
         mockSteamService = mock<SteamService>()
+        whenever(mockSteamService.filesDir).thenReturn(tempDir)
         whenever(mockSteamService.appDao).thenReturn(db.steamAppDao())
         whenever(mockSteamService.fileChangeListsDao).thenReturn(db.appFileChangeListsDao())
         whenever(mockSteamService.changeNumbersDao).thenReturn(db.appChangeNumbersDao())
@@ -2507,7 +2510,7 @@ class SteamAutoCloudTest {
     // ── Scenario 5: User didn't play locally, but another device uploaded new saves ──
     // No local changes to lose — safe to download.
     @Test
-    fun synced_noLocalChanges_cloudAdvanced_downloads() = runBlocking {
+    fun synced_noLocalChanges_cloudAdvanced_backsUpBeforeDownloading() = runBlocking {
         val localCn = 5L
         cacheCurrentLocalFiles(localCn)
 
@@ -2578,6 +2581,22 @@ class SteamAutoCloudTest {
             result!!.syncResult,
         )
         assertTrue("Should have downloaded files", result.filesDownloaded > 0)
+        assertArrayEquals(cloudContent, File(saveFilesDir, "SaveData_0.sav").readBytes())
+        assertFalse(File(saveFilesDir, "SaveData_1.sav").exists())
+
+        val backup = CloudSaveBackupManager.listBackups(
+            mockSteamService,
+            CloudSaveBackupManager.PROVIDER_STEAM,
+            steamAppId.toString(),
+        ).single()
+        assertEquals(CloudSaveBackupManager.Kind.PRE_SYNC, backup.kind)
+        ZipFile(backup.file).use { zip ->
+            val savedFiles = zip.entries().toList().associate { entry ->
+                entry.name.substringAfterLast('/') to zip.getInputStream(entry).bufferedReader().use { it.readText() }
+            }
+            assertEquals("savedata0 content", savedFiles["SaveData_0.sav"])
+            assertEquals("savedata1 content", savedFiles["SaveData_1.sav"])
+        }
     }
 
     // ── Scenario 6: Nothing changed anywhere — no sync needed ──

@@ -29,7 +29,6 @@ import `in`.dragonbra.javasteam.steam.handlers.steamcloud.AppFileInfo
 import `in`.dragonbra.javasteam.steam.handlers.steamcloud.SteamCloud
 import `in`.dragonbra.javasteam.types.KeyValue
 import java.io.BufferedInputStream
-import java.io.File
 import java.io.InputStream
 import java.io.RandomAccessFile
 import java.security.DigestOutputStream
@@ -852,12 +851,30 @@ object SteamAutoCloud {
                 localAppChangeNumber
             }
 
+            val saveBackupSession = CloudSaveBackupManager.session(
+                context = steamInstance,
+                provider = CloudSaveBackupManager.PROVIDER_STEAM,
+                gameId = appInfo.id.toString(),
+            ) {
+                // Steam patterns also scan shared folders like Documents. Archive only the saves
+                // discovered by the sync so a restore never replaces unrelated files there.
+                allLocalUserFiles
+                    .map { it.getAbsPath(prefixToPath).toAbsolutePath().normalize() }
+                    .distinct()
+                    .groupBy { it.parent }
+                    .entries.sortedBy { it.key.toString() }
+                    .mapIndexed { index, (dir, files) ->
+                        CloudSaveBackupManager.BackupRoot("root-$index", dir.toFile(), files.map { it.toFile() })
+                    }
+            }
+
             val downloadUserFiles: (CoroutineScope) -> Deferred<PostSyncInfo?> = { parentScope ->
                 parentScope.async {
                     Timber.i("Downloading cloud user files")
 
                     if (appFileListChange.isOnlyDelta) return@async PostSyncInfo(SyncResult.DownloadFail)
 
+                    saveBackupSession.ensure()
                     microsecDownloadFiles = measureTime {
                         val downloadInfo = downloadFiles(appFileListChange.files, appFileListChange, parentScope).await()
                         filesDownloaded = downloadInfo.filesDownloaded
@@ -993,6 +1010,7 @@ object SteamAutoCloud {
                         0
                     } else {
                         Timber.i("Reconcile: downloading ${neverSynced.size} never-synced cloud file(s) for ${appInfo.id}")
+                        saveBackupSession.ensure()
                         val downloadInfo = downloadFiles(neverSynced, appFileListChange, parentScope).await()
                         filesDownloaded += downloadInfo.filesDownloaded
                         bytesDownloaded += downloadInfo.bytesDownloaded
