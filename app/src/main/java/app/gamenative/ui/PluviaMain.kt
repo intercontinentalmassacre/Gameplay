@@ -126,6 +126,7 @@ import app.gamenative.ui.util.SnackbarManager
 import app.gamenative.utils.BestConfigService
 import app.gamenative.utils.ContainerUtils
 import app.gamenative.localgames.AppImageRuntime
+import app.gamenative.localgames.LocalContainerLaunch
 import app.gamenative.utils.PlatformAuthUtils
 import app.gamenative.utils.PlatformOAuthHandlers
 import app.gamenative.utils.rememberHasExternalDisplay
@@ -243,6 +244,28 @@ private fun resolveGameAppId(context: Context, appId: String): GameResolutionRes
         GameSource.CUSTOM_GAME -> {
             CustomGameScanner.isGameInstalled(gameId)
         }
+
+        GameSource.ITCH -> {
+            val container = runCatching { ContainerUtils.getContainer(context, appId) }.getOrNull()
+            if (container == null) {
+                false
+            } else if (
+                container.getExtra(LocalContainerLaunch.EXTRA_MODE) ==
+                LocalContainerLaunch.MODE_INSTALLED_EXE_C
+            ) {
+                val target = container.getExtra(LocalContainerLaunch.EXTRA_TARGET).trimStart('\\', '/')
+                target.isNotBlank() &&
+                    java.io.File(container.rootDir, ".wine/drive_c/$target").isFile
+            } else {
+                // A prepared installer session is launchable even before the game is installed.
+                container.getExtra(LocalContainerLaunch.EXTRA_MODE) ==
+                    LocalContainerLaunch.MODE_INSTALLER_EXE_A ||
+                    container.getExtra(LocalContainerLaunch.EXTRA_MODE) ==
+                    LocalContainerLaunch.MODE_INSTALLER_MSI_A
+            }
+        }
+
+        else -> ContainerUtils.hasContainer(context, appId)
     }
 
     if (!isInstalled) {
@@ -253,7 +276,7 @@ private fun resolveGameAppId(context: Context, appId: String): GameResolutionRes
     }
 
     val isSteamInstalled = gameSource == GameSource.STEAM && isInstalled
-    val isCustomGame = gameSource == GameSource.CUSTOM_GAME
+    val isCustomGame = gameSource == GameSource.CUSTOM_GAME || gameSource == GameSource.ITCH
 
     return GameResolutionResult.Success(
         finalAppId = appId,
@@ -2112,6 +2135,8 @@ fun preLaunchApp(
                 GameSource.EPIC -> EpicService.getLaunchExecutable(appId)
                 GameSource.CUSTOM_GAME -> CustomGameScanner.getLaunchExecutable(container)
                 GameSource.AMAZON -> AmazonService.getLaunchExecutable(appId)
+                GameSource.ITCH -> CustomGameScanner.getLaunchExecutable(container)
+                else -> ""
             }
             if (effectiveExe.isBlank()) {
                 Timber.tag("preLaunchApp").w("Cannot launch $appId: no executable found (game source: $gameSource)")
@@ -2154,7 +2179,7 @@ fun preLaunchApp(
 
         // Check if this is a Custom Game and validate executable selection before installing components
         // Skip the check if booting to container (Open Container menu option)
-        val isCustomGame = gameSource == GameSource.CUSTOM_GAME
+        val isCustomGame = gameSource == GameSource.CUSTOM_GAME || gameSource == GameSource.ITCH
 
         // set up Ubuntu file system — download required files and install
         try {

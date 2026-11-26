@@ -32,6 +32,55 @@ internal val ROOM_MIGRATION_V24_to_V25 = object : Migration(24, 25) {
     }
 }
 
+/**
+ * Adds the itch.io library cache / install metadata table. Account-derived
+ * columns are cleared on sign-out while installed rows stay launchable, so the
+ * table deliberately lives next to the other store caches.
+ */
+internal val ROOM_MIGRATION_V25_to_V26 = object : Migration(25, 26) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `itch_games` (
+                `game_id` INTEGER NOT NULL,
+                `title` TEXT NOT NULL,
+                `url` TEXT NOT NULL,
+                `cover_url` TEXT NOT NULL,
+                `author` TEXT NOT NULL,
+                `author_url` TEXT NOT NULL,
+                `is_owned` INTEGER NOT NULL,
+                `account_id` INTEGER,
+                `is_installed` INTEGER NOT NULL,
+                `install_kind` TEXT NOT NULL,
+                `install_root` TEXT NOT NULL,
+                `launch_target` TEXT NOT NULL,
+                `launch_args` TEXT NOT NULL,
+                `selected_upload_id` INTEGER,
+                `selected_upload_name` TEXT NOT NULL,
+                `installed_upload_id` INTEGER,
+                `installed_upload_name` TEXT NOT NULL,
+                `installed_build_id` INTEGER,
+                `installed_user_version` TEXT,
+                `installed_file_updated_at` TEXT,
+                `installed_file_size` INTEGER NOT NULL,
+                `installed_at_ms` INTEGER NOT NULL,
+                `update_status` TEXT NOT NULL,
+                `update_checked_at_ms` INTEGER NOT NULL,
+                `update_message` TEXT,
+                `size_on_disk` INTEGER NOT NULL,
+                `last_error` TEXT,
+                `added_at_ms` INTEGER NOT NULL,
+                `updated_at_ms` INTEGER NOT NULL,
+                PRIMARY KEY(`game_id`)
+            )
+            """.trimIndent(),
+        )
+        connection.execSQL("CREATE INDEX IF NOT EXISTS `index_itch_games_account_id` ON `itch_games` (`account_id`)")
+        connection.execSQL("CREATE INDEX IF NOT EXISTS `index_itch_games_is_installed` ON `itch_games` (`is_installed`)")
+        connection.execSQL("CREATE INDEX IF NOT EXISTS `index_itch_games_is_owned` ON `itch_games` (`is_owned`)")
+    }
+}
+
 private fun migrateManagedModSourcesToV25(connection: SQLiteConnection) {
     connection.execSQL(
         """

@@ -71,6 +71,13 @@ android {
         }
 
         buildConfigField("String", "STEAMGRIDDB_API_KEY", buildConfigString("STEAMGRIDDB_API_KEY"))
+        // itch.io OAuth application client id. This is the single configuration point for the
+        // itch.io integration: set ITCH_CLIENT_ID (Gradle property, environment variable or
+        // local.properties) to the id of the OAuth app registered at
+        // https://itch.io/user/settings/oauth-apps with the redirect URI
+        //   gameplay://itch-oauth/callback
+        // (see app.gamenative.itch.ItchConfig.REDIRECT_URI).
+        buildConfigField("String", "ITCH_CLIENT_ID", buildConfigString("ITCH_CLIENT_ID"))
         val iconValue = "@mipmap/ic_launcher"
         val iconRoundValue = "@mipmap/ic_launcher_round"
         manifestPlaceholders.putAll(

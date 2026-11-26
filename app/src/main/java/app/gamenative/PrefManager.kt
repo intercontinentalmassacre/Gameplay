@@ -908,7 +908,6 @@ object PrefManager {
     var dualScreenGameUseLogo: Boolean
         get() = getPref(DUAL_SCREEN_GAME_USE_LOGO, false)
         set(value) { setPref(DUAL_SCREEN_GAME_USE_LOGO, value) }
-
     private val TOUCHPAD_SCROLL_HAPTICS = booleanPreferencesKey("touchpad_scroll_haptics")
     var touchpadMotionHaptics: Boolean
         get() = getPref(TOUCHPAD_SCROLL_HAPTICS, false)
@@ -1334,6 +1333,13 @@ object PrefManager {
             setPref(SHOW_AMAZON_IN_LIBRARY, value)
         }
 
+    private val SHOW_ITCH_IN_LIBRARY = booleanPreferencesKey("show_itch_in_library")
+    var showItchInLibrary: Boolean
+        get() = getPref(SHOW_ITCH_IN_LIBRARY, true)
+        set(value) {
+            setPref(SHOW_ITCH_IN_LIBRARY, value)
+        }
+
     // Game counts for skeleton loaders
     private val CUSTOM_GAMES_COUNT = intPreferencesKey("custom_games_count")
     var customGamesCount: Int
@@ -1510,6 +1516,7 @@ object PrefManager {
         GameSource.GOG -> frontendSyncDirGog
         GameSource.AMAZON -> frontendSyncDirAmazon
         GameSource.CUSTOM_GAME -> frontendSyncDirCustom
+        else -> ""
     }
 
     /** Persists [path] as the export directory for [source]. Pass an empty string to clear. */
@@ -1520,6 +1527,7 @@ object PrefManager {
             GameSource.GOG -> frontendSyncDirGog = path
             GameSource.AMAZON -> frontendSyncDirAmazon = path
             GameSource.CUSTOM_GAME -> frontendSyncDirCustom = path
+            else -> Unit
         }
     }
 

@@ -875,7 +875,13 @@ object SteamAutoCloud {
 
                     if (appFileListChange.isOnlyDelta) return@async PostSyncInfo(SyncResult.DownloadFail)
 
-                    saveBackupSession.ensure()
+                    // Snapshot before the first destructive step of this sync: the downloads below
+                    // overwrite local saves and the local-only delete loop afterwards removes them.
+                    // A skipped or failed snapshot is logged and never blocks the sync.
+                    if (!saveBackupSession.ensure()) {
+                        Timber.i("No pre-sync save backup for app ${appInfo.id} (skipped or failed)")
+                    }
+
                     microsecDownloadFiles = measureTime {
                         val downloadInfo = downloadFiles(appFileListChange.files, appFileListChange, parentScope).await()
                         filesDownloaded = downloadInfo.filesDownloaded
