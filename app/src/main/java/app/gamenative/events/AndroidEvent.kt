@@ -30,6 +30,11 @@ interface AndroidEvent<T> : Event<T> {
     data object RecommendationToggleChanged : AndroidEvent<Unit>
     data class GOGAuthCodeReceived(val authCode: String) : AndroidEvent<Unit>
     data class EpicAuthCodeReceived(val authCode: String) : AndroidEvent<Unit>
+    data class ItchAuthStateChanged(
+        val success: Boolean,
+        val message: String?,
+        val signedOut: Boolean = false,
+    ) : AndroidEvent<Unit>
     data object ServiceReady : AndroidEvent<Unit>
     // data class SetAppBarVisibility(val visible: Boolean) : AndroidEvent<Unit>
 }

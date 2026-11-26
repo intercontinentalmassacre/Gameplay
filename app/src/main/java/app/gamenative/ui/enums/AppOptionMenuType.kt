@@ -39,4 +39,8 @@ enum class AppOptionMenuType(@StringRes val title: Int) {
     ManageWorkshop(R.string.option_manage_workshop),
     ManageMods(R.string.option_manage_mods),
     ChangeBranch(R.string.change_branch),
+    ItchCheckForUpdates(R.string.itch_check_updates),
+    ItchChangeExecutable(R.string.itch_change_executable),
+    ItchOpenOnSite(R.string.itch_open_on_site),
+    ItchSignOut(R.string.itch_sign_out),
 }

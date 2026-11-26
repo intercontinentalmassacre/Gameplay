@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -34,6 +35,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.ColorFilter
@@ -42,10 +44,12 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import app.gamenative.R
 import app.gamenative.ui.theme.PluviaTheme
 import app.gamenative.ui.theme.isReduceMotionEnabled
@@ -116,12 +120,12 @@ fun BootingSplash(
         ) {
             if (useHeroBackdrop) {
                 val restrainedArtwork = remember {
-                    ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(0.42f) })
+                    ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(0.28f) })
                 }
                 CoilImage(
                     modifier = Modifier
                         .fillMaxSize()
-                        .alpha(0.62f),
+                        .alpha(0.5f),
                     imageModel = { heroImageUrl },
                     imageOptions = ImageOptions(
                         contentScale = ContentScale.Crop,
@@ -139,9 +143,21 @@ fun BootingSplash(
                     .fillMaxSize()
                     .background(
                         Brush.horizontalGradient(
-                            0f to MaterialTheme.colorScheme.background.copy(alpha = 0.98f),
-                            0.58f to MaterialTheme.colorScheme.background.copy(alpha = 0.82f),
-                            1f to MaterialTheme.colorScheme.background.copy(alpha = 0.46f),
+                            0f to MaterialTheme.colorScheme.background.copy(alpha = 0.97f),
+                            0.6f to MaterialTheme.colorScheme.background.copy(alpha = 0.78f),
+                            1f to MaterialTheme.colorScheme.background.copy(alpha = 0.4f),
+                        ),
+                    ),
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            0f to MaterialTheme.colorScheme.background.copy(alpha = 0.7f),
+                            0.35f to Color.Transparent,
+                            0.7f to Color.Transparent,
+                            1f to MaterialTheme.colorScheme.background.copy(alpha = 0.85f),
                         ),
                     ),
             )
@@ -157,15 +173,24 @@ fun BootingSplash(
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(width = 4.dp, height = 18.dp)
-                            .clip(RoundedCornerShape(1.dp))
+                            .size(8.dp)
+                            .clip(RoundedCornerShape(50))
                             .background(MaterialTheme.colorScheme.primary),
                     )
                     Text(
-                        text = stringResource(R.string.app_name),
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.SemiBold,
+                        text = stringResource(R.string.app_name).uppercase(),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 2.sp,
                         color = MaterialTheme.colorScheme.onBackground,
+                    )
+                    Text(
+                        text = "// LAUNCH",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontFamily = FontFamily.Monospace,
+                        letterSpacing = 1.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
 
@@ -173,40 +198,66 @@ fun BootingSplash(
 
                 Column(
                     modifier = Modifier.widthIn(max = 620.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     Text(
-                        text = text,
-                        style = MaterialTheme.typography.headlineMedium,
+                        text = "> $text",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontFamily = FontFamily.Monospace,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onBackground,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    LaunchProgressBar(
-                        progress = progress,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(3.dp),
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        LaunchProgressBar(
+                            progress = progress,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(2.dp),
+                        )
+                        if (progress >= 0f) {
+                            Text(
+                                text = "${(progress.coerceIn(0f, 1f) * 100).toInt()}%",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontFamily = FontFamily.Monospace,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(28.dp))
 
                 if (tips.isNotEmpty()) {
-                    Crossfade(
-                        targetState = tipIndex,
-                        animationSpec = motionSpec(tween(260, easing = EaseInOutCubic)),
-                        label = "launchTip",
-                    ) { index ->
-                        Text(
-                            text = tips[index],
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.widthIn(max = 760.dp),
+                    Row(
+                        modifier = Modifier
+                            .widthIn(max = 760.dp)
+                            .height(IntrinsicSize.Min),
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .width(3.dp)
+                                .fillMaxHeight()
+                                .background(MaterialTheme.colorScheme.primary),
                         )
+                        Crossfade(
+                            targetState = tipIndex,
+                            animationSpec = motionSpec(tween(260, easing = EaseInOutCubic)),
+                            label = "launchTip",
+                        ) { index ->
+                            Text(
+                                text = tips[index],
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(start = 14.dp, top = 2.dp),
+                            )
+                        }
                     }
                 }
             }

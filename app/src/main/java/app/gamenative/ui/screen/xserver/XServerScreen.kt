@@ -4336,7 +4336,7 @@ private fun setupXEnvironment(
     }
 
     // Request encrypted app ticket for Steam games at launch time
-    val isCustomGame = gameSource == GameSource.CUSTOM_GAME
+    val isCustomGame = gameSource == GameSource.CUSTOM_GAME || gameSource == GameSource.ITCH
     val gameIdForTicket = ContainerUtils.extractGameIdFromContainerId(appId)
     if (!bootToContainer && !isCustomGame && gameIdForTicket != null && !container.isLaunchRealSteam && !container.isLaunchBionicSteam) {
         CoroutineScope(Dispatchers.IO).launch {
@@ -4452,7 +4452,7 @@ private fun getWineStartCommand(
 
     Timber.tag("XServerScreen").d("appLaunchInfo is $appLaunchInfo")
 
-    val isCustomGame = gameSource == GameSource.CUSTOM_GAME
+    val isCustomGame = gameSource == GameSource.CUSTOM_GAME || gameSource == GameSource.ITCH
     val isGOGGame = gameSource == GameSource.GOG
     val isEpicGame = gameSource == GameSource.EPIC
     val isSteamGame = gameSource == GameSource.STEAM
@@ -4788,7 +4788,14 @@ private fun getWineStartCommand(
             )
             guestProgramLauncherComponent.workingDir = targetFile.parentFile
             val normalizedTarget = localLaunchTarget.replace('/', '\\')
-            return "\"C:\\$normalizedTarget\""
+            val launchArgs = app.gamenative.itch.ItchArgCodec.decode(
+                container.getExtra(LocalContainerLaunch.EXTRA_LAUNCH_ARGS),
+            )
+            val quotedArgs = app.gamenative.itch.ItchArgCodec.toWindowsCommandLine(launchArgs)
+            return buildString {
+                append("\"C:\\$normalizedTarget\"")
+                if (quotedArgs.isNotBlank()) append(' ').append(quotedArgs)
+            }
         }
 
         if (

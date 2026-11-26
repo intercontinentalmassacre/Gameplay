@@ -118,6 +118,32 @@
             android:exported="false"
             android:theme="@style/Theme.Pluvia" />
 
+        <!--
+            itch.io OAuth redirect. Login itself happens in the system browser; this
+            activity only receives gameplay://itch-oauth/callback and validates the
+            OAuth state before the code is exchanged. Must stay exported to be
+            reachable from the browser.
+        -->
+        <activity
+            android:name=".ui.screen.auth.ItchOAuthRedirectActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:noHistory="true"
+            android:theme="@style/Theme.Pluvia">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data
+                    android:host="itch-oauth"
+                    android:pathPrefix="/callback"
+                    android:scheme="gameplay" />
+            </intent-filter>
+        </activity>
+
         <!-- Launcher icon aliases to allow switching app icon at runtime -->
         <activity-alias
             android:name=".MainActivityAliasDefault"

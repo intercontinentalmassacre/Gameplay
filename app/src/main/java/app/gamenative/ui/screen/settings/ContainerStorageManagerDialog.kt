@@ -976,6 +976,7 @@ internal fun gameSourceLabel(gameSource: GameSource?): String = when (gameSource
     GameSource.EPIC -> stringResource(R.string.tab_epic)
     GameSource.AMAZON -> stringResource(R.string.tab_amazon)
     null -> stringResource(R.string.container_storage_source_unknown)
+    else -> stringResource(R.string.tab_itch)
 }
 
 @Composable

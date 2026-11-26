@@ -135,6 +135,7 @@
     <string name="tab_gog">GOG</string>
     <string name="tab_epic">Epic</string>
     <string name="tab_amazon">Amazon</string>
+    <string name="tab_itch">itch.io</string>
     <string name="tab_installed">Installed</string>
     <string name="tab_local">Custom</string>
     <string name="library_tab_with_count">%1$s (%2$d)</string>
@@ -1690,11 +1691,13 @@
     <string name="steam_save_export_failed">Failed to export saves: %s</string>
     <string name="steam_save_import_success">Saves imported</string>
     <string name="steam_save_import_failed">Failed to import saves: %s</string>
+
+    <!-- Save backups (local snapshots taken before a cloud sync replaces saves) -->
     <string name="save_backup_menu_title">Restore save backup</string>
     <string name="save_backup_dialog_title">Save backups</string>
-    <string name="save_backup_loading">Loading backups�</string>
+    <string name="save_backup_loading">Loading backups…</string>
     <string name="save_backup_empty">No save backups yet.</string>
-    <string name="save_backup_summary">%1$s � %2$d file(s)</string>
+    <string name="save_backup_summary">%1$s · %2$d file(s)</string>
     <string name="save_backup_kind_pre_restore">Undo copy</string>
     <string name="save_backup_restore">Restore</string>
     <string name="save_backup_delete">Delete</string>
@@ -2837,4 +2840,61 @@
     <string name="community_layout_download_error">Could not load this layout.</string>
     <string name="community_layout_unsupported">This layout has no bindings supported by this gamepad.</string>
     <string name="community_layout_import">Supported bindings in the base set: %1$d. Gyro, trackpads and action layers are skipped.</string>
+    <!-- FEX translation cache (experimental) -->
+    <string name="fex_cache_title">FEX translation cache</string>
+    <string name="fex_cache_ready">Cache ready</string>
+    <string name="fex_cache_preparing">Preparing the game session…</string>
+    <string name="fex_cache_compiling">Compiling the translation cache…</string>
+    <string name="fex_cache_needs_reprepare">The cache is out of date. Prepare it again to reuse it.</string>
+    <string name="fex_cache_failed">Cache preparation failed</string>
+    <string name="fex_cache_hint">Run the game once with code caching enabled, then compile the recorded code maps. Requires a FEX build that includes the offline compiler.</string>
+    <string name="fex_cache_prepare">Prepare cache</string>
+        <string name="fex_cache_recompile">Recompile cache</string>
+    <string name="fex_cache_clear">Clear cache</string>
+    <string name="fex_cache_prepare_failed">Could not start preparation. Another preparation may be running, or there is not enough free space.</string>
+    <!-- itch.io Integration -->
+    <string name="library_source_not_logged_in_itch">Connect your itch.io account to see the games you own. Downloads, updates and saves stay on this device; Gameplay only requests your library and download scopes.</string>
+    <string name="itch_settings_login_title">Sign in to itch.io</string>
+    <string name="itch_login_success">Connected to itch.io</string>
+    <string name="itch_logout_success">Signed out of itch.io</string>
+    <string name="itch_login_failed">itch.io sign-in failed</string>
+    <string name="itch_login_not_configured">itch.io sign-in needs an OAuth client id in this build.</string>
+    <string name="itch_sign_out">Sign out of itch.io</string>
+    <string name="itch_sign_out_title">Sign out of itch.io?</string>
+    <string name="itch_sign_out_message">Your owned itch.io games will leave the library. Installed games stay in “Installed” and keep working offline.</string>
+    <string name="itch_check_updates">Check for updates</string>
+    <string name="itch_download">Download</string>
+    <string name="itch_install">Install</string>
+    <string name="itch_change_executable">Change executable</string>
+    <string name="itch_open_on_site">Open on itch.io</string>
+    <string name="itch_up_to_date">Installed build is the latest for this upload.</string>
+    <string name="itch_update_available">A newer build of this upload is available.</string>
+    <string name="itch_update_check_unavailable">Could not check for updates. Try again later.</string>
+    <string name="itch_update_check_failed">Update check failed: %1$s</string>
+    <string name="itch_choose_build_title">Choose the build to download</string>
+    <string name="itch_choose_executable_title">Choose the game executable</string>
+    <string name="itch_no_executables">No Windows executable was found in this build.</string>
+    <string name="itch_no_windows_build">This project has no downloadable Windows build. Opening its itch.io page.</string>
+    <string name="itch_download_started">Downloading %1$s…</string>
+    <string name="itch_download_failed">Download failed: %1$s</string>
+    <string name="itch_install_failed">Install failed: %1$s</string>
+    <string name="itch_open_site_failed">Could not open the itch.io page.</string>
+    <string name="itch_cancel_download_title">Cancel download?</string>
+    <string name="itch_cancel_download_message">The partial download will be deleted. A game that is already installed stays installed.</string>
+    <string name="itch_uninstall_title">Uninstall game?</string>
+    <string name="itch_uninstall_message">Remove the installed files of %1$s from this device. Saves kept next to the executable are removed with them.</string>
+    <string name="itch_installer_update_title">Update with the game installer</string>
+    <string name="itch_installer_update_message">This game is installed with its own Windows installer, which writes directly into the Wine prefix. Gameplay cannot swap it safely in the background, so the new installer will run instead. Your container settings and game files stay in place, but the installer decides how its saves are handled.</string>
+    <string name="itch_installer_update_confirm">Download installer</string>
+    <string name="itch_version_unknown_title">Version can’t be verified</string>
+    <string name="itch_version_unknown_message">The author uploaded this file by hand, so itch.io does not report a build id. Gameplay can’t tell whether your copy is current. You can download the same upload again and reinstall over it; saves next to the executable are kept by the ZIP updater.</string>
+    <string name="itch_reinstall">Download again</string>
+    <string name="itch_version_label">Version %1$s</string>
+    <string name="itch_role_game">Game build</string>
+    <string name="itch_role_demo">Demo build</string>
+    <string name="itch_role_editor">Editor</string>
+    <string name="itch_role_manual">Manual</string>
+    <string name="itch_role_soundtrack">Soundtrack</string>
+    <string name="itch_role_art">Art</string>
+    <string name="itch_role_other">Other file</string>
 </resources>

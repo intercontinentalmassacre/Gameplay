@@ -791,6 +791,19 @@ object ContainerUtils {
                 }
             }
 
+            GameSource.ITCH -> {
+                // itch.io Windows installers run from an app-private folder mapped to A:.
+                val itchGameId = extractGameIdFromContainerId(appId)
+                val installerDir = app.gamenative.itch.ItchPaths.installerDir(context, itchGameId.toLong())
+                installerDir.mkdirs()
+                val drive: Char = if (defaultDrives.contains("A:")) {
+                    Container.getNextAvailableDriveLetter(defaultDrives)
+                } else {
+                    'A'
+                }
+                "$defaultDrives$drive:${installerDir.absolutePath}"
+            }
+
             GameSource.GOG -> {
                 // For GOG games, map the specific game directory to A: drive
                 val gameId = extractGameIdFromContainerId(appId)
@@ -1172,9 +1185,16 @@ object ContainerUtils {
                 val appIdInt = runCatching { extractGameIdFromContainerId(appId) }.getOrNull()
                 if (appIdInt != null) AmazonService.getInstallPathByAppId(appIdInt) else null
             }
+
+            GameSource.ITCH -> {
+                val gameId = extractGameIdFromContainerId(appId)
+                app.gamenative.itch.ItchPaths.installerDir(context, gameId.toLong()).absolutePath
+            }
+
+            else -> null
         }
 
-        val resolvedGameFolderPath = if (gameSource == GameSource.CUSTOM_GAME) {
+        val resolvedGameFolderPath = if (gameSource == GameSource.CUSTOM_GAME || gameSource == GameSource.ITCH) {
             gameFolderPath
         } else {
             StorageUtils.resolveLegacyGameDir(gameFolderPath)
@@ -1323,6 +1343,7 @@ object ContainerUtils {
             containerId.startsWith("GOG_") -> GameSource.GOG
             containerId.startsWith("EPIC_") -> GameSource.EPIC
             containerId.startsWith("AMAZON_") -> GameSource.AMAZON
+            containerId.startsWith("ITCH_") -> GameSource.ITCH
             // Add other platforms here..
             else -> GameSource.STEAM // default fallback
         }
@@ -1340,7 +1361,9 @@ object ContainerUtils {
         GameSource.EPIC,
         GameSource.AMAZON,
         GameSource.CUSTOM_GAME,
+        GameSource.ITCH,
         -> true
+        else -> false
     }
 
     /**
@@ -1360,6 +1383,10 @@ object ContainerUtils {
                 CustomGameScanner.getFolderPathFromAppId(customAppId)
                     ?.let { File(it).name }
             }
+
+            GameSource.ITCH -> app.gamenative.itch.ItchNameCache.titleFor(gameId.toLong())
+
+            else -> null
         } ?: "Unknown"
     }
 
