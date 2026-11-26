@@ -1,6 +1,7 @@
 package app.gamenative.service.gog
 
 import android.content.Context
+import app.gamenative.utils.CloudSaveBackupManager
 import app.gamenative.utils.FileUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -192,6 +193,8 @@ class GOGCloudSavesManager(
      * @param clientSecret Game's client secret (from build metadata)
      * @param lastSyncTimestamp Timestamp of last sync (0 for initial sync)
      * @param preferredAction User's preferred action (download, upload, or none)
+     * @param backupGameId Library game id for the pre-sync save snapshot; the restore dialog lists
+     *        backups by this id, so it must match the item the game menu opens with.
      * @return New sync timestamp, or 0 on failure
      */
     suspend fun syncSaves(
@@ -200,7 +203,8 @@ class GOGCloudSavesManager(
         clientId: String,
         clientSecret: String,
         lastSyncTimestamp: Long = 0,
-        preferredAction: String = "none"
+        preferredAction: String = "none",
+        backupGameId: String = "",
     ): Long = withContext(Dispatchers.IO) {
         try {
             Timber.tag("GOG-CloudSaves").i("Starting sync for path: $localPath")
@@ -241,6 +245,24 @@ class GOGCloudSavesManager(
                 downloadableCloud.forEach { file ->
                     Timber.tag("GOG").d("[Cloud Saves]   - Cloud file: ${file.relativePath} (md5: ${file.md5Hash}, modified: ${file.updateTime})")
                 }
+            }
+
+            // Snapshot the local save directory before this sync can overwrite it. Every download in
+            // this method (the simple-case download, the forced download and the classifier-driven
+            // downloads) runs after this point. One snapshot session per invocation; a skipped or
+            // failed snapshot is only logged and never blocks the sync.
+            val saveBackupSession = CloudSaveBackupManager.session(
+                context = context,
+                provider = CloudSaveBackupManager.PROVIDER_GOG,
+                // The game menu lists backups by library game id, so key on that when the caller
+                // knows it; the clientId/dirname pair is only a fallback for direct callers.
+                gameId = backupGameId.ifEmpty { "${clientId}_$dirname" },
+            ) {
+                // Same directory the sync scans (scanLocalFiles) and downloads into (downloadFile).
+                listOf(CloudSaveBackupManager.BackupRoot(id = "saves", dir = syncDir))
+            }
+            if (!saveBackupSession.ensure()) {
+                Timber.tag("GOG-CloudSaves").i("No pre-sync save backup for '$dirname' (skipped or failed)")
             }
 
             // Handle simple cases first
