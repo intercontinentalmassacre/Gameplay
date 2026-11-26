@@ -47,6 +47,7 @@ data class LibraryState(
     val showGOGInLibrary: Boolean = PrefManager.showGOGInLibrary,
     val showEpicInLibrary: Boolean = PrefManager.showEpicInLibrary,
     val showAmazonInLibrary: Boolean = PrefManager.showAmazonInLibrary,
+    val showItchInLibrary: Boolean = PrefManager.showItchInLibrary,
 
     // Steam collections filter
     val selectedSteamCollectionIds: Set<String> = PrefManager.librarySteamCollections,
@@ -93,6 +94,7 @@ data class LibraryState(
     val gogCount: Int = 0,
     val epicCount: Int = 0,
     val amazonCount: Int = 0,
+    val itchCount: Int = 0,
     val localCount: Int = 0,
 )
 
@@ -103,6 +105,7 @@ internal fun LibraryState.libraryTabCounts(): Map<LibraryTab, Int> = libraryTabC
     gog = gogCount,
     epic = epicCount,
     amazon = amazonCount,
+    itch = itchCount,
     local = localCount,
 )
 
@@ -113,6 +116,7 @@ internal fun libraryTabCounts(
     gog: Int = 0,
     epic: Int = 0,
     amazon: Int = 0,
+    itch: Int = 0,
     local: Int = 0,
 ): Map<LibraryTab, Int> = mapOf(
     LibraryTab.INSTALLED to installed,
@@ -121,6 +125,7 @@ internal fun libraryTabCounts(
     LibraryTab.GOG to gog,
     LibraryTab.EPIC to epic,
     LibraryTab.AMAZON to amazon,
+    LibraryTab.ITCH to itch,
     LibraryTab.LOCAL to local,
 )
 

@@ -23,6 +23,9 @@ val keystoreProperties: Properties? = if (keystorePropertiesFile.exists()) {
 
 val metaAppId: String = project.findProperty("META_APP_ID") as String? ?: System.getenv("META_APP_ID") ?: ""
 val productSku: String = project.findProperty("PRODUCT_SKU") as String? ?: System.getenv("PRODUCT_SKU") ?: ""
+val localProperties = Properties().apply {
+    rootProject.file("local.properties").takeIf { it.isFile }?.inputStream()?.use { load(it) }
+}
 
 room {
     schemaDirectory("$projectDir/schemas")
@@ -61,8 +64,8 @@ android {
         buildConfigField("boolean", "GOLD", "false")
         fun secret(name: String) =
             project.findProperty(name) as String? ?: System.getenv(name) ?: ""
-        fun buildConfigString(name: String): String {
-            val value = secret(name)
+        fun buildConfigString(name: String, fallback: String = ""): String {
+            val value = secret(name).ifBlank { fallback }
                 .replace("\\", "\\\\")
                 .replace("\"", "\\\"")
                 .replace("\r", "\\r")
@@ -71,6 +74,13 @@ android {
         }
 
         buildConfigField("String", "STEAMGRIDDB_API_KEY", buildConfigString("STEAMGRIDDB_API_KEY"))
+        // itch.io OAuth application client id. This is the single configuration point for the
+        // itch.io integration: set ITCH_CLIENT_ID (Gradle property, environment variable or
+        // local.properties) to the id of the OAuth app registered at
+        // https://itch.io/user/settings/oauth-apps with the redirect URI
+        //   gameplay://itch-oauth/callback
+        // (see app.gamenative.itch.ItchConfig.REDIRECT_URI).
+        buildConfigField("String", "ITCH_CLIENT_ID", buildConfigString("ITCH_CLIENT_ID", localProperties.getProperty("ITCH_CLIENT_ID", "")))
         val iconValue = "@mipmap/ic_launcher"
         val iconRoundValue = "@mipmap/ic_launcher_round"
         manifestPlaceholders.putAll(

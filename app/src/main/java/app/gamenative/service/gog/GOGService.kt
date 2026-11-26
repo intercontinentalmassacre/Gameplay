@@ -578,6 +578,8 @@ class GOGService : Service() {
                                 dirname = location.name,
                                 lastSyncTimestamp = timestamp,
                                 preferredAction = preferredAction,
+                                // the restore dialog looks backups up by numeric library game id
+                                backupGameId = ContainerUtils.extractGameIdFromContainerId(appId).toString(),
                             )
 
                             if (newTimestamp != timestamp) {
