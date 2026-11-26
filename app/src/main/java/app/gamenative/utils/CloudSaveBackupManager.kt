@@ -4,6 +4,7 @@ import android.content.Context
 import app.gamenative.PrefManager
 import java.io.File
 import java.io.IOException
+import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.FileVisitResult
 import java.nio.file.Files
 import java.nio.file.LinkOption
@@ -104,7 +105,12 @@ object CloudSaveBackupManager {
         }
     }
 
-    private enum class Outcome { WRITTEN, SKIPPED, SKIPPED_UNSAFE, FAILED }
+    private sealed interface Outcome {
+        data class Written(val file: File) : Outcome
+        data object Skipped : Outcome
+        data object SkippedUnsafe : Outcome
+        data object Failed : Outcome
+    }
 
     @Serializable
     private data class SidecarRoot(val id: String, val absolutePath: String, val wholeDir: Boolean)
@@ -176,7 +182,7 @@ object CloudSaveBackupManager {
         roots: List<BackupRoot>,
         kind: Kind = Kind.PRE_SYNC,
     ): Boolean = lock.withLock {
-        withContext(Dispatchers.IO) { backupLocked(context, provider, gameId, roots, kind) } == Outcome.WRITTEN
+        withContext(Dispatchers.IO) { backupLocked(context, provider, gameId, roots, kind) } is Outcome.Written
     }
 
     /** Newest first. Cheap: reads sidecar json only. */
@@ -217,30 +223,32 @@ object CloudSaveBackupManager {
         gameId: String,
         roots: List<BackupRoot>,
         kind: Kind,
-        keepFile: File? = null,
+        restoreSource: File? = null,
     ): Outcome {
         try {
-            if (kind == Kind.PRE_SYNC && backupsToKeep() == 0) return Outcome.SKIPPED
-            val resolved = roots.mapNotNull { resolveRoot(it) }
+            if (kind == Kind.PRE_SYNC && backupsToKeep() == 0) return Outcome.Skipped
+            val resolved = roots.mapNotNull { root ->
+                resolveRoot(root) ?: if (restoreSource != null) throw IOException("Cannot resolve ${root.dir}") else null
+            }
             val files = resolved.flatMap { it.files }
-            if (files.isEmpty()) return Outcome.SKIPPED
+            if (files.isEmpty()) return Outcome.Skipped
             val total = files.sumOf { it.size }
             if (total > MAX_TOTAL_BYTES) {
                 Timber.tag(TAG).w("Save backup skipped for $provider/$gameId: $total bytes exceeds the limit")
-                return Outcome.SKIPPED_UNSAFE
+                return Outcome.SkippedUnsafe
             }
             val dir = gameDir(context, provider, gameId)
             if (!dir.isDirectory && !dir.mkdirs()) throw IOException("Cannot create $dir")
-            if (kind == Kind.PRE_SYNC) prune(dir, provider, gameId, kind, keepFile)
+            if (kind == Kind.PRE_SYNC) prune(dir, provider, gameId, kind, restoreSource)
             if (freeSpaceProvider(context.filesDir) < total * 2) {
                 Timber.tag(TAG).w("Save backup skipped for $provider/$gameId: not enough free space for $total bytes")
-                return Outcome.SKIPPED_UNSAFE
+                return Outcome.SkippedUnsafe
             }
             val fingerprint = fingerprint(resolved, files)
-            val existing = readBackups(dir, provider, gameId)
-            if (existing.firstOrNull { it.first.kind == kind }?.second?.fingerprint == fingerprint) {
+            val latest = if (restoreSource == null) readBackups(dir, provider, gameId).firstOrNull { it.first.kind == kind } else null
+            if (latest?.second?.fingerprint == fingerprint) {
                 Timber.tag(TAG).i("Save backup skipped for $provider/$gameId: unchanged since the last ${kind.name} backup")
-                return Outcome.SKIPPED
+                return Outcome.Skipped
             }
             dir.listFiles()?.filter { it.name.endsWith(PART_EXT) }?.forEach { it.delete() }
 
@@ -284,23 +292,24 @@ object CloudSaveBackupManager {
                 sidecarPart.delete()
             }
             Timber.tag(TAG).i("Save backup ${kind.name} for $provider/$gameId: ${files.size} file(s), $total bytes -> ${zip.name}")
-            prune(dir, provider, gameId, kind, keepFile)
-            return Outcome.WRITTEN
+            prune(dir, provider, gameId, kind, restoreSource, newest = zip.takeIf { restoreSource != null })
+            return Outcome.Written(zip)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             Timber.tag(TAG).w(e, "Save backup failed for $provider/$gameId")
-            return Outcome.FAILED
+            return Outcome.Failed
         }
     }
 
-    private fun prune(dir: File, provider: String, gameId: String, kind: Kind, keepFile: File?) {
+    private fun prune(dir: File, provider: String, gameId: String, kind: Kind, restoreSource: File?, newest: File? = null) {
         val keep = if (kind == Kind.PRE_SYNC) backupsToKeep() else 1
+        // The active undo snapshot must survive even if the system clock has moved backwards.
         readBackups(dir, provider, gameId)
             .map { it.first }
-            .filter { it.kind == kind }
-            .drop(keep)
-            .filter { it.file.absoluteFile != keepFile?.absoluteFile }
+            .filter { it.kind == kind && it.file != newest }
+            .drop(if (newest == null) keep else (keep - 1).coerceAtLeast(0))
+            .filter { it.file.absoluteFile != restoreSource?.absoluteFile }
             .forEach { deleteBackup(it) }
     }
 
@@ -324,17 +333,43 @@ object CloudSaveBackupManager {
                 BackupRoot(root.id, dir, plan.entries.keys.filter { it.startsWith(rootPath) }.map { it.toFile() })
             }
         }
-        val preRestore = backupLocked(context, meta.provider, meta.gameId, preRestoreRoots, Kind.PRE_RESTORE, backup.file)
-        if (preRestore == Outcome.FAILED || preRestore == Outcome.SKIPPED_UNSAFE) {
-            Timber.tag(TAG).w("Save restore aborted: could not back up the current saves first")
-            return false
+        // A path/size/mtime fingerprint is sufficient for routine deduplication, but a restore
+        // needs the exact current contents as its rollback source.
+        val undo = when (
+            val outcome = backupLocked(context, meta.provider, meta.gameId, preRestoreRoots, Kind.PRE_RESTORE, backup.file)
+        ) {
+            is Outcome.Written -> outcome.file
+            Outcome.Skipped -> null // None of the files this restore can replace or remove existed.
+            Outcome.Failed, Outcome.SkippedUnsafe -> {
+                Timber.tag(TAG).w("Save restore aborted: could not back up the current saves first")
+                return false
+            }
         }
+        val undoPlan = undo?.let {
+            val undoMeta = json.decodeFromString(Sidecar.serializer(), sidecarOf(it).readText())
+            planRestore(it, undoMeta)
+        }
+        val originals = undoPlan?.entries.orEmpty()
+        val changedPaths = mutableSetOf<Path>()
 
         try {
-            applyRestore(backup.file, plan)
+            for (destination in plan.entries.keys) {
+                if (destination !in originals && Files.exists(destination, LinkOption.NOFOLLOW_LINKS)) {
+                    throw IOException("No rollback copy for $destination")
+                }
+            }
+            restoreEntries(backup.file, plan.roots, plan.entries, changedPaths)
+            for ((id, root) in plan.roots) {
+                if (plan.wholeDir[id] != true || !Files.isDirectory(root, LinkOption.NOFOLLOW_LINKS)) continue
+                for (extra in walkRegularFiles(root)) {
+                    if (extra in plan.entries) continue
+                    if (extra !in originals) throw IOException("No rollback copy for $extra")
+                    if (Files.deleteIfExists(extra)) changedPaths.add(extra)
+                }
+            }
         } catch (e: Exception) {
             Timber.tag(TAG).w(e, "Save restore failed midway for ${meta.provider}/${meta.gameId}, rolling back")
-            rollBack(context, meta.provider, meta.gameId, backup.file)
+            rollBack(plan, undo, undoPlan, changedPaths)
             throw e
         }
         Timber.tag(TAG).i("Restored ${plan.entries.size} save file(s) for ${meta.provider}/${meta.gameId} from ${backup.file.name}")
@@ -342,23 +377,24 @@ object CloudSaveBackupManager {
         return true
     }
 
-    private fun rollBack(context: Context, provider: String, gameId: String, restoring: File) {
-        try {
-            val undo = readBackups(gameDir(context, provider, gameId), provider, gameId)
-                .map { it.first }
-                .filter { it.kind == Kind.PRE_RESTORE && it.file.absoluteFile != restoring.absoluteFile }
-                .maxByOrNull { it.createdAt }
-            if (undo == null) {
-                Timber.tag(TAG).w("No pre-restore backup to roll back to for $provider/$gameId")
-                return
+    private fun rollBack(plan: RestorePlan, undo: File?, undoPlan: RestorePlan?, changedPaths: Set<Path>) {
+        for (created in changedPaths - undoPlan?.entries.orEmpty().keys) {
+            try {
+                val root = plan.roots.getValue(rootOf(plan.roots, created))
+                requireRealPath(root)
+                checkNoSymlinks(root, created)
+                Files.deleteIfExists(created)
+            } catch (e: Exception) {
+                Timber.tag(TAG).e(e, "Could not remove partially restored save $created")
             }
-            val meta = json.decodeFromString(Sidecar.serializer(), sidecarOf(undo.file).readText())
-            applyRestore(undo.file, planRestore(undo.file, meta))
-            Timber.tag(TAG).i("Rolled back $provider/$gameId to ${undo.file.name}")
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            Timber.tag(TAG).e(e, "Roll back failed for $provider/$gameId")
+        }
+        if (undo != null && undoPlan != null) {
+            try {
+                val changedEntries = undoPlan.entries.filterKeys { it in changedPaths }
+                restoreEntries(undo, undoPlan.roots, changedEntries)
+            } catch (e: Exception) {
+                Timber.tag(TAG).e(e, "Could not roll back saves from ${undo.name}")
+            }
         }
     }
 
@@ -388,41 +424,40 @@ object CloudSaveBackupManager {
         return RestorePlan(roots, wholeDir, planned)
     }
 
-    private fun applyRestore(zipFile: File, plan: RestorePlan) {
-        val now = System.currentTimeMillis()
+    private fun restoreEntries(
+        zipFile: File,
+        roots: Map<String, Path>,
+        entries: Map<Path, String>,
+        changedPaths: MutableSet<Path>? = null,
+    ) {
+        val now = FileTime.fromMillis(System.currentTimeMillis())
         ZipFile(zipFile).use { zip ->
-            for ((destination, entryName) in plan.entries) {
+            for ((destination, entryName) in entries) {
                 val entry = zip.getEntry(entryName) ?: throw IOException("Backup entry vanished: $entryName")
                 val parent = destination.parent ?: throw IOException("No parent for $destination")
+                val root = roots.getValue(rootOf(roots, destination))
+                requireRealPath(root)
+                checkNoSymlinks(root, destination)
                 Files.createDirectories(parent)
-                checkNoSymlinks(plan.roots.getValue(rootOf(plan.roots, destination)), destination)
-                val temp = parent.resolve(".${destination.fileName}.restore$PART_EXT")
+                val temp = Files.createTempFile(parent, ".restore-", PART_EXT)
                 try {
                     zip.getInputStream(entry).use { input ->
-                        Files.newOutputStream(
-                            temp,
-                            StandardOpenOption.CREATE,
-                            StandardOpenOption.TRUNCATE_EXISTING,
-                            StandardOpenOption.WRITE,
-                            LinkOption.NOFOLLOW_LINKS,
-                        ).use { input.copyTo(it) }
+                        Files.newOutputStream(temp, StandardOpenOption.WRITE, LinkOption.NOFOLLOW_LINKS).use { input.copyTo(it) }
                     }
                     try {
                         Files.move(temp, destination, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
-                    } catch (e: IOException) {
+                    } catch (e: AtomicMoveNotSupportedException) {
+                        // A failed non-atomic replacement may already have changed the destination.
+                        changedPaths?.add(destination)
                         Files.move(temp, destination, StandardCopyOption.REPLACE_EXISTING)
                     }
+                    changedPaths?.add(destination)
+                    val modified = if (changedPaths == null) entry.lastModifiedTime ?: now else now
+                    Files.setLastModifiedTime(destination, modified)
                 } finally {
                     Files.deleteIfExists(temp)
                 }
-                Files.setLastModifiedTime(destination, FileTime.fromMillis(now))
             }
-        }
-        for ((id, root) in plan.roots) {
-            if (plan.wholeDir[id] != true || !Files.isDirectory(root, LinkOption.NOFOLLOW_LINKS)) continue
-            walkRegularFiles(root)
-                .filter { it.normalize() !in plan.entries }
-                .forEach { Files.deleteIfExists(it) }
         }
     }
 

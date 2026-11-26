@@ -197,6 +197,55 @@ class CloudSaveBackupManagerTest {
     }
 
     @Test
+    fun failedRestoreIntoEmptySaveRootNeverUsesAnOlderUndo() {
+        val slot = write(File(saves, "slot.sav"), "archive")
+        val blocked = write(File(root, "explicit/blocked/slot.sav"), "second")
+        val blocker = blocked.parentFile!!
+        val roots = listOf(BackupRoot("whole", saves), BackupRoot("explicit", blocker.parentFile!!, listOf(blocked)))
+        assertTrue(backup(roots))
+        val target = list().single()
+
+        write(slot, "stale undo")
+        assertTrue(backup(kind = Kind.PRE_RESTORE))
+        val oldUndo = list().single { it.kind == Kind.PRE_RESTORE }
+        assertTrue(slot.delete())
+        assertTrue(blocker.deleteRecursively())
+        write(blocker, "unrelated file") // The second destination can no longer be created.
+
+        assertFalse(runBlocking { CloudSaveBackupManager.restore(context, target) })
+
+        assertTrue(saves.listFiles()!!.isEmpty())
+        assertEquals("unrelated file", blocker.readText())
+        assertTrue(list().contains(oldUndo))
+    }
+
+    @Test
+    fun failedExplicitRestoreRestoresCurrentContentsAndRemovesNewFiles() {
+        val slot = write(File(saves, "slot.sav"), "archive")
+        val newSlot = write(File(saves, "new.sav"), "new archive file")
+        val blocked = write(File(saves, "blocked/slot.sav"), "second")
+        val blocker = blocked.parentFile!!
+        val untouched = write(File(saves, "untouched.sav"), "outside selection")
+        assertTrue(backup(listOf(BackupRoot("explicit", saves, listOf(slot, newSlot, blocked)))))
+        val target = list().single()
+
+        write(slot, "old undo")
+        assertTrue(newSlot.delete())
+        assertTrue(blocker.deleteRecursively())
+        write(blocker, "unrelated file")
+        assertTrue(backup(listOf(BackupRoot("explicit", saves, listOf(slot, newSlot, blocked))), Kind.PRE_RESTORE))
+        write(slot, "live now") // Same path, size and mtime as the stale undo copy.
+
+        assertFalse(runBlocking { CloudSaveBackupManager.restore(context, target) })
+
+        assertEquals("live now", slot.readText())
+        assertFalse(newSlot.exists())
+        assertEquals("unrelated file", blocker.readText())
+        assertEquals("outside selection", untouched.readText())
+        assertEquals("live now", read(list().single { it.kind == Kind.PRE_RESTORE }, "files/explicit/slot.sav"))
+    }
+
+    @Test
     fun restoreRefusesMissingSidecar() {
         write(File(saves, "a.sav"), "a")
         assertTrue(backup())
