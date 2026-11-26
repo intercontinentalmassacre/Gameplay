@@ -5,10 +5,16 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import app.gamenative.data.ItchGame
 import app.gamenative.db.PluviaDatabase
+import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
@@ -112,6 +118,33 @@ class ItchLibraryRepositoryTest {
                 }
             }
         }
+    }
+
+    @Test
+    fun `refresh response from before sign out cannot restore the old library`() = runBlocking {
+        coEvery { auth.signOut() } coAnswers {
+            token = null
+            Result.success(Unit)
+        }
+        val started = CompletableDeferred<Unit>()
+        val release = CountDownLatch(1)
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                if (!started.complete(Unit)) return MockResponse().setBody("""{"owned_keys":[]}""")
+                if (!release.await(10, TimeUnit.SECONDS)) return MockResponse().setResponseCode(500)
+                return MockResponse().setBody("""{"owned_keys":[${gameJson(45, "Old library")}]}""")
+            }
+        }
+        val refresh = async { repository.refreshLibrary() }
+        try {
+            withTimeout(5_000) { started.await() }
+            assertTrue(repository.signOut().isSuccess)
+        } finally {
+            release.countDown()
+        }
+        assertTrue(refresh.await().exceptionOrNull() is ItchNotAuthenticatedException)
+        assertTrue(dao.getAllAsList().isEmpty())
+        assertNull(ItchGameCache.get(45))
     }
 
     @Test

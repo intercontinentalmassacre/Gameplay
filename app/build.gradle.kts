@@ -23,6 +23,9 @@ val keystoreProperties: Properties? = if (keystorePropertiesFile.exists()) {
 
 val metaAppId: String = project.findProperty("META_APP_ID") as String? ?: System.getenv("META_APP_ID") ?: ""
 val productSku: String = project.findProperty("PRODUCT_SKU") as String? ?: System.getenv("PRODUCT_SKU") ?: ""
+val localProperties = Properties().apply {
+    rootProject.file("local.properties").takeIf { it.isFile }?.inputStream()?.use { load(it) }
+}
 
 room {
     schemaDirectory("$projectDir/schemas")
@@ -61,8 +64,8 @@ android {
         buildConfigField("boolean", "GOLD", "false")
         fun secret(name: String) =
             project.findProperty(name) as String? ?: System.getenv(name) ?: ""
-        fun buildConfigString(name: String): String {
-            val value = secret(name)
+        fun buildConfigString(name: String, fallback: String = ""): String {
+            val value = secret(name).ifBlank { fallback }
                 .replace("\\", "\\\\")
                 .replace("\"", "\\\"")
                 .replace("\r", "\\r")
@@ -77,7 +80,7 @@ android {
         // https://itch.io/user/settings/oauth-apps with the redirect URI
         //   gameplay://itch-oauth/callback
         // (see app.gamenative.itch.ItchConfig.REDIRECT_URI).
-        buildConfigField("String", "ITCH_CLIENT_ID", buildConfigString("ITCH_CLIENT_ID"))
+        buildConfigField("String", "ITCH_CLIENT_ID", buildConfigString("ITCH_CLIENT_ID", localProperties.getProperty("ITCH_CLIENT_ID", "")))
         val iconValue = "@mipmap/ic_launcher"
         val iconRoundValue = "@mipmap/ic_launcher_round"
         manifestPlaceholders.putAll(

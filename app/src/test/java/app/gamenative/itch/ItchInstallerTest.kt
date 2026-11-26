@@ -136,9 +136,8 @@ class ItchInstallerTest {
         val v2 = installZip(v2Archive, layout, uploadId = 100, buildId = 2, versionId = "u100_b2")
 
         val carry = ItchInstaller.carryOverPlayerFiles(
-            oldVersionDir = v1Dir,
+            layout = layout,
             oldMeta = v1,
-            newVersionDir = layout.versionDir(v2.versionId),
             newMeta = v2,
         )
         assertEquals(2, carry.copied)
@@ -161,23 +160,28 @@ class ItchInstallerTest {
     fun `player file is not overwritten when the new build ships the same path`() = runBlocking {
         val layout = ItchInstaller.layout(File(temporaryFolder.root, "install"))
         val v1Archive = File(temporaryFolder.root, "v1.zip")
-        zip(v1Archive, mapOf("game.exe" to exe("v1")))
+        zip(v1Archive, mapOf("game.exe" to exe("v1"), "save.dat" to exe("preset"), "slot.dat" to exe("slot=0")))
         val v1 = installZip(v1Archive, layout, buildId = 1, versionId = "v1")
         ItchInstaller.activate(layout, v1)
         File(layout.versionDir(v1.versionId), "save.dat").writeText("player")
+        File(layout.versionDir(v1.versionId), "slot.dat").writeText("slot=7")
 
         val v2Archive = File(temporaryFolder.root, "v2.zip")
         zip(v2Archive, mapOf("game.exe" to exe("v2"), "save.dat" to exe("delivered-default")))
         val v2 = installZip(v2Archive, layout, buildId = 2, versionId = "v2")
         val carry = ItchInstaller.carryOverPlayerFiles(
-            oldVersionDir = layout.versionDir(v1.versionId),
+            layout = layout,
             oldMeta = v1,
-            newVersionDir = layout.versionDir(v2.versionId),
             newMeta = v2,
         )
-        assertEquals(0, carry.copied)
+        assertEquals(1, carry.copied)
         assertEquals(1, carry.conflicts)
         assertEquals("delivered-default", File(layout.versionDir(v2.versionId), "save.dat").readText())
+        assertEquals("slot=7", File(layout.versionDir(v2.versionId), "slot.dat").readText())
+        ItchInstaller.pruneVersions(layout, keep = setOf(v2.versionId))
+        assertFalse(layout.versionDir(v1.versionId).exists())
+        val backup = layout.playerBackupsRoot.listFiles().orEmpty().single()
+        assertEquals("player", File(backup, "save.dat").readText())
     }
 
     @Test

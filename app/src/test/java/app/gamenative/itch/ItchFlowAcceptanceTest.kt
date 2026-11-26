@@ -288,9 +288,8 @@ class ItchFlowAcceptanceTest {
 
         // ── 7. Player files are carried over, obsolete delivery files are gone.
         val carry = ItchInstaller.carryOverPlayerFiles(
-            oldVersionDir = layout.versionDir(v1.versionId),
+            layout = layout,
             oldMeta = v1,
-            newVersionDir = layout.versionDir(v2.versionId),
             newMeta = v2,
         )
         assertEquals(1, carry.copied)

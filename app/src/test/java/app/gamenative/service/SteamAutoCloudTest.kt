@@ -69,6 +69,7 @@ import java.util.zip.ZipFile
 class SteamAutoCloudTest {
 
     private lateinit var context: Context
+    private lateinit var fixtureDir: File
     private lateinit var tempDir: File
     private lateinit var saveFilesDir: File
     private lateinit var db: PluviaDatabase
@@ -88,9 +89,8 @@ class SteamAutoCloudTest {
         every { Net.httpForParallelDownloads(any()) } returns mockParallelHttpClient
 
         context = ApplicationProvider.getApplicationContext()
-        tempDir = File.createTempFile("steam_autocloud_test_", null)
-        tempDir.delete()
-        tempDir.mkdirs()
+        fixtureDir = java.nio.file.Files.createTempDirectory("steam_autocloud_test_").toFile()
+        tempDir = File(fixtureDir, "saves").apply { mkdirs() }
 
         // Set up DownloadService paths
         DownloadService.populateDownloadService(context)
@@ -188,7 +188,8 @@ class SteamAutoCloudTest {
 
         // Mock SteamService
         mockSteamService = mock<SteamService>()
-        whenever(mockSteamService.filesDir).thenReturn(tempDir)
+        // The fallback SteamUserData root scans all of tempDir. Keep app-private backups outside it.
+        whenever(mockSteamService.filesDir).thenReturn(File(fixtureDir, "app-files").apply { mkdirs() })
         whenever(mockSteamService.appDao).thenReturn(db.steamAppDao())
         whenever(mockSteamService.fileChangeListsDao).thenReturn(db.appFileChangeListsDao())
         whenever(mockSteamService.changeNumbersDao).thenReturn(db.appChangeNumbersDao())
@@ -274,7 +275,7 @@ class SteamAutoCloudTest {
 
         // Clean up temp directory
         try {
-            tempDir.deleteRecursively()
+            fixtureDir.deleteRecursively()
         } catch (e: Exception) {
             // Ignore cleanup errors
         }
