@@ -3,6 +3,7 @@ package app.gamenative.service.gog
 import android.content.Context
 import app.gamenative.utils.CloudSaveBackupManager
 import app.gamenative.utils.FileUtils
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl
@@ -17,6 +18,7 @@ import timber.log.Timber
 import java.io.Closeable
 import java.io.File
 import java.io.FileOutputStream
+import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
 import java.security.DigestOutputStream
@@ -240,6 +242,7 @@ class GOGCloudSavesManager(
             }
             Timber.tag("GOG").d("[Cloud Saves] Retrieved ${cloudFiles.size} total cloud files")
             val downloadableCloud = cloudFiles.filter { !it.isDeleted }
+            if (preferredAction == "upload" && localFiles.isEmpty()) return@withContext lastSyncTimestamp
             Timber.tag("GOG").i("[Cloud Saves] Found ${downloadableCloud.size} downloadable cloud file(s) (excluding deleted)")
             if (downloadableCloud.isNotEmpty()) {
                 downloadableCloud.forEach { file ->
@@ -441,6 +444,8 @@ class GOGCloudSavesManager(
             Timber.tag("GOG-CloudSaves").i("Sync completed successfully")
             return@withContext currentTimestamp()
 
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Timber.tag("GOG-CloudSaves").e(e, "Sync failed: ${e.message}")
             return@withContext 0L
@@ -684,14 +689,10 @@ class GOGCloudSavesManager(
                 if (response.isSuccessful) {
                     Timber.tag("GOG-CloudSaves").i("Successfully uploaded: ${file.relativePath}")
                 } else {
-                    val errorBody = response.body?.string() ?: "No response body"
-                    Timber.tag("GOG-CloudSaves").e("Failed to upload ${file.relativePath}: HTTP ${response.code}")
-                    Timber.tag("GOG-CloudSaves").e("Upload error body: $errorBody")
+                    throw IOException("Failed to upload ${file.relativePath}: HTTP ${response.code}")
                 }
             }
 
-        } catch (e: Exception) {
-            Timber.tag("GOG-CloudSaves").e(e, "Failed to upload ${file.relativePath}")
         } finally {
             requestBody?.close()
         }

@@ -666,8 +666,6 @@
     <string name="joystick_size">Размер джойстика</string>
     <string name="joystick_size_subtitle">Множитель динамического размера джойстика</string>
     <string name="keyboard">Клавиатура</string>
-    <string name="live_input_tab">Тачпад и клавиши</string>
-    <string name="live_touchpad_hint">Касание — левый щелчок · Два пальца — правый</string>
     <string name="keyboard_bindings">Клавиатура</string>
     <string name="label">Метка</string>
     <string name="label_text">Текст метки</string>
@@ -2744,6 +2742,7 @@ Ubuntu RootFs - releases.ubuntu.com/focal</string>
     <string name="layout_apply">Применить для этой игры</string>
     <string name="layout_choose_game">Выберите игру</string>
     <string name="layout_no_games">Установите игру, чтобы выбрать для неё раскладку.</string>
+    <string name="live_input_tab">Тачпад и клавиши</string>
     <string name="community_layouts">Раскладки сообщества</string>
     <string name="community_layout_search">Поиск раскладок для этой игры</string>
     <string name="community_layout_prev">Назад</string>
@@ -2753,6 +2752,7 @@ Ubuntu RootFs - releases.ubuntu.com/focal</string>
     <string name="community_layout_download_error">Не удалось загрузить эту раскладку.</string>
     <string name="community_layout_unsupported">В этой раскладке нет назначений, которые поддерживает этот геймпад.</string>
     <string name="community_layout_import">Поддерживаемых назначений в основном наборе — %1$d. Гироскоп, трекпады и слои пропускаются.</string>
+    <string name="live_touchpad_hint">Касание — левый щелчок · Два пальца — правый</string>
 <string name="fex_cache_title">Кэш трансляции FEX</string>
 <string name="fex_cache_ready">Кэш готов</string>
 <string name="fex_cache_preparing">Подготовка игрового сеанса…</string>

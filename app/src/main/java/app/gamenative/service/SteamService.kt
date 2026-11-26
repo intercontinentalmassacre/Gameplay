@@ -2698,12 +2698,6 @@ class SteamService : Service(), IChallengeUrlChanged {
                 }
 
                 try {
-                    try {
-                        syncAchievementsFromGoldberg(context, appId)
-                    } catch (e: Exception) {
-                        Timber.e(e, "Achievement sync failed for appId=$appId, continuing with cloud save sync")
-                    }
-
                     val maxAttempts = 3
                     for (attempt in 1..maxAttempts) {
                         try {
@@ -2723,8 +2717,11 @@ class SteamService : Service(), IChallengeUrlChanged {
                                             steamCloud.signalAppExitSyncDone(
                                                 appId = appId,
                                                 clientId = clientId,
-                                                uploadsCompleted = postSyncInfo?.uploadsCompleted == true,
-                                                uploadsRequired = postSyncInfo?.uploadsRequired == false,
+                                                uploadsCompleted = postSyncInfo?.let {
+                                                    it.uploadsCompleted && (it.syncResult == SyncResult.Success ||
+                                                        it.syncResult == SyncResult.UpToDate)
+                                                } == true,
+                                                uploadsRequired = postSyncInfo?.uploadsRequired == true,
                                             )
                                         }
                                     }
@@ -2739,6 +2736,13 @@ class SteamService : Service(), IChallengeUrlChanged {
                                 delay(1000L * attempt)
                             }
                         }
+                    }
+                    try {
+                        syncAchievementsFromGoldberg(context, appId)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        Timber.e(e, "Achievement sync failed for appId=$appId")
                     }
                 } finally {
                     releaseSync(appId)

@@ -262,8 +262,6 @@
     <string name="exit_game">Exit</string>
     <string name="exit">Exit Game</string>
     <string name="keyboard">Keyboard</string>
-    <string name="live_input_tab">Touchpad &amp; keys</string>
-    <string name="live_touchpad_hint">Tap to click · Two-finger tap to right-click</string>
     <string name="resume_game">Resume Game</string>
     <string name="extra">Extra</string>
     <string name="clear_search">Clear Search</string>
@@ -2831,6 +2829,7 @@
     <string name="layout_apply">Apply to this game</string>
     <string name="layout_choose_game">Choose a game</string>
     <string name="layout_no_games">Install a game to choose its controller layout.</string>
+    <string name="live_input_tab">Touchpad &amp; keys</string>
     <string name="community_layouts">Community layouts</string>
     <string name="community_layout_search">Search layouts for this game</string>
     <string name="community_layout_prev">Previous</string>
@@ -2840,6 +2839,7 @@
     <string name="community_layout_download_error">Could not load this layout.</string>
     <string name="community_layout_unsupported">This layout has no bindings supported by this gamepad.</string>
     <string name="community_layout_import">Supported bindings in the base set: %1$d. Gyro, trackpads and action layers are skipped.</string>
+    <string name="live_touchpad_hint">Tap to click · Two-finger tap to right-click</string>
     <!-- FEX translation cache (experimental) -->
     <string name="fex_cache_title">FEX translation cache</string>
     <string name="fex_cache_ready">Cache ready</string>

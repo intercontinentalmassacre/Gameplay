@@ -966,7 +966,8 @@ object SteamAutoCloud {
                         result.second
                     }
 
-                    uploadsRequired = fileChanges.filesCreated.isNotEmpty() || fileChanges.filesModified.isNotEmpty()
+                    uploadsRequired = fileChanges.filesCreated.isNotEmpty() || fileChanges.filesModified.isNotEmpty() ||
+                        fileChanges.filesDeleted.isNotEmpty()
 
                     val uploadResult: UserFilesUploadResult
 
@@ -974,7 +975,7 @@ object SteamAutoCloud {
                         uploadResult = uploadFiles(fileChanges, parentScope).await()
                         filesUploaded = uploadResult.filesUploaded
                         bytesUploaded = uploadResult.bytesUploaded
-                        uploadsCompleted = uploadsRequired && uploadResult.uploadBatchSuccess
+                        uploadsCompleted = uploadResult.uploadBatchSuccess
                     }.inWholeMicroseconds
 
                     filesManaged = allLocalUserFiles.size

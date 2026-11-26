@@ -15,6 +15,7 @@ import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.security.MessageDigest
+import java.time.Instant
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -35,6 +36,16 @@ class EpicCloudSavesTest {
 
     @get:Rule
     val tmpDir = TemporaryFolder()
+
+    @Test
+    fun `newer local save is uploaded on launch even without a prior sync timestamp`() {
+        val cloud = Instant.ofEpochSecond(100)
+        val local = cloud.plusSeconds(10)
+
+        assertEquals(EpicCloudSavesManager.SyncAction.UPLOAD, EpicCloudSavesManager.chooseSyncAction(local, cloud, null))
+        assertEquals(EpicCloudSavesManager.SyncAction.DOWNLOAD, EpicCloudSavesManager.chooseSyncAction(cloud, local, null))
+        assertEquals(EpicCloudSavesManager.SyncAction.CONFLICT, EpicCloudSavesManager.chooseSyncAction(local, cloud, cloud.minusSeconds(1)))
+    }
 
     @Test
     fun `missing cloud chunk preserves the entire existing save set`() {

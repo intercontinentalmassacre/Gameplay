@@ -18,6 +18,7 @@ jobs:
   release:
     runs-on: ubuntu-latest
     env:
+      ITCH_CLIENT_ID: ${{ vars.ITCH_CLIENT_ID }}
       RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
       KEYSTORE_PASSWORD: ${{ secrets.GAMEPLAY_KEYSTORE_PASSWORD }}
       KEY_ALIAS: ${{ secrets.GAMEPLAY_KEY_ALIAS }}

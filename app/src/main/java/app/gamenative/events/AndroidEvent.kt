@@ -11,6 +11,7 @@ interface AndroidEvent<T> : Event<T> {
     data object StartOrientator : AndroidEvent<Unit>
     data object ActivityDestroyed : AndroidEvent<Unit>
     data object GuestProgramTerminated : AndroidEvent<Unit>
+    data object ExitGame : AndroidEvent<Unit>
     data class KeyEvent(val event: android.view.KeyEvent) : AndroidEvent<Boolean>
     data class MotionEvent(val event: android.view.MotionEvent?) : AndroidEvent<Boolean>
     data object EndProcess : AndroidEvent<Unit>

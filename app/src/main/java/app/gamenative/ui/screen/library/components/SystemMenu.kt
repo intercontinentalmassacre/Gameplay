@@ -80,6 +80,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import app.gamenative.PluviaApp
+import app.gamenative.events.AndroidEvent
+import app.gamenative.itch.ItchAuthUi
+import app.gamenative.ui.util.SnackbarManager
 import app.gamenative.PrefManager
 import app.gamenative.R
 import app.gamenative.data.SteamFriend
@@ -354,6 +357,8 @@ fun SystemMenu(
     onExitApp: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
+    val contextForItch = LocalContext.current
+    val itchLoggedIn = rememberItchConnection()
     val scope = rememberCoroutineScope()
     val uriHandler = LocalUriHandler.current
 
@@ -792,6 +797,15 @@ fun SystemMenu(
                             },
                             isDestructive = amazonLoggedIn,
                         )
+                        SystemMenuItem(
+                            text = stringResource(if (itchLoggedIn) R.string.itch_sign_out else R.string.itch_settings_login_title),
+                            icon = if (itchLoggedIn) Icons.AutoMirrored.Filled.Logout else Icons.AutoMirrored.Filled.Login,
+                            onClick = {
+                                changeItchConnection(contextForItch, itchLoggedIn)
+                                onDismiss()
+                            },
+                            isDestructive = itchLoggedIn,
+                        )
                     }
 
                     // Gamepad hint at bottom (only on expanded screens)
@@ -837,6 +851,7 @@ fun DualSystemMenu(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
+    val itchLoggedIn = rememberItchConnection()
     val uriHandler = LocalUriHandler.current
     var persona by remember { mutableStateOf<SteamFriend?>(null) }
     var gogAccountName by remember { mutableStateOf<String?>(null) }
@@ -1084,10 +1099,35 @@ fun DualSystemMenu(
                         connected = amazonLoggedIn,
                         onClick = if (amazonLoggedIn) onAmazonLogoutClick else onAmazonLoginClick,
                     )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.28f))
+                    SystemHubServiceRow(
+                        serviceName = stringResource(R.string.tab_itch),
+                        connected = itchLoggedIn,
+                        onClick = { changeItchConnection(context, itchLoggedIn) },
+                    )
                 }
             }
         }
     }
+}
+
+@Composable
+private fun rememberItchConnection(): Boolean {
+    val context = LocalContext.current
+    var connected by remember(context) { mutableStateOf(ItchAuthUi.hasAccount(context)) }
+    DisposableEffect(context) {
+        val listener: (AndroidEvent.ItchAuthStateChanged) -> Unit = {
+            connected = ItchAuthUi.hasAccount(context)
+        }
+        PluviaApp.events.on<AndroidEvent.ItchAuthStateChanged, Unit>(listener)
+        onDispose { PluviaApp.events.off<AndroidEvent.ItchAuthStateChanged, Unit>(listener) }
+    }
+    return connected
+}
+
+private fun changeItchConnection(context: android.content.Context, connected: Boolean) {
+    if (connected) ItchAuthUi.signOut(context)
+    else ItchAuthUi.signIn(context) { SnackbarManager.show(it) }
 }
 
 @Composable

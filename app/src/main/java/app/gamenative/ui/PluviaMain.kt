@@ -1598,7 +1598,8 @@ fun PluviaMain(
                     SteamUtils.hasStoredCredentials() ||
                         GOGService.hasStoredCredentials(context) ||
                         EpicService.hasStoredCredentials(context) ||
-                        AmazonService.hasStoredCredentials(context) ->
+                        AmazonService.hasStoredCredentials(context) ||
+                        app.gamenative.itch.ItchPaths.hasCredentials(context) ->
                         PluviaScreen.Home.route + "?offline=true"
                     else -> PluviaScreen.LoginUser.route
                 }
@@ -1973,11 +1974,7 @@ fun PluviaMain(
                     },
                     onExitGame = {
                         layerController.closeSystem()
-                        if (state.launchedAppId != null) {
-                            viewModel.exitSteamApp(context, state.launchedAppId)
-                        } else {
-                            gameBackAction()
-                        }
+                        PluviaApp.events.emit(AndroidEvent.ExitGame)
                     },
                     onRestartApp = {
                         AppUtils.restartApplication(context)
@@ -2036,6 +2033,9 @@ fun preLaunchApp(
             (context as? Activity)?.let { LaunchReadiness.resolve(it) }
             return@launch
         }
+
+        // Avoid scanning or writing saves while the previous session is still syncing.
+        app.gamenative.service.ExitCloudSyncQueue.process.await(appId)
 
         if (gameSource == GameSource.AMAZON) {
             try {
