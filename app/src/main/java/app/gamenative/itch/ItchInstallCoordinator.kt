@@ -161,9 +161,8 @@ class ItchInstallCoordinator @Inject constructor(
         val currentState = ItchInstaller.readState(layout)
         val versionId = ItchInstaller.newVersionId(upload.id, upload.build?.id)
             .let { candidate ->
-                // Reinstalling the exact same build must never overwrite the folder
-                // that is currently active (saves live next to the EXE).
-                if (candidate == currentState?.activeVersionId) {
+                // Reinstalling a build must not overwrite an active or retained save tree.
+                if (candidate == currentState?.activeVersionId || layout.versionDir(candidate).exists()) {
                     "${candidate}_r${System.currentTimeMillis()}"
                 } else {
                     candidate
@@ -206,9 +205,8 @@ class ItchInstallCoordinator @Inject constructor(
                 val previousMeta = ItchInstaller.readMeta(layout, current.activeVersionId)
                 if (previousMeta != null) {
                     ItchInstaller.carryOverPlayerFiles(
-                        oldVersionDir = layout.versionDir(current.activeVersionId),
+                        layout = layout,
                         oldMeta = previousMeta,
-                        newVersionDir = layout.versionDir(meta.versionId),
                         newMeta = meta,
                     )
                 }

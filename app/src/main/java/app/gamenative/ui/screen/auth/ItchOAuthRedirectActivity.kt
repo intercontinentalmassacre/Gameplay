@@ -8,9 +8,7 @@ import app.gamenative.PluviaApp
 import app.gamenative.events.AndroidEvent
 import app.gamenative.itch.ItchAccess
 import app.gamenative.ui.util.SnackbarManager
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 /**
  * Receives `gameplay://itch-oauth/callback?code=…&state=…` from the system
@@ -37,10 +35,7 @@ class ItchOAuthRedirectActivity : ComponentActivity() {
             return
         }
         lifecycleScope.launch {
-            val auth = ItchAccess.auth(applicationContext)
-            val result = withContext(Dispatchers.IO) {
-                auth.completeAuthorization(uri.toString())
-            }
+            val result = ItchAccess.repository(applicationContext).completeAuthorization(uri.toString())
             result.fold(
                 onSuccess = { account ->
                     PluviaApp.events.emitJava(

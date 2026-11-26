@@ -305,10 +305,9 @@ private fun needsDeferLaunch(context: Context, appId: String): Boolean {
 }
 
 /** True when a pending Steam launch waits for the sign-in itself, so it must not time out. */
-private fun waitsForSteamSignIn(context: Context, appId: String): Boolean =
+private fun waitsForSteamSignIn(appId: String): Boolean =
     ContainerUtils.extractGameSourceFromContainerId(appId) == GameSource.STEAM &&
-        !SteamService.isLoggedIn &&
-        SteamUtils.hasStoredCredentials()
+        !SteamService.isLoggedIn
 
 /**
  * Waits for Steam before the installed check, so a cold or queued intent launch is not judged
@@ -572,7 +571,7 @@ fun PluviaMain(
         if (pendingLaunchGeneration == 0) return@LaunchedEffect
         delay(PENDING_LAUNCH_TIMEOUT_MS)
         MainActivity.peekPendingLaunchRequest()?.let { request ->
-            if (waitsForSteamSignIn(context, request.appId)) {
+            if (waitsForSteamSignIn(request.appId)) {
                 // a Steam launch waits for the sign-in itself: keep the request instead of dropping it
                 Timber.tag("IntentLaunch").i("Pending launch still waiting for Steam sign-in: ${request.appId}")
                 if (!shownPendingLaunchSnackbar) {

@@ -123,13 +123,11 @@ object FexCodeCache {
             ?: return "Recompile failed: game container not found"
         if (!isSupported(context, container)) return "Recompile unavailable for this FEX build"
         val store = store(context, container)
-        val hasMaps = store.hasCodeMap()
-        if (!hasMaps) return "Nothing to recompile: run a preparation session first"
         return store.tryLock()?.use {
-            store.beginPreparation()
-            store.markRunStarted()
-            store.markCompiling()
-            val ok = finalizeIfNeeded(context, appId)
+            val record = store.readState()
+            if (record.state == FexCacheState.PREPARING) return@use "A preparation is already pending."
+            if (!store.hasCodeMap()) return@use "Nothing to recompile: run a preparation session first"
+            val ok = compileLocked(context, container, store)
             if (ok) "Cache rebuilt: ${store.cacheBytes() / 1_000_000} MB" else {
                 val reason = store.readState().reason.ifBlank { "compiler produced no cache files" }
                 "Recompile failed: $reason"
@@ -208,51 +206,51 @@ object FexCodeCache {
         val container = runCatching { ContainerUtils.getContainer(context, appId) }.getOrNull() ?: return false
         if (!isSupported(context, container)) return false
         val store = store(context, container)
-        val record = store.readState()
-        if (record.state != FexCacheState.PREPARING && record.state != FexCacheState.COMPILING) return false
-        if (record.state == FexCacheState.COMPILING) {
-            store.markNeedsReprepare("compilation was interrupted")
-            return false
-        }
-        if (record.runStartedAt == 0L) {
-            store.markNeedsReprepare("preparation session never started")
-            return false
-        }
-        if (!store.hasCodeMap()) {
-            store.markFailed("no code map was produced; play further into the game")
-            return false
-        }
-
         return store.tryLock()?.use {
-            val lockedRecord = store.readState()
-            if (lockedRecord.state != FexCacheState.PREPARING) return@use false
-            store.markCompiling()
-            val compileStarted = System.currentTimeMillis()
-            try {
-                val output = FexCacheToolRunner.runCompiler(context, container, store.windowsCacheDir)
-                Timber.i("FEX offline compiler: %s", output.takeLast(2_000))
-                val compilerSucceeded = output.startsWith("compiler exit 0") ||
-                    output.contains("Successfully populated cache") ||
-                    output.contains("Cache up to date")
-                if (!compilerSucceeded || !store.hasCacheArtifacts()) {
-                    val exitLine = output.lineSequence().firstOrNull { it.startsWith("compiler exit") }
-                    store.markFailed(exitLine ?: "compiler produced no cache files")
-                    return@use false
-                }
-                val metadata = identity(context, container).copy(
-                    preparedAt = System.currentTimeMillis(),
-                    prepareDurationMs = compileStarted - lockedRecord.runStartedAt,
-                    compileDurationMs = System.currentTimeMillis() - compileStarted,
-                    cacheBytes = store.cacheBytes(),
-                )
-                store.markReady(metadata)
-                true
-            } catch (error: Throwable) {
-                Timber.e(error, "FEX cache compilation failed")
-                store.markFailed(error.message ?: error.javaClass.simpleName)
-                false
+            val record = store.readState()
+            if (record.state == FexCacheState.COMPILING) {
+                store.markNeedsReprepare("compilation was interrupted")
+                return@use false
             }
+            if (record.state != FexCacheState.PREPARING) return@use false
+            if (record.runStartedAt == 0L) {
+                store.markNeedsReprepare("preparation session never started")
+                return@use false
+            }
+            if (!store.hasCodeMap()) {
+                store.markFailed("no code map was produced; play further into the game")
+                return@use false
+            }
+            compileLocked(context, container, store, record.runStartedAt)
         } ?: false
+    }
+
+    private fun compileLocked(context: Context, container: Container, store: FexCacheStore, runStartedAt: Long = 0): Boolean {
+        val compileStarted = System.currentTimeMillis()
+        store.markCompiling(compileStarted)
+        return try {
+            val output = FexCacheToolRunner.runCompiler(context, container, store.windowsCacheDir)
+            Timber.i("FEX offline compiler: %s", output.takeLast(2_000))
+            val compilerSucceeded = output.startsWith("compiler exit 0") ||
+                output.contains("Successfully populated cache") || output.contains("Cache up to date")
+            if (!compilerSucceeded || !store.hasCacheArtifacts()) {
+                val exitLine = output.lineSequence().firstOrNull { it.startsWith("compiler exit") }
+                store.markFailed(exitLine ?: "compiler produced no cache files")
+                return false
+            }
+            val metadata = identity(context, container).copy(
+                preparedAt = System.currentTimeMillis(),
+                prepareDurationMs = if (runStartedAt == 0L) 0 else compileStarted - runStartedAt,
+                compileDurationMs = System.currentTimeMillis() - compileStarted,
+                cacheBytes = store.cacheBytes(),
+            )
+            store.markReady(metadata)
+            true
+        } catch (error: Exception) {
+            Timber.e(error, "FEX cache compilation failed")
+            store.markFailed(error.message ?: error.javaClass.simpleName)
+            false
+        }
     }
 
     @JvmStatic

@@ -7,6 +7,8 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 class ItchNotAuthenticatedException :
@@ -38,6 +40,12 @@ class ItchLibraryRepository @Inject constructor(
     private val auth: ItchAuthManager,
     private val api: ItchApiClient,
 ) {
+    private val accountLock = Mutex()
+
+    suspend fun completeAuthorization(redirectUrl: String): Result<ItchAccount> = accountLock.withLock {
+        auth.completeAuthorization(redirectUrl)
+    }
+
     fun observeGames(): Flow<List<ItchGame>> = dao.observeAll()
 
     fun hasStoredCredentials(): Boolean = auth.hasStoredCredentials()
@@ -66,14 +74,6 @@ class ItchLibraryRepository @Inject constructor(
             return@withContext Result.failure(ItchNotAuthenticatedException())
         }
         runCatching {
-            // A cache created by another itch.io account must not leak into this one.
-            val knownAccounts = dao.getKnownAccountIds()
-            if (knownAccounts.any { it != account.userId }) {
-                dao.deleteAllNonInstalledGames()
-                dao.detachAccountFromInstalledGames()
-            }
-
-            val previouslyOwned = dao.getOwnedGameIds().toSet()
             var pages = 0
             val keys = api.fetchAllOwnedKeys(token, perPage = ItchApiClient.DEFAULT_PER_PAGE) { pages += 1 }
 
@@ -98,16 +98,20 @@ class ItchLibraryRepository @Inject constructor(
                     )
                 }
 
-            dao.upsertPreservingInstallState(games.values.toList())
-            games.values.forEach { game ->
-                ItchNameCache.put(game.gameId, game.title)
-                ItchGameCache.put(game)
-            }
+            accountLock.withLock {
+                if (auth.accountOrNull() != account) throw ItchNotAuthenticatedException()
+                if (dao.getKnownAccountIds().any { it != account.userId }) {
+                    dao.deleteAllNonInstalledGames()
+                    dao.detachAccountFromInstalledGames()
+                }
 
-            val stale = previouslyOwned - games.keys
-            if (stale.isNotEmpty()) {
-                dao.clearOwnership(stale.toList())
-                dao.deleteNonInstalledNotOwned()
+                val stale = dao.getOwnedGameIds().toSet() - games.keys
+                dao.upsertPreservingInstallState(games.values.toList())
+                if (stale.isNotEmpty()) {
+                    dao.clearOwnership(stale.toList())
+                    dao.deleteNonInstalledNotOwned()
+                }
+                reloadCaches()
             }
 
             ItchLibraryRefresh(
@@ -307,15 +311,21 @@ class ItchLibraryRepository @Inject constructor(
      * library and remain launchable offline; only ownership/account fields go.
      */
     suspend fun signOut(): Result<Unit> = withContext(Dispatchers.IO) {
-        val result = auth.signOut()
-        dao.deleteAllNonInstalledGames()
-        dao.detachAccountFromInstalledGames()
+        accountLock.withLock {
+            val result = auth.signOut()
+            dao.deleteAllNonInstalledGames()
+            dao.detachAccountFromInstalledGames()
+            reloadCaches()
+            result
+        }
+    }
+
+    private suspend fun reloadCaches() {
+        ItchGameCache.clear()
+        ItchNameCache.clear()
         dao.getAllAsList().forEach { game ->
             ItchGameCache.put(game)
-            // Installed games keep resolving their name for launch diagnostics.
             ItchNameCache.put(game.gameId, game.title)
         }
-        result
     }
 }
-

@@ -14,6 +14,7 @@ import kotlinx.serialization.builtins.serializer
 data class ItchDeliveryFile(
     val path: String,
     val sizeBytes: Long,
+    val sha256: String? = null,
 )
 
 @Serializable
@@ -108,6 +109,7 @@ class ItchInstallLayout(val root: File) {
     val versionsRoot: File get() = File(root, "versions")
     val metadataRoot: File get() = File(root, "metadata")
     val stagingRoot: File get() = File(root, "staging")
+    val playerBackupsRoot: File get() = File(root, "player-file-backups")
     val stateFile: File get() = File(root, "install-state.json")
     val journalFile: File get() = File(root, "update-journal.json")
 
@@ -177,7 +179,7 @@ object ItchInstaller {
                 val canonical = runCatching { file.canonicalFile }.getOrNull() ?: return@mapNotNull null
                 val relative = canonical.relativeTo(rootPath).invariantSeparatorsPath
                 if (relative.startsWith("..")) return@mapNotNull null
-                ItchDeliveryFile(path = relative, sizeBytes = canonical.length())
+                ItchDeliveryFile(path = relative, sizeBytes = canonical.length(), sha256 = sha256(canonical))
             }
             .sortedBy { it.path.lowercase() }
             .toList()
@@ -185,6 +187,19 @@ object ItchInstaller {
             files = files,
             totalBytes = files.sumOf { it.sizeBytes },
         )
+    }
+
+    private fun sha256(file: File): String {
+        val digest = java.security.MessageDigest.getInstance("SHA-256")
+        file.inputStream().use { input ->
+            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+            while (true) {
+                val size = input.read(buffer)
+                if (size < 0) break
+                digest.update(buffer, 0, size)
+            }
+        }
+        return digest.digest().joinToString("") { "%02x".format(it) }
     }
 
     /**
@@ -271,20 +286,21 @@ object ItchInstaller {
         completed
     }
 
-    /** Copies player-created files from the old version into the new tree. */
+    /** Carries over new and modified files without overwriting the new build's files. */
     fun carryOverPlayerFiles(
-        oldVersionDir: File,
-        oldMeta: ItchVersionMeta?,
-        newVersionDir: File,
+        layout: ItchInstallLayout,
+        oldMeta: ItchVersionMeta,
         newMeta: ItchVersionMeta,
     ): ItchPlayerCarryResult {
+        val oldVersionDir = layout.versionDir(oldMeta.versionId)
+        val newVersionDir = layout.versionDir(newMeta.versionId)
         if (!oldVersionDir.isDirectory || !newVersionDir.isDirectory) return ItchPlayerCarryResult()
-        // Without the previous delivery manifest every old file looks like a player
-        // file, which would resurrect obsolete binaries. Copy nothing in that case.
-        val previousManifest = oldMeta ?: return ItchPlayerCarryResult()
-        val deliveredPaths = previousManifest.manifest.relativePaths()
-        val newDeliveredPaths = newMeta.manifest.relativePaths()
+        val delivered = oldMeta.manifest.files.associateBy { it.path }
         val rootPath = oldVersionDir.canonicalFile
+        val conflictBackup by lazy {
+            val backupRoot = layout.playerBackupsRoot.apply { mkdirs() }
+            java.nio.file.Files.createTempDirectory(backupRoot.toPath(), "${oldMeta.versionId}-").toFile()
+        }
         var copied = 0
         var conflicts = 0
         var copiedBytes = 0L
@@ -294,14 +310,19 @@ object ItchInstaller {
                 val canonical = runCatching { file.canonicalFile }.getOrNull() ?: return@forEach
                 val relative = canonical.relativeTo(rootPath).invariantSeparatorsPath
                 if (relative.startsWith("..")) return@forEach
-                if (deliveredPaths.contains(relative)) return@forEach
+                val original = delivered[relative]
+                if (original != null && original.sizeBytes == canonical.length() &&
+                    (original.sha256 == null || original.sha256 == sha256(canonical))
+                ) return@forEach
                 // Never copy update bookkeeping if it ever lands inside the tree.
                 if (relative == ItchManifest.fileName()) return@forEach
                 val destination = File(newVersionDir, relative)
-                if (destination.exists()) {
-                    // The new build ships a file at the same path. Delivery wins;
-                    // the user's file is left untouched in the previous version.
-                    if (newDeliveredPaths.contains(relative)) conflicts += 1
+                val blockedParent = generateSequence(destination.parentFile) { it.parentFile }
+                    .takeWhile { it != newVersionDir }.any { it.isFile }
+                if (destination.exists() || blockedParent) {
+                    // Pruning old versions must not remove the only copy of a conflicting save.
+                    canonical.copyTo(File(conflictBackup, relative))
+                    conflicts += 1
                     return@forEach
                 }
                 destination.parentFile?.mkdirs()
@@ -547,12 +568,18 @@ object ItchInstaller {
     }
 
     fun pruneVersions(layout: ItchInstallLayout, keep: Set<String>) {
+        // Legacy manifests only recorded sizes. Retain these versions because a same-size
+        // edit cannot be distinguished from a delivered file during carry-over.
+        val legacyVersions = listVersionIds(layout).filter { id ->
+            readMeta(layout, id)?.manifest?.files?.any { it.sha256 == null } == true
+        }.toSet()
+        val retained = keep + legacyVersions
         layout.versionsRoot.listFiles()?.forEach { dir ->
-            if (dir.isDirectory && !keep.contains(dir.name)) dir.deleteRecursively()
+            if (dir.isDirectory && !retained.contains(dir.name)) dir.deleteRecursively()
         }
         layout.metadataRoot.listFiles()?.forEach { file ->
             val id = file.name.removeSuffix(".json")
-            if (file.isFile && file.name.endsWith(".json") && !keep.contains(id)) file.delete()
+            if (file.isFile && file.name.endsWith(".json") && !retained.contains(id)) file.delete()
         }
     }
 
