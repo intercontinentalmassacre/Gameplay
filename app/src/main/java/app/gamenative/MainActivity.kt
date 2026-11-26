@@ -60,6 +60,7 @@ import com.skydoves.landscapist.coil.LocalCoilImageLoader
 import com.winlator.core.AppUtils
 import com.winlator.inputcontrols.ControllerManager
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.util.EnumSet
 import kotlin.math.abs
@@ -336,6 +337,9 @@ class MainActivity : ComponentActivity() {
             val launchRequest = IntentLaunchManager.parseLaunchIntent(intent)
             if (launchRequest != null) {
                 Timber.d("[IntentLaunch]: Received external launch intent for app ${launchRequest.appId}")
+                if (launchRequest.prepareFexCache) {
+                    app.gamenative.fexcache.FexCodeCache.requestPreparation(this, launchRequest.appId)
+                }
 
                 if (isNewIntent) {
                     // supersedes any stale pending request
@@ -431,6 +435,9 @@ class MainActivity : ComponentActivity() {
         PluviaApp.isActivityInForeground = true
 
         lifecycleScope.launch { app.gamenative.launch.LaunchReadiness.refresh() }
+        lifecycleScope.launch(Dispatchers.IO) {
+            app.gamenative.fexcache.FexCodeCache.finalizeAllPending(this@MainActivity)
+        }
         // Re-apply immersive mode to ensure fullscreen persists
         if (!desiredSystemUiVisible) {
             applyImmersiveMode()

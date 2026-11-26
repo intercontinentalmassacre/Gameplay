@@ -644,7 +644,7 @@ internal fun getGridImageUrl(
             GridImageUrls(primary = primary)
         }
 
-        GameSource.GOG, GameSource.EPIC, GameSource.AMAZON -> {
+        GameSource.GOG, GameSource.EPIC, GameSource.AMAZON, GameSource.ITCH -> {
             val primary = when (paneType) {
                 PaneType.GRID_CAPSULE, PaneType.INSTALLED_COMPACT -> appInfo.capsuleImageUrl.ifEmpty { appInfo.iconHash }
                 else -> appInfo.headerImageUrl.ifEmpty {
@@ -672,6 +672,7 @@ internal fun getGridImageUrl(
                     fallback = appInfo.heroImageUrl,
                 )
         }
+        else -> GridImageUrls(primary = appInfo.iconHash)
     }
 
     return if (cachedUri != null) {

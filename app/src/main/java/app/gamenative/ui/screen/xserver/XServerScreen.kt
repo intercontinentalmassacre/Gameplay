@@ -125,6 +125,7 @@ import app.gamenative.ui.component.dialog.ScOverlayEditorDialog
 import app.gamenative.ui.component.dialog.ScOverlayTarget
 import app.gamenative.ui.component.dialog.SteamControllerBindingEditorDialog
 import app.gamenative.ui.component.layers.LocalLayerController
+import app.gamenative.ui.component.gamescopeFpsCap
 import app.gamenative.ui.component.parseBooleanExtra
 import app.gamenative.ui.component.parsePositiveFpsLimit
 import app.gamenative.ui.data.PerformanceHudConfig
@@ -724,7 +725,8 @@ var win32AppWorkarounds: Win32AppWorkarounds? by remember { mutableStateOf(null)
 
     fun applyFpsLimiterToEngines(limit: Int) {
         if (isGamescopeSession) {
-            GamescopeCommandQueue.setFpsLimit(limit)
+            // frame generation does not own the cap: the user's cap is the cap
+            GamescopeCommandQueue.setFpsLimit(gamescopeFpsCap(fpsLimiterEnabled, fpsLimiterTarget))
             return
         }
         xServerView?.setFrameRateLimit(limit)
@@ -988,6 +990,10 @@ var win32AppWorkarounds: Win32AppWorkarounds? by remember { mutableStateOf(null)
                     synchronized(lock) {
                         pendingSnapshot = deferred
                     }
+                    // The winhandler has a single process-info listener slot. Re-arm it before
+                    // every request so a transient swap (e.g. the window-affinity snapshot)
+                    // cannot silence the exit watcher and leave the session running.
+                    winHandler.setOnGetProcessInfoListener(listener)
                     winHandler.listProcesses()
                     val snapshot = withTimeoutOrNull(EXIT_PROCESS_RESPONSE_TIMEOUT_MS) {
                         deferred.await()
@@ -1014,7 +1020,10 @@ var win32AppWorkarounds: Win32AppWorkarounds? by remember { mutableStateOf(null)
                     delay(EXIT_PROCESS_POLL_INTERVAL_MS)
                 }
             } finally {
-                winHandler.setOnGetProcessInfoListener(previousListener)
+                // Do not clobber a listener installed after this watch started.
+                if (winHandler.getOnGetProcessInfoListener() === listener) {
+                    winHandler.setOnGetProcessInfoListener(previousListener)
+                }
                 synchronized(lock) {
                     pendingSnapshot = null
                 }
@@ -4327,7 +4336,7 @@ private fun setupXEnvironment(
     }
 
     // Request encrypted app ticket for Steam games at launch time
-    val isCustomGame = gameSource == GameSource.CUSTOM_GAME
+    val isCustomGame = gameSource == GameSource.CUSTOM_GAME || gameSource == GameSource.ITCH
     val gameIdForTicket = ContainerUtils.extractGameIdFromContainerId(appId)
     if (!bootToContainer && !isCustomGame && gameIdForTicket != null && !container.isLaunchRealSteam && !container.isLaunchBionicSteam) {
         CoroutineScope(Dispatchers.IO).launch {
@@ -4443,7 +4452,7 @@ private fun getWineStartCommand(
 
     Timber.tag("XServerScreen").d("appLaunchInfo is $appLaunchInfo")
 
-    val isCustomGame = gameSource == GameSource.CUSTOM_GAME
+    val isCustomGame = gameSource == GameSource.CUSTOM_GAME || gameSource == GameSource.ITCH
     val isGOGGame = gameSource == GameSource.GOG
     val isEpicGame = gameSource == GameSource.EPIC
     val isSteamGame = gameSource == GameSource.STEAM
@@ -4779,7 +4788,14 @@ private fun getWineStartCommand(
             )
             guestProgramLauncherComponent.workingDir = targetFile.parentFile
             val normalizedTarget = localLaunchTarget.replace('/', '\\')
-            return "\"C:\\$normalizedTarget\""
+            val launchArgs = app.gamenative.itch.ItchArgCodec.decode(
+                container.getExtra(LocalContainerLaunch.EXTRA_LAUNCH_ARGS),
+            )
+            val quotedArgs = app.gamenative.itch.ItchArgCodec.toWindowsCommandLine(launchArgs)
+            return buildString {
+                append("\"C:\\$normalizedTarget\"")
+                if (quotedArgs.isNotBlank()) append(' ').append(quotedArgs)
+            }
         }
 
         if (

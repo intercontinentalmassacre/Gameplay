@@ -24,6 +24,7 @@ import com.winlator.core.WineThemeManager
 import com.winlator.winhandler.WinHandler.PreferredInputApi
 import com.winlator.xenvironment.ImageFs
 import java.io.File
+import java.util.concurrent.ExecutionException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -33,6 +34,9 @@ import org.json.JSONObject
 import timber.log.Timber
 
 object ContainerUtils {
+
+    /** Thrown when the on-disk container could not be created; the message names the cause. */
+    class ContainerCreationException(message: String, cause: Throwable? = null) : IllegalStateException(message, cause)
 
     private val containerCreateLock = Any()
 
@@ -50,12 +54,19 @@ object ContainerUtils {
             (Build.MODEL.equals("AYN Thor", ignoreCase = true) || Build.MODEL.equals("Thor", ignoreCase = true))
 
     const val WRAPPER_TURNIP_CAPABLE = "Turnip v26.2.0 R4"
+    const val WRAPPER_ADRENO_85X = "Rutabaga-26.10.10"
     const val WRAPPER_ADRENO_8ELITE_GEN5 = "Turnip Adreno Driver T26 (@Mr_Purple_666)"
     const val WRAPPER_ADRENO_8ELITE = "Turnip Gen8 V30"
     const val WRAPPER_ADRENO_A12 = "Turnip v26.1.0 A12 Fix"
 
     val wrapperDriverDefaults: List<String> =
-        listOf(WRAPPER_TURNIP_CAPABLE, WRAPPER_ADRENO_8ELITE_GEN5, WRAPPER_ADRENO_8ELITE, WRAPPER_ADRENO_A12)
+        listOf(
+            WRAPPER_TURNIP_CAPABLE,
+            WRAPPER_ADRENO_85X,
+            WRAPPER_ADRENO_8ELITE_GEN5,
+            WRAPPER_ADRENO_8ELITE,
+            WRAPPER_ADRENO_A12,
+        )
 
     fun setContainerDefaults(context: Context) {
         // Override default driver and DXVK version based on Turnip capability
@@ -77,6 +88,14 @@ object ContainerUtils {
             DefaultVersion.DXVK = "2.4.1-gplasync"
             DefaultVersion.VKD3D = "2.14.1"
             DefaultVersion.WRAPPER = WRAPPER_ADRENO_A12
+            DefaultVersion.STEAM_TYPE = Container.STEAM_TYPE_NORMAL
+            DefaultVersion.ASYNC_CACHE = "1"
+        } else if (GPUInformation.isAdreno85x(context)) {
+            DefaultVersion.VARIANT = Container.BIONIC
+            DefaultVersion.DEFAULT_GRAPHICS_DRIVER = "Wrapper"
+            DefaultVersion.DXVK = "2.4.1-gplasync"
+            DefaultVersion.VKD3D = "2.14.1"
+            DefaultVersion.WRAPPER = WRAPPER_ADRENO_85X
             DefaultVersion.STEAM_TYPE = Container.STEAM_TYPE_NORMAL
             DefaultVersion.ASYNC_CACHE = "1"
         } else if (GPUInformation.isAdreno8EliteGen5(context)) {
@@ -772,6 +791,19 @@ object ContainerUtils {
                 }
             }
 
+            GameSource.ITCH -> {
+                // itch.io Windows installers run from an app-private folder mapped to A:.
+                val itchGameId = extractGameIdFromContainerId(appId)
+                val installerDir = app.gamenative.itch.ItchPaths.installerDir(context, itchGameId.toLong())
+                installerDir.mkdirs()
+                val drive: Char = if (defaultDrives.contains("A:")) {
+                    Container.getNextAvailableDriveLetter(defaultDrives)
+                } else {
+                    'A'
+                }
+                "$defaultDrives$drive:${installerDir.absolutePath}"
+            }
+
             GameSource.GOG -> {
                 // For GOG games, map the specific game directory to A: drive
                 val gameId = extractGameIdFromContainerId(appId)
@@ -835,6 +867,8 @@ object ContainerUtils {
                     defaultDrives
                 }
             }
+
+            else -> defaultDrives
         }
         Timber.d("Prepared container drives: $drives")
 
@@ -856,9 +890,26 @@ object ContainerUtils {
         // The editor only needs the config. The first game launch installs its selected prefix.
         // The final runtime is selected below. An overlay must use that runtime as its base.
         val stageFullPrefix = installWinePrefix && !PrefManager.sharedContainerBase
-        val container = (if (stageFullPrefix) containerManager.createContainerFuture(containerId, data).get()
-            else containerManager.createContainer(containerId, data, false))
-            ?: throw IllegalStateException("Failed to create container: $containerId")
+        val rootDir = ImageFs.find(context).getRootDir()
+        val containerDir = File(File(rootDir, "home"), ImageFs.USER + "-" + containerId)
+        val create: () -> Container? = {
+            try {
+                if (stageFullPrefix) containerManager.createContainerFuture(containerId, data).get()
+                else containerManager.createContainer(containerId, data, false)
+            } catch (e: ExecutionException) {
+                // Unwrap the worker's exception: the raw ExecutionException tells the user nothing.
+                val cause = e.cause ?: e
+                throw ContainerCreationException("Container creation failed for $containerId: $cause", cause)
+            }
+        }
+        val container = create() ?: run {
+            val freeMb = rootDir.usableSpace / (1024 * 1024)
+            Timber.e("Failed to create container for $containerId (free space $freeMb MB)")
+            throw ContainerCreationException(
+                "Failed to create container $containerId: directory ${containerDir.absolutePath} " +
+                    "exists=${containerDir.exists()}, writable root=${rootDir.canWrite()}, free space $freeMb MB",
+            )
+        }
 
         // For Custom Games, pre-populate executablePath if there's exactly one valid .exe
         if (gameSource == GameSource.CUSTOM_GAME) {
@@ -1134,9 +1185,16 @@ object ContainerUtils {
                 val appIdInt = runCatching { extractGameIdFromContainerId(appId) }.getOrNull()
                 if (appIdInt != null) AmazonService.getInstallPathByAppId(appIdInt) else null
             }
+
+            GameSource.ITCH -> {
+                val gameId = extractGameIdFromContainerId(appId)
+                app.gamenative.itch.ItchPaths.installerDir(context, gameId.toLong()).absolutePath
+            }
+
+            else -> null
         }
 
-        val resolvedGameFolderPath = if (gameSource == GameSource.CUSTOM_GAME) {
+        val resolvedGameFolderPath = if (gameSource == GameSource.CUSTOM_GAME || gameSource == GameSource.ITCH) {
             gameFolderPath
         } else {
             StorageUtils.resolveLegacyGameDir(gameFolderPath)
@@ -1285,6 +1343,7 @@ object ContainerUtils {
             containerId.startsWith("GOG_") -> GameSource.GOG
             containerId.startsWith("EPIC_") -> GameSource.EPIC
             containerId.startsWith("AMAZON_") -> GameSource.AMAZON
+            containerId.startsWith("ITCH_") -> GameSource.ITCH
             // Add other platforms here..
             else -> GameSource.STEAM // default fallback
         }
@@ -1302,7 +1361,9 @@ object ContainerUtils {
         GameSource.EPIC,
         GameSource.AMAZON,
         GameSource.CUSTOM_GAME,
+        GameSource.ITCH,
         -> true
+        else -> false
     }
 
     /**
@@ -1322,6 +1383,10 @@ object ContainerUtils {
                 CustomGameScanner.getFolderPathFromAppId(customAppId)
                     ?.let { File(it).name }
             }
+
+            GameSource.ITCH -> app.gamenative.itch.ItchNameCache.titleFor(gameId.toLong())
+
+            else -> null
         } ?: "Unknown"
     }
 

@@ -32,9 +32,11 @@ import com.winlator.core.DefaultVersion
 import com.winlator.xenvironment.components.PulseAudioComponent
 import `in`.dragonbra.javasteam.enums.EPersonaState
 import java.util.EnumSet
+import java.util.concurrent.Executors
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.flow.first
@@ -49,12 +51,18 @@ import timber.log.Timber
  */
 object PrefManager {
 
+    // NOT Dispatchers.IO: getPref runBlocking-waits on the datastore from IO threads, so if the read also
+    // needed an IO thread, enough concurrent readers would starve the pool and deadlock.
+    private val dataStoreDispatcher =
+        Executors.newSingleThreadExecutor { r -> Thread(r, "PrefDataStore") }.asCoroutineDispatcher()
+
     private val Context.datastore by preferencesDataStore(
         name = "PluviaPreferences",
         corruptionHandler = ReplaceFileCorruptionHandler {
             Timber.e("Preferences (somehow got) corrupted, resetting.")
             emptyPreferences()
         },
+        scope = CoroutineScope(dataStoreDispatcher + SupervisorJob()),
     )
 
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
@@ -900,7 +908,6 @@ object PrefManager {
     var dualScreenGameUseLogo: Boolean
         get() = getPref(DUAL_SCREEN_GAME_USE_LOGO, false)
         set(value) { setPref(DUAL_SCREEN_GAME_USE_LOGO, value) }
-
     private val TOUCHPAD_SCROLL_HAPTICS = booleanPreferencesKey("touchpad_scroll_haptics")
     var touchpadMotionHaptics: Boolean
         get() = getPref(TOUCHPAD_SCROLL_HAPTICS, false)
@@ -1326,6 +1333,13 @@ object PrefManager {
             setPref(SHOW_AMAZON_IN_LIBRARY, value)
         }
 
+    private val SHOW_ITCH_IN_LIBRARY = booleanPreferencesKey("show_itch_in_library")
+    var showItchInLibrary: Boolean
+        get() = getPref(SHOW_ITCH_IN_LIBRARY, true)
+        set(value) {
+            setPref(SHOW_ITCH_IN_LIBRARY, value)
+        }
+
     // Game counts for skeleton loaders
     private val CUSTOM_GAMES_COUNT = intPreferencesKey("custom_games_count")
     var customGamesCount: Int
@@ -1439,6 +1453,14 @@ object PrefManager {
             setPref(DOWNLOAD_SPEED, value)
         }
 
+    // Number of local save-backup snapshots kept per game before a cloud sync (0 disables them)
+    private val SAVE_BACKUPS_TO_KEEP = intPreferencesKey("save_backups_to_keep")
+    var saveBackupsToKeep: Int
+        get() = getPref(SAVE_BACKUPS_TO_KEEP, 3)
+        set(value) {
+            setPref(SAVE_BACKUPS_TO_KEEP, value)
+        }
+
     private val USE_EXTERNAL_STORAGE = booleanPreferencesKey("use_external_storage")
     var useExternalStorage: Boolean
         get() = getPref(USE_EXTERNAL_STORAGE, false)
@@ -1494,6 +1516,7 @@ object PrefManager {
         GameSource.GOG -> frontendSyncDirGog
         GameSource.AMAZON -> frontendSyncDirAmazon
         GameSource.CUSTOM_GAME -> frontendSyncDirCustom
+        else -> ""
     }
 
     /** Persists [path] as the export directory for [source]. Pass an empty string to clear. */
@@ -1504,6 +1527,7 @@ object PrefManager {
             GameSource.GOG -> frontendSyncDirGog = path
             GameSource.AMAZON -> frontendSyncDirAmazon = path
             GameSource.CUSTOM_GAME -> frontendSyncDirCustom = path
+            else -> Unit
         }
     }
 

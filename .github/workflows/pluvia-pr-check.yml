@@ -60,10 +60,19 @@ jobs:
         uses: gradle/actions/wrapper-validation@v4
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
+      - name: Cache Robolectric Android SDKs
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/robolectric-sdks
+          key: robolectric-sdks-${{ hashFiles('scripts/ci/prepare_robolectric_sdks.sh', 'gradle/libs.versions.toml') }}
+      - name: Prepare Robolectric Android SDKs
+        run: bash scripts/ci/prepare_robolectric_sdks.sh "$RUNNER_TEMP/robolectric-sdks"
       - name: Run unit tests
         id: unit_tests
         env:
-          JAVA_TOOL_OPTIONS: -Drobolectric.dependency.repo.url=https://repo.maven.apache.org/maven2
+          JAVA_TOOL_OPTIONS: >-
+            -Drobolectric.offline=true
+            -Drobolectric.dependency.dir=${{ runner.temp }}/robolectric-sdks
         run: ./gradlew :app:testLegacyDebugUnitTest :app:testModernDebugUnitTest --continue
       - name: Upload failed unit test reports
         if: failure() && steps.unit_tests.outcome == 'failure'

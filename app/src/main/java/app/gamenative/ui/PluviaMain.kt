@@ -126,6 +126,7 @@ import app.gamenative.ui.util.SnackbarManager
 import app.gamenative.utils.BestConfigService
 import app.gamenative.utils.ContainerUtils
 import app.gamenative.localgames.AppImageRuntime
+import app.gamenative.localgames.LocalContainerLaunch
 import app.gamenative.utils.PlatformAuthUtils
 import app.gamenative.utils.PlatformOAuthHandlers
 import app.gamenative.utils.rememberHasExternalDisplay
@@ -169,6 +170,11 @@ import timber.log.Timber
 
 private const val PENDING_LAUNCH_TIMEOUT_MS = 10_000L
 private const val SNACKBAR_SHOW_TIMEOUT_MS = 15_000L
+private const val STEAM_APP_INFO_AWAIT_MS = 30_000L
+private const val PENDING_AFTER_SIGN_IN = "user is now logged in"
+
+/** gbe_fork release-2026_09_27 experimental steamclient + ColdClientLoader, plus StubDRM64; see SteamUtils.replaceSteamclientDll. */
+const val STEAM_EMULATOR_ARCHIVE = "experimental-drm-20261029.tzst"
 
 private data class InstallerExecutableSelection(
     val sessionId: String,
@@ -238,6 +244,28 @@ private fun resolveGameAppId(context: Context, appId: String): GameResolutionRes
         GameSource.CUSTOM_GAME -> {
             CustomGameScanner.isGameInstalled(gameId)
         }
+
+        GameSource.ITCH -> {
+            val container = runCatching { ContainerUtils.getContainer(context, appId) }.getOrNull()
+            if (container == null) {
+                false
+            } else if (
+                container.getExtra(LocalContainerLaunch.EXTRA_MODE) ==
+                LocalContainerLaunch.MODE_INSTALLED_EXE_C
+            ) {
+                val target = container.getExtra(LocalContainerLaunch.EXTRA_TARGET).trimStart('\\', '/')
+                target.isNotBlank() &&
+                    java.io.File(container.rootDir, ".wine/drive_c/$target").isFile
+            } else {
+                // A prepared installer session is launchable even before the game is installed.
+                container.getExtra(LocalContainerLaunch.EXTRA_MODE) ==
+                    LocalContainerLaunch.MODE_INSTALLER_EXE_A ||
+                    container.getExtra(LocalContainerLaunch.EXTRA_MODE) ==
+                    LocalContainerLaunch.MODE_INSTALLER_MSI_A
+            }
+        }
+
+        else -> ContainerUtils.hasContainer(context, appId)
     }
 
     if (!isInstalled) {
@@ -248,7 +276,7 @@ private fun resolveGameAppId(context: Context, appId: String): GameResolutionRes
     }
 
     val isSteamInstalled = gameSource == GameSource.STEAM && isInstalled
-    val isCustomGame = gameSource == GameSource.CUSTOM_GAME
+    val isCustomGame = gameSource == GameSource.CUSTOM_GAME || gameSource == GameSource.ITCH
 
     return GameResolutionResult.Success(
         finalAppId = appId,
@@ -265,14 +293,48 @@ private fun needsDeferLaunch(context: Context, appId: String): Boolean {
     return when (gameSource) {
         GameSource.STEAM -> {
             if (SteamService.isLoggedIn) return false
-            // isLoggedIn is network-gated (requires LoggedOnCallback). allow offline launch when
-            // saved creds + local container exist — Steam can reconnect in background.
-            !(SteamUtils.hasStoredCredentials() && ContainerUtils.hasContainer(context, appId))
+            // With saved credentials the launch path waits for the login itself (see
+            // awaitSteamForLaunch); only a launch that has nothing to sign in with is deferred.
+            !SteamUtils.hasStoredCredentials()
         }
         GameSource.GOG -> !GOGService.isRunning
         GameSource.EPIC -> !EpicService.isRunning
         GameSource.AMAZON -> !AmazonService.isRunning
         else -> false
+    }
+}
+
+/** True when a pending Steam launch waits for the sign-in itself, so it must not time out. */
+private fun waitsForSteamSignIn(appId: String): Boolean =
+    ContainerUtils.extractGameSourceFromContainerId(appId) == GameSource.STEAM &&
+        !SteamService.isLoggedIn
+
+/**
+ * Waits for Steam before the installed check, so a cold or queued intent launch is not judged
+ * "not installed" while the service is still signing in. Returns after the wait at the latest.
+ */
+private suspend fun awaitSteamForLaunch(
+    appId: String,
+    waitForAppInfo: Boolean,
+    setLoading: (Boolean) -> Unit,
+) {
+    if (ContainerUtils.extractGameSourceFromContainerId(appId) != GameSource.STEAM) return
+    // offline: resolve against what is on disk instead of waiting for a login that cannot happen
+    val waitForLogin = !SteamService.isLoggedIn && NetworkMonitor.hasInternet.value
+    if (!waitForLogin && !waitForAppInfo) return
+    setLoading(true)
+    try {
+        if (waitForLogin) SteamUtils.awaitSteamLogin()
+        if (waitForAppInfo) {
+            val gameId = ContainerUtils.extractGameIdFromContainerId(appId)
+            withTimeoutOrNull(STEAM_APP_INFO_AWAIT_MS) {
+                while (SteamService.getAppInfoOf(gameId)?.receivedPICS != true) {
+                    delay(500)
+                }
+            }
+        }
+    } finally {
+        setLoading(false)
     }
 }
 
@@ -396,6 +458,15 @@ fun PluviaMain(
         }
     }
 
+    // shown while an intent launch waits for Steam to sign in before the installed check
+    val showSteamWaitDialog: (Boolean) -> Unit = { visible ->
+        viewModel.setLoadingDialogVisible(visible)
+        if (visible) {
+            viewModel.setLoadingDialogMessage(context.getString(R.string.connecting_to_steam))
+            viewModel.setLoadingDialogProgress(-1f)
+        }
+    }
+
     // shared intent-launch path. resolves isOffline at the call site because intent launches can
     // arrive pre-login (cold-boot via stored creds) and downstream cloud-sync needs a settled answer.
     val launchIntentApp: (resolvedAppId: String, hasTemporaryOverride: Boolean) -> Unit = { resolvedAppId, hasTemporaryOverride ->
@@ -464,6 +535,11 @@ fun PluviaMain(
                 shownPendingLaunchSnackbar = showDeferredLaunchSnackbar(context, launchRequest.appId)
                 return@let
             }
+            awaitSteamForLaunch(
+                launchRequest.appId,
+                waitForAppInfo = false,
+                setLoading = showSteamWaitDialog,
+            )
             when (val resolution = resolveGameAppId(context, launchRequest.appId)) {
                 is GameResolutionResult.Success -> {
                     if (launchRequest.containerConfig != null) {
@@ -495,6 +571,15 @@ fun PluviaMain(
         if (pendingLaunchGeneration == 0) return@LaunchedEffect
         delay(PENDING_LAUNCH_TIMEOUT_MS)
         MainActivity.peekPendingLaunchRequest()?.let { request ->
+            if (waitsForSteamSignIn(request.appId)) {
+                // a Steam launch waits for the sign-in itself: keep the request instead of dropping it
+                Timber.tag("IntentLaunch").i("Pending launch still waiting for Steam sign-in: ${request.appId}")
+                if (!shownPendingLaunchSnackbar) {
+                    shownPendingLaunchSnackbar = true
+                    SnackbarManager.show(context.getString(R.string.intent_launch_sign_in_required))
+                }
+                return@let
+            }
             if (needsDeferLaunch(context, request.appId)) {
                 Timber.tag("IntentLaunch").w("Pending launch timed out for ${request.appId}")
                 MainActivity.consumePendingLaunchRequest()
@@ -504,10 +589,15 @@ fun PluviaMain(
     }
 
     // shared handler for deferred intent launches (Steam login, GOG/Epic/Amazon service startup)
-    val processPendingLaunch: (String) -> Unit = { reason ->
+    val processPendingLaunch: suspend (String) -> Unit = { reason ->
         MainActivity.consumePendingLaunchRequest()?.let { launchRequest ->
             Timber.tag("IntentLaunch")
                 .i("Processing pending launch for ${launchRequest.appId} ($reason)")
+            awaitSteamForLaunch(
+                launchRequest.appId,
+                waitForAppInfo = reason == PENDING_AFTER_SIGN_IN,
+                setLoading = showSteamWaitDialog,
+            )
             when (val resolution = resolveGameAppId(context, launchRequest.appId)) {
                 is GameResolutionResult.NotFound -> {
                     val appName = ContainerUtils.resolveGameName(resolution.originalAppId)
@@ -564,6 +654,11 @@ fun PluviaMain(
                         return@collect
                     }
 
+                    awaitSteamForLaunch(
+                        event.appId,
+                        waitForAppInfo = false,
+                        setLoading = showSteamWaitDialog,
+                    )
                     when (val resolution = resolveGameAppId(context, event.appId)) {
                         is GameResolutionResult.Success -> {
                             Timber.i("[PluviaMain]: Using appId: ${resolution.finalAppId} (original: ${event.appId}, isSteamInstalled: ${resolution.isSteamInstalled}, isCustomGame: ${resolution.isCustomGame})")
@@ -614,7 +709,7 @@ fun PluviaMain(
                         LoginResult.Success -> {
                             val pending = MainActivity.peekPendingLaunchRequest()
                             if (pending != null && !needsDeferLaunch(context, pending.appId)) {
-                                processPendingLaunch("user is now logged in")
+                                processPendingLaunch(PENDING_AFTER_SIGN_IN)
                             } else if (pending == null && PluviaApp.xEnvironment == null) {
                                 val currentRoute = navController.currentDestination?.route
                                 val targetRoute = viewModel.getPersistedRoute() ?: PluviaScreen.Home.route
@@ -660,7 +755,12 @@ fun PluviaMain(
 
                 MainViewModel.MainUiEvent.ServiceReady -> {
                     val pending = MainActivity.peekPendingLaunchRequest()
-                    if (pending != null && !needsDeferLaunch(context, pending.appId)) {
+                    // a Steam request waits for the login, not for the service: releasing it here
+                    // would run the installed check before the library arrived
+                    if (pending != null &&
+                        ContainerUtils.extractGameSourceFromContainerId(pending.appId) != GameSource.STEAM &&
+                        !needsDeferLaunch(context, pending.appId)
+                    ) {
                         processPendingLaunch("service now ready")
                     }
                 }
@@ -2034,6 +2134,8 @@ fun preLaunchApp(
                 GameSource.EPIC -> EpicService.getLaunchExecutable(appId)
                 GameSource.CUSTOM_GAME -> CustomGameScanner.getLaunchExecutable(container)
                 GameSource.AMAZON -> AmazonService.getLaunchExecutable(appId)
+                GameSource.ITCH -> CustomGameScanner.getLaunchExecutable(container)
+                else -> ""
             }
             if (effectiveExe.isBlank()) {
                 Timber.tag("preLaunchApp").w("Cannot launch $appId: no executable found (game source: $gameSource)")
@@ -2076,7 +2178,7 @@ fun preLaunchApp(
 
         // Check if this is a Custom Game and validate executable selection before installing components
         // Skip the check if booting to container (Open Container menu option)
-        val isCustomGame = gameSource == GameSource.CUSTOM_GAME
+        val isCustomGame = gameSource == GameSource.CUSTOM_GAME || gameSource == GameSource.ITCH
 
         // set up Ubuntu file system — download required files and install
         try {
@@ -2125,14 +2227,14 @@ fun preLaunchApp(
             }
 
             if (!container.isUseLegacyDRM && !container.isLaunchRealSteam &&
-                !SteamService.isFileInstallable(context, "experimental-drm-20260116.tzst")
+                !SteamService.isFileInstallable(context, STEAM_EMULATOR_ARCHIVE)
             ) {
                 setLoadingMessage("Downloading extras")
                 SteamService.downloadFile(
                     onDownloadProgress = { setLoadingProgress(it / 1.0f) },
                     this,
                     context = context,
-                    "experimental-drm-20260116.tzst",
+                    STEAM_EMULATOR_ARCHIVE,
                 ).await()
             }
             if ((container.isLaunchRealSteam || container.isLaunchBionicSteam) && !SteamService.isFileInstallable(context, "steam.tzst")) {

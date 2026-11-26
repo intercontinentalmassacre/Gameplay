@@ -1003,6 +1003,32 @@ fun SettingsGroupInterface(
             },
             onClick = { openRegionDialog = true },
         )
+
+        // Local save-backup retention (CloudSaveBackupManager keeps this many PRE_SYNC snapshots per game)
+        val saveBackupsToKeepValues = remember { listOf(0, 1, 3, 5, 10) }
+        val saveBackupsToKeepLabels = listOf(
+            stringResource(R.string.save_backup_keep_off),
+            stringResource(R.string.save_backup_keep_count, 1),
+            stringResource(R.string.save_backup_keep_count, 3),
+            stringResource(R.string.save_backup_keep_count, 5),
+            stringResource(R.string.save_backup_keep_count, 10),
+        )
+        var saveBackupsToKeepIndex by rememberSaveable {
+            mutableStateOf(
+                saveBackupsToKeepValues.indexOf(PrefManager.saveBackupsToKeep).takeIf { it >= 0 } ?: 2
+            )
+        }
+        SettingsListDropdown(
+            colors = settingsTileColorsAlt(),
+            value = saveBackupsToKeepIndex,
+            items = saveBackupsToKeepLabels,
+            title = { Text(text = stringResource(R.string.save_backup_keep_title)) },
+            subtitle = { Text(text = stringResource(R.string.save_backup_keep_subtitle)) },
+            onItemSelected = { index ->
+                saveBackupsToKeepIndex = index
+                PrefManager.saveBackupsToKeep = saveBackupsToKeepValues[index]
+            },
+        )
     }
 
     // Steam Download Server choice dialog

@@ -140,6 +140,7 @@ import app.gamenative.ui.screen.library.appscreen.AmazonAppScreen
 import app.gamenative.ui.screen.library.appscreen.CustomGameAppScreen
 import app.gamenative.ui.screen.library.appscreen.EpicAppScreen
 import app.gamenative.ui.screen.library.appscreen.GOGAppScreen
+import app.gamenative.ui.screen.library.appscreen.ItchAppScreen
 import app.gamenative.ui.screen.library.appscreen.SteamAppScreen
 import app.gamenative.ui.screen.library.components.GameOptionsPanel
 import app.gamenative.ui.screen.library.components.GameSourceIcon
@@ -752,6 +753,8 @@ fun AppScreen(
             app.gamenative.data.GameSource.GOG -> GOGAppScreen()
             app.gamenative.data.GameSource.EPIC -> EpicAppScreen()
             app.gamenative.data.GameSource.AMAZON -> AmazonAppScreen()
+            app.gamenative.data.GameSource.ITCH -> ItchAppScreen()
+            else -> CustomGameAppScreen()
         }
     }
 
@@ -1380,6 +1383,7 @@ private fun AppScreenBelowHeroContent(
                                     GameSource.EPIC -> stringResource(R.string.tab_epic)
                                     GameSource.AMAZON -> stringResource(R.string.tab_amazon)
                                     GameSource.CUSTOM_GAME -> stringResource(R.string.tab_local)
+                                    else -> stringResource(R.string.tab_itch)
                                 },
                                 style = MaterialTheme.typography.bodyMedium,
                             )
@@ -1523,6 +1527,7 @@ private fun AppScreenHeroSection(
     preferLogo: Boolean = true,
     isUpdatePending: Boolean = false,
     onUpdateClick: () -> Unit = {},
+    primaryActionLabelOverride: ((Boolean, Boolean, Boolean) -> String?)? = null,
 ) {
     Box(
         modifier = Modifier
@@ -1651,6 +1656,7 @@ private fun AppScreenHeroSection(
                     playerCount = playerCount,
                     isUpdatePending = isUpdatePending,
                     onUpdateClick = onUpdateClick,
+                    primaryActionLabelOverride = primaryActionLabelOverride,
                 )
             }
         }
@@ -1685,16 +1691,18 @@ private fun AppScreenActionBar(
     isUpdatePending: Boolean = false,
     onUpdateClick: () -> Unit = {},
     onHero: Boolean = true,
+    primaryActionLabelOverride: ((Boolean, Boolean, Boolean) -> String?)? = null,
 ) {
     @Composable
     fun PrimaryAction(modifier: Modifier = Modifier) {
         if (isDownloading || hasPartialDownload) {
             PrimaryActionButton(
-                text = if (isDownloading) {
-                    stringResource(R.string.pause_download)
-                } else {
-                    stringResource(R.string.resume_download)
-                },
+                text = primaryActionLabelOverride?.invoke(false, isDownloading, true)
+                    ?: if (isDownloading) {
+                        stringResource(R.string.pause_download)
+                    } else {
+                        stringResource(R.string.resume_download)
+                    },
                 onClick = onPauseResumeClick,
                 enabled = runtime.pauseResumeEnabled(isDownloading, hasPartialDownload, network),
                 isInstalled = false,
@@ -1705,12 +1713,14 @@ private fun AppScreenActionBar(
                 modifier = modifier,
             )
         } else {
-            val text = when {
-                isInstalled -> stringResource(R.string.run_app)
-                !network.hasInternet -> stringResource(R.string.library_need_internet)
-                !network.hasWifiOrEthernet && PrefManager.downloadOnWifiOnly -> stringResource(R.string.library_wifi_only_enabled)
-                else -> stringResource(R.string.install_app)
-            }
+            val text = primaryActionLabelOverride?.invoke(isInstalled, false, false)
+                ?: when {
+                    isInstalled -> stringResource(R.string.run_app)
+                    !network.hasInternet -> stringResource(R.string.library_need_internet)
+                    !network.hasWifiOrEthernet && PrefManager.downloadOnWifiOnly ->
+                        stringResource(R.string.library_wifi_only_enabled)
+                    else -> stringResource(R.string.install_app)
+                }
             PrimaryActionButton(
                 text = text,
                 onClick = onDownloadInstallClick,
@@ -2253,6 +2263,7 @@ internal fun AppScreenContent(
     runtimeConfig: ContainerData? = null,
     achievements: List<Achievement>? = null,
     achievementRarity: Map<String, Float> = emptyMap(),
+    primaryActionLabelOverride: ((isInstalled: Boolean, isDownloading: Boolean, hasPartialDownload: Boolean) -> String?)? = null,
 ) {
     val context = LocalContext.current
     // reactive — recomposes when network state changes
@@ -2463,6 +2474,7 @@ internal fun AppScreenContent(
                     preferLogo = PrefManager.dualScreenHeroUseLogo,
                     isUpdatePending = isUpdatePending,
                     onUpdateClick = onUpdateClick,
+                    primaryActionLabelOverride = primaryActionLabelOverride,
                 )
             }
         } else {
@@ -2500,6 +2512,7 @@ internal fun AppScreenContent(
                     playerCount = playerCount,
                     isUpdatePending = isUpdatePending,
                     onUpdateClick = onUpdateClick,
+                    primaryActionLabelOverride = primaryActionLabelOverride,
                 )
 
                 AppScreenBelowHeroContent(
