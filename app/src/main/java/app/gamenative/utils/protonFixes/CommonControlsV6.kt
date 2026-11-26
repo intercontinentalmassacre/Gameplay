@@ -33,6 +33,12 @@ import java.nio.file.StandardCopyOption
  * one is restored. The version in the directory name only has to be 6.0.x.y:
  * ntdll matches the manifest with a `<arch>_<name>_<key>_6.0.*.*_*_*.manifest` filter, so
  * build/revision differences never break the lookup.
+ *
+ * Overlay ("thin") containers resolve their own `.wine` over the shared base prefix —
+ * `ContainerFiles.upperDir`/`lowerDir` and `Container.isOverlay`, which is
+ * `ContainerOverlay.isEligible` plus a non-empty `basePrefix`. The assembly therefore goes into the
+ * base prefix, the layer every container of that Wine build sees, and a copy left in the
+ * container's own layer is pruned so it cannot shadow the fresh one.
  */
 object CommonControlsV6 {
     private const val TAG = "CommonControlsV6"
@@ -64,7 +70,18 @@ object CommonControlsV6 {
     fun ensureInstalled(context: Context, container: Container, wineInfo: WineInfo?): Int {
         if (wineInfo == null) return 0
         val libDir = wineLibDir(context, wineInfo)
-        val target = File(container.rootDir, ".wine/drive_c/windows/winsxs")
+        val upperWine = File(container.rootDir, ".wine")
+        val prefixWine = targetPrefix(container)
+        // A missing base prefix is a launch problem of its own: writing here would create a partial
+        // prefix in its place, which is worse than leaving the assembly alone.
+        if (prefixWine != upperWine && !prefixWine.isDirectory) {
+            Timber.tag(TAG).w("Base prefix $prefixWine is missing, not installing the assembly")
+            return 0
+        }
+        val target = File(prefixWine, "drive_c/windows/winsxs")
+        // A thin container's own .wine can carry an assembly from the container pattern that shadows
+        // the shared base prefix; it has to be checked whenever the base is the write target.
+        val upper = if (prefixWine != upperWine) File(upperWine, "drive_c/windows/winsxs") else null
 
         val arches = targetArches(wineInfo)
         // Decided per build, not per arch: on a split build `comctl32.dll` is the v5 DLL and must
@@ -93,15 +110,30 @@ object CommonControlsV6 {
                 Timber.tag(TAG).i("Installed $name (${src.parentFile?.name}) into ${dst.parent}")
                 installed++
             }
-            // Repair the manifest even when the DLL was already current.
+            // Repair the manifest even when the DLL was already current, and only drop a
+            // prefix-local copy once the base pair is published.
             if (!writeManifest(File(target, "manifests/$name.manifest"), arch)) {
-                Timber.tag(TAG).w("Manifest for $name could not be published")
+                Timber.tag(TAG).w("Manifest for $name could not be published, keeping any local copy")
+                continue
             }
+            if (upper == null || prune(upper, name, src) != Prune.KEPT) continue
+            // The local copy is this build's and stays, so its manifest has to agree with it or it
+            // shadows the one just written under the base prefix.
+            val localManifest = File(upper, "manifests/$name.manifest")
+            if (writeManifest(localManifest, arch)) continue
+            // Not repairable: drop the local manifest so the base pair is what Wine resolves, and
+            // if that file cannot be removed either, drop the local assembly along with it.
+            if (!localManifest.exists() || localManifest.delete()) continue
+            Timber.tag(TAG).w("Could not repair or drop ${localManifest.name}; removing the local assembly")
+            if (FileUtils.delete(File(upper, name))) localManifest.delete()
         }
 
-        // An assembly from a previous build can shadow the current architecture.
+        // An assembly from a previous build can shadow the current architecture in either layer.
         for (arch in ALL_ARCHES) {
-            if (!sources.containsKey(arch)) removeStaleAssembly(target, "${arch}_$ASSEMBLY")
+            if (sources.containsKey(arch)) continue
+            val name = "${arch}_$ASSEMBLY"
+            prune(target, name, null)
+            if (upper != null) prune(upper, name, null)
         }
         return installed
     }
@@ -149,17 +181,66 @@ object CommonControlsV6 {
         }
     }
 
-    /** Remove an assembly this build cannot supply, along with its manifest. */
-    private fun removeStaleAssembly(winsxs: File, name: String) {
+    /**
+     * The Wine prefix the assembly belongs in: the shared base prefix of an overlay container,
+     * otherwise the container's own `.wine`.
+     *
+     * Overlay containers resolve `<rootDir>/.wine` (upper, writable) over the base prefix (lower):
+     * `ContainerFiles.resolve` prefers the upper, `ContainerFiles.upperDir` is the container's own
+     * `.wine` and `ContainerFiles.lowerDir` the base. A copy in the upper therefore masks the base,
+     * so the base — shared by every container of that build — is the install target.
+     */
+    private fun targetPrefix(container: Container): File =
+        if (container.isOverlay && container.basePrefix.isNotEmpty()) File(container.basePrefix)
+        else File(container.rootDir, ".wine")
+
+    private enum class Prune { NONE, REMOVED, KEPT }
+
+    /**
+     * Removes an assembly directory that is not [keep]: empty, holding only the temp file an
+     * interrupted install left behind, or holding another build's DLL — the container pattern ships
+     * an x86_64 v6 DLL under `amd64_`, which an arm64ec process cannot load and which wins the
+     * overlay lookup over the base prefix. [keep] is this build's DLL for the arch, or null when the
+     * build cannot serve the arch at all. Returns [Prune.KEPT] when the directory already holds
+     * [keep] itself.
+     *
+     * Only a directory made of [DST_DLL] and [TMP_DLL] is removed: anything else in there is not
+     * ours to recurse through, and a stale assembly that shadows is still better than deleting
+     * files we do not understand.
+     *
+     * The manifest goes with the directory: a manifest whose directory is gone makes the whole
+     * lookup fail. A manifest without a directory is left alone for that same reason — under the
+     * overlay the other layer may be serving both — so the pair is only ever edited together.
+     */
+    private fun prune(winsxs: File, name: String, keep: File?): Prune {
         val dir = File(winsxs, name)
-        if (!dir.isDirectory) return
-        val entries = dir.list() ?: return
-        if (entries.any { it != DST_DLL && it != TMP_DLL }) return
-        if (FileUtils.delete(dir)) {
-            File(winsxs, "manifests/$name.manifest").delete()
-        } else {
-            Timber.tag(TAG).w("Could not remove $dir")
+        if (!dir.isDirectory) return Prune.NONE
+        val dll = File(dir, DST_DLL)
+        if (keep != null && dll.isFile && isCurrentBuild(dll, keep)) return Prune.KEPT
+        val entries = dir.list() ?: return Prune.NONE
+        if (entries.any { it != DST_DLL && it != TMP_DLL }) {
+            if (dll.isFile) {
+                Timber.tag(TAG).w("Leaving $dir: entries other than $DST_DLL, a stale assembly may shadow this build")
+            }
+            return Prune.NONE
         }
+        if (dll.isFile) {
+            Timber.tag(TAG).i(
+                if (keep == null) "Removing $name at ${dir.parent}: this build has no $SRC_DLL for that arch"
+                else "Removing stale $name at ${dir.parent}: ${dll.length()} bytes, not this build's $SRC_DLL",
+            )
+        } else if (entries.isEmpty() || entries.all { it == TMP_DLL }) {
+            File(dir, TMP_DLL).delete()
+            Timber.tag(TAG).d("Removing leftover $name at ${dir.parent}")
+        } else {
+            return Prune.NONE
+        }
+        if (!FileUtils.delete(dir)) {
+            Timber.tag(TAG).w("Could not remove $dir")
+            return Prune.NONE
+        }
+        File(winsxs, "manifests/$name.manifest").delete()
+        return Prune.REMOVED
     }
 
     /**

@@ -556,8 +556,18 @@ class MainViewModel @Inject constructor(
 // getOrCreateContainerWithOverride also picks up a temporary per-launch config
             // (e.g. from an external Intent launch) — falls back to the persisted container
             // untouched when there's no override, so this is safe unconditionally.
-            val container = withContext(Dispatchers.IO) {
-                ContainerUtils.getOrCreateContainerWithOverride(context, appId)
+            val container = try {
+                withContext(Dispatchers.IO) {
+                    ContainerUtils.getOrCreateContainerWithOverride(context, appId)
+                }
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                // Mostly out of storage on small-storage phones: mkdirs() fails and the game has no
+                // prefix. Tell the user instead of letting the launch coroutine take the process down.
+                Timber.tag("MainViewModel").e(e, "Could not create the container for $appId")
+                setLoadingDialogVisible(false)
+                SnackbarManager.show(e.localizedMessage ?: context.getString(R.string.install_failed_title))
+                return@launch
             }
             if (container.platform.equals(Container.PLATFORM_ANDROID, ignoreCase = true)) {
                 // Native Android (Steam Frame / Lepton) build: no Wine container involved at all.
