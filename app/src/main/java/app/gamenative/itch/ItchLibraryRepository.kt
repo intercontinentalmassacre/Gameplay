@@ -25,6 +25,7 @@ data class ItchUploadSelection(
     val gameId: Long,
     val uploads: List<ItchUpload>,
     val choice: ItchUploadChoice,
+    val downloadKeyId: Long? = null,
 )
 
 /**
@@ -59,6 +60,16 @@ class ItchLibraryRepository @Inject constructor(
         ItchGameCache.put(game)
     }
 
+    internal suspend fun searchFreeGames(query: String): List<CatalogGame> =
+        withContext(Dispatchers.IO) {
+            api.searchFreeGames(auth.tokenOrNull() ?: throw ItchNotAuthenticatedException(), query)
+        }
+
+    suspend fun addCatalogGame(game: ItchGame) {
+        dao.addCatalogGame(game)
+        getGame(game.gameId)
+    }
+
     suspend fun installedGames(): List<ItchGame> = dao.getInstalledGames().also { games ->
         games.forEach { game ->
             ItchNameCache.put(game.gameId, game.title)
@@ -87,6 +98,7 @@ class ItchLibraryRepository @Inject constructor(
                     games[summary.id] = ItchGame(
                         gameId = summary.id,
                         title = summary.title,
+                        isGame = summary.classification.equals("game", ignoreCase = true),
                         url = summary.url,
                         coverUrl = summary.coverUrl,
                         author = summary.user?.label.orEmpty(),
@@ -115,26 +127,24 @@ class ItchLibraryRepository @Inject constructor(
             }
 
             ItchLibraryRefresh(
-                ownedGames = games.size,
+                ownedGames = games.values.count { it.isGame },
                 pagesFetched = pages,
                 accountLabel = account.label,
             )
         }
     }
 
-    suspend fun loadUploads(gameId: Long): Result<List<ItchUpload>> = withContext(Dispatchers.IO) {
-        val token = auth.tokenOrNull()
-        if (token.isNullOrBlank()) return@withContext Result.failure(ItchNotAuthenticatedException())
-        runCatching { api.fetchUploads(token, gameId) }
-    }
+    suspend fun loadUploads(gameId: Long): Result<List<ItchUpload>> =
+        chooseUpload(gameId).map { it.uploads }
 
     suspend fun chooseUpload(gameId: Long): Result<ItchUploadSelection> = withContext(Dispatchers.IO) {
-        loadUploads(gameId).map { uploads ->
-            ItchUploadSelection(
-                gameId = gameId,
-                uploads = uploads,
-                choice = ItchUploadSelector.choose(uploads),
-            )
+        val token = auth.tokenOrNull()
+        if (token.isNullOrBlank()) return@withContext Result.failure(ItchNotAuthenticatedException())
+        runCatching {
+            val key = api.fetchOwnedKeys(token, page = 1, gameId = gameId).ownedKeys
+                .firstOrNull { (it.gameId == gameId || it.game?.id == gameId) && it.id > 0 }
+            val uploads = api.fetchUploads(token, gameId, key?.id)
+            ItchUploadSelection(gameId, uploads, ItchUploadSelector.choose(uploads), key?.id)
         }
     }
 
@@ -183,7 +193,7 @@ class ItchLibraryRepository @Inject constructor(
         val token = auth.tokenOrNull()
         if (token.isNullOrBlank()) return@withContext Result.failure(ItchNotAuthenticatedException())
         runCatching {
-            val uploads = api.fetchUploads(token, gameId)
+            val uploads = loadUploads(gameId).getOrThrow()
             val decision = ItchUpdateChecker.evaluate(revision, uploads)
             dao.updateUpdateStatus(
                 gameId = gameId,

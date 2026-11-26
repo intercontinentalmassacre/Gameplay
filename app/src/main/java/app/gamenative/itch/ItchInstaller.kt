@@ -644,10 +644,24 @@ object ItchArgCodec {
      */
     fun toWindowsCommandLine(args: List<String>): String =
         args.joinToString(" ") { argument ->
-            if (argument.isBlank() || argument.any { it.isWhitespace() || it == '"' }) {
-                "\"" + argument.replace("\"", "\\\"") + "\""
-            } else {
-                argument
+            val needsQuotes = argument.isEmpty() || argument.startsWith('\'') || argument.endsWith('\\') ||
+                argument.any { it.isWhitespace() || it == '"' }
+            if (!needsQuotes) return@joinToString argument
+            buildString {
+                append('"')
+                var backslashes = 0
+                for (ch in argument) {
+                    if (ch == '\\') {
+                        backslashes++
+                        continue
+                    }
+                    // Before a literal quote, double the backslashes and escape the quote itself.
+                    repeat(if (ch == '"') 2 * backslashes + 1 else backslashes) { append('\\') }
+                    backslashes = 0
+                    append(ch)
+                }
+                repeat(2 * backslashes) { append('\\') }
+                append('"')
             }
         }
 }

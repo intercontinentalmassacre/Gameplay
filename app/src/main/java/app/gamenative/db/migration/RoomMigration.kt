@@ -32,6 +32,15 @@ internal val ROOM_MIGRATION_V24_to_V25 = object : Migration(24, 25) {
     }
 }
 
+internal val ROOM_MIGRATION_V26_to_V27 = object : Migration(26, 27) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL("ALTER TABLE itch_games ADD COLUMN is_game INTEGER NOT NULL DEFAULT 1")
+        // Older installations created these on open. Register them without rebuilding steam_app.
+        connection.execSQL("CREATE INDEX IF NOT EXISTS idx_steam_app_dlc_for_app_id ON steam_app(dlc_for_app_id)")
+        connection.execSQL("CREATE INDEX IF NOT EXISTS idx_steam_app_package_id ON steam_app(package_id)")
+    }
+}
+
 /**
  * Adds the itch.io library cache / install metadata table. Account-derived
  * columns are cleared on sign-out while installed rows stay launchable, so the

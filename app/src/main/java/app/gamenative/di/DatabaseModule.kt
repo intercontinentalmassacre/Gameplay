@@ -2,8 +2,6 @@ package app.gamenative.di
 
 import android.content.Context
 import androidx.room.Room
-import androidx.room.RoomDatabase
-import androidx.sqlite.db.SupportSQLiteDatabase
 import app.gamenative.db.DATABASE_NAME
 import app.gamenative.db.PluviaDatabase
 import app.gamenative.db.dao.AppInfoDao
@@ -18,6 +16,7 @@ import app.gamenative.db.dao.SteamUnlockedBranchDao
 import app.gamenative.db.migration.ROOM_MIGRATION_V16_to_V17
 import app.gamenative.db.migration.ROOM_MIGRATION_V23_to_V24
 import app.gamenative.db.migration.ROOM_MIGRATION_V24_to_V25
+import app.gamenative.db.migration.ROOM_MIGRATION_V26_to_V27
 import app.gamenative.db.migration.ROOM_MIGRATION_V25_to_V26
 import app.gamenative.db.migration.ROOM_MIGRATION_V7_to_V8
 import dagger.Module
@@ -44,23 +43,12 @@ class DatabaseModule {
                 ROOM_MIGRATION_V23_to_V24,
                 ROOM_MIGRATION_V24_to_V25,
                 ROOM_MIGRATION_V25_to_V26,
+                ROOM_MIGRATION_V26_to_V27,
             )
             .fallbackToDestructiveMigration(true)
             // Keep PICS sync bursts from starving short library queries.
             .setQueryExecutor(Executors.newFixedThreadPool(maxOf(4, Runtime.getRuntime().availableProcessors() * 2)))
             .setTransactionExecutor(Executors.newCachedThreadPool())
-            .addCallback(object : RoomDatabase.Callback() {
-                override fun onOpen(db: SupportSQLiteDatabase) {
-                    db.execSQL(
-                        "CREATE INDEX IF NOT EXISTS idx_steam_app_dlc_for_app_id " +
-                            "ON steam_app(dlc_for_app_id)",
-                    )
-                    db.execSQL(
-                        "CREATE INDEX IF NOT EXISTS idx_steam_app_package_id " +
-                            "ON steam_app(package_id)",
-                    )
-                }
-            })
             .build()
     }
 

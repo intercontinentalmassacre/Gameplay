@@ -49,6 +49,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
@@ -536,7 +537,13 @@ fun XServerScreen(
         SteamService.getWindowsLaunchInfos(gameId).firstOrNull()
     }
 
-    var currentAppInfo = SteamService.getAppInfoOf(gameId)
+    val isItchGame = ContainerUtils.extractGameSourceFromContainerId(appId) == GameSource.ITCH
+    val currentAppInfo = if (isItchGame) null else SteamService.getAppInfoOf(gameId)
+    val itchGame by produceState<app.gamenative.data.ItchGame?>(null, appId) {
+        value = if (isItchGame) withContext(Dispatchers.IO) {
+            app.gamenative.itch.ItchAccess.repository(context).getGame(gameId.toLong())
+        } else null
+    }
 
     var xServerView: XServerRendererView? by remember {
         val result = mutableStateOf<XServerRendererView?>(null)
@@ -1320,6 +1327,11 @@ var win32AppWorkarounds: Win32AppWorkarounds? by remember { mutableStateOf(null)
 
             QuickMenuAction.TOUCHSCREEN_MODE -> {
                 val newMode = !container.isTouchscreenMode
+                if (newMode && isDisableMouseInput) {
+                    isDisableMouseInput = false
+                    container.setDisableMouseInput(false)
+                    PluviaApp.touchpadView?.setTouchscreenMouseDisabled(false)
+                }
                 container.setTouchscreenMode(newMode)
                 container.saveData()
                 isTouchscreenModeActive = newMode
@@ -2938,6 +2950,7 @@ var win32AppWorkarounds: Win32AppWorkarounds? by remember { mutableStateOf(null)
             fpsLimiterTarget = fpsLimiterTarget,
             fpsLimiterMax = detectedMaxRefreshRateHz,
             game = currentAppInfo,
+            itchGame = itchGame,
             gameInputServer = xServerView?.getxServer(),
             frameRating = frameRating,
             onPerformanceHudConfigChanged = ::applyPerformanceHudConfig,

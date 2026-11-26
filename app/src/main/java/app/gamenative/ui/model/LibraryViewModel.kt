@@ -138,16 +138,20 @@ class LibraryViewModel @Inject constructor(
     }
 
     private val onItchAuthStateChanged: (AndroidEvent.ItchAuthStateChanged) -> Unit = { event ->
+        itchSyncJob?.cancel()
         invalidateLibrarySnapshot()
         if (event.success && !event.signedOut && app.gamenative.itch.ItchPaths.hasCredentials(context)) {
-            refreshItchAfterLogin()
+            refreshItchOnLibraryOpen()
         } else {
             onFilterApps(paginationCurrentPage)
         }
     }
 
-    private fun refreshItchAfterLogin() {
-        viewModelScope.launch(Dispatchers.IO) {
+    private var itchSyncJob: Job? = null
+
+    fun refreshItchOnLibraryOpen() {
+        if (!itchLibraryRepository.hasStoredCredentials() || itchSyncJob?.isActive == true) return
+        itchSyncJob = viewModelScope.launch(Dispatchers.IO) {
             val sync = itchLibraryRepository.refreshLibrary()
             if (sync.isFailure) {
                 SnackbarManager.show(sync.exceptionOrNull()?.message ?: "Could not sync itch.io")
@@ -400,7 +404,7 @@ class LibraryViewModel @Inject constructor(
         PluviaApp.events.on<AndroidEvent.InstallationSessionChanged, Unit>(onInstallationSessionChanged)
         PluviaApp.events.on<AndroidEvent.ItchAuthStateChanged, Unit>(onItchAuthStateChanged)
         // Sign-in from the initial account picker can finish before the library is opened.
-        if (app.gamenative.itch.ItchPaths.hasCredentials(context)) refreshItchAfterLogin()
+
 
         scheduleRefreshInstallProgress()
     }
@@ -1024,7 +1028,7 @@ class LibraryViewModel @Inject constructor(
                 // visible after sign-out so games remain launchable from "Installed".
                 val hasItchAccount = app.gamenative.itch.ItchPaths.hasCredentials(context)
                 itchGameList
-                    .filter { game -> game.isInstalled || (game.isOwned && hasItchAccount) }
+                    .filter { game -> game.isInstalled || ((game.isOwned || game.selectedUploadId != null) && hasItchAccount) }
                     .forEach { game ->
                         add(
                             LibraryItem(
@@ -1392,7 +1396,7 @@ class LibraryViewModel @Inject constructor(
             val hasItchCredentials = app.gamenative.itch.ItchPaths.hasCredentials(context)
             val filteredItchGames = itchGameList
                 .asSequence()
-                .filter { game -> game.isInstalled || (game.isOwned && hasItchCredentials) }
+                .filter { game -> game.isInstalled || ((game.isOwned || game.selectedUploadId != null) && hasItchCredentials) }
                 .filter { game ->
                     if (currentState.searchQuery.isNotEmpty()) {
                         matches(game.title, currentState.searchQuery)

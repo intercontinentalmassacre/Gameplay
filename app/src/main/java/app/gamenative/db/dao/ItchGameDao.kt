@@ -15,16 +15,21 @@ interface ItchGameDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(games: List<ItchGame>)
 
-    @Query("SELECT * FROM itch_games ORDER BY title COLLATE NOCASE ASC")
+    @Transaction
+    suspend fun addCatalogGame(game: ItchGame) {
+        if (getByGameId(game.gameId) == null) insertAll(listOf(game))
+    }
+
+    @Query("SELECT * FROM itch_games WHERE is_game = 1 ORDER BY title COLLATE NOCASE ASC")
     fun observeAll(): Flow<List<ItchGame>>
 
-    @Query("SELECT * FROM itch_games ORDER BY title COLLATE NOCASE ASC")
+    @Query("SELECT * FROM itch_games WHERE is_game = 1 ORDER BY title COLLATE NOCASE ASC")
     suspend fun getAllAsList(): List<ItchGame>
 
     @Query("SELECT * FROM itch_games WHERE game_id = :gameId")
     suspend fun getByGameId(gameId: Long): ItchGame?
 
-    @Query("SELECT * FROM itch_games WHERE is_installed = 1 ORDER BY title COLLATE NOCASE ASC")
+    @Query("SELECT * FROM itch_games WHERE is_game = 1 AND is_installed = 1 ORDER BY title COLLATE NOCASE ASC")
     suspend fun getInstalledGames(): List<ItchGame>
 
     @Query("SELECT * FROM itch_games WHERE is_installed = 0")
@@ -36,7 +41,7 @@ interface ItchGameDao {
     @Query("SELECT game_id FROM itch_games WHERE is_owned = 1")
     suspend fun getOwnedGameIds(): List<Long>
 
-    @Query("SELECT COUNT(*) FROM itch_games")
+    @Query("SELECT COUNT(*) FROM itch_games WHERE is_game = 1")
     fun getCount(): Flow<Int>
 
     /**
@@ -136,7 +141,7 @@ interface ItchGameDao {
     @Query("SELECT DISTINCT account_id FROM itch_games WHERE account_id IS NOT NULL")
     suspend fun getKnownAccountIds(): List<Long>
 
-    @Query("DELETE FROM itch_games WHERE is_installed = 0 AND is_owned = 0")
+    @Query("DELETE FROM itch_games WHERE is_installed = 0 AND is_owned = 0 AND selected_upload_id IS NULL")
     suspend fun deleteNonInstalledNotOwned()
 
     /** Account-derived rows disappear; installed games remain launchable. */

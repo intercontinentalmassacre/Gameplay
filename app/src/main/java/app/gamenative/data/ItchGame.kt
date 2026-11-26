@@ -32,6 +32,8 @@ data class ItchGame(
     val gameId: Long,
     @ColumnInfo("title")
     val title: String = "",
+    @ColumnInfo(name = "is_game", defaultValue = "1")
+    val isGame: Boolean = true,
     @ColumnInfo("url")
     val url: String = "",
     @ColumnInfo("cover_url")

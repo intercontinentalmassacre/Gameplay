@@ -16,6 +16,7 @@ import com.winlator.fexcore.FEXCorePreset
  */
 class ContainerConfigState(
     val config: MutableState<ContainerData>,
+    val html5Available: Boolean = false,
     val isPerContainer: Boolean = false,
     val graphicsDrivers: MutableState<MutableList<String>>,
     val bionicWineEntries: MutableState<List<String>>,

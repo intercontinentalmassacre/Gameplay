@@ -2,6 +2,7 @@ package app.gamenative.data
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 import app.gamenative.enums.AppType
 import app.gamenative.enums.ControllerSupport
@@ -12,7 +13,13 @@ import app.gamenative.service.SteamService
 import `in`.dragonbra.javasteam.enums.ELicenseFlags
 import java.util.EnumSet
 
-@Entity("steam_app")
+@Entity(
+    tableName = "steam_app",
+    indices = [
+        Index(value = ["dlc_for_app_id"], name = "idx_steam_app_dlc_for_app_id"),
+        Index(value = ["package_id"], name = "idx_steam_app_package_id"),
+    ],
+)
 data class SteamApp(
     @PrimaryKey val id: Int,
     @ColumnInfo("package_id")

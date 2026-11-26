@@ -547,50 +547,47 @@ public abstract class ProcessHelper {
 
     public static String[] splitCommand(String command) {
         ArrayList<String> result = new ArrayList<>();
-        boolean startedQuotes = false;
-        String value = "";
-        char currChar, nextChar;
-        for (int i = 0, count = command.length(); i < count; i++) {
-            currChar = command.charAt(i);
-            char quoteChar = '"';
-
-            if (startedQuotes) {
-                if (currChar == quoteChar) {
-                    startedQuotes = false;
-                    if (!value.isEmpty()) {
-                        value += quoteChar;
-                        result.add(value);
-                        value = "";
-                    }
+        StringBuilder value = new StringBuilder();
+        char quote = 0;
+        boolean hasArgument = false;
+        for (int i = 0; i < command.length(); i++) {
+            char c = command.charAt(i);
+            if (quote == '"' && c == '\\') {
+                int start = i;
+                while (i + 1 < command.length() && command.charAt(i + 1) == '\\') i++;
+                int count = i - start + 1;
+                if (i + 1 < command.length() && command.charAt(i + 1) == '"') {
+                    for (int j = 0; j < count / 2; j++) value.append('\\');
+                    if (count % 2 == 1) value.append('"');
+                    else quote = 0;
+                    i++;
+                } else {
+                    value.append(command, start, i + 1);
                 }
-                else value += currChar;
+                continue;
             }
-            else if (currChar == '"' || currChar == '\'') {
-                if (currChar == '\'') quoteChar = '\'';
-                startedQuotes = true;
-                value += quoteChar;
-            }
-            else {
-                nextChar = i < count-1 ? command.charAt(i+1) : '\0';
-                if (currChar == ' ' || (currChar == '\\' && nextChar == ' ')) {
-                    if (currChar == '\\') {
-                        value += ' ';
-                        i++;
-                    }
-                    else if (!value.isEmpty()) {
-                        result.add(value);
-                        value = "";
-                    }
+            if (quote != 0 && c == quote) {
+                quote = 0;
+            } else if (quote == 0 && (c == '"' || (c == '\'' && !hasArgument))) {
+                quote = c;
+                hasArgument = true;
+            } else if (quote == 0 && c == ' ') {
+                if (hasArgument) {
+                    result.add(value.toString());
+                    value.setLength(0);
+                    hasArgument = false;
                 }
-                else {
-                    value += currChar;
-                    if (i == count-1) {
-                        result.add(value);
-                        value = "";
-                    }
+            } else {
+                // Backslashes in a Wine path are literal. Keep support for backslash-space
+                // in unquoted host paths passed by existing callers.
+                if (quote == 0 && c == '\\' && i + 1 < command.length() && command.charAt(i + 1) == ' ') {
+                    c = command.charAt(++i);
                 }
+                value.append(c);
+                hasArgument = true;
             }
         }
+        if (hasArgument) result.add(value.toString());
 
         return result.toArray(new String[0]);
     }

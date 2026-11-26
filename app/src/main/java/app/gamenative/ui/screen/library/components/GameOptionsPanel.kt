@@ -513,6 +513,7 @@ private fun getIconForOption(type: AppOptionMenuType): ImageVector {
         AppOptionMenuType.ManageWorkshop -> Icons.Default.Build
         AppOptionMenuType.ManageMods -> Icons.Default.Extension
         AppOptionMenuType.ChangeBranch -> Icons.AutoMirrored.Filled.CallSplit
+        AppOptionMenuType.PlayHtml5 -> Icons.Default.Apps
         AppOptionMenuType.ItchCheckForUpdates -> Icons.Default.Update
         AppOptionMenuType.ItchChangeExecutable -> Icons.Default.Build
         AppOptionMenuType.ItchOpenOnSite -> Icons.AutoMirrored.Filled.OpenInNew
@@ -530,6 +531,7 @@ private fun groupOptions(options: List<AppMenuOption>): Map<OptionCategory, List
     options.forEach { option ->
         when (option.optionType) {
             // Quick Actions
+            AppOptionMenuType.PlayHtml5,
             AppOptionMenuType.RunContainer,
             AppOptionMenuType.CreateShortcut,
             AppOptionMenuType.ExportFrontend,

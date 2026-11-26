@@ -109,7 +109,8 @@ class ItchAuthManagerTest {
         assertTrue(result.isFailure)
         assertTrue(result.exceptionOrNull()!!.message!!.contains("state", ignoreCase = true))
         assertFalse(manager.hasStoredCredentials())
-        assertFalse(ItchPaths.pendingAuthorizationFile(context()).exists())
+        assertTrue(ItchPaths.pendingAuthorizationFile(context()).isFile)
+        assertEquals(request, manager.beginAuthorization(clientId = "client-123").getOrThrow())
         assertEquals(0, requests.size)
     }
 

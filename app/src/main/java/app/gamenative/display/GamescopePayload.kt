@@ -126,7 +126,8 @@ object GamescopePayload {
             "Experimental Gamescope bundle expects a different Android DRM daemon"
         }
         val target = File(context.filesDir, EXPERIMENTAL_DIR)
-        val alias = File(context.filesDir, "gsx").absoluteFile
+        val alias = xwaylandPrefix(context.filesDir, experimental = true)
+        val linkTarget = target.relativeTo(alias.parentFile).toPath()
         fun validTree(dir: File): Boolean = hasRequiredFiles(dir) &&
             listOf(
                 "bin/gamescopereaper", "bin/gn-scaling-mode", "lib/libadrenotools_gamescope.so",
@@ -136,7 +137,7 @@ object GamescopePayload {
             ).all { File(dir, it).isFile }
         installMutex.withLock {
             val correctLink = runCatching {
-                Files.readSymbolicLink(alias.toPath()).toString() == target.name
+                Files.readSymbolicLink(alias.toPath()) == linkTarget
             }.getOrDefault(false)
             if (correctLink && validTree(target) && runCatching {
                     File(target, STAMP).readText() == version &&
@@ -162,7 +163,7 @@ object GamescopePayload {
                 relocateXwaylandPaths(File(tempDir, "bin/xkbcomp"), alias.path, expectedPaths = 1)
                 if (!correctLink) {
                     check(!Files.exists(alias.toPath(), NOFOLLOW_LINKS)) { "Experimental Gamescope alias is in use" }
-                    Files.createSymbolicLink(alias.toPath(), File(target.name).toPath())
+                    Files.createSymbolicLink(alias.toPath(), linkTarget)
                 }
                 File(tempDir, STAMP).writeText(version)
                 File(tempDir, LOCATION_STAMP).writeText(alias.path)
@@ -183,12 +184,17 @@ object GamescopePayload {
             runCatching {
                 File(dir, STAMP).readText().trim() == VERSION &&
                     File(dir, LOCATION_STAMP).readText() == prefix.path &&
-                    Files.readSymbolicLink(prefix.toPath()).toString() == dir.name
+                    Files.readSymbolicLink(prefix.toPath()) == dir.relativeTo(prefix.parentFile).toPath()
             }.getOrDefault(false)
     }
 
     // Keep the relocated absolute prefix short enough for XWayland's compiled-in C strings.
-    private fun xwaylandPrefix(filesDir: File): File = File(filesDir, "gsc").absoluteFile
+    internal fun xwaylandPrefix(filesDir: File, experimental: Boolean = false): File {
+        val existing = File(filesDir, if (experimental) "gsx" else "gsc").absoluteFile
+        if (existing.path.toByteArray().size <= XWAYLAND_BUILD_PREFIX.length) return existing
+        // Long package names need the alias one level higher, inside the same private app directory.
+        return File(filesDir.absoluteFile.parentFile, if (experimental) "x" else "g")
+    }
 
     private fun hasRequiredFiles(dir: File): Boolean =
         requiredPaths.all { File(dir, it).isFile }
@@ -218,11 +224,12 @@ object GamescopePayload {
             val prefix = xwaylandPrefix(filesDir)
             val prefixPath = prefix.toPath()
             val target = directory(filesDir)
+            val linkTarget = target.relativeTo(prefix.parentFile).toPath()
             if (!Files.isSymbolicLink(prefixPath) ||
-                Files.readSymbolicLink(prefixPath).toString() != target.name
+                Files.readSymbolicLink(prefixPath) != linkTarget
             ) {
                 check(!Files.exists(prefixPath, NOFOLLOW_LINKS)) { "Gamescope runtime alias is in use: $prefix" }
-                Files.createSymbolicLink(prefixPath, File(target.name).toPath())
+                Files.createSymbolicLink(prefixPath, linkTarget)
             }
             install(archive, filesDir) { staged ->
                 relocateXwaylandPaths(File(staged, "bin/Xwayland"), prefix.path, expectedPaths = 8)

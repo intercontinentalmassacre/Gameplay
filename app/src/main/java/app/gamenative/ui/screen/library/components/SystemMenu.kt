@@ -590,6 +590,14 @@ fun SystemMenu(
                         )
 
                         SystemMenuItem(
+                            text = stringResource(R.string.itch_free_store),
+                            icon = Icons.Default.Download,
+                            onClick = {
+                                app.gamenative.itch.ItchStoreActivity.open(contextForItch)
+                                onDismiss()
+                            },
+                        )
+                        SystemMenuItem(
                             text = stringResource(R.string.app_downloads),
                             icon = Icons.Default.Download,
                             onClick = {
@@ -1041,6 +1049,16 @@ fun DualSystemMenu(
                 containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
             ) {
                 Column {
+                    SystemHubRow(
+                        title = stringResource(R.string.itch_free_store),
+                        subtitle = stringResource(R.string.itch_free_store_subtitle),
+                        icon = Icons.Default.Download,
+                        onClick = {
+                            app.gamenative.itch.ItchStoreActivity.open(context)
+                            onDismiss()
+                        },
+                    )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.28f))
                     SystemHubRow(
                         title = stringResource(R.string.app_downloads),
                         subtitle = stringResource(R.string.system_hub_downloads_description),

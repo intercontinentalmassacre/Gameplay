@@ -115,6 +115,7 @@ fun GcdsQuickMenu(
     fpsLimiterTarget: Int = 60,
     fpsLimiterMax: Int = 60,
     game: SteamApp? = null,
+    itchGame: app.gamenative.data.ItchGame? = null,
     gameInputServer: XServer? = null,
     frameRating: FrameRating? = null,
     onPerformanceHudConfigChanged: (PerformanceHudConfig) -> Unit = {},
@@ -177,6 +178,7 @@ fun GcdsQuickMenu(
             fpsLimiterTarget = fpsLimiterTarget,
             fpsLimiterMax = fpsLimiterMax,
             game = game,
+            itchGame = itchGame,
             gameInputServer = gameInputServer,
             frameRating = frameRating,
             onPerformanceHudConfigChanged = onPerformanceHudConfigChanged,
@@ -257,6 +259,7 @@ private fun GcdsGameQuickMenu(
     fpsLimiterTarget: Int = 60,
     fpsLimiterMax: Int = 60,
     game: SteamApp? = null,
+    itchGame: app.gamenative.data.ItchGame? = null,
     gameInputServer: XServer? = null,
     frameRating: FrameRating? = null,
     onPerformanceHudConfigChanged: (PerformanceHudConfig) -> Unit = {},
@@ -283,8 +286,8 @@ private fun GcdsGameQuickMenu(
 ) {
     val hasExternalDisplay = rememberHasExternalDisplay()
     val dashboardSubtitle = stringResource(R.string.second_screen_fps_target, fpsLimiterTarget)
-    val dashboardTitle = game?.name.orEmpty().ifBlank { container?.name.orEmpty() }
-    val dashboardImageUrl = game?.getCapsuleUrl(large = true)
+    val dashboardTitle = (itchGame?.title ?: game?.name).orEmpty().ifBlank { container?.name.orEmpty() }
+    val dashboardImageUrl = itchGame?.coverUrl?.takeIf { it.isNotBlank() } ?: game?.getCapsuleUrl(large = true)
         ?.takeIf { it.isNotBlank() }
         ?: game?.headerUrl.orEmpty()
     val dashboardLogoUrl = game?.let { app ->
@@ -298,8 +301,8 @@ private fun GcdsGameQuickMenu(
 
     val configuredInput = ExternalDisplayInputController.fromConfig(container?.externalDisplayMode)
     val inputAvailable = gameInputServer != null && container?.isExternalDisplaySwap != true
-    val showInput = remember(container?.id, configuredInput) {
-        mutableStateOf(configuredInput != ExternalDisplayInputController.Mode.OFF)
+    val showInput = remember(container?.id) {
+        mutableStateOf(false)
     }
     if (hasExternalDisplay) {
         // Observe the selected panel in composition even when switching tabs leaves the game running.

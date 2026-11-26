@@ -40,6 +40,25 @@ class GameFixesRegistryTest {
     }
 
     @Test
+    fun wowForeverSelectsArm64DxvkAndPreservesOtherSettings() {
+        every { container.containerVariant } returns Container.BIONIC
+        every { container.getDXWrapperConfig() } returns "version=2.4.1,framerate=30"
+        configureWowForeverDxvk("Games\\WowB-ARM64.EXE", container)
+        verify { container.setDXWrapper("dxvk") }
+        verify { container.setDXWrapperConfig("version=2.4.1-wowfix-1,framerate=30") }
+        verify(exactly = 1) { container.saveData() }
+    }
+
+    @Test
+    fun wowForeverLeavesOtherExecutablesAndVariantsAlone() {
+        every { container.containerVariant } returns Container.BIONIC
+        configureWowForeverDxvk("Game.exe", container)
+        every { container.containerVariant } returns Container.GLIBC
+        configureWowForeverDxvk("Games/WowB-ARM64.exe", container)
+        verify(exactly = 0) { container.saveData() }
+    }
+
+    @Test
     fun applyFor_usesInjectedFixesProviderForTests() {
         val installDir = createTempDirectory(prefix = "registry-gog-injected-fix").toFile()
         every { GOGService.getGOGGameOf("999") } returns GOGGame(

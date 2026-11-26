@@ -1565,11 +1565,9 @@ public class TouchpadView extends View implements View.OnCapturedPointerListener
     }
 
     private void moveCursorTo(int x, int y) {
-        if (xServer.isRelativeMouseMovement()) {
-            xServer.getWinHandler().mouseEvent(MouseEventFlags.MOVE, x, y, 0);
-        } else {
-            xServer.injectPointerMove(x, y);
-        }
+        // These are guest screen coordinates from a touchscreen gesture. Passing
+        // them as WinHandler MOVE deltas makes each tap advance the cursor.
+        xServer.injectPointerMove(x, y);
     }
 
     private boolean injectClick(String action) {

@@ -796,30 +796,22 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
 
     private void extractEmulatorsDlls() {
         Context context = environment.getContext();
-        File rootDir = environment.getImageFs().getRootDir();
-        File system32dir = new File(rootDir + "/home/xuser/.wine/drive_c/windows/system32");
+        File system32dir = new File(environment.getImageFs().getRootDir(), "home/xuser/.wine/drive_c/windows/system32");
+        CpuBackendType backend = CpuBackendType.resolve(true, false, container.getEmulator());
 
-        ImageFs imageFs = ImageFs.find(context);
+        // ARM64EC Proton needs FEX for x86-64 code even when HODLL selects WowBox64 for x86.
+        String fexcoreVersion = container.getFEXCoreVersion();
+        ContentProfile fexprofile = contentsManager.getProfileByEntryName("fexcore-" + fexcoreVersion);
+        boolean installed = fexprofile != null
+                ? contentsManager.applyContent(fexprofile)
+                : TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, context,
+                        "fexcore/fexcore-" + fexcoreVersion + ".tzst", system32dir);
+        if (!installed || new File(system32dir, "libarm64ecfex.dll").length() == 0) {
+            throw new IllegalStateException("Failed to install libarm64ecfex.dll from FEXCore " + fexcoreVersion);
+        }
+        container.putExtra("fexcoreVersion", fexcoreVersion);
 
-        final CpuBackendType backend = CpuBackendType.resolve(
-                wineInfo.isArm64EC(),
-                container != null && Container.DEFAULT_VARIANT.equals(container.getContainerVariant()),
-                container != null ? container.getEmulator() : "");
-
-        // Install only the selected backend's files; the other family's DLLs
-        // must not linger in the prefix (stale/conflicting HODLL risk).
-        if (backend == CpuBackendType.FEX_ARM64EC) {
-            String fexcoreVersion = container.getFEXCoreVersion();
-            Log.d("Extraction", "Extracting selected backend fexcore: " + fexcoreVersion);
-
-            ContentProfile fexprofile = contentsManager.getProfileByEntryName("fexcore-" + fexcoreVersion);
-            if (fexprofile != null) {
-                contentsManager.applyContent(fexprofile);
-            } else {
-                TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, environment.getContext(), "fexcore/fexcore-" + fexcoreVersion + ".tzst", system32dir);
-            }
-            container.putExtra("fexcoreVersion", fexcoreVersion);
-        } else {
+        if (backend == CpuBackendType.WOWBOX64_ARM64EC) {
             String wowbox64Version = container.getBox64Version();
             Log.d("Extraction", "Extracting selected backend wowbox64: " + wowbox64Version);
 

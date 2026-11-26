@@ -33,6 +33,14 @@ class ItchUploadSelectorTest {
     )
 
     @Test
+    fun offersStandaloneGameBoyCartridgesWithoutWindowsFlags() {
+        val cart = upload(1, "release.GBC", type = "other", windows = null)
+        val guide = upload(2, "instructions.pdf", type = "book", windows = null)
+        val choice = ItchUploadSelector.choose(listOf(cart, guide)) as ItchUploadChoice.Single
+        assertEquals(cart.id, choice.upload.id)
+    }
+
+    @Test
     fun `single windows game archive is chosen directly`() {
         val choice = ItchUploadSelector.choose(
             listOf(upload(1, "mygame-windows.zip", channel = "windows")),

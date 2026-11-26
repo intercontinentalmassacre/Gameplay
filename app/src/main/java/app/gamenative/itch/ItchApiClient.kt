@@ -90,6 +90,7 @@ class ItchApiClient(
         token: String,
         page: Int,
         perPage: Int = DEFAULT_PER_PAGE,
+        gameId: Long? = null,
     ): ItchOwnedKeysPage = withContext(Dispatchers.IO) {
         require(page >= 1) { "page starts at 1" }
         require(perPage in 1..MAX_PER_PAGE) { "per_page must be 1..$MAX_PER_PAGE" }
@@ -97,7 +98,11 @@ class ItchApiClient(
             .url(
                 url(
                     "profile/owned-keys",
-                    mapOf("page" to page.toString(), "per_page" to perPage.toString()),
+                    buildMap {
+                        put("page", page.toString())
+                        put("per_page", perPage.toString())
+                        gameId?.let { put("game_ids", it.toString()) }
+                    },
                 ),
             )
             .header("Authorization", "Bearer $token")
@@ -129,10 +134,25 @@ class ItchApiClient(
         keys
     }
 
-    suspend fun fetchUploads(token: String, gameId: Long): List<ItchUpload> = withContext(Dispatchers.IO) {
+    internal suspend fun searchFreeGames(token: String, query: String): List<CatalogGame> = withContext(Dispatchers.IO) {
+        val request = Request.Builder()
+            .url(url("search/games", mapOf("query" to query)))
+            .header("Authorization", "Bearer $token")
+            .header("User-Agent", userAgent)
+            .build()
+        decode<ItchSearchPage>(executeJson(request)).games.mapNotNull { game ->
+            val link = game.url.toHttpUrlOrNull()
+            if (game.classification == "game" && game.minPrice == 0L && game.title.isNotBlank() &&
+                link != null && link.isHttps && link.host.endsWith(".itch.io")) {
+                CatalogGame(game.title, link.toString(), game.coverUrl)
+            } else null
+        }.distinctBy { it.url }
+    }
+
+    suspend fun fetchUploads(token: String, gameId: Long, downloadKeyId: Long? = null): List<ItchUpload> = withContext(Dispatchers.IO) {
         require(gameId > 0) { "game id must be positive" }
         val request = Request.Builder()
-            .url(url("games/$gameId/uploads"))
+            .url(url("games/$gameId/uploads", downloadKeyQuery(downloadKeyId)))
             .header("Authorization", "Bearer $token")
             .header("User-Agent", userAgent)
             .get()
@@ -147,10 +167,10 @@ class ItchApiClient(
      * The request is authenticated; the returned URL must be fetched without the
      * Authorization header because it points at a CDN host.
      */
-    suspend fun requestDownloadUrl(token: String, uploadId: Long): String = withContext(Dispatchers.IO) {
+    suspend fun requestDownloadUrl(token: String, uploadId: Long, downloadKeyId: Long? = null): String = withContext(Dispatchers.IO) {
         require(uploadId > 0) { "upload id must be positive" }
         val request = Request.Builder()
-            .url(url("uploads/$uploadId/download"))
+            .url(url("uploads/$uploadId/download", downloadKeyQuery(downloadKeyId)))
             .header("Authorization", "Bearer $token")
             .header("User-Agent", userAgent)
             .get()
@@ -249,6 +269,9 @@ class ItchApiClient(
 
     @kotlinx.serialization.Serializable
     private data class CredentialsInfo(val scopes: List<String> = emptyList())
+
+    private fun downloadKeyQuery(id: Long?): Map<String, String> =
+        if (id == null) emptyMap() else mapOf("download_key_id" to id.toString())
 
     private fun url(path: String, query: Map<String, String> = emptyMap()): String {
         val builder = (apiBaseUrl.trimEnd('/') + "/" + path.trimStart('/')).toHttpUrlOrNull()

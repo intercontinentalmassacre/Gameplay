@@ -1517,6 +1517,7 @@ Ubuntu RootFs - releases.ubuntu.com/focal</string>
     <string name="tooltip_label">показать подсказку</string>
     <string name="total_playtime">Общее время игры: %s часов</string>
     <string name="touchpad_help">Справка сенсорной панели</string>
+    <string name="direct_game_touch_summary">Касание нажимает в выбранной точке игры. Выключите, чтобы двигать курсор как на тачпаде.</string>
     <string name="touchscreen_mode">Режим сенсорного экрана</string>
     <string name="two_factor_enter_code">Введите 5-значный код</string>
     <string name="two_factor_login">Вход</string>
@@ -2808,4 +2809,20 @@ Ubuntu RootFs - releases.ubuntu.com/focal</string>
 <string name="itch_role_soundtrack">Саундтрек</string>
 <string name="itch_role_art">Графика</string>
 <string name="itch_role_other">Другой файл</string>
+    <string name="option_play_html5">Запустить в HTML5-плеере</string>
+    <string name="html5_entry_missing">Не найден файл запуска HTML5-игры index.html.</string>
+    <string name="itch_free_store">Магазин itch.io</string>
+    <string name="itch_free_store_subtitle">Бесплатные игры</string>
+    <string name="itch_no_store_build">У этой игры нет доступной сборки для установки.</string>
+    <string name="itch_store_build">Выбрать сборку</string>
+    <string name="itch_store_search">Поиск бесплатных игр</string>
+    <string name="itch_store_search_empty">Бесплатные игры не найдены</string>
+    <string name="itch_store_search_login">Войти в itch.io для поиска</string>
+    <string name="itch_store_retry">Повторить</string>
+    <string name="itch_sort_popular">Популярные</string>
+    <string name="itch_sort_rated">По рейтингу</string>
+    <string name="itch_owned">Мои игры</string>
+    <string name="itch_owned_badge">В коллекции</string>
+    <string name="itch_owned_empty">В коллекции этого аккаунта пока нет игр</string>
+    <string name="itch_owned_search">Поиск в моих играх</string>
 </resources>

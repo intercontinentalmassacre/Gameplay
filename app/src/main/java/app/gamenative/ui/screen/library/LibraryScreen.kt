@@ -188,6 +188,10 @@ fun HomeLibraryScreen(
     isOffline: Boolean = false,
     isSteamConnected: Boolean = false,
 ) {
+    androidx.lifecycle.compose.LifecycleStartEffect(viewModel) {
+        viewModel.refreshItchOnLibraryOpen()
+        onStopOrDispose { }
+    }
     val state by viewModel.state.collectAsStateWithLifecycle()
     val requestedLibraryAppId by mainViewModel.requestedLibraryAppId.collectAsStateWithLifecycle()
     val importState by viewModel.importState.collectAsStateWithLifecycle()
@@ -452,6 +456,11 @@ private fun LibraryScreenContent(
     var wasOptionsPanelOpen by remember { mutableStateOf(false) }
     // Keep a stable reference to the selected item so detail view doesn't disappear during list refresh/pagination.
     var selectedLibraryItem by remember { mutableStateOf<LibraryItem?>(null) }
+    fun openLibraryItem(appId: String) {
+        val item = state.appInfoList.find { it.appId == appId } ?: return
+        selectedAppId = appId
+        selectedLibraryItem = item
+    }
     val filterFabExpanded by remember(currentPaneType, listState, carouselListState) {
         derivedStateOf {
             if (currentPaneType == PaneType.CAROUSEL) {
@@ -1260,10 +1269,7 @@ private fun LibraryScreenContent(
                             },
                             onRefresh = onRefresh,
                             onPageChange = onPageChange,
-                            onNavigate = { appId ->
-                                selectedAppId = appId
-                                selectedLibraryItem = state.appInfoList.find { it.appId == appId }
-                            },
+                            onNavigate = ::openLibraryItem,
                             onFocused = { idx ->
                                 if (currentPaneType == PaneType.CAROUSEL) {
                                     carouselFocusTargetListIndex = idx
@@ -1403,10 +1409,7 @@ private fun LibraryScreenContent(
                             state = state,
                             listState = carouselListState,
                             onPageChange = onPageChange,
-                            onNavigate = { appId ->
-                                selectedAppId = appId
-                                selectedLibraryItem = state.appInfoList.find { it.appId == appId }
-                            },
+                            onNavigate = ::openLibraryItem,
                             onRefresh = onRefresh,
                             modifier = Modifier.fillMaxSize(),
                             firstCarouselItemFocusRequester = carouselFocusRequester,
@@ -1421,10 +1424,7 @@ private fun LibraryScreenContent(
                             focusTargetListIndex = gridFocusTargetListIndex,
                             onFocusedIndexChanged = { gridFocusTargetListIndex = it },
                             onPageChange = onPageChange,
-                            onNavigate = { appId ->
-                                selectedAppId = appId
-                                selectedLibraryItem = state.appInfoList.find { it.appId == appId }
-                            },
+                            onNavigate = ::openLibraryItem,
                             onRefresh = onRefresh,
                             modifier = Modifier.fillMaxSize(),
                         )
@@ -1436,10 +1436,7 @@ private fun LibraryScreenContent(
                             focusTargetListIndex = gridFocusTargetListIndex,
                             onFocusedIndexChanged = { gridFocusTargetListIndex = it },
                             onPageChange = onPageChange,
-                            onNavigate = { appId ->
-                                selectedAppId = appId
-                                selectedLibraryItem = state.appInfoList.find { it.appId == appId }
-                            },
+                            onNavigate = ::openLibraryItem,
                             modifier = Modifier.fillMaxSize(),
                         )
                     } else {
@@ -1452,10 +1449,7 @@ private fun LibraryScreenContent(
                             focusTargetListIndex = gridFocusTargetListIndex,
                             onFocusedIndexChanged = { gridFocusTargetListIndex = it },
                             onPageChange = onPageChange,
-                            onNavigate = { appId ->
-                                selectedAppId = appId
-                                selectedLibraryItem = state.appInfoList.find { it.appId == appId }
-                            },
+                            onNavigate = ::openLibraryItem,
                             onRefresh = onRefresh,
                             modifier = Modifier.fillMaxSize(),
                         )
@@ -1719,6 +1713,7 @@ private fun LibraryScreenContent(
             ContainerConfigDialog(
                 title = context.getString(R.string.library_config_title, item.name),
                 initialConfig = containerData,
+                appId = item.appId,
                 onDismissRequest = { quickContainerEdit = null },
                 onSave = { newData ->
                     ContainerUtils.applyToContainer(context, item.appId, newData)

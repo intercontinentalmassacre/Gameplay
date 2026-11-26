@@ -1218,7 +1218,13 @@ fun ContainerConfigDialog(
             maxCustomResolutionDimension,
         )
 
+        val html5Available by androidx.compose.runtime.produceState(false, appId) {
+            value = withContext(Dispatchers.IO) {
+                appId?.let { app.gamenative.html5.host.Html5GameActivity.installedRoot(it) } != null
+            }
+        }
         val state = ContainerConfigState(
+            html5Available = html5Available,
             config = configState,
             isPerContainer = appId != null,
             graphicsDrivers = graphicsDriversRef,

@@ -52,6 +52,7 @@ data class ContainerData(
     // container runtime variant (glibc or bionic)
     val containerVariant: String = Container.DEFAULT_VARIANT,
     // which Steam depot platform to download/install (windows or android)
+    val gameRuntime: String = "auto",
     val platform: String = Container.PLATFORM_WINDOWS,
     // wine version identifier (used for bionic variant), defaults to main wine
     val wineVersion: String = Container.resolveWineVersion(containerVariant, null),
@@ -165,6 +166,7 @@ data class ContainerData(
                     "box64Preset" to state.box64Preset,
                     "desktopTheme" to state.desktopTheme,
                     "containerVariant" to state.containerVariant,
+                    "gameRuntime" to state.gameRuntime,
                     "platform" to state.platform,
                     "wineVersion" to state.wineVersion,
                     "emulator" to state.emulator,
@@ -247,6 +249,7 @@ data class ContainerData(
                     box64Preset = savedMap["box64Preset"] as String,
                     desktopTheme = savedMap["desktopTheme"] as String,
                     containerVariant = (savedMap["containerVariant"] as? String) ?: Container.DEFAULT_VARIANT,
+                    gameRuntime = (savedMap["gameRuntime"] as? String) ?: "auto",
                     platform = (savedMap["platform"] as? String) ?: Container.PLATFORM_WINDOWS,
                     wineVersion = Container.resolveWineVersion(
                         (savedMap["containerVariant"] as? String) ?: Container.DEFAULT_VARIANT,
