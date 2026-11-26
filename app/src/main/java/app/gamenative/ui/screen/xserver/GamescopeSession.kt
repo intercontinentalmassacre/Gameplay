@@ -5,6 +5,7 @@ import android.hardware.display.DisplayManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.view.View
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -18,6 +19,7 @@ import app.gamenative.events.AndroidEvent
 import app.gamenative.utils.ContainerUtils
 import app.gamenative.utils.PreLaunchSetup
 import com.winlator.container.Container
+import com.winlator.core.ProcessHelper
 import com.winlator.core.envvars.EnvVars
 import com.winlator.widget.XServerView
 import com.winlator.xenvironment.ImageFs
@@ -26,6 +28,7 @@ import com.winlator.xenvironment.components.BionicProgramLauncherComponent
 import com.winlator.xenvironment.components.GuestProgramLauncherComponent
 import com.winlator.xserver.XServer
 import java.io.File
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.roundToInt
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.CancellationException
@@ -120,11 +123,25 @@ internal fun armGamescopeWindow(runtime: File, environment: XEnvironment, launch
     val helper = File(runtime, "bin/gn-activate.exe")
     if (!helper.isFile) return
     val path = "Z:" + helper.absolutePath.replace('/', '\\')
-    Thread({
-        Thread.sleep(8_000)
-        if (PluviaApp.xEnvironment === environment) {
-            runCatching { launcher.execGamescopeShellCommand("wine \"$path\" --watch") }
+    val launches = AtomicInteger()
+    launcher.setOnGuestStarted {
+        val launch = launches.incrementAndGet()
+        Thread({
+            runCatching {
+                val deadline = SystemClock.elapsedRealtime() + 120_000L
+                // The helper lacks the controller shim. Never let it boot the prefix.
+                while (!ProcessHelper.isWineServerRunning()) {
+                    if (launches.get() != launch || !launcher.isGuestRunning || SystemClock.elapsedRealtime() >= deadline) return@Thread
+                    Thread.sleep(250)
+                }
+                Thread.sleep(8_000)
+                if (launches.get() == launch && launcher.isGuestRunning &&
+                    PluviaApp.xEnvironment === environment && ProcessHelper.isWineServerRunning()
+                ) {
+                    launcher.execGamescopeShellCommand("wine \"$path\" --watch")
+                }
+            }
                 .onFailure { Timber.w(it, "Could not activate the Gamescope window") }
-        }
-    }, "gamescope-window-activation").apply { isDaemon = true }.start()
+        }, "gamescope-window-activation").apply { isDaemon = true }.start()
+    }
 }

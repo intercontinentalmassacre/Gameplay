@@ -9,7 +9,9 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.window.Dialog
@@ -21,6 +23,8 @@ import app.gamenative.service.epic.EpicService
 import app.gamenative.ui.data.GameDisplayInfo
 import app.gamenative.utils.StorageUtils
 import com.winlator.core.StringUtils
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -38,6 +42,9 @@ fun EpicGameManagerDialog(
 
     val displayInfo = onGetDisplayInfo(context)
     val gameId = displayInfo.gameId
+    var partialBytes by remember(gameId) { mutableLongStateOf(0L) }
+    val baseInstallPath = EpicService.getEpicGameOf(gameId)?.let { EpicConstants.getGameInstallPath(context, it.appName) }
+        ?: EpicConstants.defaultEpicGamesPath(context)
 
     val installOptions = if (visible && !remember(gameId) { EpicService.isGameInstalled(context, gameId) }) {
         rememberInstallContainerOptions(context, "EPIC_$gameId")
@@ -48,7 +55,9 @@ fun EpicGameManagerDialog(
         else installOptions.install(installScope) { onInstall(ids) }
     }
 
-    LaunchedEffect(visible) {
+    LaunchedEffect(visible, gameId) {
+        partialBytes = 0L
+        if (!visible) return@LaunchedEffect
         scrollState.animateScrollTo(0)
 
         allDownloadableGames.clear()
@@ -57,6 +66,9 @@ fun EpicGameManagerDialog(
         // Get base game
         val baseGame = EpicService.getEpicGameOf(gameId)
         if (baseGame != null) {
+            if (!EpicService.isGameInstalled(context, gameId) && EpicService.hasPartialDownload(context, gameId)) {
+                partialBytes = withContext(Dispatchers.IO) { StorageUtils.getFolderSize(baseInstallPath) }
+            }
             // Fetch manifest to get accurate sizes
             val sizes = EpicService.fetchManifestSizes(context, baseGame.id ?: 0)
             val updatedGame = baseGame.copy(
@@ -83,7 +95,8 @@ fun EpicGameManagerDialog(
     }
 
     fun getInstallSizeInfo(): InstallSizeInfo {
-        val installPath = EpicConstants.defaultEpicGamesPath(context)
+        val installPath = java.io.File(baseInstallPath).takeIf { it.isDirectory }?.path
+            ?: EpicConstants.defaultEpicGamesPath(context)
         val availableBytes = try {
             StorageUtils.getAvailableSpace(installPath)
         } catch (e: Exception) {
@@ -101,12 +114,12 @@ fun EpicGameManagerDialog(
             downloadSize = StringUtils.formatBytes(totalDownloadBytes),
             installSize = StringUtils.formatBytes(totalInstallBytes),
             availableSpace = StringUtils.formatBytes(availableBytes),
-            installBytes = totalInstallBytes,
+            installBytes = remainingEpicInstallBytes(totalInstallBytes, partialBytes, selectedGames.firstOrNull { it.id == gameId }?.installSize ?: 0L),
             availableBytes = availableBytes
         )
     }
 
-    val installSizeInfo by remember(selectedGameIds.toMap()) {
+    val installSizeInfo by remember(gameId, selectedGameIds.toMap(), partialBytes) {
         derivedStateOf { getInstallSizeInfo() }
     }
 
@@ -172,3 +185,6 @@ fun EpicGameManagerDialog(
         }
     }
 }
+
+internal fun remainingEpicInstallBytes(totalBytes: Long, existingBytes: Long, baseGameBytes: Long): Long =
+    totalBytes - existingBytes.coerceIn(0L, baseGameBytes.coerceIn(0L, totalBytes))

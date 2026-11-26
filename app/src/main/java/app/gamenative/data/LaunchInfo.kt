@@ -16,6 +16,8 @@ data class LaunchInfo(
     val configOS: EnumSet<OS>,
     val configArch: OSArch,
     val betaKey: String = "",
+    // null distinguishes app info cached before launch arguments were parsed.
+    val arguments: String? = null,
 )
 
 /**

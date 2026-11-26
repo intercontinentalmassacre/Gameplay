@@ -630,6 +630,32 @@ public abstract class ProcessHelper {
         return affinityMask;
     }
 
+    /** An actual Wine server, not a stop/wait client. */
+    public static boolean isWineServerRunning() {
+        String[] pids = new File("/proc").list((dir, name) -> !name.isEmpty() && name.chars().allMatch(Character::isDigit));
+        if (pids == null) return false;
+        byte[] buffer = new byte[1024];
+        for (String pid : pids) {
+            try (FileInputStream in = new FileInputStream("/proc/" + pid + "/cmdline")) {
+                int read = in.read(buffer);
+                if (read > 0 && isWineServerCmdline(new String(buffer, 0, read, java.nio.charset.StandardCharsets.UTF_8).split("\0"))) return true;
+            } catch (IOException ignored) {
+                // The process exited or Android does not expose it to our UID.
+            }
+        }
+        return false;
+    }
+
+    static boolean isWineServerCmdline(String[] args) {
+        boolean server = false;
+        for (String arg : args) {
+            if (arg.equals("wineserver") || arg.endsWith("/wineserver")) server = true;
+            else if (server && (arg.startsWith("-k") || arg.equals("--kill") ||
+                    arg.startsWith("--kill=") || arg.equals("-w") || arg.equals("--wait"))) return false;
+        }
+        return server;
+    }
+
     public static ArrayList<String> listRunningWineProcesses(){
         File proc = new File("/proc");
         String[] filters = {"wine", "exe"};

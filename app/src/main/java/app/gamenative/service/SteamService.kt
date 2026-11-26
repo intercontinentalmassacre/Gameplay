@@ -4504,7 +4504,10 @@ class SteamService : Service(), IChallengeUrlChanged {
 
             // Package responses create app stubs before their PICS job completes. Resume those
             // jobs even when the package's license is unchanged on this connection.
-            queueAppPics(appDao.getLicensedAppIdsWithoutPics())
+            // Refresh OMORI's older cached metadata once, without invalidating cloud-save state.
+            val omoriAppId = 1150690
+            val refreshOmori = appDao.findApp(omoriAppId)?.config?.launch?.any { it.arguments == null } == true
+            queueAppPics(appDao.getLicensedAppIdsWithoutPics() + if (refreshOmori) listOf(omoriAppId) else emptyList())
         }
     }
 
@@ -4710,7 +4713,11 @@ class SteamService : Service(), IChallengeUrlChanged {
 
                                         val ufsParseVersionOutdated = appMeta != null && appMeta.ufsParseVersion < CURRENT_UFS_PARSE_VERSION
 
-                                        if (appMeta?.receivedPics != true || app.changeNumber != appMeta.lastChangeNumber || ufsParseVersionOutdated) {
+                                        val missingOmoriLaunchArgs = app.id == 1150690 &&
+                                            appDao.findApp(app.id)?.config?.launch?.any { it.arguments == null } == true
+                                        if (appMeta?.receivedPics != true || app.changeNumber != appMeta.lastChangeNumber ||
+                                            ufsParseVersionOutdated || missingOmoriLaunchArgs
+                                        ) {
                                             val newApp = app.keyValues.generateSteamApp().copy(
                                                 packageId = packageId,
                                                 ownerAccountId = ownerAccountId,

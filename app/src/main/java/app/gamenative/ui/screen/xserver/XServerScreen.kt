@@ -4372,8 +4372,8 @@ private fun setupXEnvironment(
 
     try {
         app.gamenative.diagnostics.LaunchTrace.stage(app.gamenative.diagnostics.LaunchStage.WINE_BOOT)
-        environment.startEnvironmentComponents()
         if (isGamescopeSession) armGamescopeWindow(checkNotNull(gamescopeRuntime).directory, environment, guestProgramLauncherComponent)
+        environment.startEnvironmentComponents()
     } catch (e: Exception) {
         Timber.e(e, "Failed to start environment components, cleaning up")
         app.gamenative.diagnostics.LaunchTrace.finish("failed")
@@ -4868,7 +4868,9 @@ private fun getWineStartCommand(
             guestProgramLauncherComponent.workingDir = File(executableDir)
             Timber.i("Bionic-Steam working directory is $executableDir")
             val gameFolderName = appDirPath.substringAfterLast('/').ifEmpty { gameId.toString() }
-            "\"C:\\\\Program Files (x86)\\\\Steam\\\\steamapps\\\\common\\\\$gameFolderName\\\\$normalizedExe\""
+            val steamArgs = SteamUtils.launchConfigArguments(appLaunchInfo, exePath)
+            "\"C:\\\\Program Files (x86)\\\\Steam\\\\steamapps\\\\common\\\\$gameFolderName\\\\$normalizedExe\"" +
+                if (steamArgs.isNotEmpty()) " $steamArgs" else ""
         } else if (container.isLaunchRealSteam) {
             // Launch Steam with the applaunch parameter to start the game
             "\"C:\\\\Program Files (x86)\\\\Steam\\\\steam.exe\" -silent -vgui -tcp " +
