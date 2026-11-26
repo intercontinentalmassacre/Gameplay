@@ -21,13 +21,15 @@ public class NetworkInfoUpdateComponent extends EnvironmentComponent {
     private BroadcastReceiver broadcastReceiver;
 
     @Override
-    public void start() {
+    public synchronized void start() {
+        if (broadcastReceiver != null) return;
         Log.d("NetworkInfoUpdateComponent", "Starting...");
-        Context context = environment.getContext();
+        // The guest can outlive the activity that launched it.
+        Context context = environment.getContext().getApplicationContext();
         final NetworkHelper networkHelper = new NetworkHelper(context);
         updateIFAddrsFile(networkHelper.getIFAddresses());
         updateEtcHostsFile(networkHelper.getIPv4Address());
-        this.broadcastReceiver = new BroadcastReceiver() { // from class: com.winlator.xenvironment.components.NetworkInfoUpdateComponent.1
+        BroadcastReceiver receiver = new BroadcastReceiver() {
             @Override // android.content.BroadcastReceiver
             public void onReceive(Context context2, Intent intent) {
                 NetworkInfoUpdateComponent.this.updateIFAddrsFile(networkHelper.getIFAddresses());
@@ -37,18 +39,19 @@ public class NetworkInfoUpdateComponent extends EnvironmentComponent {
         IntentFilter filter = new IntentFilter();
         filter.addAction(ConnectivityManager.CONNECTIVITY_ACTION);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            context.registerReceiver(this.broadcastReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+            context.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED);
         } else {
-            context.registerReceiver(this.broadcastReceiver, filter);
+            context.registerReceiver(receiver, filter);
         }
+        broadcastReceiver = receiver;
     }
 
     @Override
-    public void stop() {
+    public synchronized void stop() {
         Log.d("NetworkInfoUpdateComponent", "Stopping...");
         if (broadcastReceiver != null) {
             try {
-                environment.getContext().unregisterReceiver(broadcastReceiver);
+                environment.getContext().getApplicationContext().unregisterReceiver(broadcastReceiver);
             } catch(Exception e) {
                 Log.e("NetworkInfoUpdateComponent", "Failed to unregister broadcast receiver: " + e);
             }

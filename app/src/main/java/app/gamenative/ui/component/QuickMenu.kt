@@ -133,7 +133,6 @@ import kotlin.math.roundToInt
 
 object QuickMenuAction {
     const val KEYBOARD = 1
-    const val LIVE_INPUT = 18
     const val INPUT_CONTROLS = 2
     const val EXIT_GAME = 3
     const val EDIT_CONTROLS = 4
@@ -152,6 +151,7 @@ object QuickMenuAction {
     // Single root entry that opens the Steam Controller editor hub (lists the editors above).
     const val SC_ROOT = 16
     const val CONTROLLER_LAYOUTS = 17
+    const val LIVE_INPUT = 18
 }
 
 private object QuickMenuTab {

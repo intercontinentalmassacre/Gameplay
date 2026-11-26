@@ -48,11 +48,19 @@ public class PulseAudioComponent extends EnvironmentComponent {
     private final AtomicBoolean isPaused = new AtomicBoolean(false);
     private boolean lowLatency = false;
 
-    private final ExecutorService singleThreadExecutor = Executors.newSingleThreadExecutor();
+    private final ExecutorService singleThreadExecutor;
+    // Guarded by this. Stop and task submissions must use the same lock.
+    private boolean started;
+    private boolean stopped;
 
     public PulseAudioComponent(UnixSocketConfig socketConfig, boolean lowLatency) {
+        this(socketConfig, lowLatency, Executors.newSingleThreadExecutor());
+    }
+
+    PulseAudioComponent(UnixSocketConfig socketConfig, boolean lowLatency, ExecutorService executor) {
         this.socketConfig = socketConfig;
         this.lowLatency = lowLatency;
+        this.singleThreadExecutor = executor;
     }
 
     private void killAllPulseAudioProcesses() {
@@ -82,27 +90,34 @@ public class PulseAudioComponent extends EnvironmentComponent {
     }
 
     @Override
-    public void start() {
+    public synchronized void start() {
+        if (started || stopped) return;
         singleThreadExecutor.execute(() -> {
             Timber.tag("PulseAudioComponent").d("Starting...");
             killAllPulseAudioProcesses();
             startPulseAudio();
             isPaused.set(false);
         });
+        started = true;
     }
 
     @Override
-    public void stop() {
-        singleThreadExecutor.execute(() -> {
-            Timber.tag("PulseAudioComponent").d("Stopping...");
-            killAllPulseAudioProcesses();
-            isPaused.set(false);
-            Timber.tag("PulseAudioComponent").d("Stopped PulseAudio server");
-        });
+    public synchronized void stop() {
+        if (stopped) return;
+        stopped = true;
+        if (started) {
+            singleThreadExecutor.execute(() -> {
+                Timber.tag("PulseAudioComponent").d("Stopping...");
+                killAllPulseAudioProcesses();
+                isPaused.set(false);
+                Timber.tag("PulseAudioComponent").d("Stopped PulseAudio server");
+            });
+        }
         singleThreadExecutor.shutdown();
     }
 
-    public void pause() {
+    public synchronized void pause() {
+        if (!started || stopped) return;
         singleThreadExecutor.execute(() -> {
             if (!isPaused.get()) {
                 if (!isPauseResumeRunning.get()) {
@@ -122,7 +137,8 @@ public class PulseAudioComponent extends EnvironmentComponent {
         });
     }
 
-    public void resume() {
+    public synchronized void resume() {
+        if (!started || stopped) return;
         singleThreadExecutor.execute(() -> {
             if (isPaused.get()) {
                 if (!isPauseResumeRunning.get()) {

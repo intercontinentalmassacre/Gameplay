@@ -98,6 +98,9 @@ import app.gamenative.Constants
 import app.gamenative.ui.screen.auth.AmazonOAuthActivity
 import app.gamenative.ui.screen.auth.EpicOAuthActivity
 import app.gamenative.ui.screen.auth.GOGOAuthActivity
+import app.gamenative.PluviaApp
+import app.gamenative.events.AndroidEvent
+import app.gamenative.itch.ItchAuthUi
 import app.gamenative.utils.PlatformOAuthHandlers
 import app.gamenative.R
 import app.gamenative.enums.LoginResult
@@ -156,6 +159,19 @@ fun UserLoginScreen(
     val lifecycleScope = LocalLifecycleOwner.current.lifecycleScope
     val snackBarHostState = remember { SnackbarHostState() }
     val userLoginState by viewModel.loginState.collectAsState()
+
+    DisposableEffect(context, onPlatformSignedIn) {
+        val listener: (AndroidEvent.ItchAuthStateChanged) -> Unit = { event ->
+            if (event.success && !event.signedOut) {
+                lifecycleScope.launch {
+                    SnackbarManager.show(context.getString(R.string.itch_login_success))
+                    onPlatformSignedIn()
+                }
+            }
+        }
+        PluviaApp.events.on<AndroidEvent.ItchAuthStateChanged, Unit>(listener)
+        onDispose { PluviaApp.events.off<AndroidEvent.ItchAuthStateChanged, Unit>(listener) }
+    }
 
     val gogOAuthLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult(),
@@ -307,6 +323,7 @@ fun UserLoginScreen(
         onLaunchGog = { gogOAuthLauncher.launch(Intent(context, GOGOAuthActivity::class.java)) },
         onLaunchEpic = { epicOAuthLauncher.launch(Intent(context, EpicOAuthActivity::class.java)) },
         onLaunchAmazon = { amazonOAuthLauncher.launch(Intent(context, AmazonOAuthActivity::class.java)) },
+        onLaunchItch = { ItchAuthUi.signIn(context) { SnackbarManager.show(it) } },
     )
 }
 
@@ -330,6 +347,7 @@ private fun UserLoginScreenContent(
     onLaunchGog: () -> Unit,
     onLaunchEpic: () -> Unit,
     onLaunchAmazon: () -> Unit,
+    onLaunchItch: () -> Unit = {},
     embedded: Boolean = false,
 ) {
     val hasExternalDisplay = rememberHasExternalDisplay()
@@ -371,6 +389,7 @@ private fun UserLoginScreenContent(
             onLaunchGog = onLaunchGog,
             onLaunchEpic = onLaunchEpic,
             onLaunchAmazon = onLaunchAmazon,
+            onLaunchItch = onLaunchItch,
         )
         return
     }
@@ -568,7 +587,7 @@ private fun UserLoginScreenContent(
                                             }
                                         }
                                     }
-                                    LoginAlternativeActions(onLaunchEpic, onLaunchGog, onLaunchAmazon, onContinueOffline)
+                                    LoginAlternativeActions(onLaunchEpic, onLaunchGog, onLaunchAmazon, onLaunchItch, onContinueOffline)
                                 }
                             }
                         }
@@ -588,6 +607,7 @@ private fun LoginAlternativeActions(
     onLaunchEpic: () -> Unit,
     onLaunchGog: () -> Unit,
     onLaunchAmazon: () -> Unit,
+    onLaunchItch: () -> Unit,
     onContinueOffline: () -> Unit,
 ) {
     Text(
@@ -603,6 +623,7 @@ private fun LoginAlternativeActions(
         TextButton(onClick = onLaunchEpic, modifier = Modifier.heightIn(min = 48.dp)) { Text("Epic") }
         TextButton(onClick = onLaunchGog, modifier = Modifier.heightIn(min = 48.dp)) { Text("GOG") }
         TextButton(onClick = onLaunchAmazon, modifier = Modifier.heightIn(min = 48.dp)) { Text("Amazon") }
+        TextButton(onClick = onLaunchItch, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.tab_itch)) }
         TextButton(onClick = onContinueOffline, modifier = Modifier.heightIn(min = 48.dp)) {
             Text(stringResource(R.string.login_skip_login))
         }
@@ -724,6 +745,7 @@ private fun LowerScreenLoginContent(
     onLaunchGog: () -> Unit,
     onLaunchEpic: () -> Unit,
     onLaunchAmazon: () -> Unit,
+    onLaunchItch: () -> Unit,
 ) {
     val primaryColor = MaterialTheme.colorScheme.primary
     val snackBarHostState = remember { SnackbarHostState() }
@@ -832,7 +854,7 @@ private fun LowerScreenLoginContent(
                                     onContinueOffline = onContinueOffline,
                                 )
                             }
-                            LoginAlternativeActions(onLaunchEpic, onLaunchGog, onLaunchAmazon, onContinueOffline)
+                            LoginAlternativeActions(onLaunchEpic, onLaunchGog, onLaunchAmazon, onLaunchItch, onContinueOffline)
                         }
                     }
                 } else {

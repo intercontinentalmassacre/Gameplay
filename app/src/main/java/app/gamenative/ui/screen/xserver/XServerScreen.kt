@@ -1198,12 +1198,6 @@ var win32AppWorkarounds: Win32AppWorkarounds? by remember { mutableStateOf(null)
 
     val onQuickMenuItemSelected: (Int) -> Boolean = { itemId ->
         when (itemId) {
-            QuickMenuAction.LIVE_INPUT -> {
-                if (!isExiting.get() && !keepPausedForEditor && !showElementEditor && !isEditMode &&
-                    !InGameContainerSettings.overlayActive && PluviaApp.isOverlayPaused
-                ) forceResumeIfSuspended()
-                true
-            }
             QuickMenuAction.KEYBOARD -> {
                 keyboardRequestedFromOverlay = true
                 showSoftKeyboard(view)
@@ -1394,6 +1388,12 @@ var win32AppWorkarounds: Win32AppWorkarounds? by remember { mutableStateOf(null)
                 false
             }
 
+            QuickMenuAction.LIVE_INPUT -> {
+                if (!isExiting.get() && !keepPausedForEditor && !showElementEditor && !isEditMode &&
+                    !InGameContainerSettings.overlayActive && PluviaApp.isOverlayPaused
+                ) forceResumeIfSuspended()
+                true
+            }
             QuickMenuAction.CONTROLLER_LAYOUTS, QuickMenuAction.EDIT_PHYSICAL_CONTROLLER -> {
                 keepPausedForEditor = true
                 physicalControllerMenu = itemId
@@ -1692,6 +1692,9 @@ var win32AppWorkarounds: Win32AppWorkarounds? by remember { mutableStateOf(null)
         Timber.i("onGuestProgramTerminated")
         exit(xServerView!!.getxServer().winHandler, frameRating, currentAppInfo, container, appId, onExit, navigateBack)
     }
+    val onExitGame: (AndroidEvent.ExitGame) -> Unit = {
+        exit(xServerView?.getxServer()?.winHandler, frameRating, currentAppInfo, container, appId, onExit, navigateBack)
+    }
     val onForceCloseApp: (SteamEvent.ForceCloseApp) -> Unit = {
         Timber.i("onForceCloseApp")
         exit(xServerView!!.getxServer().winHandler, frameRating, currentAppInfo, container, appId, onExit, navigateBack)
@@ -1714,6 +1717,7 @@ var win32AppWorkarounds: Win32AppWorkarounds? by remember { mutableStateOf(null)
         PluviaApp.events.on<AndroidEvent.KeyEvent, Boolean>(onKeyEvent)
         PluviaApp.events.on<AndroidEvent.MotionEvent, Boolean>(onMotionEvent)
         PluviaApp.events.on<AndroidEvent.GuestProgramTerminated, Unit>(onGuestProgramTerminated)
+        PluviaApp.events.on<AndroidEvent.ExitGame, Unit>(onExitGame)
         PluviaApp.events.on<SteamEvent.ForceCloseApp, Unit>(onForceCloseApp)
         PluviaApp.events.on<SteamEvent.PlayingBlocked, Unit>(onPlayingBlocked)
         ProcessHelper.addDebugCallback(debugCallback)
@@ -1723,6 +1727,7 @@ var win32AppWorkarounds: Win32AppWorkarounds? by remember { mutableStateOf(null)
             PluviaApp.events.off<AndroidEvent.KeyEvent, Boolean>(onKeyEvent)
             PluviaApp.events.off<AndroidEvent.MotionEvent, Boolean>(onMotionEvent)
             PluviaApp.events.off<AndroidEvent.GuestProgramTerminated, Unit>(onGuestProgramTerminated)
+            PluviaApp.events.off<AndroidEvent.ExitGame, Unit>(onExitGame)
             PluviaApp.events.off<SteamEvent.ForceCloseApp, Unit>(onForceCloseApp)
             PluviaApp.events.off<SteamEvent.PlayingBlocked, Unit>(onPlayingBlocked)
             ProcessHelper.removeDebugCallback(debugCallback)

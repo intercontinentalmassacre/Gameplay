@@ -2,6 +2,14 @@
 
 All notable changes to Gameplay are documented here.
 
+## 0.6 — 2026-11-26
+
+- Connect itch.io from the sign-in screen or system hub. Its library tab appears after sign-in. Install and update supported Windows ZIP builds and installers; ZIP updates preserve changed player files and save a separate copy when the new build supplies the same path.
+- Sync cloud saves when leaving a game. If an upload is interrupted, the next launch can retry the sync. Local saves are backed up before supported cloud downloads, and previous backups can be restored from the game menu.
+- Keep pending Steam launches queued through sign-in and Steam Guard. Improve container crash diagnostics and compatibility with Common Controls v6, 32-bit CPU affinity changes, and Adreno 85x drivers.
+- Add experimental FEX translation-cache preparation and recompilation from recorded code maps.
+- Fix a crash when Android pauses the activity after PulseAudio has already stopped. Keep the network receiver registered to the application rather than the activity.
+
 ## 0.5 — 2026-11-25
 
 - Choose a physical controller preset per game, or search Steam community layouts and import supported buttons, sticks and triggers.

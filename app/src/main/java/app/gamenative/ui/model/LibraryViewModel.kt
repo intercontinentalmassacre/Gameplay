@@ -140,14 +140,18 @@ class LibraryViewModel @Inject constructor(
     private val onItchAuthStateChanged: (AndroidEvent.ItchAuthStateChanged) -> Unit = { event ->
         invalidateLibrarySnapshot()
         if (event.success && !event.signedOut && app.gamenative.itch.ItchPaths.hasCredentials(context)) {
-            viewModelScope.launch(Dispatchers.IO) {
-                val sync = itchLibraryRepository.refreshLibrary()
-                if (sync.isFailure) {
-                    SnackbarManager.show(sync.exceptionOrNull()?.message ?: "Could not sync itch.io")
-                }
-                onFilterApps(paginationCurrentPage)
-            }
+            refreshItchAfterLogin()
         } else {
+            onFilterApps(paginationCurrentPage)
+        }
+    }
+
+    private fun refreshItchAfterLogin() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val sync = itchLibraryRepository.refreshLibrary()
+            if (sync.isFailure) {
+                SnackbarManager.show(sync.exceptionOrNull()?.message ?: "Could not sync itch.io")
+            }
             onFilterApps(paginationCurrentPage)
         }
     }
@@ -395,6 +399,8 @@ class LibraryViewModel @Inject constructor(
         PluviaApp.events.on<AndroidEvent.PostInstallSyncStatusChanged, Unit>(onPostInstallSyncStatusChanged)
         PluviaApp.events.on<AndroidEvent.InstallationSessionChanged, Unit>(onInstallationSessionChanged)
         PluviaApp.events.on<AndroidEvent.ItchAuthStateChanged, Unit>(onItchAuthStateChanged)
+        // Sign-in from the initial account picker can finish before the library is opened.
+        if (app.gamenative.itch.ItchPaths.hasCredentials(context)) refreshItchAfterLogin()
 
         scheduleRefreshInstallProgress()
     }

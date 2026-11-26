@@ -69,7 +69,8 @@ object EpicCloudSavesManager {
      * preferredAction = download -> Force downloads all files and overwrites current files
      * preferredAction = upload -> Force uploads all files
      * preferredAction = "auto" -> Timestamp check and uploads/downloads the files pending on the timestamp resolution
-     * @param preferredAction "download", "upload", or "auto" (default)
+     * preferredAction = upload-if-changed -> Upload local changes only if the cloud has not changed
+     * @param preferredAction "download", "upload", "upload-if-changed", or "auto" (default)
      */
     suspend fun syncCloudSaves(
         context: Context,
@@ -118,13 +119,17 @@ object EpicCloudSavesManager {
 
             // Execute the action
             val result = when (action) {
-                SyncAction.DOWNLOAD -> downloadSaves(context, appId, creds.accountId)
+                SyncAction.DOWNLOAD -> preferredAction == "upload-if-changed" || downloadSaves(context, appId, creds.accountId)
 
                 SyncAction.UPLOAD -> uploadSaves(context, creds.accountId, game)
 
                 SyncAction.CONFLICT -> {
-                    Timber.tag("Epic").w("[Cloud Saves] Conflict detected - resolving via timestamp comparison")
-                    resolveConflict(context, creds.accountId, game)
+                    if (preferredAction == "upload-if-changed") {
+                        Timber.tag("Epic").w("[Cloud Saves] Deferring conflict resolution to the next launch")
+                        false
+                    } else {
+                        resolveConflict(context, creds.accountId, game)
+                    }
                 }
 
                 SyncAction.NONE -> {
@@ -158,73 +163,31 @@ object EpicCloudSavesManager {
         game: app.gamenative.data.EpicGame,
         preferredAction: String,
     ): SyncAction = withContext(Dispatchers.IO) {
-        try {
-            // Force action if requested
-            if (preferredAction == "download") return@withContext SyncAction.DOWNLOAD
-            if (preferredAction == "upload") return@withContext SyncAction.UPLOAD
+        if (preferredAction == "download") return@withContext SyncAction.DOWNLOAD
+        if (preferredAction == "upload") return@withContext SyncAction.UPLOAD
 
-            // Check local save directory
-            val saveDir = resolveSaveDirectory(context, game, accountId)
-            val hasLocalFiles = saveDir?.exists() == true && (saveDir.listFiles()?.isNotEmpty() == true)
+        val localNewest = resolveSaveDirectory(context, game, accountId)?.walkTopDown()
+            ?.filter { it.isFile }?.maxOfOrNull { it.lastModified() }
+        // Do not overwrite either copy when we could not check the remote state.
+        val cloudSaves = listCloudSaves(game.appName, context).getOrThrow()
+        val cloudNewest = findLatestManifest(cloudSaves.files)?.second?.lastModified?.let(Instant::parse)
+        val lastSync = getSyncTimestamp(context, game.id)?.let(Instant::parse)
+        chooseSyncAction(localNewest?.let(Instant::ofEpochMilli), cloudNewest, lastSync)
+    }
 
-            // Check cloud saves
-            val cloudSavesResult = listCloudSaves(game.appName, context)
-            if (cloudSavesResult.isFailure) {
-                Timber.tag("Epic").w("[Cloud Saves] Failed to list cloud saves, will try upload if local files exist")
-                return@withContext if (hasLocalFiles) SyncAction.UPLOAD else SyncAction.NONE
-            }
+    internal fun chooseSyncAction(local: Instant?, cloud: Instant?, lastSync: Instant?): SyncAction {
+        if (local == null) return if (cloud == null) SyncAction.NONE else SyncAction.DOWNLOAD
+        if (cloud == null) return SyncAction.UPLOAD
+        // An interrupted first session can leave newer local saves without a baseline.
+        if (lastSync == null) return if (local > cloud) SyncAction.UPLOAD else SyncAction.DOWNLOAD
 
-            val cloudSaves = cloudSavesResult.getOrNull()!!
-            val hasCloudFiles = cloudSaves.files.isNotEmpty()
-
-            // Simple cases
-            when {
-                hasLocalFiles && !hasCloudFiles -> return@withContext SyncAction.UPLOAD
-                !hasLocalFiles && hasCloudFiles -> return@withContext SyncAction.DOWNLOAD
-                !hasLocalFiles && !hasCloudFiles -> return@withContext SyncAction.NONE
-            }
-
-            // Both local and cloud have files - compare timestamps
-            val (_, manifestInfo) = findLatestManifest(cloudSaves.files) ?: run {
-                Timber.tag("Epic").w("[Cloud Saves] No manifest in cloud, will upload")
-                return@withContext SyncAction.UPLOAD
-            }
-
-            val lastSync = getSyncTimestamp(context, game.id)
-            val cloudTimestamp = manifestInfo.lastModified
-
-            // Get local newest file timestamp
-            val localNewestTimestamp = saveDir?.let { dir ->
-                dir.walkTopDown()
-                    .filter { it.isFile }
-                    .maxOfOrNull { it.lastModified() }
-            }
-
-            Timber.tag("Epic").d("[Cloud Saves] Cloud timestamp: $cloudTimestamp, Last sync: $lastSync")
-            Timber.tag("Epic").d("[Cloud Saves] Local newest file: $localNewestTimestamp")
-
-            // If we have a last sync timestamp, use it for conflict detection
-            if (lastSync != null) {
-                val cloudNewer = cloudTimestamp > lastSync
-                val localNewer = localNewestTimestamp != null && localNewestTimestamp > parseTimestamp(lastSync)
-
-                when {
-                    cloudNewer && !localNewer -> return@withContext SyncAction.DOWNLOAD
-                    localNewer && !cloudNewer -> return@withContext SyncAction.UPLOAD
-                    cloudNewer && localNewer -> return@withContext SyncAction.CONFLICT
-                    else -> return@withContext SyncAction.NONE
-                }
-            }
-
-            // No sync timestamp - just compare cloud vs local
-            if (cloudTimestamp >= (lastSync ?: "")) {
-                SyncAction.DOWNLOAD
-            } else {
-                SyncAction.NONE
-            }
-        } catch (e: Exception) {
-            Timber.tag("Epic").e(e, "[Cloud Saves] Error determining sync action")
-            SyncAction.NONE
+        val localChanged = local > lastSync
+        val cloudChanged = cloud > lastSync
+        return when {
+            localChanged && cloudChanged -> SyncAction.CONFLICT
+            localChanged -> SyncAction.UPLOAD
+            cloudChanged -> SyncAction.DOWNLOAD
+            else -> SyncAction.NONE
         }
     }
 
@@ -802,11 +765,17 @@ object EpicCloudSavesManager {
                         } else {
                             Timber.tag("Epic").e("[Cloud Saves] Failed to upload chunk: $fileName - ${result.exceptionOrNull()?.message}")
                         }
+                    } else {
+                        Timber.tag("Epic").e("[Cloud Saves] Missing write link for $fileName")
                     }
                 }
             }
 
             // 5. Upload manifest last
+            if (uploadedChunks != nonEmptyFiles.keys.count { !it.endsWith(".manifest") }) {
+                Timber.tag("Epic").w("[Cloud Saves] Not publishing an incomplete save upload")
+                return@withContext false
+            }
             val manifestEntry = nonEmptyFiles.entries.find { it.key.endsWith(".manifest") }
             if (manifestEntry != null) {
                 val writeLink = writeLinks[manifestEntry.key]

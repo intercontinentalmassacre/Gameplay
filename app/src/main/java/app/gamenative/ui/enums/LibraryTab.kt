@@ -107,14 +107,13 @@ enum class LibraryTab(
          * Tabs shown in the UI. Custom (LOCAL) games work on all flavors: legacy maps folders
          * in place via all-files access, modern imports them into app-owned storage.
          */
-        fun visibleEntries(context: Context): List<LibraryTab> = entries.filter { tab ->
+        fun visibleEntries(context: Context, itchLoggedIn: Boolean = ItchPaths.hasCredentials(context)): List<LibraryTab> = entries.filter { tab ->
             when (tab) {
                 STEAM -> SteamUtils.hasStoredCredentials()
                 GOG -> GOGService.hasStoredCredentials(context)
                 EPIC -> EpicService.hasStoredCredentials(context)
                 AMAZON -> AmazonService.hasStoredCredentials(context)
-                // itch.io stays visible so its tab can offer the sign-in action.
-                ITCH -> true
+                ITCH -> itchLoggedIn
                 LOCAL -> true
                 INSTALLED, ALL -> true
             }

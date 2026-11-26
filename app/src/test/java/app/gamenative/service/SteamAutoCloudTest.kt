@@ -2474,6 +2474,14 @@ class SteamAutoCloudTest {
         assertEquals(changeNumber, db.appChangeNumbersDao().getByAppId(steamAppId)!!.changeNumber)
         assertEquals(content, file.readText())
         verify { mockSteamCloud.commitFileUpload(false, any(), any(), any(), any()) }
+
+        // A normal launch (no forced save choice) retries against the unchanged sync baseline.
+        whenever(upload.blockRequests).thenReturn(emptyList())
+        val retry = SteamAutoCloud.syncUserFiles(app, clientId, mockSteamService, mockSteamCloud,
+            preferredSave = SaveLocation.None, prefixToPath = makePrefixToPath()).await()!!
+        assertEquals(SyncResult.Success, retry.syncResult)
+        assertTrue(retry.uploadsCompleted)
+        assertEquals(1, retry.filesUploaded)
     }
 
     // ── Scenario 4: User plays offline, meanwhile another device also played and uploaded ──
