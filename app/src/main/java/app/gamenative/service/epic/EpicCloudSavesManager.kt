@@ -4,6 +4,7 @@ import android.content.Context
 import app.gamenative.data.EpicGame
 import app.gamenative.service.epic.manifest.EpicManifest
 import app.gamenative.service.epic.manifest.FileManifest
+import app.gamenative.utils.CloudSaveBackupManager
 import app.gamenative.utils.FileUtils
 import app.gamenative.utils.Net
 import java.io.File
@@ -440,6 +441,26 @@ object EpicCloudSavesManager {
                 toDownload.add(path)
             }
 
+            // Snapshot the local saves this resolution is about to overwrite. The download set is
+            // complete here and applied below; one snapshot session per resolution, and a skipped or
+            // failed snapshot is logged, never fatal.
+            val saveBackupSession = CloudSaveBackupManager.session(
+                context = context,
+                provider = CloudSaveBackupManager.PROVIDER_EPIC,
+                gameId = game.id.toString(),
+            ) {
+                listOf(
+                    CloudSaveBackupManager.BackupRoot(
+                        id = game.appName,
+                        dir = saveDir,
+                        files = toDownload.map { File(saveDir, it) },
+                    ),
+                )
+            }
+            if (!saveBackupSession.ensure()) {
+                Timber.tag("Epic").i("[Cloud Saves] No pre-conflict save backup for ${game.id} (skipped or failed)")
+            }
+
             // 5. Execute downloads first (so we have all cloud files locally before uploading)
             var downloadSuccess = true
             if (toDownload.isNotEmpty()) {
@@ -642,6 +663,27 @@ object EpicCloudSavesManager {
 
             val files = manifest.fileManifestList?.elements.orEmpty()
             if (files.isEmpty()) return@withContext false
+
+            // Snapshot the local save files that restoreSaveFiles is about to replace. Per-file, the
+            // same unit the remote manifest restores; a skipped or failed snapshot is logged and
+            // never blocks the download.
+            val saveBackupSession = CloudSaveBackupManager.session(
+                context = context,
+                provider = CloudSaveBackupManager.PROVIDER_EPIC,
+                gameId = appId.toString(),
+            ) {
+                listOf(
+                    CloudSaveBackupManager.BackupRoot(
+                        id = game.appName,
+                        dir = saveDir,
+                        files = files.map { File(saveDir, it.filename) },
+                    ),
+                )
+            }
+            if (!saveBackupSession.ensure()) {
+                Timber.tag("Epic").i("[Cloud Saves] No pre-download save backup for $appId (skipped or failed)")
+            }
+
             restoreSaveFiles(saveDir, files, chunks)
 
             // 9. Update sync timestamp
