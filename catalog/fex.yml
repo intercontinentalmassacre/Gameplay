@@ -14,6 +14,14 @@
       "sha256": "17c330056e425088e38033321619792725d39a4839df6d0fdf8de530468fc43e",
       "sizeBytes": 1959704,
       "variant": "bionic"
+    },
+    {
+      "id": "2611-gn-9",
+      "name": "FEX 2611-gn (9)",
+      "url": "https://downloads.gamenative.app/FEXCore-2611-gn-9.wcp",
+      "sha256": "5d79ba889e8bfd6ce5132fb3c21a7a505732680183a4a322b307557bb2a8925a",
+      "sizeBytes": 2282865,
+      "variant": "bionic"
     }
   ]
 }

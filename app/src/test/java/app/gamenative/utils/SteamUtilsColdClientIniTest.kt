@@ -1,10 +1,22 @@
 package app.gamenative.utils
 
+import app.gamenative.data.LaunchInfo
+import app.gamenative.enums.OS
+import app.gamenative.enums.OSArch
 import java.io.File
+import java.util.EnumSet
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class SteamUtilsColdClientIniTest {
+    @Test
+    fun `Steam arguments precede user arguments only for the selected executable`() {
+        val launch = LaunchInfo("Binaries\\OMORI.exe", "", "", "default", EnumSet.of(OS.windows), OSArch.Arch64, arguments = "--steam-argument")
+        fun resolve(exe: String) = SteamUtils.resolveColdClientLaunchConfig(1150690, exe, "-windowed", File("."), launch).exeCommandLine
+        assertEquals("--steam-argument -windowed", resolve("binaries/omori.exe"))
+        assertEquals("-windowed", resolve("Different.exe"))
+    }
+
     @Test
     fun `Dragon's Dogma 2 receives the compatibility option in ColdClient`() {
         val config = SteamUtils.resolveColdClientLaunchConfig(

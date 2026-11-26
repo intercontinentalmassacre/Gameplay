@@ -39,6 +39,8 @@ See the [changelog](CHANGELOG.md) for device results and the full list of change
 
 Games run on your device through Windows compatibility tools. Use your own game files and accounts. Compatibility varies by game, Android version, GPU and driver. Vulkan-capable hardware is recommended for modern DirectX titles. Anti-cheat, kernel drivers and some DRM can prevent games from running. ISO and DOS titles need a separate workflow.
 
+See [per-game compatibility notes](docs/game-compatibility.md) for specific fixes and optional graphics settings.
+
 The source also provides a `legacy` build flavor for Android 8 and newer. The APK linked above is the signed `modern` release.
 
 ## Building from source

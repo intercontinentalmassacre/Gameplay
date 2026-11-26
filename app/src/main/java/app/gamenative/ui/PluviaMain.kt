@@ -123,7 +123,7 @@ import app.gamenative.ui.util.LocalSnackbarHostController
 import app.gamenative.ui.util.PlatformAuthUiHelpers
 import app.gamenative.ui.util.PlatformLogoutCallbacks
 import app.gamenative.ui.util.SnackbarManager
-import app.gamenative.utils.BestConfigService
+import app.gamenative.utils.ContainerComponentPreparation
 import app.gamenative.utils.ContainerUtils
 import app.gamenative.localgames.AppImageRuntime
 import app.gamenative.localgames.LocalContainerLaunch
@@ -131,7 +131,6 @@ import app.gamenative.utils.PlatformAuthUtils
 import app.gamenative.utils.PlatformOAuthHandlers
 import app.gamenative.utils.rememberHasExternalDisplay
 import app.gamenative.utils.CustomGameScanner
-import app.gamenative.utils.ManifestInstaller
 import app.gamenative.utils.CommunityFeedbackLinks
 import app.gamenative.utils.IntentLaunchManager
 import app.gamenative.utils.SteamUtils
@@ -159,8 +158,6 @@ import kotlin.reflect.KFunction2
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.jsonObject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -2157,20 +2154,7 @@ fun preLaunchApp(
         // download any manifest components (wine/proton, dxvk, etc.) the container's config
         // references but that aren't installed yet — all sources, including custom games
         try {
-            val configJson = Json.parseToJsonElement(container.containerJson).jsonObject
-            val missingRequests = BestConfigService.resolveMissingManifestInstallRequests(
-                context, configJson, "exact_gpu_match",
-            )
-            for (request in missingRequests) {
-                setLoadingMessage(context.getString(R.string.main_downloading_entry, request.entry.name))
-                val result = ManifestInstaller.installManifestEntry(
-                    context, request.entry, request.isDriver, request.contentType,
-                ) { progress -> setLoadingProgress(progress.coerceIn(0f, 1f)) }
-                if (!result.success) {
-                    showSetupError(IllegalStateException("${request.entry.name}: ${result.message}"))
-                    return@launch
-                }
-            }
+            ContainerComponentPreparation.ensureInstalled(context, container.containerJson, setLoadingMessage, setLoadingProgress)
         } catch (e: Exception) {
             showSetupError(e)
             return@launch

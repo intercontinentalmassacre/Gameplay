@@ -15,6 +15,8 @@ object InstallScriptExecutor {
 
     private const val CLAIMED_OS_TYPE = "10"
     private const val EXIT_CODE_FILE = "installscript_exit"
+    private const val STELLAR_BLADE_APP_ID = 3489700
+    private const val PSPC_INSTALLER = "SB/Binaries/Win64/install_pspc_sdk_runtime.bat"
 
     data class RunProcessCommand(
         val executable: String,
@@ -60,7 +62,7 @@ object InstallScriptExecutor {
             }
         }
 
-        return scriptPaths.mapNotNull { relativePath ->
+        val scripts = scriptPaths.mapNotNull { relativePath ->
             val scriptFile = File(gameDir, relativePath)
             if (!scriptFile.exists()) {
                 Timber.tag("InstallScript").w("InstallScript file not found: ${scriptFile.absolutePath}")
@@ -68,6 +70,28 @@ object InstallScriptExecutor {
             }
             InstallScriptParser.parse(scriptFile, installDir, language)
         }
+        if (appId != STELLAR_BLADE_APP_ID || scripts.any { script -> script.runProcessActions.any(::isPspcInstaller) }) {
+            return scripts
+        }
+        // Some installs have the vendor script on disk without usable depot metadata.
+        return scripts + listOfNotNull(stellarBladeSdkScript(gameDir, installDir, language))
+    }
+
+    private fun isPspcInstaller(action: RunProcessAction): Boolean =
+        action.process.trim().removeSurrounding("\"").replace('\\', '/')
+            .equals("A:/$PSPC_INSTALLER", ignoreCase = true) && action.command.trim().equals("quiet", ignoreCase = true)
+
+    internal fun stellarBladeSdkScript(gameDir: File, installDir: String = "A:", language: String = "english"): InstallScript? {
+        val installer = File(gameDir, PSPC_INSTALLER)
+        val script = File(installer.parentFile, "installscript.vdf")
+        val root = gameDir.canonicalFile.toPath()
+        if (!installer.isFile || !script.isFile ||
+            !installer.canonicalFile.toPath().startsWith(root) || !script.canonicalFile.toPath().startsWith(root)
+        ) return null
+
+        val parsed = InstallScriptParser.parse(script, installDir, language)
+        val step = parsed.runProcessActions.firstOrNull(::isPspcInstaller) ?: return null
+        return InstallScript(sourcePath = parsed.sourcePath, runProcessActions = listOf(step))
     }
 
     private fun isInstallScript(flags: Any): Boolean = when (flags) {
@@ -129,7 +153,10 @@ object InstallScriptExecutor {
                 } else {
                     "\"${action.process}\""
                 }
-                val cmdLine = if (action.command.isNotEmpty()) {
+                val cmdLine = if (isPspcInstaller(action)) {
+                    // Run beside the SDK's MSI files and return to cmd to record the exit status.
+                    "cd /d \"A:\\SB\\Binaries\\Win64\" && call $quotedProcess quiet"
+                } else if (action.command.isNotEmpty()) {
                     "$quotedProcess ${action.command}"
                 } else {
                     quotedProcess

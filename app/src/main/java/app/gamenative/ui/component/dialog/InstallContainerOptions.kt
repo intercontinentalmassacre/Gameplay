@@ -10,6 +10,7 @@ import app.gamenative.R
 import app.gamenative.ui.component.settings.SettingsListDropdown
 import app.gamenative.ui.component.settings.SettingsSwitch
 import app.gamenative.ui.util.SnackbarManager
+import app.gamenative.utils.ContainerComponentPreparation
 import app.gamenative.utils.ContainerUtils
 import com.winlator.container.Container
 import com.winlator.container.ContainerManager
@@ -52,7 +53,7 @@ internal class InstallContainerOptions(private val context: Context, private val
         saving = true
         scope.launch {
             try {
-                withContext(Dispatchers.IO) {
+                val savedConfig = withContext(Dispatchers.IO) {
                     if (windows && (canChooseStorage || preset != null || dxvk != null)) {
                         val container = ContainerUtils.getOrCreateContainer(context, appId, installWinePrefix = false)
                         var config = ContainerUtils.toContainerData(container)
@@ -67,9 +68,11 @@ internal class InstallContainerOptions(private val context: Context, private val
                             container.putExtra("downloadPrefixStorage", if (shared) "shared" else "private")
                         }
                         container.saveData()
-                    }
+                        container.containerJson
+                    } else null
                 }
                 onInstall()
+                if (windows) ContainerComponentPreparation.prefetchForInstall(context, appId, savedConfig)
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) { SnackbarManager.show(context.getString(R.string.download_container_save_failed)) }
             finally { saving = false }

@@ -405,13 +405,13 @@ class MainActivity : ComponentActivity() {
             SteamService.stop()
         }
 
-        if (GOGService.isRunning && !isChangingConfigurations) {
+        // Downloads and syncs can outlive an Activity, including a shortcut-launched session.
+        if (GOGService.isRunning && !isChangingConfigurations && !GOGService.hasActiveOperations()) {
             Timber.i("Stopping GOG Service")
             GOGService.stop()
         }
 
-        // Stop EpicService when app is destroyed (unless config change)
-        if (EpicService.isRunning && !isChangingConfigurations) {
+        if (EpicService.isRunning && !isChangingConfigurations && !EpicService.hasActiveOperations()) {
             Timber.i("Stopping EpicService - app destroyed")
             EpicService.stop()
         }

@@ -138,6 +138,10 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
 
     private Runnable preUnpack;
     public void setPreUnpack(Runnable r) { this.preUnpack = r; }
+    private Runnable onGuestStarted;
+    public void setOnGuestStarted(Runnable callback) { onGuestStarted = callback; }
+    private volatile boolean guestRunning;
+    public boolean isGuestRunning() { return guestRunning; }
     private BooleanSupplier fossilizeCancellation;
     public void setFossilizeCancellation(BooleanSupplier cancellation) {
         fossilizeCancellation = cancellation;
@@ -156,12 +160,15 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
             if (gamescopeMode && pid < 0) throw new IllegalStateException("Gamescope process could not start");
             Log.d("BionicProgramLauncherComponent", "Process " + pid + " started");
             SteamService.acquireKeepAlive(sessionId);
+            guestRunning = pid > 0;
+            if (guestRunning && onGuestStarted != null) onGuestStarted.run();
         }
     }
 
     @Override
     public void stop() {
         synchronized (lock) {
+            guestRunning = false;
             gamescopeGuestEnv = null;
             if (pid != -1) {
                 // Kill only this session's process tree (recursive PPID walk);
@@ -521,6 +528,7 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
 
         return ProcessHelper.exec(command, launchEnv.toStringArray(), workingDir != null ? workingDir : rootDir, (status) -> {
             synchronized (lock) {
+                guestRunning = false;
                 pid = -1;
                 gamescopeGuestEnv = null;
             }
@@ -1117,8 +1125,11 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
     }
 
     public void restartWineServer() {
+        guestRunning = false;
         ProcessHelper.terminateAllWineProcesses();
         pid = execGuestProgram();
+        guestRunning = pid > 0;
+        if (guestRunning && onGuestStarted != null) onGuestStarted.run();
         Log.d("BionicProgramLauncherComponent", "Wine restarted successfully");
 
     }
