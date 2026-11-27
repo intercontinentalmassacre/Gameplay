@@ -386,11 +386,8 @@
     <string name="appearance">Wygląd</string>
     <string name="size_subtitle">%.2fx</string>
     <string name="label_text">Tekst etykiety</string>
-    <string name="label_text_subtitle">Własny tekst dla tego przycisku</string>
     <string name="element_type">Typ elementu</string>
-    <string name="element_type_subtitle">Zmień typ tego kontrolera</string>
     <string name="shape">Kształt</string>
-    <string name="shape_subtitle">Wygląd wizualny</string>
     <string name="shape_restricted">%1$s jest ograniczone do kształtu %2$s</string>
     <string name="bindings">Przypisania</string>
     <string name="bindings_auto_generated">Przypisania (Auto-generowane)</string>
@@ -602,7 +599,6 @@
     <string name="custom_game_import_failed">Import nie powiódł się</string>
     <string name="custom_game_import_dialog_message">Wybierz folder zawierający grę. Zostanie ona zaimportowana do pamięci Gameplay, aby mogła działać bez żadnych uprawnień do pamięci. Duże gry mogą zająć kilka minut.</string>
     <string name="custom_game_import_remove_original">Usuń oryginał po imporcie</string>
-    <string name="add_custom_game_dont_show_again">Nie pokazuj tego ponownie</string>
     <string name="base_app_shortcut_created">Utworzono skrót</string>
     <string name="base_app_shortcut_failed">Nie udało się utworzyć skrótu: %s</string>
     <string name="base_app_images_fetched">Pobrano obrazy pomyślnie</string>
@@ -642,7 +638,7 @@
 
 
     <!-- Profile & Menu -->
-    <string name="help_and_support">Pomoc i wsparcie</string>
+    <string name="help_and_support">GitHub Issues</string>
     <string name="hall_of_fame">Aleja Sław</string>
     <string name="go_online">Przejdź online</string>
     <string name="go_offline">Przejdź offline</string>
@@ -837,9 +833,7 @@
     <string name="movement_type">Typ ruchu</string>
     <string name="movement_type_subtitle">Wyjście joysticka dla ruchu po lewej</string>
     <string name="look_sensitivity">Czułość patrzenia</string>
-    <string name="look_sensitivity_subtitle">Mnożnik czułości myszy</string>
     <string name="joystick_size">Rozmiar joysticka</string>
-    <string name="joystick_size_subtitle">Mnożnik rozmiaru dynamicznego joysticka</string>
     <string name="movement_wasd">WASD</string>
     <string name="movement_arrow_keys">Strzałki</string>
     <string name="movement_gamepad_left_stick">Lewy drążek gamepada</string>
@@ -852,7 +846,6 @@
     <string name="range_type">Zakres klawiszy</string>
     <string name="range_type_subtitle">Który zestaw klawiszy przeglądać</string>
     <string name="range_orientation">Orientacja</string>
-    <string name="range_orientation_subtitle">Kierunek układu przycisku zakresu</string>
     <string name="range_orientation_horizontal">Pozioma</string>
     <string name="range_orientation_vertical">Pionowa</string>
     <string name="range_visible_segments">Widoczne segmenty</string>
@@ -912,7 +905,6 @@
     <string name="select_wine_debug_channels">Wybierz kanały debugowania Wine</string>
     <string name="cpu_label">CPU%d</string>
     <string name="describe_what_happened">Opisz co się stało</string>
-    <string name="get_support_on_discord">Uzyskaj pomoc na Discordzie</string>
 
     <!-- Driver Manager -->
     <string name="driver_manager">Menedżer sterowników</string>
@@ -1100,10 +1092,7 @@
     <string name="main_recent_crash_message">Przykro nam!\nDobrze byłoby wiedzieć o ostatnim problemie, który wystąpił.\nMożesz zobaczyć i wyeksportować log ostatniej awarii w ustawieniach aplikacji i dołączyć go jako zgłoszenie w repozytorium projektu na Githubie.\nLink do repozytorium Github znajduje się również w ustawieniach!</string>
     <string name="main_thank_you_title">Dziękujemy za korzystanie z Gameplay!</string>
     <string name="main_share">Udostępnij</string>
-    <string name="main_share_text">Sprawdź Gameplay - graj w gry Steam z PC na Androidzie, z pełnym wsparciem zapisów w chmurze!\nhttps://github.com/intercontinentalmassacre/Gameplay\nDołącz do społeczności: https://discord.gg/KPzU4Dhwq</string>
-    <string name="main_discord_support_title">Czy gra zadziałała?</string>
-    <string name="main_discord_support_message">Dołącz do Discorda, aby uzyskać pomoc w naprawie gry lub poprawie wydajności.</string>
-    <string name="main_open_discord">Otwórz Discord</string>
+    <string name="main_share_text">Sprawdź Gameplay - graj w gry Steam z PC na Androidzie, z pełnym wsparciem zapisów w chmurze!\nhttps://github.com/intercontinentalmassacre/Gameplay</string>
     <string name="main_downloading_entry">Pobieranie %s</string>
 
     <!-- PluviaMain: Game Launch -->
@@ -1527,7 +1516,7 @@
     <string name="option_open_container">Otwórz kontener</string>
     <string name="option_edit_container">Edytuj kontener</string>
     <string name="option_reset_to_defaults">Zresetuj kontener</string>
-    <string name="option_get_support">Uzyskaj pomoc</string>
+    <string name="option_get_support">GitHub Issues</string>
     <string name="option_submit_feedback">Wyślij opinię</string>
     <string name="option_reset_drm">Zresetuj DRM</string>
     <string name="option_use_known_config">Użyj znanej konfiguracji</string>
@@ -1606,7 +1595,6 @@
     <string name="game_launch_tip_14">Wskazówka: Możesz wywołać klawiaturę za pomocą przycisku wstecz na urządzeniu.</string>
     <string name="game_launch_tip_15">Wskazówka: Możesz dotknąć dwoma palcami wewnątrz kontenera, aby kliknąć prawym przyciskiem myszy.</string>
     <string name="game_launch_tip_16">Wskazówka: Jeśli używasz kontrolera ekranowego, możesz wyłączyć mysz, aby zapobiec przypadkowym dotknięciom.</string>
-    <string name="game_launch_tip_17">Wskazówka: Zgłaszaj problemy na Discordzie, abyśmy mogli je naprawić.</string>
     <string name="game_launch_tip_18">Wskazówka: Użyj sterownika Turnip Gen8 V25/V30 lub MrPurple T26, jeśli masz urządzenie 8 Elite.</string>
     <string name="game_launch_tip_19">Wskazówka: Obniż rozdzielczość i użyj FSR z szybkiego menu w grze, aby zwiększyć wydajność.</string>
     <string name="game_launch_tip_20">Wskazówka: Jeśli cała aplikacja ulega awarii po załadowaniu gry, Twojemu urządzeniu kończy się RAM.</string>
@@ -1911,8 +1899,6 @@
     <string name="nexus_summary_bar">%1$d mody | %2$d włączone | %3$s | %4$s</string>
     <string name="nexus_storage_cleanup_title">Czyszczenie pamięci</string>
     <string name="nexus_scan">Skan</string>
-    <string name="nexus_storage_cleanup_description">Pokazuje pamięć używaną przez pobieranie modów Nexus, wyodrębnioną pamięć podręczną i kopie zapasowe dla tej gry.</string>
-    <string name="nexus_storage_cleanup_cache_backups_description">Przechowywane są wyodrębnione kopie zapasowe pamięci podręcznej i przywracania zmian, aby można było bezpiecznie zastosować modyfikacje, wyłączyć je lub przywrócić.</string>
     <string name="nexus_storage_cleanup_actions_description">Wyczyść temp. usuwa porzucone pliki. Usuń nieudane archiwa usuwa nieudane pobieranie, więc ponowna próba spowoduje ponowne pobranie. Wyczyść nadmiarowe kopie zapasowe usuwa kopie zapasowe, które nie są już potrzebne.</string>
     <string name="nexus_temp_orphaned_files">Pliki tymczasowe/osierocone</string>
     <string name="nexus_failed_download_archives">Nieudane pobieranie archiwów</string>
@@ -2106,7 +2092,6 @@
     <string name="button_opacity_value">%1$d%%</string>
     <string name="button_opacity_inherited">%1$d%% (domyślne globalne)</string>
     <string name="control_stroke_width">Grubość linii</string>
-    <string name="control_stroke_width_subtitle">Dostosuj grubość obrysu i separatorów elementu</string>
     <string name="control_stroke_width_thin">Cienka</string>
     <string name="control_stroke_width_default">Domyślna</string>
     <string name="control_stroke_width_thick">Gruba</string>
@@ -2152,7 +2137,6 @@
     <string name="steam_collections_clear">Wyczyść</string>
     <string name="steam_collections_smart_unsupported">Wyświetlane są tylko standardowe kolekcje. Kolekcje inteligentne nie są jeszcze obsługiwane.</string>
     <string name="local_mod_title">Importuj mod z urządzenia</string>
-    <string name="local_mod_description">Zaimportuj archiwum, folder albo jeden lub więcej luźnych plików. Importy lokalne używają tych samych profili, miejsc docelowych, konfliktów oraz zarządzania FOMOD i wtyczkami co pobieranie z Nexus.</string>
     <string name="local_mod_supported">Archiwa: ZIP, 7Z, RAR oraz możliwe do umieszczenia EXE. Luźne pliki mogą mieć dowolne rozszerzenie, w tym INI, DLL, ESP, ESM, ESL, PAK, JSON, CFG i TOML.</string>
     <string name="local_mod_choose_archive">Wybierz archiwum</string>
     <string name="local_mod_choose_files">Wybierz pliki</string>
@@ -2250,21 +2234,15 @@
     <string name="base_app_images_fetching">Pobieranie obrazów...</string>
     <string name="compat_preset_applied">Zastosowano</string>
     <string name="compat_preset_dx12_changes">Zmiany: VKD3D 3.0.1 · poziom funkcji 12_1</string>
-    <string name="compat_preset_dx12_desc">Kieruje DirectX 12 przez VKD3D w nowej wersji i z odpowiednim poziomem funkcji. Potrzebne tylko do tytułów DX12; DX11 i starsze pozostają na DXVK.</string>
     <string name="compat_preset_dx12_name">Gry DirectX 12</string>
     <string name="compat_preset_low_memory_changes">Zmiany: 1 GB pamięci wideo · 1 GB pamięci urządzenia · agresywny start · lekki Steam</string>
-    <string name="compat_preset_low_memory_desc">Zmniejsza obciążenie pamięci na urządzeniach z ograniczoną ilością RAM: mniejsza zgłaszana pamięć wideo, mniejsza pamięć GPU, agresywne przycinanie przy starcie i lekki runtime Steam.</string>
     <string name="compat_preset_low_memory_name">Urządzenia z małą ilością pamięci</string>
     <string name="compat_preset_old_games_changes">Zmiany: renderer cnc-ddraw · rozdzielczość 1280x960 · 256 MB pamięci wideo</string>
-    <string name="compat_preset_old_games_desc">Dla tytułów z końca lat 90. i początku XXI wieku: renderer cnc-ddraw dla starszych DirectDraw/Direct3D, proporcje 4:3 i mała zgłaszana pamięć wideo, której oczekują stare silniki.</string>
     <string name="compat_preset_old_games_name">Stare gry (era DirectDraw / DX8)</string>
     <string name="compat_preset_performance_changes">Zmiany: DXVK 3.0 (async) · preset Box64 Performance · 4 GB pamięci urządzenia · tryb prezentacji mailbox</string>
-    <string name="compat_preset_performance_desc">Stawia liczbę klatek ponad ostrożność: asynchroniczna kompilacja shaderów, translacja CPU zorientowana na wydajność i większy budżet pamięci GPU.</string>
     <string name="compat_preset_performance_name">Najlepsza wydajność</string>
     <string name="compat_preset_stability_changes">Zmiany: DXVK 2.7.1 · preset Box64 Compatibility · ścisła matematyka shaderów · tryb prezentacji fifo</string>
-    <string name="compat_preset_stability_desc">Zachowawcze ustawienia dla gier, które się wyłączają, przycinają lub renderują nieprawidłowo: sprawdzona wersja DXVK bez sztuczek async, translacja CPU zorientowana na zgodność i ścisła matematyka shaderów.</string>
     <string name="compat_preset_stability_name">Maksymalna zgodność</string>
-    <string name="compat_presets_subtitle">Sprawdzone kombinacje ustawień dla typowych sytuacji. Zastosowanie presetu edytuje bieżącą konfigurację — nic nie jest zapisywane, dopóki nie dotkniesz Zapisz, a każdą wartość można nadal dostroić w pozostałych kartach.</string>
     <string name="connection_auth_required">Wymagane uwierzytelnienie Steam</string>
     <string name="console_back_hint">B  Wstecz</string>
     <string name="console_hint_select_back">A  Wybierz   ·   B  Wstecz</string>
@@ -2421,28 +2399,16 @@
     <string name="settings_shortcut_opens_page_subtitle">Off: przypięte skróty ekranu głównego uruchamiają grę bezpośrednio.</string>
     <string name="settings_shortcut_opens_page_title">Skróty otwierają stronę gry</string>
     <string name="settings_shortcuts_group_title">Skróty programu uruchamiającego</string>
-    <string name="settings_stage_controls_description">Gamepad, sterowanie dotykowe i informacje zwrotne o wejściu.</string>
-    <string name="settings_stage_downloads_description">Preferencje sieci, pamięci i instalacji.</string>
     <string name="settings_stage_interface_description">Motyw, układ, język i zachowanie drugiego ekranu.</string>
     <string name="settings_stage_library_description">Źródła, prezentacja i organizacja Twojej kolekcji.</string>
     <string name="settings_stage_navigation_hint">Wybierz sekcję na dolnym ekranie</string>
-    <string name="settings_stage_runtime_description">Wine, sterowniki grafiki i zgodność gier.</string>
-    <string name="settings_stage_system_description">Diagnostyka, informacje o aplikacji i narzędzia do debugowania.</string>
     <string name="settings_system_title">System</string>
     <string name="system_hub_connected">Połączono</string>
     <string name="system_hub_connections_section">Połączone usługi</string>
-    <string name="system_hub_destinations_section">Biblioteka i system</string>
-    <string name="system_hub_downloads_description">Śledź transfery i zarządzaj pamięcią zainstalowanych gier.</string>
     <string name="system_hub_not_connected">Nie połączono</string>
     <string name="system_hub_offline">Offline</string>
     <string name="system_hub_open">Otwórz centrum Gameplay</string>
-    <string name="system_hub_profile_section">Konto Steam</string>
-    <string name="system_hub_settings_description">Wygląd, sterowanie, runtime i opcje aplikacji.</string>
     <string name="system_hub_stage_description">Konta, pobierania i ustawienia globalne w jednym miejscu.</string>
-    <string name="system_hub_steam_action_description">Połącz Steam i odśwież swoją bibliotekę.</string>
-    <string name="system_hub_steam_offline_description">Utrzymuj lokalną bibliotekę dostępną bez połączenia sieciowego.</string>
-    <string name="system_hub_steam_sign_out_description">Usuń aktywną sesję Steam z Gameplay.</string>
-    <string name="system_hub_support_description">Otwórz pomoc, wsparcie i społeczność Gameplay.</string>
     <string name="system_hub_title">Centrum Gameplay</string>
     <string name="theme_editor_general_description">Nazwij ten motyw. Zapisanie tworzy lub zastępuje Twój aktywny motyw niestandardowy.</string>
     <string name="theme_editor_hex_error">Użyj #RRGGBB</string>

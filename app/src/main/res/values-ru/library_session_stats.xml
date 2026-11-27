@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="library_last_session">Последний сеанс</string>
+    <string name="library_playtime_on_device">Время на устройстве</string>
+    <string name="library_play_duration_under_minute">Меньше 1 мин</string>
+</resources>

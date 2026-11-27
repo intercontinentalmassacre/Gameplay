@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="game_startup_preparing">Подготовка игровой среды…</string>
+    <string name="game_startup_starting">Запуск игровой среды…</string>
+    <string name="game_startup_taking_longer">Запуск занимает больше времени, чем обычно.</string>
+    <string name="game_startup_show_screen">Показать экран игры</string>
+    <string name="game_startup_preparation_failed">Не удалось подготовить игровую среду. %1$s</string>
+    <string name="game_startup_wine_failed">Не удалось запустить Wine. %1$s</string>
+    <string name="game_startup_launching">Запуск игры…</string>
+    <string name="game_startup_prerequisites">Установка компонентов…</string>
+    <string name="game_startup_mono">Установка Mono…</string>
+    <string name="game_startup_drm">Подготовка исполняемого файла…</string>
+    <string name="game_startup_drm_progress">Подготовка исполняемого файла (%1$d/%2$d)</string>
+</resources>

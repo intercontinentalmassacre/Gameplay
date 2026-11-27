@@ -163,9 +163,9 @@ object ManifestComponentHelper {
     fun bundledDxWrapperBase(entries: List<String>): List<String> =
         if (BuildConfig.MODERN_ANDROID) emptyList() else entries
 
-    suspend fun loadComponentAvailability(context: Context): ComponentAvailability = withContext(Dispatchers.IO) {
+    suspend fun loadComponentAvailability(context: Context, currentManifest: ManifestData? = null): ComponentAvailability = withContext(Dispatchers.IO) {
         val installed = loadInstalledContentLists(context)
-        val manifest = ManifestRepository.loadManifest(context, preferRemote = true)
+        val manifest = currentManifest ?: ManifestRepository.loadManifest(context, preferRemote = true)
         ComponentAvailability(
             manifest = manifest,
             installed = installed.installed,

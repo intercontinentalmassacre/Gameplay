@@ -37,7 +37,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PrivacyTip
-import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import app.gamenative.ui.component.Button
@@ -463,13 +462,6 @@ private fun UserLoginScreenContent(
                             .fillMaxWidth(),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
-                        if (!compactHeight && !embedded && userLoginState.loginScreen != LoginScreen.TWO_FACTOR) {
-                            LoginOnboardingHero(
-                                primaryColor = primaryColor,
-                            )
-                            Spacer(modifier = Modifier.height(12.dp))
-                        }
-
                         // Login Card
                         GcdsCard(
                             modifier = Modifier.fillMaxWidth(),
@@ -515,18 +507,10 @@ private fun UserLoginScreenContent(
                                         )
                                     } else {
                                         Text(
-                                            text = stringResource(R.string.login_onboarding_sign_in_title),
+                                            text = stringResource(R.string.steam_sign_in),
                                             style = MaterialTheme.typography.titleLarge,
                                             fontWeight = FontWeight.SemiBold,
                                             modifier = Modifier.fillMaxWidth(),
-                                        )
-                                        Text(
-                                            text = stringResource(R.string.login_onboarding_sign_in_subtitle),
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(top = 4.dp, bottom = 16.dp),
                                         )
                                         if (useSideBySideForm) {
                                             Row(
@@ -610,12 +594,6 @@ private fun LoginAlternativeActions(
     onLaunchItch: () -> Unit,
     onContinueOffline: () -> Unit,
 ) {
-    Text(
-        text = stringResource(R.string.login_or_sign_in_with),
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(top = 8.dp),
-    )
     FlowRow(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.Center,
@@ -631,65 +609,10 @@ private fun LoginAlternativeActions(
 }
 
 @Composable
-private fun LoginOnboardingHero(primaryColor: Color) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        shape = RoundedCornerShape(PluviaTheme.tokens.cornerLg),
-    ) {
-        Column(modifier = Modifier.padding(18.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Surface(
-                    color = primaryColor.copy(alpha = 0.16f),
-                    shape = RoundedCornerShape(PluviaTheme.tokens.cornerMd),
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.SportsEsports,
-                        contentDescription = null,
-                        tint = primaryColor,
-                        modifier = Modifier.padding(10.dp),
-                    )
-                }
-                Column(modifier = Modifier.padding(start = 12.dp)) {
-                    Text(
-                        text = stringResource(R.string.login_onboarding_title),
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    Text(
-                        text = stringResource(R.string.login_onboarding_subtitle),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.height(14.dp))
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                LoginOnboardingStep(stringResource(R.string.login_onboarding_step_connect))
-                LoginOnboardingStep(stringResource(R.string.login_onboarding_step_tune))
-                LoginOnboardingStep(stringResource(R.string.login_onboarding_step_play))
-            }
-        }
-    }
-}
-
-@Composable
-private fun LoginOnboardingStep(label: String) {
-    Text(
-        text = label,
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.fillMaxWidth(),
-    )
-}
-
-@Composable
 private fun UpperScreenLoginContent(
     userLoginState: UserLoginState,
     onQrRetry: () -> Unit,
 ) {
-    val primaryColor = MaterialTheme.colorScheme.primary
-
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -701,17 +624,6 @@ private fun UpperScreenLoginContent(
             modifier = Modifier.widthIn(max = 720.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text(
-                text = stringResource(R.string.login_app_name),
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                color = primaryColor,
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            LoginOnboardingHero(
-                primaryColor = primaryColor,
-            )
-            Spacer(modifier = Modifier.height(20.dp))
             Text(
                 text = stringResource(R.string.login_qr),
                 style = MaterialTheme.typography.titleMedium,
@@ -836,7 +748,7 @@ private fun LowerScreenLoginContent(
                                 )
                             } else {
                                 Text(
-                                    text = stringResource(R.string.login_onboarding_sign_in_title),
+                                    text = stringResource(R.string.steam_sign_in),
                                     style = MaterialTheme.typography.titleLarge,
                                     fontWeight = FontWeight.SemiBold,
                                     modifier = Modifier.fillMaxWidth(),

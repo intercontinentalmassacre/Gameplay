@@ -43,7 +43,6 @@
     <string name="custom_game_import_dialog_message">Выберите папку с игрой. Она будет импортирована в хранилище Gameplay, чтобы работать без разрешения на доступ к хранилищу. Импорт больших игр может занять несколько минут.</string>
     <string name="custom_game_import_remove_original">Удалить оригинал после импорта</string>
     <string name="add_custom_game_dialog_title">Добавить пользовательскую игру</string>
-    <string name="add_custom_game_dont_show_again">Не показывать этот диалог снова</string>
     <string name="add_drive">Добавить диск</string>
     <string name="add_to_home_screen">Добавить на главный экран</string>
     <string name="adjust_size">Отрегулировать размер</string>
@@ -272,6 +271,22 @@
     <string name="call_notification_ongoing_text">Текущий вызов</string>
     <string name="call_notification_screening_text">Проверка входящего вызова</string>
     <string name="cancel">Отмена</string>
+    <string name="wifi_game_receive">Получить по Wi-Fi</string>
+    <string name="wifi_game_starting">Запуск приёма файлов…</string>
+    <string name="wifi_game_instructions">Подключите ПК к той же сети и откройте этот адрес в браузере. Введите код и выберите папку с игрой или установщиком. Оставьте этот экран открытым до конца передачи.</string>
+    <string name="wifi_game_pairing_code">Код подключения %1$s</string>
+    <string name="wifi_game_waiting">Ожидание подключения ПК…</string>
+    <string name="wifi_game_progress_total">Получено %1$s из %2$s</string>
+    <string name="wifi_game_progress">Получено %1$s</string>
+    <string name="wifi_game_checking">Поиск исполняемых файлов игры…</string>
+    <string name="wifi_game_choose_executable">Выберите игру или установщик.</string>
+    <string name="wifi_game_preparing">Добавление игры в библиотеку…</string>
+    <string name="wifi_game_ready">«%1$s» добавлена в библиотеку.</string>
+    <string name="wifi_game_play">Играть</string>
+    <string name="wifi_game_no_network">Подключите устройство к Wi-Fi и повторите попытку.</string>
+    <string name="wifi_game_installer_failed">Не удалось подготовить установщик.</string>
+    <string name="wifi_game_no_executable">В папке нет поддерживаемого EXE или MSI.</string>
+    <string name="wifi_game_receive_failed">Не удалось получить игру. Проверьте подключение к Wi-Fi и свободное место, затем повторите попытку.</string>
     <string name="cancel_download_prompt_title">Отменить загрузку</string>
     <string name="category">Категория</string>
     <string name="hint_categories">Категории</string>
@@ -385,6 +400,7 @@
     <string name="direct3d">Direct3D</string>
     <string name="directinput_mapper_type">Тип отображения DirectInput</string>
     <string name="show_controller_debug_menu">Показывать меню отладки контроллеров</string>
+    <string name="controller_input_compatibility_and_diagnostics">Совместимость ввода и диагностика</string>
     <string name="show_controller_debug_menu_subtitle">Показывать живую панель слотов контроллеров P1-P4 в игровом быстром меню</string>
     <string name="direction_down">Вниз</string>
     <string name="direction_left">Влево</string>
@@ -435,7 +451,6 @@
     <string name="edit_physical_controller">Редактировать физический контроллер</string>
     <string name="element_position_size">Положение: (%1$d, %2$d) • Размер: %3$.2fx</string>
     <string name="element_type">Тип элемента</string>
-    <string name="element_type_subtitle">Измените тип этого управления</string>
     <string name="emulate_keyboard_mouse">Эмулировать клавиатуру и мышь</string>
     <string name="emulate_keyboard_mouse_description">Левый джойстик = WASD, правый джойстик = мышь. L2 = левый клик, R2 = правый клик.</string>
     <string name="emulator_32bit">32-битный эмулятор</string>
@@ -623,7 +638,6 @@
     <string name="gesture_zoom_page_up_down">Page Up/Down</string>
     <string name="gesture_zoom_plus_minus">+/- клавиши</string>
     <string name="gesture_zoom_scroll_wheel">Колесо прокрутки</string>
-    <string name="get_support_on_discord">Получить поддержку на Discord</string>
     <string name="gog_install_confirmation_message">Устанавливаемое приложение имеет следующие требования к пространству. Вы хотите продолжить?
 
 	Размер загрузки: %1$s
@@ -643,7 +657,7 @@
     <string name="hall_of_fame">Зал славы</string>
     <string name="header_img_desc">Изображение заголовка приложения</string>
     <string name="height">Высота</string>
-    <string name="help_and_support">Справка и поддержка</string>
+    <string name="help_and_support">GitHub Issues</string>
     <string name="home">Главная</string>
     <string name="icon">Значок</string>
     <string name="icon_content_description">Значок диалога</string>
@@ -664,12 +678,10 @@
     <string name="intermediate">Средний</string>
     <string name="item_view_role_description">Вкладка</string>
     <string name="joystick_size">Размер джойстика</string>
-    <string name="joystick_size_subtitle">Множитель динамического размера джойстика</string>
     <string name="keyboard">Клавиатура</string>
     <string name="keyboard_bindings">Клавиатура</string>
     <string name="label">Метка</string>
     <string name="label_text">Текст метки</string>
-    <string name="label_text_subtitle">Пользовательский текст для этой кнопки</string>
     <string name="language">Язык</string>
     <string name="last_played">Последний раз играл</string>
     <string name="launch_dependency_failed_message">Ошибка загрузки требуемого компонента. Пожалуйста, попробуйте позже.</string>
@@ -786,7 +798,6 @@ Ubuntu RootFs - releases.ubuntu.com/focal</string>
     <string name="login_welcome_back">Добро пожаловать обратно</string>
     <string name="logs">Логи</string>
     <string name="look_sensitivity">Чувствительность обзора</string>
-    <string name="look_sensitivity_subtitle">Множитель чувствительности обзора мыши</string>
     <string name="look_type">Тип обзора</string>
     <string name="look_type_gamepad_right_stick">Правый джойстик геймпада</string>
     <string name="look_type_mouse">Мышь</string>
@@ -812,8 +823,6 @@ Ubuntu RootFs - releases.ubuntu.com/focal</string>
 Вы всё ещё можете играть в эту игру, но это отключит другой сеанс от Steam и может создать конфликт сохранений, когда прогресс того сеанса синхронизируется</string>
     <string name="main_app_running_title">Приложение запущено</string>
     <string name="main_app_session_suspended">Сеанс приложения приостановлен. Пожалуйста, перезапустите приложение.</string>
-    <string name="main_discord_support_message">Присоединитесь к Discord, чтобы получить поддержку для исправления вашей игры или улучшения производительности.</string>
-    <string name="main_discord_support_title">Игра работала?</string>
     <string name="main_downloading_entry">Загрузка %s</string>
     <string name="main_downloading_steam">Загрузка Steam...</string>
     <string name="main_installing_bionic">Установка компонентов Bionic...</string>
@@ -823,7 +832,6 @@ Ubuntu RootFs - releases.ubuntu.com/focal</string>
     <string name="main_later_button">Позже</string>
     <string name="main_launch_anyway">Запустить в любом случае</string>
     <string name="main_loading">Загрузка...</string>
-    <string name="main_open_discord">Открыть Discord</string>
     <string name="main_pending_operation_none">Получены ожидающие удалённые операции, операция которых была \'none\'. Пожалуйста, перезапустите приложение.</string>
     <string name="main_multiple_pending_operations_message">В эту игру недавно играли на другом устройстве, и прогресс той сессии ещё не загружен в облако.\nЕсли вы продолжите, игра на том устройстве будет закрыта, а незагруженный прогресс может быть безвозвратно потерян.</string>
     <string name="main_pending_upload_message">Вы играли в %1$s на устройстве %2$s (%3$s), и это сохранение ещё не в облаке. (загрузка не началась)
@@ -847,8 +855,7 @@ Ubuntu RootFs - releases.ubuntu.com/focal</string>
     <string name="main_save_conflict_upgrade_v1_message">Мы исправили обработку путей облачных сохранений для этой игры и обнаружили различия между локальным и облачным сохранением.\n\nЛокальное сохранение:\n\t%1$s\nОблачное сохранение:\n\t%2$s</string>
     <string name="main_share">Поделиться</string>
     <string name="main_share_text">Проверьте Gameplay - играйте в ваши ПК игры Steam на Android, с полной поддержкой облачных сохранений!
-    https://github.com/intercontinentalmassacre/Gameplay
-Присоединитесь к сообществу: https://discord.gg/KPzU4Dhwq</string>
+    https://github.com/intercontinentalmassacre/Gameplay</string>
     <string name="main_sync_failed">Ошибка синхронизации файлов сохранений: %s.</string>
     <string name="main_sync_in_progress">Синхронизация в процессе. Пожалуйста, попробуйте снова через момент.</string>
     <string name="main_sync_in_progress_launch_anyway_message">Синхронизация облачного сохранения для этой игры уже запущена. Вы можете подождать и попробовать снова, или запустить в любом случае без синхронизации (может вызвать конфликты сохранений).</string>
@@ -928,6 +935,12 @@ Ubuntu RootFs - releases.ubuntu.com/focal</string>
     <string name="name">Название</string>
     <string name="navigation_menu">Меню навигации</string>
     <string name="new_environment_variable">Новая переменная окружения</string>
+    <string name="container_env_add_variable">Добавить переменную</string>
+    <string name="container_env_delete_variable">Удалить %1$s</string>
+    <string name="container_env_known_variables">Известные переменные</string>
+    <string name="container_env_value_presets">Готовые значения</string>
+    <string name="container_env_invalid_name">Введите имя без знака равенства и нулевого символа.</string>
+    <string name="container_env_duplicate_name">Такая переменная уже есть. Измените её в списке.</string>
     <string name="no">Нет</string>
     <string name="no_available_drive_letters">Нет доступных букв дисков</string>
     <string name="no_bindings_found">Привязки не найдены</string>
@@ -977,6 +990,9 @@ Ubuntu RootFs - releases.ubuntu.com/focal</string>
     <string name="proceed">Продолжить</string>
     <string name="processor_affinity">Привязка процессора</string>
     <string name="processor_affinity_32bit">Привязка процессора (32-битные приложения)</string>
+    <string name="container_config_startup_services">Службы при запуске</string>
+    <string name="container_config_affinity_default">Ядра по умолчанию</string>
+    <string name="container_config_affinity_32bit">Ядра для 32-битных приложений</string>
     <string name="properties">Свойства</string>
     <string name="quick_menu_back">Назад</string>
     <string name="quick_menu_title">Быстрое меню</string>
@@ -1061,7 +1077,6 @@ Ubuntu RootFs - releases.ubuntu.com/focal</string>
     <string name="range_lock_scrolling_subtitle">Предотвратить прокрутку через диапазон</string>
     <string name="range_orientation">Ориентация</string>
     <string name="range_orientation_horizontal">Горизонтальная</string>
-    <string name="range_orientation_subtitle">Направление макета кнопки диапазона</string>
     <string name="range_orientation_vertical">Вертикальная</string>
     <string name="range_start">Начало диапазона</string>
     <string name="range_type">Диапазон ключей</string>
@@ -1123,6 +1138,12 @@ Ubuntu RootFs - releases.ubuntu.com/focal</string>
     <string name="settings_debug_view_log_title">Просмотреть журнал отладки игры</string>
     <string name="settings_debug_wine_channels_title">Выберите каналы отладки Wine</string>
     <string name="settings_debug_wine_logs_subtitle">Записать вывод отладки Wine в файл</string>
+    <string name="settings_runtime_game_defaults_group">Настройки игр по умолчанию</string>
+    <string name="settings_runtime_components_group">Компоненты запуска</string>
+    <string name="settings_runtime_container_storage_group">Хранение контейнеров</string>
+    <string name="settings_debug_capture_group">Запись логов</string>
+    <string name="settings_debug_maintenance_group">Обслуживание</string>
+    <string name="settings_debug_channel_count">Выбрано %1$d</string>
     <string name="settings_debug_wine_logs_title">Включить логи отладки Wine</string>
     <string name="settings_download_blazing">Молниеносный</string>
     <string name="settings_download_fast">Быстро</string>
@@ -1199,11 +1220,7 @@ Ubuntu RootFs - releases.ubuntu.com/focal</string>
     <string name="settings_library_title">Библиотека</string>
     <string name="settings_system_title">Система</string>
     <string name="settings_stage_interface_description">Тема, компоновка, язык и поведение второго экрана.</string>
-    <string name="settings_stage_controls_description">Геймпад, сенсорное управление и обратная связь.</string>
-    <string name="settings_stage_runtime_description">Wine, графические драйверы и совместимость игр.</string>
     <string name="settings_stage_library_description">Источники, оформление и организация вашей коллекции.</string>
-    <string name="settings_stage_downloads_description">Сеть, хранилище и параметры установки.</string>
-    <string name="settings_stage_system_description">Диагностика, информация о приложении и инструменты отладки.</string>
     <string name="settings_stage_navigation_hint">Выберите раздел на нижнем экране</string>
     <string name="downloads_stage_description">Передача файлов, ход установки и управление хранилищем.</string>
     <string name="downloads_stage_navigation_hint">Управляйте загрузками на нижнем экране</string>
@@ -1305,7 +1322,6 @@ Ubuntu RootFs - releases.ubuntu.com/focal</string>
     <string name="theme_profile_high_contrast_description">Максимальное разделение текста, фокуса и элементов управления</string>
     <string name="shape">Форма</string>
     <string name="shape_restricted">%1$s ограничен формой %2$s</string>
-    <string name="shape_subtitle">Визуальный вид</string>
     <string name="sharpness_denoise">Шумоподавление чёткости</string>
     <string name="sharpness_effect">Усиление чёткости</string>
     <string name="sharpness_level">Уровень чёткости</string>
@@ -1404,18 +1420,10 @@ Ubuntu RootFs - releases.ubuntu.com/focal</string>
     <string name="system_menu_title">Система</string>
     <string name="system_hub_title">Центр Gameplay</string>
     <string name="system_hub_stage_description">Аккаунты, загрузки и общие настройки в одном месте.</string>
-    <string name="system_hub_profile_section">Аккаунт Steam</string>
-    <string name="system_hub_destinations_section">Библиотека и система</string>
     <string name="system_hub_connections_section">Подключённые сервисы</string>
     <string name="system_hub_connected">Подключено</string>
     <string name="system_hub_not_connected">Не подключено</string>
     <string name="system_hub_offline">Автономный режим</string>
-    <string name="system_hub_steam_action_description">Подключить Steam и обновить библиотеку.</string>
-    <string name="system_hub_steam_offline_description">Оставить локальную библиотеку доступной без подключения к сети.</string>
-    <string name="system_hub_steam_sign_out_description">Удалить активную сессию Steam из Gameplay.</string>
-    <string name="system_hub_downloads_description">Следить за передачей файлов и управлять хранилищем игр.</string>
-    <string name="system_hub_settings_description">Оформление, управление, среда запуска и параметры приложения.</string>
-    <string name="system_hub_support_description">Открыть справку, поддержку и сообщество Gameplay.</string>
     <string name="system_hub_open">Открыть центр Gameplay</string>
     <string name="tab">Вкладка</string>
     <string name="downloads_empty">Нет активных загрузок</string>
@@ -1650,7 +1658,7 @@ Ubuntu RootFs - releases.ubuntu.com/focal</string>
     <string name="option_open_container">Открыть контейнер</string>
     <string name="option_edit_container">Редактировать контейнер</string>
     <string name="option_reset_to_defaults">Сбросить контейнер</string>
-    <string name="option_get_support">Получить поддержку</string>
+    <string name="option_get_support">GitHub Issues</string>
     <string name="option_submit_feedback">Отправить отзыв</string>
     <string name="option_reset_drm">Сбросить DRM</string>
     <string name="option_use_known_config">Использовать известную конфигурацию</string>
@@ -1733,7 +1741,6 @@ Ubuntu RootFs - releases.ubuntu.com/focal</string>
     <string name="game_launch_tip_14">Совет: Вы можете вызвать клавиатуру с помощью кнопки «Назад» на устройстве.</string>
     <string name="game_launch_tip_15">Совет: Вы можете нажать двумя пальцами внутри контейнера для щелчка правой кнопкой мыши.</string>
     <string name="game_launch_tip_16">Совет: Если вы используете экранный контроллер, вы можете отключить мышь, чтобы предотвратить случайные касания.</string>
-    <string name="game_launch_tip_17">Совет: Сообщайте о проблемах в Discord, чтобы мы могли их исправить.</string>
     <string name="game_launch_tip_18">Совет: Используйте драйвер Turnip Gen8 V25/V30 или MrPurple T26, если у вас устройство 8 Elite.</string>
     <string name="game_launch_tip_19">Совет: Уменьшите разрешение и используйте FSR из быстрого меню в игре для повышения производительности.</string>
     <string name="game_launch_tip_20">Совет: Если всё приложение вылетает после загрузки игры, вашему устройству не хватает RAM.</string>
@@ -2038,9 +2045,7 @@ Ubuntu RootFs - releases.ubuntu.com/focal</string>
     <string name="nexus_summary_bar">%1$d моды | %2$d включен | %3$s | %4$s</string>
     <string name="nexus_storage_cleanup_title">Очистка хранилища</string>
     <string name="nexus_scan">Сканирование</string>
-    <string name="nexus_storage_cleanup_description">Показывает хранилище, используемое для загрузки модов Nexus, извлеченный кэш и резервные копии для этой игры.</string>
-    <string name="nexus_storage_cleanup_cache_backups_description">Извлеченный кеш и резервные копии отката сохраняются, поэтому моды можно безопасно повторно применять, отключать или восстанавливать.</string>
-    <string name="nexus_storage_cleanup_actions_description">Очистка временных файлов удаляет оставшиеся файлы. Удаление неудачных архивов удаляет неудачные загрузки, поэтому при повторной попытке они будут загружены заново. Очистка лишних резервных копий удаляет копии, которые больше не нужны.</string>
+    <string name="nexus_storage_cleanup_actions_description">После удаления архивы придётся скачать заново.</string>
     <string name="nexus_temp_orphaned_files">Временные/потерянные файлы</string>
     <string name="nexus_failed_download_archives">Не удалось загрузить архивы.</string>
     <string name="nexus_extracted_mod_cache">Извлеченный кэш модов</string>
@@ -2233,7 +2238,6 @@ Ubuntu RootFs - releases.ubuntu.com/focal</string>
     <string name="button_opacity_value">%1$d%%</string>
     <string name="button_opacity_inherited">%1$d%% (глобально по умолчанию)</string>
     <string name="control_stroke_width">Толщина линии</string>
-    <string name="control_stroke_width_subtitle">Настроить толщину контура и разделителей элемента</string>
     <string name="control_stroke_width_thin">Тонкая</string>
     <string name="control_stroke_width_default">По умолчанию</string>
     <string name="control_stroke_width_thick">Толстая</string>
@@ -2279,8 +2283,7 @@ Ubuntu RootFs - releases.ubuntu.com/focal</string>
     <string name="steam_collections_clear">Очистить</string>
     <string name="steam_collections_smart_unsupported">Показаны только обычные коллекции. Умные коллекции пока не поддерживаются.</string>
     <string name="local_mod_title">Импорт мода с устройства</string>
-    <string name="local_mod_description">Импортируйте архив, папку или один либо несколько отдельных файлов. Локальный импорт использует те же профили, размещение, конфликты и управление FOMOD и плагинами, что и загрузки Nexus.</string>
-    <string name="local_mod_supported">Архивы: ZIP, 7Z, RAR и размещаемые EXE. Отдельные файлы могут иметь любое расширение, включая INI, DLL, ESP, ESM, ESL, PAK, JSON, CFG и TOML.</string>
+    <string name="local_mod_supported">ZIP, 7Z, RAR, EXE или отдельные файлы</string>
     <string name="local_mod_choose_archive">Выбрать архив</string>
     <string name="local_mod_choose_files">Выбрать файлы</string>
     <string name="local_mod_choose_folder">Выбрать папку</string>
@@ -2406,21 +2409,15 @@ Ubuntu RootFs - releases.ubuntu.com/focal</string>
     <string name="cancel_import_title">Отменить импорт?</string>
     <string name="compat_preset_applied">Применено</string>
     <string name="compat_preset_dx12_changes">Изменения: VKD3D 3.0.1 · уровень функций 12_1</string>
-    <string name="compat_preset_dx12_desc">Направляет DirectX 12 через VKD3D с актуальной версией и уровнем функций. Нужен только для игр DX12; DX11 и более старые остаются на DXVK.</string>
     <string name="compat_preset_dx12_name">Игры DirectX 12</string>
     <string name="compat_preset_low_memory_changes">Изменения: 1 ГБ видеопамяти · 1 ГБ памяти устройства · агрессивная очистка при запуске · облегчённый Steam</string>
-    <string name="compat_preset_low_memory_desc">Снижает нагрузку на память устройств с ограниченным объёмом ОЗУ: меньший заявленный объём видеопамяти, меньший объём памяти GPU-устройства, агрессивная очистка при запуске и облегчённый Steam runtime.</string>
     <string name="compat_preset_low_memory_name">Устройства с малым объёмом памяти</string>
     <string name="compat_preset_old_games_changes">Изменения: рендерер cnc-ddraw · разрешение 1280x960 · 256 МБ видеопамяти</string>
-    <string name="compat_preset_old_games_desc">Для игр конца 90-х и начала 2000-х: рендерер cnc-ddraw для устаревших DirectDraw/Direct3D, разрешение 4:3 и небольшой заявленный объём видеопамяти, который ожидают старые движки.</string>
     <string name="compat_preset_old_games_name">Старые игры (эпоха DirectDraw / DX8)</string>
     <string name="compat_preset_performance_changes">Изменения: DXVK 3.0 (async) · пресет Box64 Performance · 4 ГБ памяти устройства · режим представления mailbox</string>
-    <string name="compat_preset_performance_desc">Приоритет частоты кадров над осторожностью: асинхронная компиляция шейдеров, оптимизированная на производительность трансляция CPU и больший объём памяти GPU.</string>
     <string name="compat_preset_performance_name">Максимальная производительность</string>
     <string name="compat_preset_stability_changes">Изменения: DXVK 2.7.1 · пресет Box64 Compatibility · строгая математика шейдеров · режим представления fifo</string>
-    <string name="compat_preset_stability_desc">Консервативные настройки для игр, которые вылетают, тормозят или отображаются некорректно: проверенная версия DXVK без асинхронных трюков, совместимая трансляция CPU и строгая математика шейдеров.</string>
     <string name="compat_preset_stability_name">Максимальная совместимость</string>
-    <string name="compat_presets_subtitle">Проверенные комбинации настроек для распространённых ситуаций. Применение пресета изменяет текущую конфигурацию — ничего не сохраняется до нажатия «Сохранить», и каждое значение можно дополнительно настроить на других вкладках.</string>
     <string name="connection_auth_required">Требуется авторизация Steam</string>
     <string name="console_hint_select_back">A  Выбрать   ·   B  Назад</string>
     <string name="container_config_apply_and_restart">Применить и перезапустить</string>
@@ -2486,15 +2483,15 @@ Ubuntu RootFs - releases.ubuntu.com/focal</string>
     <string name="library_search_no_results">Нет игр, соответствующих вашему запросу.</string>
     <string name="media_choose_image">Выбрать изображение</string>
     <string name="media_choose_media">Выберите изображение для замены.</string>
-    <string name="media_grid_capsule_hint">Рекомендуется: JPG/PNG 600×900. Будет обрезан по центру.</string>
+    <string name="media_grid_capsule_hint">600×900 · JPG / PNG</string>
     <string name="media_grid_capsule_title">Капсула (сетка)</string>
-    <string name="media_grid_hero_hint">Рекомендуется: JPG/PNG 460×215. Будет обрезан по центру.</string>
+    <string name="media_grid_hero_hint">460×215 · JPG / PNG</string>
     <string name="media_grid_hero_title">Герой (сетка)</string>
-    <string name="media_header_hint">Рекомендуется: JPG/PNG 920×430. Будет обрезан по центру.</string>
+    <string name="media_header_hint">920×430 · JPG / PNG</string>
     <string name="media_header_title">Изображение-заголовок</string>
-    <string name="media_icon_hint">Рекомендуется: квадратный PNG с прозрачностью. Будет обрезан по центру.</string>
+    <string name="media_icon_hint">Квадратный PNG с прозрачностью</string>
     <string name="media_icon_title">Значок (список)</string>
-    <string name="media_logo_hint">Рекомендуется: PNG с прозрачностью до 600×200. Будет масштабирован под размер.</string>
+    <string name="media_logo_hint">Прозрачный PNG до 600×200</string>
     <string name="media_logo_title">Логотип</string>
     <string name="media_no_grid_capsule">Изображение капсулы недоступно</string>
     <string name="media_no_grid_hero">Изображение героя недоступно</string>
@@ -2554,11 +2551,6 @@ Ubuntu RootFs - releases.ubuntu.com/focal</string>
     <string name="driver_importing">Импорт драйвера…</string>
     <string name="driver_installed_title">Установленные пользовательские драйверы</string>
     <string name="game_options_title_for_game">Настройки · %1$s</string>
-    <string name="game_options_quick_actions_description">Запуск контейнера и создание ярлыка игры.</string>
-    <string name="game_options_game_management_description">Файлы игры, дополнения, ветки, Workshop и модификации.</string>
-    <string name="game_options_container_description">Совместимость, среда выполнения, графика и перенос конфигурации контейнера.</string>
-    <string name="game_options_cloud_saves_description">Синхронизация сохранений и разрешение конфликтов локальной и облачной копий.</string>
-    <string name="game_options_help_info_description">Диагностика, поддержка, изображения и страница магазина.</string>
     <string name="hint_previous_category">Предыдущая категория</string>
     <string name="hint_next_category">Следующая категория</string>
     <string name="game_feedback_privacy_note">Ничего не отправляется автоматически. Поделитесь отчётом, только если хотите получить помощь или улучшить Gameplay.</string>
@@ -2605,10 +2597,8 @@ Ubuntu RootFs - releases.ubuntu.com/focal</string>
     <string name="support_bundle_retry">Повторить</string>
     <string name="support_bundle_export">Экспортировать и отправить</string>
     <string name="support_bundle_share_title">Отправить пакет для поддержки</string>
-    <string name="compat_presets_choose_title">Выберите отправную точку</string>
     <string name="compat_presets_selected">Выбрано</string>
-    <string name="compat_presets_ready_title">Готово к применению: %1$s</string>
-    <string name="compat_presets_apply_hint">Проверьте изменения выше и примените пресет. Отдельные параметры всё ещё можно изменить до сохранения.</string>
+    <string name="compat_presets_ready_title">%1$s</string>
     <string name="compat_presets_apply">Применить пресет</string>
     <string name="system_menu_quick_toggles_section">Быстрые переключатели</string>
     <string name="system_menu_notifications">Уведомления</string>
@@ -2796,10 +2786,10 @@ Ubuntu RootFs - releases.ubuntu.com/focal</string>
 <string name="itch_uninstall_title">Удалить игру?</string>
 <string name="itch_uninstall_message">Удалить установленные файлы %1$s с устройства. Сохранения рядом с исполняемым файлом будут удалены вместе с ними.</string>
 <string name="itch_installer_update_title">Обновление через установщик игры</string>
-<string name="itch_installer_update_message">Игра установлена своим Windows-установщиком, который пишет прямо в Wine-префикс. Gameplay не может безопасно заменить её в фоне, поэтому будет запущен новый установщик. Настройки контейнера и файлы игры останутся на месте, но сохранения обрабатывает сам установщик.</string>
+<string name="itch_installer_update_message">Новый установщик Windows запустится в текущем префиксе Wine. Настройки контейнера и файлы игры останутся на месте. Обработка сохранений зависит от установщика.</string>
 <string name="itch_installer_update_confirm">Скачать установщик</string>
 <string name="itch_version_unknown_title">Версию проверить нельзя</string>
-<string name="itch_version_unknown_message">Автор загрузил файл вручную, поэтому itch.io не сообщает идентификатор сборки. Gameplay не может определить, актуальна ли ваша копия. Можно снова скачать ту же загрузку и переустановить её: обновление ZIP сохраняет файлы рядом с исполняемым файлом.</string>
+<string name="itch_version_unknown_message">У этого файла нет идентификатора сборки на itch.io. Его можно скачать снова и переустановить. При обновлении из ZIP сохранения рядом с исполняемым файлом остаются на месте.</string>
 <string name="itch_reinstall">Скачать заново</string>
 <string name="itch_version_label">Версия %1$s</string>
 <string name="itch_role_game">Сборка игры</string>
@@ -2812,7 +2802,6 @@ Ubuntu RootFs - releases.ubuntu.com/focal</string>
     <string name="option_play_html5">Запустить в HTML5-плеере</string>
     <string name="html5_entry_missing">Не найден файл запуска HTML5-игры index.html.</string>
     <string name="itch_free_store">Магазин itch.io</string>
-    <string name="itch_free_store_subtitle">Бесплатные игры</string>
     <string name="itch_no_store_build">У этой игры нет доступной сборки для установки.</string>
     <string name="itch_store_build">Выбрать сборку</string>
     <string name="itch_store_search">Поиск бесплатных игр</string>
@@ -2825,4 +2814,46 @@ Ubuntu RootFs - releases.ubuntu.com/focal</string>
     <string name="itch_owned_badge">В коллекции</string>
     <string name="itch_owned_empty">В коллекции этого аккаунта пока нет игр</string>
     <string name="itch_owned_search">Поиск в моих играх</string>
+    <string name="container_store_compatibility">Совместимость со Steam и Epic</string>
+    <string name="vibration_mode">Вибрация</string>
+    <string name="vibration_intensity">Сила вибрации</string>
+    <string name="vibration_mode_option_off">Выкл.</string>
+    <string name="vibration_mode_option_controller">Геймпад</string>
+    <string name="vibration_mode_option_device">Устройство</string>
+    <string name="display_server">Сервер отображения</string>
+    <string name="container_keep_editing">Продолжить</string>
+    <string name="container_discard_changes">Не сохранять</string>
+    <string name="save_backup_menu_title">Резервные копии сохранений</string>
+    <string name="save_backup_dialog_title">Резервные копии сохранений</string>
+    <string name="save_backup_loading">Загрузка резервных копий…</string>
+    <string name="save_backup_empty">Резервных копий пока нет.</string>
+    <string name="save_backup_summary">%1$s · файлов: %2$d</string>
+    <string name="save_backup_kind_pre_restore">Копия до восстановления</string>
+    <string name="save_backup_restore">Восстановить</string>
+    <string name="save_backup_delete">Удалить</string>
+    <string name="save_backup_restore_confirm_title">Восстановить эту копию?</string>
+    <string name="save_backup_restore_confirm_message">Эта копия заменит текущие сохранения игры. Перед заменой приложение создаст копию текущих сохранений, чтобы восстановление можно было отменить.</string>
+    <string name="save_backup_delete_confirm_title">Удалить эту копию?</string>
+    <string name="save_backup_delete_confirm_message">Копия будет удалена с устройства. Это действие нельзя отменить.</string>
+    <string name="save_backup_restore_success">Сохранения восстановлены</string>
+    <string name="save_backup_restore_failed">Не удалось восстановить сохранения. Резервная копия осталась на устройстве.</string>
+    <string name="save_backup_delete_success">Резервная копия удалена</string>
+    <string name="save_backup_delete_failed">Не удалось удалить резервную копию.</string>
+    <string name="save_backup_game_running">Закройте игру перед изменением сохранений или резервных копий.</string>
+    <string name="save_backup_custom_path_help">Укажите папку с сохранениями этой игры. Например, Saves в папке игры или C:/users/xuser/Saved Games/Game в контейнере Windows. При восстановлении файлы в этой папке будут заменены.</string>
+    <string name="save_backup_custom_path">Папка сохранений</string>
+    <string name="save_backup_custom_create">Создать копию</string>
+    <string name="save_backup_custom_success">Резервная копия создана</string>
+    <string name="save_backup_custom_invalid_path">Укажите существующую папку сохранений внутри папки игры или на диске C: контейнера Windows.</string>
+    <string name="save_backup_custom_no_copy">Копия не создана. Возможно, папка пуста, не изменилась или занимает слишком много места.</string>
+    <string name="save_backup_export_success">ZIP с сохранениями экспортирован</string>
+    <string name="save_backup_export_failed">Не удалось экспортировать ZIP с сохранениями.</string>
+    <string name="working_config_bookmark">Запомнить сохранённые настройки</string>
+    <string name="working_config_bookmark_summary">Сохранить копию настроек графики, экрана, звука и производительности для этой игры.</string>
+    <string name="working_config_bookmarked">Рабочие настройки запомнены</string>
+    <string name="working_config_bookmark_failed">Не удалось запомнить настройки.</string>
+    <string name="working_config_restore">Восстановить рабочие настройки</string>
+    <string name="working_config_restore_summary">Применить запомненные настройки и закрыть редактор.</string>
+    <string name="working_config_restore_unsaved">Перед восстановлением сохраните изменения или откройте редактор заново.</string>
+    <string name="working_config_restore_runtime">Перед восстановлением выберите вариант и версию Wine, с которыми были сохранены настройки.</string>
 </resources>

@@ -2,6 +2,7 @@ package app.gamenative.ui.screen.xserver
 
 import android.app.Application
 import android.graphics.PointF
+import android.view.KeyEvent
 import android.view.MotionEvent
 import com.winlator.inputcontrols.Binding
 import com.winlator.inputcontrols.ExternalController
@@ -15,6 +16,26 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(application = Application::class, sdk = [35])
 class PhysicalControllerHandlerTest {
+    @Test
+    fun `disconnect releases desktop bindings held by the removed device only`() {
+        val released = mutableListOf<Binding>()
+        val handler = PhysicalControllerHandler(null, null, mappedDesktopInput = { binding, pressed, _ ->
+            if (!pressed) released.add(binding)
+        })
+        @Suppress("UNCHECKED_CAST")
+        val held = PhysicalControllerHandler::class.java.getDeclaredField("pressedButtons")
+            .apply { isAccessible = true }.get(handler) as MutableMap<Pair<Int, Int>, Binding>
+        held[42 to KeyEvent.KEYCODE_BUTTON_A] = Binding.KEY_SPACE
+        held[42 to KeyEvent.KEYCODE_BUTTON_B] = Binding.MOUSE_LEFT_BUTTON
+        held[43 to KeyEvent.KEYCODE_BUTTON_A] = Binding.KEY_ENTER
+
+        handler.onDeviceRemoved(42)
+        handler.onDeviceRemoved(42)
+
+        assertEquals(listOf(Binding.KEY_SPACE, Binding.MOUSE_LEFT_BUTTON), released)
+        assertEquals(mapOf((43 to KeyEvent.KEYCODE_BUTTON_A) to Binding.KEY_ENTER), held)
+    }
+
     @Test
     fun `stick bindings can reverse the mouse direction on both axes`() {
         val controller = ExternalController().apply {

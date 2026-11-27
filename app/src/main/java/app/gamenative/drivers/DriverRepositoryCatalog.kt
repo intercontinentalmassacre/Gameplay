@@ -9,7 +9,11 @@ import app.gamenative.utils.Net
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
+import java.security.DigestOutputStream
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.booleanOrNull
@@ -218,30 +222,39 @@ object DriverRepositoryCatalog {
         destination: File,
         onProgress: (downloadedBytes: Long, totalBytes: Long) -> Unit,
     ) = withContext(Dispatchers.IO) {
+        val entry = driverPackage.catalogEntry
+        val digest = entry?.let(ManifestInstaller::artifactDigest)
         val request = Request.Builder().url(driverPackage.downloadUrl).build()
-        Net.http.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) {
-                throw IOException("Driver download returned HTTP ${response.code}")
-            }
-            val body = response.body ?: throw IOException("Driver download returned no data")
-            val totalBytes = body.contentLength().takeIf { it > 0 } ?: driverPackage.sizeBytes
-            destination.parentFile?.mkdirs()
-            body.byteStream().use { input ->
-                FileOutputStream(destination).buffered().use { output ->
-                    val buffer = ByteArray(DEFAULT_BUFFER_SIZE * 4)
-                    var downloadedBytes = 0L
-                    while (true) {
-                        val read = input.read(buffer)
-                        if (read < 0) break
-                        output.write(buffer, 0, read)
-                        downloadedBytes += read
-                        onProgress(downloadedBytes, totalBytes)
+        val directory = destination.absoluteFile.parentFile.apply { mkdirs() }
+        val partial = File.createTempFile("driver-", ".partial", directory)
+        try {
+            Net.http.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    throw IOException("Driver download returned HTTP ${response.code}")
+                }
+                val body = response.body ?: throw IOException("Driver download returned no data")
+                val totalBytes = body.contentLength().takeIf { it > 0 } ?: driverPackage.sizeBytes
+                body.byteStream().use { input ->
+                    FileOutputStream(partial).buffered().use { fileOutput ->
+                        val output = digest?.let { DigestOutputStream(fileOutput, it) } ?: fileOutput
+                        val buffer = ByteArray(DEFAULT_BUFFER_SIZE * 4)
+                        var downloadedBytes = 0L
+                        while (true) {
+                            val read = input.read(buffer)
+                            if (read < 0) break
+                            output.write(buffer, 0, read)
+                            downloadedBytes += read
+                            onProgress(downloadedBytes, totalBytes)
+                        }
                     }
-                    output.flush()
                 }
             }
+            if (entry != null) ManifestInstaller.validateDownloadedArtifact(partial, entry, digest)
+            ensureActive()
+            Files.move(partial.toPath(), destination.toPath(), StandardCopyOption.ATOMIC_MOVE)
+        } finally {
+            partial.delete()
         }
-        driverPackage.catalogEntry?.let { ManifestInstaller.validateDownloadedArtifact(destination, it) }
         Unit
     }
 }

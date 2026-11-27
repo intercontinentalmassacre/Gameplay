@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="game_add_favorite">Add to Favorites</string>
+    <string name="game_remove_favorite">Remove from Favorites</string>
+    <string name="game_pin_play_next">Pin as Play Next</string>
+    <string name="game_unpin_play_next">Unpin from Play Next</string>
+</resources>

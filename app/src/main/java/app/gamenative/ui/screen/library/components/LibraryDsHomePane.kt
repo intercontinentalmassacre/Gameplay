@@ -49,6 +49,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -69,6 +70,7 @@ import app.gamenative.utils.GameImageUtils
 import app.gamenative.utils.SteamGridDBIconProvider
 import com.skydoves.landscapist.ImageOptions
 import com.skydoves.landscapist.coil.CoilImage
+import com.skydoves.landscapist.coil.CoilImageState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -278,34 +280,21 @@ internal fun DsHeroCard(
                         }
                     }
                 }
-                val imageUrl = imageUrls.primary.ifEmpty { imageUrls.fallback }
-                if (imageUrl.isNotEmpty()) {
-                    CoilImage(
-                        modifier = Modifier.fillMaxSize(),
-                        imageModel = { imageUrl },
-                        imageOptions = ImageOptions(contentScale = ContentScale.Crop),
-                    )
-                }
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            Brush.verticalGradient(
-                                colors = listOf(
-                                    Color.Transparent,
-                                    Color.Black.copy(alpha = 0.75f),
-                                ),
-                            ),
-                        ),
+                GameIdentityArtwork(
+                    name = target.name,
+                    imageUrl = imageUrls.primary.ifEmpty { imageUrls.fallback },
+                    fallbackUrl = imageUrls.fallback,
+                    modifier = Modifier.fillMaxSize(),
                 )
-                // The upper library display had ignored the logo preference and
-                // always rendered a text title. Resolve the same media chain used
-                // by the game card: local cache, custom media, then SteamGridDB.
+                GameIdentityScrim(Modifier.fillMaxSize())
+
                 val logoUrl by produceState<String?>(
                     initialValue = null,
                     key1 = target.appId,
                     key2 = preferLogo,
                 ) {
+                    value = null
+                    if (!preferLogo) return@produceState
                     value = withContext(Dispatchers.IO) {
                         GameImageUtils.getGameImage(
                             libraryItem = target,
@@ -318,28 +307,16 @@ internal fun DsHeroCard(
                         )
                     }
                 }
-                if (preferLogo && !logoUrl.isNullOrBlank()) {
-                    CoilImage(
-                        imageModel = { logoUrl },
-                        imageOptions = ImageOptions(contentScale = ContentScale.Fit),
-                        modifier = Modifier
-                            .align(Alignment.BottomStart)
-                            .padding(horizontal = 16.dp, vertical = 12.dp)
-                            .width(280.dp),
-                    )
-                } else {
-                    Text(
-                        text = target.name,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.SemiBold,
-                        color = Color.White,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier
-                            .align(Alignment.BottomStart)
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                    )
-                }
+                GameIdentityTitle(
+                    name = target.name,
+                    logoUrl = logoUrl.takeIf { preferLogo },
+                    style = MaterialTheme.typography.headlineLarge,
+                    logoWidth = 350.dp,
+                    logoHeight = 92.dp,
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(start = 24.dp, end = if (installProgress != null) 104.dp else 24.dp, bottom = 20.dp),
+                )
 
                 installProgress?.let { progress ->
                     InstallProgressOverlay(
@@ -380,9 +357,10 @@ private fun DsGameCell(
         label = "dsCellScale",
     )
 
-    val imageUrl by produceState(
-        initialValue = "",
+    val imageUrls by produceState(
+        initialValue = GridImageUrls(""),
         key1 = item.appId,
+        key2 = preferSquareIcon,
     ) {
         value = withContext(Dispatchers.IO) {
             val sgdbIcon = if (preferSquareIcon && item.gameSource == GameSource.STEAM) {
@@ -390,11 +368,19 @@ private fun DsGameCell(
             } else {
                 null
             }
-            sgdbIcon ?: getGridImageUrl(context, item, PaneType.GRID_CAPSULE)
-                .let { it.primary.ifEmpty { it.fallback } }
+            val capsule = getGridImageUrl(context, item, PaneType.GRID_CAPSULE)
+            if (sgdbIcon.isNullOrBlank()) {
+                capsule
+            } else {
+                GridImageUrls(sgdbIcon, capsule.primary.ifBlank { capsule.fallback })
+            }
         }
     }
 
+    var imageUrl by remember(imageUrls) {
+        mutableStateOf(imageUrls.primary.ifBlank { imageUrls.fallback })
+    }
+    var hasArtwork by remember(imageUrl) { mutableStateOf(false) }
     Box(
         modifier = Modifier
             .aspectRatio(cellAspectRatio)
@@ -430,14 +416,38 @@ private fun DsGameCell(
             ),
         contentAlignment = Alignment.Center,
     ) {
-        if (imageUrl.isNotEmpty()) {
+        GameIdentityFallback(item.name, Modifier.fillMaxSize())
+        if (imageUrl.isNotBlank()) {
             CoilImage(
                 modifier = Modifier.fillMaxSize(),
                 imageModel = { imageUrl },
                 imageOptions = ImageOptions(contentScale = ContentScale.Crop),
+                onImageStateChanged = { state ->
+                    hasArtwork = state is CoilImageState.Success
+                    if (
+                        state is CoilImageState.Failure &&
+                        imageUrls.fallback.isNotBlank() &&
+                        imageUrl != imageUrls.fallback
+                    ) {
+                        imageUrl = imageUrls.fallback
+                    }
+                },
             )
         }
-        if (showLabel) {
+        if (!hasArtwork) {
+            Text(
+                text = item.name,
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .padding(start = 10.dp, end = 10.dp, bottom = if (installProgress != null) 22.dp else 0.dp)
+                    .clearAndSetSemantics {},
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
+            )
+        } else if (showLabel) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()

@@ -26,6 +26,7 @@ import java.io.FileOutputStream
 import java.nio.file.Files
 import java.security.DigestOutputStream
 import java.security.MessageDigest
+import app.gamenative.service.computeDigest
 import java.util.zip.Inflater
 import java.util.concurrent.CopyOnWriteArrayList
 import javax.inject.Inject
@@ -1406,7 +1407,7 @@ class GOGDownloadManager @Inject constructor(
 
             // Skip if already downloaded and verified
             if (chunkFile.exists()) {
-                val existingMd5 = calculateMd5(chunkFile.readBytes())
+                val existingMd5 = calculateMd5File(chunkFile)
                 if (existingMd5 == chunkMd5) {
                     Timber.tag("GOG").d("Chunk $chunkMd5 already exists and verified, skipping")
                     return@withContext Result.success(chunkFile)
@@ -1666,15 +1667,6 @@ class GOGDownloadManager @Inject constructor(
         }
     }
 
-    /**
-     * Calculate MD5 hash of byte array
-     */
-    private fun calculateMd5(data: ByteArray): String {
-        val digest = MessageDigest.getInstance("MD5")
-        digest.update(data)
-        return digest.digest().joinToString("") { "%02x".format(it) }
-    }
-
     private fun getSupportInstallPath(path: String): String {
         return if (path.startsWith("app/")) path.removePrefix("app/") else path
     }
@@ -1734,15 +1726,7 @@ class GOGDownloadManager @Inject constructor(
      * Calculate MD5 hash of file
      */
     private fun calculateMd5File(file: File): String {
-        val digest = MessageDigest.getInstance("MD5")
-        file.inputStream().use { input ->
-            val buffer = ByteArray(8192)
-            var bytesRead: Int
-            while (input.read(buffer).also { bytesRead = it } != -1) {
-                digest.update(buffer, 0, bytesRead)
-            }
-        }
-        return digest.digest().joinToString("") { "%02x".format(it) }
+        return file.computeDigest("MD5").joinToString("") { "%02x".format(it) }
     }
 
     /**

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="container_pages_display_and_input">Экран и управление</string>
+    <string name="container_pages_compatibility">Совместимость</string>
+    <string name="container_pages_files_and_launch">Файлы и запуск</string>
+</resources>

@@ -11,5 +11,8 @@ class ContainerConfigSearchTest {
         assertTrue(matchesContainerConfigTab("Wine", "proton runtime", "proton"))
         assertFalse(matchesContainerConfigTab("General", "resolution display", "controller"))
         assertFalse(matchesContainerConfigTab("Graphics", "dxvk", ""))
+        assertTrue(matchesContainerConfigTab("Графика", "настройка шейдеров", "  ШЕЙДЕР   граф "))
+        assertTrue(matchesContainerConfigTab("Геймпад", "переключённый режим", "переключен"))
+        assertFalse(matchesContainerConfigTab("Графика", "dxvk", "dxvk cpu"))
     }
 }

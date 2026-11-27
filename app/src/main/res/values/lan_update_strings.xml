@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="wifi_game_update_close_game">Close the running game before updating its files.</string>
+    <string name="wifi_game_update">Update over Wi-Fi</string>
+    <string name="wifi_game_update_instructions">Updating %1$s. Open this address on your computer and choose the updated game folder named %2$s.</string>
+    <string name="wifi_game_update_ready">%1$s is up to date.</string>
+</resources>

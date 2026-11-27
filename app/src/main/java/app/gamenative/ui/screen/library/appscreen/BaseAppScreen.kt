@@ -24,6 +24,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
@@ -36,9 +37,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.core.content.FileProvider
-import androidx.core.net.toUri
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import app.gamenative.Constants
+import app.gamenative.utils.CommunityFeedbackLinks
 import app.gamenative.PluviaApp
 import app.gamenative.R
 import app.gamenative.api.isValidCommunityConfig
@@ -57,6 +57,9 @@ import app.gamenative.ui.component.dialog.SaveBackupRestoreDialog
 import app.gamenative.ui.data.AppMenuOption
 import app.gamenative.ui.data.Achievement
 import app.gamenative.ui.component.dialog.GameControllerLayouts
+import app.gamenative.ui.screen.library.components.WifiGameReceiveDialog
+import app.gamenative.ui.screen.library.components.WifiGameUpdateTarget
+import app.gamenative.utils.CustomGameScanner
 import app.gamenative.ui.data.GameDisplayInfo
 import app.gamenative.ui.enums.AppOptionMenuType
 import app.gamenative.ui.util.ContainerConfigTransfer
@@ -357,7 +360,7 @@ abstract class BaseAppScreen {
             }
             try {
                 val cachedResponse = GameCompatibilityCache.getCached(gameName)
-                if (cachedResponse != null) {
+                if (cachedResponse != null && (cachedResponse.totalPlayableCount > 0 || cachedResponse.isNotWorking)) {
                     val message = GameCompatibilityService.getCompatibilityMessageFromResponse(context, cachedResponse)
                     compatibilityMessage = message.text
                     compatibilityColor = message.color.value
@@ -472,15 +475,6 @@ abstract class BaseAppScreen {
         libraryItem: LibraryItem,
     ): ((isInstalled: Boolean, isDownloading: Boolean, hasPartialDownload: Boolean) -> String?)? = null
 
-    /**
-     * Get the game name for shortcuts and dialogs
-     */
-    @Composable
-    protected fun getGameName(context: Context, libraryItem: LibraryItem): String {
-        // Use display info to get the name
-        return getGameDisplayInfo(context, libraryItem).name
-    }
-
     protected fun getGameSource(libraryItem: LibraryItem): GameSource {
         return libraryItem.gameSource
     }
@@ -490,14 +484,6 @@ abstract class BaseAppScreen {
      */
     protected fun getGameId(libraryItem: LibraryItem): Int {
         return libraryItem.gameId
-    }
-
-    /**
-     * Get the icon URL for shortcuts (can be null)
-     */
-    @Composable
-    protected fun getIconUrl(context: Context, libraryItem: LibraryItem): String? {
-        return getGameDisplayInfo(context, libraryItem).iconUrl
     }
 
     /**
@@ -734,14 +720,10 @@ abstract class BaseAppScreen {
         libraryItem: LibraryItem,
     ): AppMenuOption?
 
-    @Composable
-    protected open fun getExportContainerOption(
-        context: Context,
-        libraryItem: LibraryItem,
+    private fun getExportContainerOption(
+        gameName: String,
         exportFrontendLauncher: ActivityResultLauncher<String>,
-    ): AppMenuOption? {
-        val gameId = getGameId(libraryItem)
-        val gameName = getGameName(context, libraryItem)
+    ): AppMenuOption {
         val extension = getExportFileExtension()
         return AppMenuOption(
             optionType = AppOptionMenuType.ExportFrontend,
@@ -859,6 +841,7 @@ abstract class BaseAppScreen {
             GameSource.STEAM -> CloudSaveBackupManager.PROVIDER_STEAM
             GameSource.GOG -> CloudSaveBackupManager.PROVIDER_GOG
             GameSource.EPIC -> CloudSaveBackupManager.PROVIDER_EPIC
+            GameSource.CUSTOM_GAME -> CloudSaveBackupManager.PROVIDER_CUSTOM
             else -> null
         }
 
@@ -949,18 +932,14 @@ abstract class BaseAppScreen {
         }
     }
 
-    /**
-     * Get Create Shortcut menu option. Subclasses can override to customize behavior.
-     */
-    @Composable
-    protected open fun getCreateShortcutOption(
+    private fun getCreateShortcutOption(
         context: Context,
         libraryItem: LibraryItem,
-    ): AppMenuOption? {
+        gameName: String,
+        iconUrl: String?,
+    ): AppMenuOption {
         val gameSource = getGameSource(libraryItem)
         val gameId = getGameId(libraryItem)
-        val gameName = getGameName(context, libraryItem)
-        val iconUrl = getIconUrl(context, libraryItem)
 
         return AppMenuOption(
             optionType = AppOptionMenuType.CreateShortcut,
@@ -1009,16 +988,10 @@ abstract class BaseAppScreen {
     }
 
     @Composable
-    private fun getGetSupportOption(context: Context): AppMenuOption {
+    private fun getGitHubIssuesOption(context: Context): AppMenuOption {
         return AppMenuOption(
             optionType = AppOptionMenuType.GetSupport,
-            onClick = {
-                val browserIntent = Intent(
-                    Intent.ACTION_VIEW,
-                    Constants.Misc.DISCORD_LINK.toUri(),
-                )
-                context.startActivity(browserIntent)
-            },
+            onClick = { CommunityFeedbackLinks.open(context) },
         )
     }
 
@@ -1329,6 +1302,7 @@ abstract class BaseAppScreen {
     fun getOptionsMenu(
         context: Context,
         libraryItem: LibraryItem,
+        displayInfo: GameDisplayInfo,
         onEditContainer: () -> Unit,
         onBack: () -> Unit,
         onClickPlay: (Boolean) -> Unit,
@@ -1361,13 +1335,13 @@ abstract class BaseAppScreen {
             getShareDiagnosticsOption(context, libraryItem)?.let { menuOptions.add(it) }
             getExportSupportBundleOption(context, libraryItem)?.let { menuOptions.add(it) }
             getResetContainerOption(context, libraryItem)?.let { menuOptions.add(it) }
-            getCreateShortcutOption(context, libraryItem)?.let { menuOptions.add(it) }
-            getExportContainerOption(context, libraryItem, exportFrontendLauncher)?.let { menuOptions.add(it) }
+            menuOptions.add(getCreateShortcutOption(context, libraryItem, displayInfo.name, displayInfo.iconUrl))
+            menuOptions.add(getExportContainerOption(displayInfo.name, exportFrontendLauncher))
         }
 
         // Always available options
         menuOptions.add(getSubmitFeedbackOption(context, libraryItem))
-        menuOptions.add(getGetSupportOption(context))
+        menuOptions.add(getGitHubIssuesOption(context))
 
         // Add any source-specific options
         menuOptions.addAll(getSourceSpecificMenuOptions(context, libraryItem, onEditContainer, onBack, onClickPlay, isInstalled))
@@ -1412,7 +1386,8 @@ abstract class BaseAppScreen {
         onPrimaryActionConsumed: () -> Unit = {},
     ) {
         val context = LocalContext.current
-        val displayInfoBase = getGameDisplayInfo(context, libraryItem)
+        var wifiUpdateVersion by remember(libraryItem.appId) { mutableIntStateOf(0) }
+        val displayInfoBase = key(wifiUpdateVersion) { getGameDisplayInfo(context, libraryItem) }
         val appId = libraryItem.appId
 
         // Fetch HLTB stats asynchronously (best-effort)
@@ -1872,7 +1847,27 @@ abstract class BaseAppScreen {
         if (openControllerLayouts) {
             GameControllerLayouts(appId, displayInfo.name, onDismiss = { openControllerLayouts = false })
         }
-        val optionsMenu = getOptionsMenu(context, libraryItem, onEditContainer, onBack, onClickPlay, onTestGraphics, onPlayWithDiagnostics, { openControllerLayouts = true }, exportFrontendLauncher)
+        val wifiFolder = remember(libraryItem.gameSource, displayInfoBase.installLocation) {
+            if (libraryItem.gameSource == GameSource.CUSTOM_GAME) {
+                displayInfoBase.installLocation?.let(::File)?.takeIf(CustomGameScanner::isReceivedGameFolder)
+            } else null
+        }
+        var openWifiUpdate by remember(appId) { mutableStateOf(false) }
+        if (openWifiUpdate && wifiFolder != null) {
+            WifiGameReceiveDialog(
+                updateTarget = WifiGameUpdateTarget(appId, displayInfo.name, wifiFolder),
+                onDismiss = { openWifiUpdate = false },
+                onGameAdded = { wifiUpdateVersion++ },
+                onPlay = {
+                    openWifiUpdate = false
+                    onClickPlay(false)
+                },
+                onInstall = {},
+            )
+        }
+        val optionsMenu = getOptionsMenu(context, libraryItem, displayInfo, onEditContainer, onBack, onClickPlay, onTestGraphics, onPlayWithDiagnostics, { openControllerLayouts = true }, exportFrontendLauncher).let { options ->
+            if (wifiFolder == null) options else options + AppMenuOption(AppOptionMenuType.UpdateOverWifi) { openWifiUpdate = true }
+        }
 
         // Get download info based on game source for progress tracking
         val downloadInfo = when (libraryItem.gameSource) {
@@ -1955,7 +1950,7 @@ abstract class BaseAppScreen {
             },
             onBack = onBack,
             optionsMenu = optionsMenu,
-            dialogOpen = openControllerLayouts || showConfigDialog || communityConfigsRequested ||
+            dialogOpen = openWifiUpdate || openControllerLayouts || showConfigDialog || communityConfigsRequested ||
                 manageModsRequested || restoreSaveBackupRequested,
             otherSources = libraryItem.otherSources,
             isInstalledOnOtherSource = libraryItem.isInstalledOnOtherSource,
@@ -1997,8 +1992,9 @@ abstract class BaseAppScreen {
         // Show container config dialog if needed
         if (showConfigDialog) {
             ContainerConfigDialog(
-                title = "${displayInfo.name} Config",
+                title = stringResource(R.string.library_config_title, displayInfo.name),
                 initialConfig = containerData,
+                enableWorkingConfig = true,
                 hasAndroidVersion = hasAndroidVersionState,
                 onDismissRequest = { showConfigDialog = false },
                 onSave = {
@@ -2090,7 +2086,8 @@ abstract class BaseAppScreen {
                 SaveBackupRestoreDialog(
                     visible = true,
                     provider = saveBackupProvider,
-                    gameId = getGameId(libraryItem).toString(),
+                    gameId = if (saveBackupProvider == CloudSaveBackupManager.PROVIDER_CUSTOM) appId
+                        else getGameId(libraryItem).toString(),
                     onDismissRequest = {
                         clearRestoreSaveBackupRequest(appId)
                     },

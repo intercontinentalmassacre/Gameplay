@@ -389,11 +389,8 @@
     <string name="appearance">Apariencia</string>
     <string name="size_subtitle">%.2fx</string>
     <string name="label_text">Texto de etiqueta</string>
-    <string name="label_text_subtitle">Texto personalizado para este botón.</string>
     <string name="element_type">Tipo de elemento</string>
-    <string name="element_type_subtitle">Cambia el tipo de este control.</string>
     <string name="shape">Forma</string>
-    <string name="shape_subtitle">Apariencia visual.</string>
     <string name="shape_restricted">%1$s está restringido a la forma %2$s.</string>
     <string name="bindings">Asignaciones</string>
     <string name="bindings_auto_generated">Asignaciones (autogeneradas)</string>
@@ -402,7 +399,6 @@
     <string name="range_type">Rango de teclas</string>
     <string name="range_type_subtitle">El conjunto de teclas por las que alternar.</string>
     <string name="range_orientation">Orientación</string>
-    <string name="range_orientation_subtitle">Dirección de diseño del botón de rango.</string>
     <string name="range_orientation_horizontal">Horizontal</string>
     <string name="range_orientation_vertical">Vertical</string>
     <string name="range_visible_segments">Segmentos visibles</string>
@@ -449,9 +445,7 @@
     <string name="movement_type">Tipo de movimiento</string>
     <string name="movement_type_subtitle">Salida del joystick para el movimiento lateral izquierdo.</string>
     <string name="look_sensitivity">Sensibilidad de mirada</string>
-    <string name="look_sensitivity_subtitle">Multiplicador de sensibilidad de mirada con el ratón.</string>
     <string name="joystick_size">Tamaño del joystick</string>
-    <string name="joystick_size_subtitle">Multiplicador de tamaño de los joysticks dinámicos.</string>
     <string name="movement_wasd">WASD</string>
     <string name="movement_arrow_keys">Teclas de flecha</string>
     <string name="movement_gamepad_left_stick">Stick izquierdo del mando</string>
@@ -638,7 +632,6 @@
     <string name="custom_game_import_failed">Error al importar</string>
     <string name="custom_game_import_dialog_message">Selecciona la carpeta que contiene el juego. Se importará al almacenamiento de Gameplay para que pueda ejecutarse sin ningún permiso de almacenamiento. Los juegos grandes pueden tardar unos minutos.</string>
     <string name="custom_game_import_remove_original">Eliminar el original tras la importación</string>
-    <string name="add_custom_game_dont_show_again">No volver a mostrar este diálogo.</string>
     <string name="base_app_shortcut_created">Acceso directo creado.</string>
     <string name="base_app_shortcut_failed">Error al crear el acceso directo: %s.</string>
     <string name="base_app_images_fetched">Imágenes obtenidas correctamente.</string>
@@ -678,7 +671,7 @@
 
 
     <!-- Profile & Menu -->
-    <string name="help_and_support">Ayuda y soporte</string>
+    <string name="help_and_support">GitHub Issues</string>
     <string name="hall_of_fame">Agradecimientos</string>
     <string name="go_online">Conectarse</string>
     <string name="go_offline">Desconectarse</string>
@@ -911,7 +904,6 @@
     <string name="select_wine_debug_channels">Seleccionar canales de depuración de Wine</string>
     <string name="cpu_label">CPU %d</string>
     <string name="describe_what_happened">Describe qué ocurrió</string>
-    <string name="get_support_on_discord">Obtén ayuda en Discord</string>
 
     <!-- Driver Manager -->
     <string name="driver_manager">Gestor de controladores</string>
@@ -1099,10 +1091,7 @@
     <string name="main_recent_crash_message">¡Lo sentimos!\nSería de gran ayuda conocer el problema reciente que has tenido.\nPuedes ver y exportar el registro del fallo más reciente en los ajustes de la aplicación y adjuntarlo como un \'issue\' de GitHub en el repositorio del proyecto.\n¡El enlace al repositorio de GitHub también está en los ajustes!</string>
     <string name="main_thank_you_title">¡Gracias por usar Gameplay!</string>
     <string name="main_share">Compartir</string>
-    <string name="main_share_text">Descubre Gameplay: juega a tus juegos Steam de PC en Android, con soporte completo de guardados en la nube.\nhttps://github.com/intercontinentalmassacre/Gameplay\nÚnete a la comunidad: https://discord.gg/KPzU4Dhwq</string>
-    <string name="main_discord_support_title">¿Ha funcionado el juego?</string>
-    <string name="main_discord_support_message">Únete a nuestro Discord para obtener ayuda, solucionar problemas con tu juego o mejorar el rendimiento.</string>
-    <string name="main_open_discord">Abrir Discord</string>
+    <string name="main_share_text">Descubre Gameplay: juega a tus juegos Steam de PC en Android, con soporte completo de guardados en la nube.\nhttps://github.com/intercontinentalmassacre/Gameplay</string>
 
     <!-- PluviaMain: Game Launch -->
     <string name="main_downloading_entry">Descargando %s…</string>
@@ -1525,7 +1514,7 @@
     <string name="option_open_container">Abrir contenedor</string>
     <string name="option_edit_container">Editar contenedor</string>
     <string name="option_reset_to_defaults">Restablecer contenedor</string>
-    <string name="option_get_support">Obtener soporte</string>
+    <string name="option_get_support">GitHub Issues</string>
     <string name="option_submit_feedback">Enviar comentarios</string>
     <string name="option_reset_drm">Restablecer DRM</string>
     <string name="option_use_known_config">Usar configuración conocida</string>
@@ -1604,7 +1593,6 @@
     <string name="game_launch_tip_14">Consejo: Puedes abrir el teclado con la tecla de retroceso de tu dispositivo.</string>
     <string name="game_launch_tip_15">Consejo: Puedes tocar con dos dedos dentro del contenedor para hacer clic derecho.</string>
     <string name="game_launch_tip_16">Consejo: Si estás usando el controlador en pantalla, puedes desactivar el ratón para evitar toques accidentales.</string>
-    <string name="game_launch_tip_17">Consejo: Reporta problemas en Discord para que podamos solucionarlos.</string>
     <string name="game_launch_tip_18">Consejo: Usa el controlador Turnip Gen8 V25/V30 o MrPurple T26 si tienes un dispositivo 8 Elite.</string>
     <string name="game_launch_tip_19">Consejo: Reduce la resolución y usa FSR desde el menú rápido en el juego para aumentar el rendimiento.</string>
     <string name="game_launch_tip_20">Consejo: Si toda la aplicación se cierra después de cargar un juego, tu dispositivo se está quedando sin RAM.</string>
@@ -1909,8 +1897,6 @@
     <string name="nexus_summary_bar">%1$d mods | %2$d habilitados | %3$s | %4$s</string>
     <string name="nexus_storage_cleanup_title">Limpieza de almacenamiento</string>
     <string name="nexus_scan">Escanear</string>
-    <string name="nexus_storage_cleanup_description">Muestra el almacenamiento utilizado por las descargas de mods Nexus, el caché extraído y las copias de seguridad para este juego.</string>
-    <string name="nexus_storage_cleanup_cache_backups_description">Las copias de seguridad de caché y reversión extraídas se conservan para que las modificaciones se puedan volver a aplicar, deshabilitar o restaurar de forma segura.</string>
     <string name="nexus_storage_cleanup_actions_description">Limpiar temporales elimina archivos abandonados. Eliminar archivos fallidos borra descargas fallidas, así que al reintentar se descargarán de nuevo. Limpiar copias redundantes elimina copias de seguridad que ya no son necesarias.</string>
     <string name="nexus_temp_orphaned_files">Archivos temporales/huérfanos</string>
     <string name="nexus_failed_download_archives">Error al descargar archivos</string>
@@ -2104,7 +2090,6 @@
     <string name="button_opacity_value">%1$d%%</string>
     <string name="button_opacity_inherited">%1$d%% (valor global predeterminado)</string>
     <string name="control_stroke_width">Grosor de línea</string>
-    <string name="control_stroke_width_subtitle">Ajusta el grosor del contorno y los divisores del control</string>
     <string name="control_stroke_width_thin">Fino</string>
     <string name="control_stroke_width_default">Predeterminado</string>
     <string name="control_stroke_width_thick">Grueso</string>
@@ -2150,7 +2135,6 @@
     <string name="steam_collections_clear">Borrar</string>
     <string name="steam_collections_smart_unsupported">Solo se muestran las colecciones estándar. Las colecciones inteligentes aún no son compatibles.</string>
     <string name="local_mod_title">Importar mod desde el dispositivo</string>
-    <string name="local_mod_description">Importa un archivo comprimido, una carpeta o uno o varios archivos sueltos. Las importaciones locales usan los mismos perfiles, ubicaciones, conflictos y gestión de FOMOD y complementos que las descargas de Nexus.</string>
     <string name="local_mod_supported">Archivos comprimidos: ZIP, 7Z, RAR y EXE colocables. Los archivos sueltos pueden usar cualquier extensión, incluidas INI, DLL, ESP, ESM, ESL, PAK, JSON, CFG y TOML.</string>
     <string name="local_mod_choose_archive">Elegir archivo comprimido</string>
     <string name="local_mod_choose_files">Elegir archivos</string>
@@ -2245,21 +2229,15 @@
     <string name="base_app_images_fetching">Obteniendo imágenes…</string>
     <string name="compat_preset_applied">Aplicado</string>
     <string name="compat_preset_dx12_changes">Cambios: VKD3D 3.0.1 · nivel de funciones 12_1</string>
-    <string name="compat_preset_dx12_desc">Dirige DirectX 12 a través de VKD3D con una versión y un nivel de funciones recientes. Solo necesario para títulos DX12; DX11 y anteriores permanecen en DXVK.</string>
     <string name="compat_preset_dx12_name">Juegos de DirectX 12</string>
     <string name="compat_preset_low_memory_changes">Cambios: 1 GB de memoria de vídeo · 1 GB de memoria del dispositivo · arranque agresivo · Steam ligero</string>
-    <string name="compat_preset_low_memory_desc">Reduce la presión de memoria en dispositivos con RAM limitada: menor memoria de vídeo informada, menor memoria de dispositivo de GPU, recorte agresivo al arrancar y el runtime de Steam ligero.</string>
     <string name="compat_preset_low_memory_name">Dispositivos con poca memoria</string>
     <string name="compat_preset_old_games_changes">Cambios: renderizador cnc-ddraw · resolución 1280x960 · 256 MB de memoria de vídeo</string>
-    <string name="compat_preset_old_games_desc">Para títulos de finales de los 90 y principios de los 2000: el renderizador cnc-ddraw para DirectDraw/Direct3D heredado, una resolución 4:3 y una pequeña memoria de vídeo informada que esperan los motores antiguos.</string>
     <string name="compat_preset_old_games_name">Juegos antiguos (era DirectDraw/DX8)</string>
     <string name="compat_preset_performance_changes">Cambios: DXVK 3.0 (async) · preajuste de rendimiento de Box64 · 4 GB de memoria del dispositivo · modo de presentación mailbox</string>
-    <string name="compat_preset_performance_desc">Prioriza la velocidad de fotogramas sobre la precaución: compilación asíncrona de shaders, traducción de CPU orientada al rendimiento y un mayor presupuesto de memoria de GPU.</string>
     <string name="compat_preset_performance_name">Mejor rendimiento</string>
     <string name="compat_preset_stability_changes">Cambios: DXVK 2.7.1 · preajuste de compatibilidad de Box64 · matemática estricta de shaders · modo de presentación fifo</string>
-    <string name="compat_preset_stability_desc">Configuración conservadora para juegos que se bloquean, tienen tirones o se renderizan mal: una versión probada de DXVK sin trucos asíncronos, traducción de CPU de compatibilidad y matemática estricta de shaders.</string>
     <string name="compat_preset_stability_name">Máxima compatibilidad</string>
-    <string name="compat_presets_subtitle">Combinaciones probadas de configuración para situaciones comunes. Aplicar un preajuste edita la configuración actual: no se guarda nada hasta que toques Guardar, y cada valor aún se puede ajustar en las otras pestañas.</string>
     <string name="connection_auth_required">Se requiere autenticación de Steam</string>
     <string name="console_back_hint">B  Atrás</string>
     <string name="console_hint_select_back">A  Seleccionar   ·   B  Atrás</string>
@@ -2415,28 +2393,16 @@
     <string name="settings_shortcut_opens_page_subtitle">Desactivado: los accesos directos anclados de la pantalla de inicio inician el juego directamente.</string>
     <string name="settings_shortcut_opens_page_title">Los accesos directos abren la página del juego</string>
     <string name="settings_shortcuts_group_title">Accesos directos del launcher</string>
-    <string name="settings_stage_controls_description">Mando, controles táctiles y feedback de entrada.</string>
-    <string name="settings_stage_downloads_description">Preferencias de red, almacenamiento e instalación.</string>
     <string name="settings_stage_interface_description">Tema, diseño, idioma y comportamiento de la pantalla secundaria.</string>
     <string name="settings_stage_library_description">Fuentes, presentación y cómo se organiza tu colección.</string>
     <string name="settings_stage_navigation_hint">Selecciona una sección en la pantalla inferior</string>
-    <string name="settings_stage_runtime_description">Wine, controladores gráficos y compatibilidad de juegos.</string>
-    <string name="settings_stage_system_description">Diagnósticos, información de la aplicación y herramientas de depuración.</string>
     <string name="settings_system_title">Sistema</string>
     <string name="system_hub_connected">Conectado</string>
     <string name="system_hub_connections_section">Servicios conectados</string>
-    <string name="system_hub_destinations_section">Biblioteca y sistema</string>
-    <string name="system_hub_downloads_description">Sigue las transferencias y gestiona el almacenamiento de los juegos instalados.</string>
     <string name="system_hub_not_connected">No conectado</string>
     <string name="system_hub_offline">Sin conexión</string>
     <string name="system_hub_open">Abrir centro de Gameplay</string>
-    <string name="system_hub_profile_section">Cuenta de Steam</string>
-    <string name="system_hub_settings_description">Apariencia, controles, runtime y opciones de la aplicación.</string>
     <string name="system_hub_stage_description">Cuentas, descargas y ajustes globales en un solo lugar.</string>
-    <string name="system_hub_steam_action_description">Conecta Steam y actualiza tu biblioteca.</string>
-    <string name="system_hub_steam_offline_description">Mantén disponible la biblioteca local sin conexión de red.</string>
-    <string name="system_hub_steam_sign_out_description">Elimina la sesión activa de Steam de Gameplay.</string>
-    <string name="system_hub_support_description">Abre la ayuda, el soporte y la comunidad de Gameplay.</string>
     <string name="system_hub_title">Centro de Gameplay</string>
     <string name="theme_editor_general_description">Pon nombre a este tema. Guardar crea o reemplaza tu tema personalizado activo.</string>
     <string name="theme_editor_hex_error">Usa #RRGGBB</string>

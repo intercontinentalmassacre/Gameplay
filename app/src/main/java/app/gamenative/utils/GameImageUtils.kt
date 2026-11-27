@@ -5,7 +5,7 @@ import app.gamenative.data.LibraryItem
 
 /**
  * Utility functions for retrieving game images from various sources.
- * Handles the priority: Custom media -> SteamGridDB -> Steam URLs.
+ * Handles the priority: Custom media -> cached covers -> SteamGridDB -> Steam URLs.
  * Ported from upstream GameNative PR #297.
  */
 object GameImageUtils {
@@ -20,8 +20,9 @@ object GameImageUtils {
     /**
      * Get game image URI/URL with proper priority:
      * 1. Custom media (user-selected)
-     * 2. SteamGridDB images (from the game folder)
-     * 3. Steam URLs (for Steam games)
+     * 2. Cached covers
+     * 3. SteamGridDB images (from the game folder)
+     * 4. Steam URLs (for Steam games)
      *
      * @param libraryItem The library item containing appId and gameSource
      * @param imageType The type of image: "hero", "capsule", "header", "logo", "icon", "grid_hero", "grid_capsule"
@@ -36,7 +37,18 @@ object GameImageUtils {
         val appId = libraryItem.appId
         val gameId = libraryItem.gameId
 
-        // 0. Persistent on-device cover cache (works offline, no network).
+        if (gameId != 0) {
+            val customUri = when (imageType) {
+                "hero", "grid_hero" -> CustomMediaUtils.getCustomHeroUri(gameId)
+                "capsule", "grid_capsule" -> CustomMediaUtils.getCustomCapsuleUri(gameId)
+                "header" -> CustomMediaUtils.getCustomHeaderUri(gameId)
+                "logo" -> CustomMediaUtils.getCustomLogoUri(gameId)
+                "icon" -> CustomMediaUtils.getCustomIconUri(gameId)
+                else -> null
+            }
+            if (customUri != null) return customUri.toString()
+        }
+
         if (appId.isNotEmpty()) {
             val cached = when (imageType) {
                 "hero", "grid_hero" -> CoverCache.fileUri(appId, CoverCache.Type.GRID_HERO)
@@ -51,20 +63,7 @@ object GameImageUtils {
             if (cached != null) return cached
         }
 
-        // 1. Check custom media first (only if we have a valid gameId)
-        if (gameId != 0) {
-            val customUri = when (imageType) {
-                "hero", "grid_hero" -> CustomMediaUtils.getCustomHeroUri(gameId)
-                "capsule", "grid_capsule" -> CustomMediaUtils.getCustomCapsuleUri(gameId)
-                "header" -> CustomMediaUtils.getCustomHeaderUri(gameId)
-                "logo" -> CustomMediaUtils.getCustomLogoUri(gameId)
-                "icon" -> CustomMediaUtils.getCustomIconUri(gameId)
-                else -> null
-            }
-            if (customUri != null) return customUri.toString()
-        }
-
-        // 2. Check SteamGridDB images
+        // Check SteamGridDB images.
         if (appId.isNotEmpty()) {
             val steamGridUri = when (imageType) {
                 "hero", "grid_hero" -> SteamGridDB.findSteamGridDBImageByAppId(appId, "grid_hero")
@@ -83,7 +82,6 @@ object GameImageUtils {
             if (steamGridUri != null) return steamGridUri
         }
 
-        // 3. Fall back to Steam URL (for Steam games)
         return steamUrl
     }
 }

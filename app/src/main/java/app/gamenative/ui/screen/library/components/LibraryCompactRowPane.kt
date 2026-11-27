@@ -20,8 +20,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.rememberLazyGridState
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.grid.LazyGridState
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -50,17 +50,16 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.gamenative.R
 import app.gamenative.data.GameSource
-import app.gamenative.data.GameCompatibilityStatus
 import app.gamenative.data.LibraryItem
-import app.gamenative.ui.component.CompatibilityBadge
 import app.gamenative.ui.component.focusRing
 import app.gamenative.ui.data.LibraryState
-import app.gamenative.ui.data.statsFor
 import app.gamenative.ui.data.InstallProgress
 import app.gamenative.ui.enums.PaneType
 import app.gamenative.ui.theme.PluviaTheme
@@ -84,6 +83,8 @@ import kotlinx.coroutines.withContext
 internal fun LibraryCompactRowPane(
     state: LibraryState,
     isInstalledTab: Boolean,
+    listState: LazyListState,
+    gridState: LazyGridState,
     firstItemFocusRequester: FocusRequester? = null,
     focusTargetListIndex: Int? = null,
     onFocusedIndexChanged: (Int) -> Unit = {},
@@ -94,8 +95,6 @@ internal fun LibraryCompactRowPane(
     val items = state.appInfoList
     val itemCount = items.size
     val focusedIndex = (focusTargetListIndex ?: 0).coerceIn(0, itemCount.coerceAtLeast(1) - 1)
-    val listState = rememberLazyListState()
-    val gridState = rememberLazyGridState()
 
     // Vertical grid tabs paginate as the user scrolls toward the end.
     LaunchedEffect(gridState, itemCount) {
@@ -256,7 +255,6 @@ internal fun LibraryCompactRowPane(
                     val item = items[index]
                     CompactIconCell(
                         item = item,
-                        compatibilityStatus = state.compatibilityMap[item.name],
                         onClick = { onNavigate(item.appId) },
                         onFocused = { onFocusedIndexChanged(index) },
                         installProgress = state.installProgress[item.appId],
@@ -296,8 +294,6 @@ internal fun LibraryCompactRowPane(
                             Modifier
                         },
                         imageRefreshCounter = state.imageRefreshCounter,
-                        compatibilityStatus = state.compatibilityMap[item.name],
-                        gameStats = state.statsFor(item),
                         installProgress = state.installProgress[item.appId],
                     )
                 }
@@ -310,7 +306,6 @@ internal fun LibraryCompactRowPane(
 @Composable
 private fun CompactIconCell(
     item: LibraryItem,
-    compatibilityStatus: GameCompatibilityStatus?,
     onClick: () -> Unit,
     onFocused: () -> Unit,
     installProgress: InstallProgress? = null,
@@ -361,6 +356,7 @@ private fun CompactIconCell(
                 .clip(shape)
                 .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                 .focusRing(interactionSource, shape)
+                .semantics { contentDescription = item.name }
                 .selectable(
                     selected = isFocused,
                     interactionSource = interactionSource,
@@ -374,14 +370,6 @@ private fun CompactIconCell(
                     modifier = Modifier.fillMaxSize(),
                     imageModel = { imageUrl },
                     imageOptions = ImageOptions(contentScale = ContentScale.Crop),
-                )
-            }
-            if (compatibilityStatus != null) {
-                CompatibilityBadge(
-                    status = compatibilityStatus,
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(6.dp),
                 )
             }
         }

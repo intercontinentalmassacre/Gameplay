@@ -6,9 +6,10 @@ internal object LibrarySortUtils {
         name: (T) -> String,
         isInstalled: (T) -> Boolean,
         lastPlayed: (T) -> Long,
+        installedFirst: Boolean = true,
     ): Comparator<T> {
         return compareBy<T> { entry ->
-            if (isInstalled(entry)) 0 else 1
+            if (installedFirst && !isInstalled(entry)) 1 else 0
         }.thenByDescending { entry ->
             lastPlayed(entry)
         }.thenBy { entry ->

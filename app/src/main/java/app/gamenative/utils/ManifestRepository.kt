@@ -16,6 +16,9 @@ object ManifestRepository {
     private const val ONE_DAY_MS = 24 * 60 * 60 * 1000L
     private const val MANIFEST_URL = "https://raw.githubusercontent.com/intercontinentalmassacre/Gameplay/refs/heads/main/manifest.json"
     private val json = Json { ignoreUnknownKeys = true }
+    private var bundledManifest: ManifestData? = null
+    private var lastManifestText: String? = null
+    private var lastParsedManifest: ManifestData? = null
 
     suspend fun loadManifest(context: Context, preferRemote: Boolean = false): ManifestData {
         val bundled = readLocalManifest(context)
@@ -72,15 +75,22 @@ object ManifestRepository {
     }
 }
 
-    internal fun readLocalManifest(context: Context): ManifestData? = try {
-        context.assets.open("manifest.json").bufferedReader().use { parseManifest(it.readText()) }
-    } catch (e: Exception) {
-        null
+    @Synchronized
+    internal fun readLocalManifest(context: Context): ManifestData? {
+        bundledManifest?.let { return it }
+        return try {
+            context.assets.open("manifest.json").bufferedReader().use { parseManifest(it.readText()) }
+                .also { bundledManifest = it }
+        } catch (e: Exception) {
+            null
+        }
     }
 
+    @Synchronized
     fun parseManifest(jsonString: String?): ManifestData? {
         if (jsonString.isNullOrBlank()) return null
-        return try {
+        if (jsonString == lastManifestText) return lastParsedManifest
+        val parsed = try {
             val normalized = jsonString.removePrefix("\uFEFF").trimStart()
             val root = json.parseToJsonElement(normalized).jsonObject
             when (val schemaVersion = root["schemaVersion"]?.jsonPrimitive?.intOrNull ?: 1) {
@@ -97,5 +107,8 @@ object ManifestRepository {
             Timber.e(e, "ManifestRepository: parse failed")
             null
         }
+        lastManifestText = jsonString
+        lastParsedManifest = parsed
+        return parsed
     }
 }

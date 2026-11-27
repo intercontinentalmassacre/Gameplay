@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-25",
+  "updatedAt": "2026-11-27",
   "items": {
     "driver": [
       {
@@ -1030,6 +1030,8 @@
       {
         "id": "2611-gn-8",
         "name": "FEX 2611-gn (8)",
+        "sourceRepository": "https://github.com/GameNative/FEX",
+        "sourceCommit": "1c5699f322ab52dbefc0a03eee8d64fd1256ea8e",
         "url": "https://downloads.gamenative.app/FEXCore-2611-gn-8.wcp",
         "sha256": "17c330056e425088e38033321619792725d39a4839df6d0fdf8de530468fc43e",
         "sizeBytes": 1959704,
@@ -1038,6 +1040,8 @@
       {
         "id": "2611-gn-9",
         "name": "FEX 2611-gn (9)",
+        "sourceRepository": "https://github.com/GameNative/FEX",
+        "sourceCommit": "95fb30b8e05a6ff615ee5a98d03109b4559d1466",
         "url": "https://downloads.gamenative.app/FEXCore-2611-gn-9.wcp",
         "sha256": "5d79ba889e8bfd6ce5132fb3c21a7a505732680183a4a322b307557bb2a8925a",
         "sizeBytes": 2282865,
@@ -1055,7 +1059,11 @@
     "vkd3d": [
       {
         "id": "3.1-gn1-0",
-        "name": "VKD3D 3.1",
+        "name": "VKD3D-Proton 3.1-gn1 (GameNative)",
+        "sourceRepository": "https://github.com/utkarshdalal/vkd3d-proton",
+        "sourceCommit": "2f5cbf08efebb56f523aa88af258d374f5757829",
+        "sizeBytes": 3240177,
+        "sha256": "ef9075c648c34cc46417c66a6eea5a98c00983f8e93a22f1eb96c2839a0ddae0",
         "url": "https://downloads.gamenative.app/dxwrapper/vkd3d-proton-3.1-gn1.wcp",
         "variant": "bionic"
       },

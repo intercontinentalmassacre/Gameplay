@@ -3,6 +3,17 @@ package app.gamenative.steam
 import app.gamenative.data.SteamCollection
 
 object SteamCollectionFilter {
+    fun visibleCounts(collections: List<SteamCollection>, visibleIds: Set<Int>): Map<String, Int> =
+        collections.associate { collection ->
+            val members = collection.appIds
+            val count = if (members.size < visibleIds.size) {
+                members.count(visibleIds::contains)
+            } else {
+                visibleIds.count(members::contains)
+            }
+            collection.id to count
+        }
+
     /** True = keep the app. Fail-open: not-loaded or effectively-empty selection shows everything. */
     fun passes(appId: Int, selectedIds: Set<String>, collections: List<SteamCollection>?): Boolean {
         val allowed = allowedAppIds(selectedIds, collections) ?: return true

@@ -6,6 +6,8 @@
 .gradle/
 build/
 tools/*aab*
+/dist/nonfree/
+/dist/rea-work/
 
 # Build
 app/release/baselineProfiles/

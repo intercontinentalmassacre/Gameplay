@@ -118,11 +118,12 @@ internal fun TrackGamescopeRefreshRate(view: View?) {
 }
 
 // Some games create an XWayland window before Wine has assigned a foreground window.
-internal fun armGamescopeWindow(runtime: File, environment: XEnvironment, launcher: GuestProgramLauncherComponent) {
+internal fun armGamescopeWindow(
+    context: Context,
+    environment: XEnvironment,
+    launcher: GuestProgramLauncherComponent,
+) {
     if (launcher !is BionicProgramLauncherComponent) return
-    val helper = File(runtime, "bin/gn-activate.exe")
-    if (!helper.isFile) return
-    val path = "Z:" + helper.absolutePath.replace('/', '\\')
     val launches = AtomicInteger()
     launcher.setOnGuestStarted {
         val launch = launches.incrementAndGet()
@@ -138,6 +139,17 @@ internal fun armGamescopeWindow(runtime: File, environment: XEnvironment, launch
                 if (launches.get() == launch && launcher.isGuestRunning &&
                     PluviaApp.xEnvironment === environment && ProcessHelper.isWineServerRunning()
                 ) {
+                    val helper = File(context.cacheDir, "gameplay-window-focus.exe")
+                    val staging = File.createTempFile("window-focus-", ".exe", context.cacheDir)
+                    try {
+                        context.assets.open("gamescope/gameplay-window-focus.exe").use { input ->
+                            staging.outputStream().use { output -> input.copyTo(output) }
+                        }
+                        android.system.Os.rename(staging.path, helper.path)
+                    } finally {
+                        staging.delete()
+                    }
+                    val path = "Z:" + helper.absolutePath.replace('/', '\\')
                     launcher.execGamescopeShellCommand("wine \"$path\" --watch")
                 }
             }

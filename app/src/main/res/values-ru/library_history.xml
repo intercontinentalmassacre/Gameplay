@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tab_recent">Недавние</string>
+    <string name="tab_favorites">Избранное</string>
+    <string name="library_recent_no_results">Нет недавно запущенных игр, соответствующих текущим фильтрам.</string>
+    <string name="library_favorites_no_results">Нет избранных игр, соответствующих текущим фильтрам.</string>
+    <string name="library_browse_all_games">Посмотреть все игры</string>
+</resources>

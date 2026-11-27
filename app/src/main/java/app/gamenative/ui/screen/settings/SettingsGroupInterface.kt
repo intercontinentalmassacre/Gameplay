@@ -446,7 +446,6 @@ fun SettingsGroupInterface(
         SettingsMenuLink(
             colors = settingsTileColorsAlt(),
             title = { Text(text = stringResource(R.string.settings_custom_theme_edit)) },
-            subtitle = { Text(text = stringResource(R.string.settings_custom_theme_edit_subtitle)) },
             onClick = {
                 themeEditorDocument = customThemeDocument ?: GameplayThemeCodec.safeDocument()
                 showThemeEditor = true
@@ -456,7 +455,6 @@ fun SettingsGroupInterface(
             SettingsMenuLink(
                 colors = settingsTileColorsAlt(),
                 title = { Text(text = stringResource(R.string.settings_custom_theme_duplicate)) },
-                subtitle = { Text(text = stringResource(R.string.settings_custom_theme_duplicate_subtitle)) },
                 onClick = {
                     customThemeDocument?.let { document ->
                         themeEditorDocument = document.copy(
@@ -503,6 +501,7 @@ fun SettingsGroupInterface(
 
         if (section == InterfaceSettingsSection.CONTROLS) {
             ControllerLayoutsSetting()
+            GamepadQuickMenuSetting()
         SettingsSwitch(
             colors = settingsTileColorsAlt(),
             title = { Text(text = stringResource(R.string.settings_achievement_show_notification)) },
@@ -546,7 +545,6 @@ fun SettingsGroupInterface(
         SettingsSwitch(
             colors = settingsTileColorsAlt(),
             title = { Text(text = stringResource(R.string.settings_interface_external_links_title)) },
-            subtitle = { Text(text = stringResource(R.string.settings_interface_external_links_subtitle)) },
             state = openWebLinks,
             onCheckedChange = {
                 openWebLinks = it
@@ -571,7 +569,6 @@ fun SettingsGroupInterface(
         SettingsSwitch(
             colors = settingsTileColorsAlt(),
             title = { Text(text = stringResource(R.string.settings_interface_reduce_motion_title)) },
-            subtitle = { Text(text = stringResource(R.string.settings_interface_reduce_motion_subtitle)) },
             state = reduceMotion,
             onCheckedChange = {
                 reduceMotion = it
@@ -667,7 +664,6 @@ fun SettingsGroupInterface(
         SettingsSwitch(
             colors = settingsTileColorsAlt(),
             title = { Text(text = stringResource(R.string.settings_interface_show_gamepad_hints_title)) },
-            subtitle = { Text(text = stringResource(R.string.settings_interface_show_gamepad_hints_subtitle)) },
             state = showGamepadHints,
             onCheckedChange = { newValue ->
                 showGamepadHints = newValue
@@ -797,7 +793,6 @@ fun SettingsGroupInterface(
                 stringResource(R.string.settings_interface_second_screen_title_text),
             ),
             title = { Text(stringResource(R.string.settings_interface_second_screen_hero_title)) },
-            subtitle = { Text(stringResource(R.string.settings_interface_second_screen_hero_subtitle)) },
             onItemSelected = { selected ->
                 heroTitleMode = selected
                 PrefManager.dualScreenHeroUseLogo = selected == 0
@@ -816,7 +811,6 @@ fun SettingsGroupInterface(
                 stringResource(R.string.settings_interface_second_screen_title_text),
             ),
             title = { Text(stringResource(R.string.settings_interface_second_screen_game_title)) },
-            subtitle = { Text(stringResource(R.string.settings_interface_second_screen_game_title_subtitle)) },
             onItemSelected = { selected ->
                 gameTitleMode = selected
                 PrefManager.dualScreenGameUseLogo = selected == 0
@@ -847,7 +841,6 @@ fun SettingsGroupInterface(
                 stringResource(R.string.quick_menu_title),
             ),
             title = { Text(stringResource(R.string.settings_interface_second_screen_default_panel_title)) },
-            subtitle = { Text(stringResource(R.string.settings_interface_second_screen_default_panel_subtitle)) },
             onItemSelected = { selected ->
                 defaultGamePanel = selected
                 PrefManager.dualScreenGameDefaultPanel = selected
@@ -867,7 +860,6 @@ fun SettingsGroupInterface(
         SettingsSwitch(
             colors = settingsTileColorsAlt(),
             title = { Text(text = stringResource(R.string.settings_interface_wifi_only_title)) },
-            subtitle = { Text(text = stringResource(R.string.settings_interface_wifi_only_subtitle)) },
             state = wifiOnlyDownload,
             onCheckedChange = {
                 wifiOnlyDownload = it
@@ -959,10 +951,9 @@ fun SettingsGroupInterface(
             enabled = dirs.isNotEmpty(),
             title = { Text(text = stringResource(R.string.settings_interface_external_storage_title)) },
             subtitle = {
-                if (dirs.isEmpty())
+                if (dirs.isEmpty()) {
                     Text(stringResource(R.string.settings_interface_no_external_storage))
-                else
-                    Text(stringResource(R.string.settings_interface_external_storage_subtitle))
+                }
             },
             state = useExternalStorage,
             onCheckedChange = {
@@ -1338,6 +1329,31 @@ private fun Preview_SettingsScreen() {
 }
 
 
+
+@Composable
+private fun GamepadQuickMenuSetting() {
+    val buttons = listOf(
+        android.view.KeyEvent.KEYCODE_UNKNOWN to R.string.disabled,
+        android.view.KeyEvent.KEYCODE_BUTTON_START to R.string.button_start,
+        android.view.KeyEvent.KEYCODE_BUTTON_SELECT to R.string.button_select,
+        android.view.KeyEvent.KEYCODE_BUTTON_THUMBL to R.string.button_l3,
+        android.view.KeyEvent.KEYCODE_BUTTON_THUMBR to R.string.button_r3,
+    )
+    var selected by rememberSaveable {
+        mutableStateOf(buttons.indexOfFirst { it.first == PrefManager.gamepadQuickMenuButton }.coerceAtLeast(0))
+    }
+    SettingsListDropdown(
+        colors = settingsTileColorsAlt(),
+        value = selected,
+        items = buttons.map { stringResource(it.second) },
+        title = { Text(stringResource(R.string.settings_gamepad_quick_menu_title)) },
+        subtitle = { Text(stringResource(R.string.settings_gamepad_quick_menu_description)) },
+        onItemSelected = { index ->
+            selected = index
+            PrefManager.gamepadQuickMenuButton = buttons[index].first
+        },
+    )
+}
 
 @Composable
 private fun ControllerLayoutsSetting() {

@@ -1,0 +1,8 @@
+<resources>
+    <string name="controller_profile_save_as">Сохранить как профиль</string>
+    <string name="controller_profile_name">Название профиля</string>
+    <string name="controller_profiles_saved">Сохранённые профили</string>
+    <string name="controller_profile_edit_bindings">Изменить привязки</string>
+    <string name="controller_profile_duplicate_name">Профиль с таким названием уже существует.</string>
+    <string name="controller_profile_save_failed">Не удалось сохранить профиль контроллера.</string>
+</resources>

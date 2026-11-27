@@ -3,7 +3,11 @@
   "components": [
     {
       "id": "3.1-gn1-0",
-      "name": "VKD3D 3.1",
+      "name": "VKD3D-Proton 3.1-gn1 (GameNative)",
+      "sourceRepository": "https://github.com/utkarshdalal/vkd3d-proton",
+      "sourceCommit": "2f5cbf08efebb56f523aa88af258d374f5757829",
+      "sizeBytes": 3240177,
+      "sha256": "ef9075c648c34cc46417c66a6eea5a98c00983f8e93a22f1eb96c2839a0ddae0",
       "url": "https://downloads.gamenative.app/dxwrapper/vkd3d-proton-3.1-gn1.wcp",
       "variant": "bionic"
     },

@@ -6,7 +6,6 @@ import android.content.Context
 import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
-import android.os.IBinder
 import android.view.Display
 import android.view.KeyEvent
 import android.view.InputDevice
@@ -19,6 +18,7 @@ import androidx.activity.compose.LocalActivityResultRegistryOwner
 import androidx.activity.result.ActivityResultRegistryOwner
 import androidx.activity.setViewTreeOnBackPressedDispatcherOwner
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
@@ -53,13 +53,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Gamepad
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.ViewAgenda
+import androidx.compose.material.icons.filled.ViewCarousel
+import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -75,6 +75,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -104,6 +105,7 @@ import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalInputModeManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -112,6 +114,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
@@ -233,23 +236,22 @@ object DsHomeSecondScreen {
         val installProgressByAppId: Map<String, InstallProgress> = emptyMap(),
         val libraryLayout: PaneType = PaneType.GRID_CAPSULE,
         val currentTab: LibraryTab = LibraryTab.ALL,
+        val contentTab: LibraryTab = currentTab,
         val isLoading: Boolean = false,
         val isSearching: Boolean = false,
         val searchQuery: String = "",
         val totalItemCount: Int = items.size,
-        val currentPage: Int = 1,
-        val lastPage: Int = 1,
         val tabCounts: Map<LibraryTab, Int> = emptyMap(),
         val onSearchQuery: (String) -> Unit = {},
         val onSearchToggle: () -> Unit = {},
         val onPreviousTab: (() -> Unit)? = null,
         val onNextTab: (() -> Unit)? = null,
+        val onTabSelected: (LibraryTab) -> Unit = {},
         val controllerNavigation: ControllerNavigation = ControllerNavigation.SPATIAL,
         /** Direct physical-controller action for a companion workspace. */
         val onControllerKey: (Int) -> Boolean = { false },
         val onOptions: () -> Unit = {},
         val onSystemMenu: () -> Unit = {},
-        val onOpenSettings: () -> Unit = {},
         val onAddGame: () -> Unit = {},
         val onQuickActions: () -> Unit = {},
         val onLayoutCycle: () -> Unit = {},
@@ -264,6 +266,7 @@ object DsHomeSecondScreen {
         val dashboardSubtitle: String = "",
         val dashboardImageUrl: String = "",
         val dashboardLogoUrl: String = "",
+        val onOpenGameMenu: (() -> Unit)? = null,
         val performanceHudEnabled: Boolean = false,
         val performanceHudConfig: PerformanceHudConfig = PerformanceHudConfig(),
         val performanceHudFpsProvider: () -> Float = { 0f },
@@ -282,6 +285,7 @@ object DsHomeSecondScreen {
         val onShowDashboard: () -> Unit = {},
         val onShowMenu: () -> Unit = {},
         val onBack: () -> Unit = {},
+        val onResumeGame: () -> Unit = onBack,
         val onNavigate: (String) -> Unit = {},
         val onFocused: (Int) -> Unit = {},
     )
@@ -298,14 +302,6 @@ object DsHomeSecondScreen {
     var presentationActive by mutableStateOf(false)
         private set
 
-    /** Window token of the shown Presentation window, used to bind second-screen dialogs. */
-    var presentationWindowToken: IBinder? by mutableStateOf(null)
-        private set
-
-    /** Window type of the shown Presentation window (TYPE_PRESENTATION, hidden in the SDK). */
-    var presentationWindowType: Int? by mutableStateOf(null)
-        private set
-
     /**
      * Changes whenever the companion window needs Compose to restore a controller target.
      * A FocusRequester can only succeed after Android has assigned focus to the Presentation
@@ -314,21 +310,12 @@ object DsHomeSecondScreen {
     var controllerFocusEpoch by mutableIntStateOf(0)
         private set
 
-    fun markPresentationActive(active: Boolean) {
-        presentationActive = active
+    internal fun markPresentationShown(presentation: DsHomePresentation) {
+        if (activePresentation === presentation) markPresentationActive(true)
     }
 
-    fun publishPresentationWindow(token: IBinder?, type: Int?) {
-        Timber.d("publishPresentationWindow token=$token type=$type (was token=$presentationWindowToken type=$presentationWindowType)")
-        // Skip the Compose-state write when the value did not change; the
-        // post-attached republish from DsHomePresentationHost used to fire
-        // twice (once on show, once after the window token became available)
-        // and each write triggered a recomposition of every consumer of the
-        // second-screen dialog locals. Dialogs that were already open would
-        // re-evaluate secondScreenDialogProperties() and flash.
-        if (presentationWindowToken == token && presentationWindowType == type) return
-        presentationWindowToken = token
-        presentationWindowType = type
+    internal fun markPresentationActive(active: Boolean) {
+        presentationActive = active
     }
 
     fun requestControllerFocus() {
@@ -340,7 +327,10 @@ object DsHomeSecondScreen {
     }
 
     internal fun detachPresentation(presentation: DsHomePresentation) {
-        if (activePresentation === presentation) activePresentation = null
+        if (activePresentation === presentation) {
+            activePresentation = null
+            markPresentationActive(false)
+        }
     }
 
     internal fun attachLibraryControllerKeyHandler(handler: (Int) -> Boolean) {
@@ -648,11 +638,12 @@ class DsHomePresentation internal constructor(
         // this device that is Russian, while Gameplay itself is configured for
         // English. Reapply the host Activity configuration after creating the
         // presentation window so stringResource() matches the app language.
+        val dialogWindowType = window?.attributes?.type ?: 2037 // TYPE_PRESENTATION
         val windowContext = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             runCatching {
                 hostContext.createWindowContext(
                     display,
-                    window?.attributes?.type ?: 2037, // TYPE_PRESENTATION
+                    dialogWindowType,
                     null,
                 )
             }.getOrElse { hostContext }
@@ -690,14 +681,18 @@ class DsHomePresentation internal constructor(
                             color = MaterialTheme.colorScheme.background,
                         ) {
                             CompositionLocalProvider(
-                                LocalSecondScreenDialogWindowType provides DsHomeSecondScreen.presentationWindowType,
-                                LocalSecondScreenDialogWindowToken provides DsHomeSecondScreen.presentationWindowToken,
-                            ) {                                val model = DsHomeSecondScreen.model
+                                LocalSecondScreenDialogWindowType provides dialogWindowType,
+                                LocalSecondScreenDialogWindowToken provides composeView.windowToken,
+                            ) {
+                                val libraryStateHolder = rememberSaveableStateHolder()
+                                val model = DsHomeSecondScreen.model
                                 if (model != null) {
                                     LaunchedEffect(model.mode) { updateInputMode(model.mode) }
                                     SecondScreenControllerFocusBridge(model) {
                                         when (model.mode) {
-                                            DsHomeSecondScreen.Mode.GRID -> DsHomeSecondScreenGrid(model)
+                                            DsHomeSecondScreen.Mode.GRID -> libraryStateHolder.SaveableStateProvider("library") {
+                                                key(model.contentTab) { DsHomeSecondScreenGrid(model) }
+                                            }
                                             DsHomeSecondScreen.Mode.DETAILS -> DsHomeSecondScreenDetails(model)
                                             DsHomeSecondScreen.Mode.CARD -> model.cardContent?.invoke()
                                             DsHomeSecondScreen.Mode.QUICK_MENU,
@@ -860,6 +855,13 @@ class DsHomePresentation internal constructor(
         if (event.keyCode == KeyEvent.KEYCODE_BUTTON_B || event.keyCode == KeyEvent.KEYCODE_BACK) {
             if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
                 val dispatcher = presentationLifecycleOwner.onBackPressedDispatcher
+                if (currentModel?.mode == DsHomeSecondScreen.Mode.QUICK_MENU) {
+                    // A focused control can consume BACK down while waiting for up.
+                    // Run the deepest in-game BackHandler for the completed gesture.
+                    if (dispatcher.hasEnabledCallbacks()) dispatcher.onBackPressed()
+                    else currentModel.onBack()
+                    return true
+                }
                 if (currentModel?.owner == DsHomeSecondScreen.Owner.DIALOG && dispatcher.hasEnabledCallbacks()) {
                     dispatcher.onBackPressed()
                     return true
@@ -1063,20 +1065,21 @@ class DsHomePresentation internal constructor(
 
 @Composable
 private fun DsHomeSecondScreenGrid(model: DsHomeSecondScreen.Model) {
-    val gridState = rememberLazyGridState()
+    val gridState = rememberLazyGridState(initialFirstVisibleItemIndex = model.focusedIndex)
     val firstItemFocusRequester = remember { FocusRequester() }
     var scaleStep by remember { mutableStateOf(PrefManager.dsHomeIconScale) }
-    var controllerSelectedIndex by remember(model.currentTab) {
+    var controllerSelectedIndex by remember {
         mutableIntStateOf(model.focusedIndex.coerceIn(0, model.items.lastIndex.coerceAtLeast(0)))
     }
     val cellMinSize = dsHomeCellMinSize(scaleStep, lowerDisplay = true)
-    LaunchedEffect(model.currentTab) {
-        gridState.scrollToItem(0)
-    }
+    var lastFocusedIndex by remember { mutableIntStateOf(model.focusedIndex) }
     LaunchedEffect(model.focusedIndex, model.items.isEmpty()) {
         if (model.focusedIndex in model.items.indices) {
             controllerSelectedIndex = model.focusedIndex
-            if (PrefManager.dsHomeNavMode == 0) gridState.animateScrollToItem(model.focusedIndex)
+            if (PrefManager.dsHomeNavMode == 0 && lastFocusedIndex != model.focusedIndex) {
+                lastFocusedIndex = model.focusedIndex
+                gridState.animateScrollToItem(model.focusedIndex)
+            }
         }
     }
     LaunchedEffect(gridState, model.items.size, model.totalItemCount) {
@@ -1094,8 +1097,8 @@ private fun DsHomeSecondScreenGrid(model: DsHomeSecondScreen.Model) {
     // sticks instead of being stolen back by the main display.
     val windowInfo = LocalWindowInfo.current
     val controllerFocusEpoch = DsHomeSecondScreen.controllerFocusEpoch
-    LaunchedEffect(model.items.isEmpty(), model.currentTab, model.focusedIndex, controllerFocusEpoch) {
-        if (model.items.isEmpty()) return@LaunchedEffect
+    LaunchedEffect(model.items.isEmpty(), model.focusedIndex, controllerFocusEpoch, model.isSearching) {
+        if (model.items.isEmpty() || model.isSearching) return@LaunchedEffect
         withTimeoutOrNull(2_000) {
             snapshotFlow { windowInfo.isWindowFocused }
                 .filter { it }
@@ -1192,6 +1195,7 @@ private fun DsHomeSecondScreenGrid(model: DsHomeSecondScreen.Model) {
         onDispose { DsHomeSecondScreen.detachLibraryControllerKeyHandler(handler) }
     }
     val actions = listOf(
+        GamepadAction(GamepadButton.X, app.gamenative.R.string.action_add_game, model.onAddGame),
         GamepadAction(GamepadButton.SELECT, app.gamenative.R.string.options, model.onOptions),
         GamepadAction(GamepadButton.START, app.gamenative.R.string.action_system, model.onSystemMenu),
     )
@@ -1242,6 +1246,7 @@ private fun DsHomeSecondScreenGrid(model: DsHomeSecondScreen.Model) {
         Column(modifier = Modifier.fillMaxSize()) {
             DualLibraryHeader(
                 model = model,
+                navMode = navMode,
                 onLayoutCycle = cycleNavMode,
             )
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
@@ -1255,6 +1260,7 @@ private fun DsHomeSecondScreenGrid(model: DsHomeSecondScreen.Model) {
                         )
                     }
                     model.items.isEmpty() -> {
+                        val isHistoryTab = model.currentTab == LibraryTab.RECENT || model.currentTab == LibraryTab.FAVORITES
                         Column(
                             modifier = Modifier.align(Alignment.Center),
                             horizontalAlignment = Alignment.CenterHorizontally,
@@ -1267,12 +1273,29 @@ private fun DsHomeSecondScreenGrid(model: DsHomeSecondScreen.Model) {
                                 modifier = Modifier.size(32.dp),
                             )
                             Text(
-                                text = stringResource(app.gamenative.R.string.library_no_results),
+                                text = stringResource(
+                                    if (model.isSearching) app.gamenative.R.string.library_search_no_results
+                                    else model.currentTab.emptyMessageResId,
+                                ),
                                 style = MaterialTheme.typography.titleMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
-                            TextButton(onClick = model.onRefresh) {
-                                Text(stringResource(app.gamenative.R.string.action_refresh))
+                            TextButton(
+                                onClick = when {
+                                    model.isSearching -> model.onSearchToggle
+                                    isHistoryTab -> { { model.onTabSelected(LibraryTab.ALL) } }
+                                    else -> model.onRefresh
+                                },
+                            ) {
+                                Text(
+                                    stringResource(
+                                        when {
+                                            model.isSearching -> app.gamenative.R.string.library_clear_search
+                                            isHistoryTab -> app.gamenative.R.string.library_browse_all_games
+                                            else -> app.gamenative.R.string.action_refresh
+                                        },
+                                    ),
+                                )
                             }
                         }
                     }
@@ -1326,9 +1349,9 @@ private fun DsHomeSecondScreenGrid(model: DsHomeSecondScreen.Model) {
 @Composable
 private fun DualLibraryHeader(
     model: DsHomeSecondScreen.Model,
-    onLayoutCycle: (() -> Unit)? = null,
+    navMode: Int,
+    onLayoutCycle: () -> Unit,
 ) {
-    val layoutCycle = onLayoutCycle ?: model.onLayoutCycle
     val compact = PluviaTheme.tokens.densityCompact
     val toolbarButton = Modifier.size(48.dp)
     if (model.isSearching) {
@@ -1337,6 +1360,11 @@ private fun DualLibraryHeader(
         // resets mid-typing. Syncs back in only when the search session restarts.
         var localQuery by androidx.compose.runtime.saveable.rememberSaveable(model.isSearching) {
             androidx.compose.runtime.mutableStateOf(model.searchQuery)
+        }
+        val searchFocus = remember { FocusRequester() }
+        val keyboard = LocalSoftwareKeyboardController.current
+        LaunchedEffect(searchFocus) {
+            if (searchFocus.requestFocus()) keyboard?.show()
         }
         NoExtractOutlinedTextField(
             value = localQuery,
@@ -1354,7 +1382,8 @@ private fun DualLibraryHeader(
             label = { Text(stringResource(app.gamenative.R.string.search)) },
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = if (compact) 8.dp else 16.dp, vertical = if (compact) 4.dp else 8.dp),
+                .padding(horizontal = 16.dp, vertical = if (compact) 4.dp else 8.dp)
+                .focusRequester(searchFocus),
         )
         return
     }
@@ -1363,6 +1392,7 @@ private fun DualLibraryHeader(
         modifier = Modifier
             .fillMaxWidth()
             .height(if (compact) 48.dp else 56.dp)
+            .background(MaterialTheme.colorScheme.surfaceContainer)
             .padding(horizontal = if (compact) 4.dp else 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(if (compact) 0.dp else 2.dp),
@@ -1376,10 +1406,14 @@ private fun DualLibraryHeader(
                 modifier = toolbarButton,
                 enabled = model.onPreviousTab != null,
             ) {
-                Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = null)
+                Icon(
+                    Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                    contentDescription = stringResource(app.gamenative.R.string.hint_previous_category),
+                )
             }
             val currentTabCount = model.tabCounts[model.currentTab] ?: model.totalItemCount
             Text(
+                modifier = Modifier.weight(1f, fill = false),
                 text = stringResource(
                     app.gamenative.R.string.library_tab_with_count,
                     stringResource(model.currentTab.labelResId),
@@ -1390,41 +1424,32 @@ private fun DualLibraryHeader(
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f, fill = false),
             )
             IconButton(
                 onClick = { model.onNextTab?.invoke() },
                 modifier = toolbarButton,
                 enabled = model.onNextTab != null,
             ) {
-                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
-            }
-            if (model.lastPage > 1) {
-                Text(
-                    text = "${model.currentPage.coerceAtMost(model.lastPage)} / ${model.lastPage}",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
+                Icon(
+                    Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = stringResource(app.gamenative.R.string.hint_next_category),
                 )
             }
         }
-        IconButton(onClick = model.onRefresh, modifier = toolbarButton) {
+        IconButton(onClick = model.onSearchToggle, modifier = toolbarButton) {
+            Icon(Icons.Default.Search, contentDescription = stringResource(app.gamenative.R.string.search))
+        }
+        val (layoutIcon, layoutLabel) = when (navMode) {
+            1 -> Icons.AutoMirrored.Filled.ViewList to app.gamenative.R.string.library_layout_list
+            2 -> Icons.Default.ViewCarousel to app.gamenative.R.string.ds_home_layout_flow
+            3 -> Icons.Default.ViewAgenda to app.gamenative.R.string.ds_home_layout_wall
+            else -> Icons.Default.GridView to app.gamenative.R.string.ds_home_layout_grid
+        }
+        IconButton(onClick = onLayoutCycle, modifier = toolbarButton) {
             Icon(
-                Icons.Default.Refresh,
-                contentDescription = stringResource(app.gamenative.R.string.action_refresh),
+                imageVector = layoutIcon,
+                contentDescription = stringResource(app.gamenative.R.string.library_layout) + " · " + stringResource(layoutLabel),
             )
-        }
-        IconButton(onClick = layoutCycle, modifier = toolbarButton) {
-            Icon(Icons.Default.GridView, contentDescription = stringResource(app.gamenative.R.string.ds_home_icon_size_action))
-        }
-        IconButton(onClick = model.onSystemMenu, modifier = toolbarButton) {
-            Icon(
-                Icons.Default.AccountCircle,
-                contentDescription = stringResource(app.gamenative.R.string.system_hub_open),
-            )
-        }
-        IconButton(onClick = model.onOpenSettings, modifier = toolbarButton) {
-            Icon(Icons.Default.Settings, contentDescription = stringResource(app.gamenative.R.string.settings_title))
         }
     }
 }
@@ -1434,12 +1459,11 @@ private fun DsHomeSecondScreenList(
     model: DsHomeSecondScreen.Model,
     firstItemFocusRequester: FocusRequester,
 ) {
-    val listState = rememberLazyListState()
-    LaunchedEffect(model.currentTab) {
-        listState.scrollToItem(0)
-    }
+    val listState = rememberLazyListState(initialFirstVisibleItemIndex = model.focusedIndex)
+    var lastFocusedIndex by remember { mutableIntStateOf(model.focusedIndex) }
     LaunchedEffect(model.focusedIndex) {
-        if (model.focusedIndex in model.items.indices) {
+        if (model.focusedIndex in model.items.indices && lastFocusedIndex != model.focusedIndex) {
+            lastFocusedIndex = model.focusedIndex
             listState.animateScrollToItem(model.focusedIndex)
         }
     }
@@ -1496,12 +1520,19 @@ private fun DualLibraryListRow(
             .onFocusChanged { if (it.isFocused) onFocused() }
             .clip(shape)
             .background(
-                if (selected || isFocused) MaterialTheme.colorScheme.surfaceContainerHigh
+                if (selected || isFocused) MaterialTheme.colorScheme.secondaryContainer
                 else MaterialTheme.colorScheme.surfaceContainerLow,
             )
-            .focusRing(interactionSource, shape, width = PluviaTheme.tokens.focusRingWidth)
+            .then(
+                if (selected && !isFocused) {
+                    Modifier.border(2.dp, PluviaTheme.colors.focusRingColor, shape)
+                } else {
+                    Modifier
+                },
+            )
+            .focusRing(interactionSource, shape, width = maxOf(2.dp, PluviaTheme.tokens.focusRingWidth))
             .selectable(
-                selected = isFocused,
+                selected = selected,
                 interactionSource = interactionSource,
                 indication = null,
                 onClick = onClick,
@@ -1511,13 +1542,20 @@ private fun DualLibraryListRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Surface(
+        Box(
             modifier = Modifier
                 .width(104.dp)
-                .height(64.dp),
-            shape = RoundedCornerShape(PluviaTheme.tokens.cornerSm),
-            color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                .height(64.dp)
+                .clip(RoundedCornerShape(PluviaTheme.tokens.cornerSm))
+                .background(MaterialTheme.colorScheme.surfaceContainerHighest),
+            contentAlignment = Alignment.Center,
         ) {
+            Icon(
+                imageVector = Icons.Default.Gamepad,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(22.dp),
+            )
             if (imageUrl.isNotEmpty()) {
                 CoilImage(
                     modifier = Modifier.fillMaxSize(),
@@ -1531,7 +1569,8 @@ private fun DualLibraryListRow(
                 text = item.name,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface,
+                color = if (selected || isFocused) MaterialTheme.colorScheme.onSecondaryContainer
+                else MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -1541,7 +1580,8 @@ private fun DualLibraryListRow(
                     Text(
                         text = formatBytes(item.sizeBytes),
                         style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = if (selected || isFocused) MaterialTheme.colorScheme.onSecondaryContainer
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(start = 8.dp),
                     )
                 }
@@ -1562,12 +1602,14 @@ private fun DsHomeCoverFlowPane(
     model: DsHomeSecondScreen.Model,
     firstItemFocusRequester: FocusRequester,
 ) {
-    val listState = rememberLazyListState()
+    val listState = rememberLazyListState(initialFirstVisibleItemIndex = model.focusedIndex)
     val scope = rememberCoroutineScope()
     val reduceMotion = isReduceMotionEnabled()
 
-    LaunchedEffect(model.currentTab, model.focusedIndex) {
-        if (model.items.isNotEmpty()) {
+    var lastFocusedIndex by remember { mutableIntStateOf(model.focusedIndex) }
+    LaunchedEffect(model.focusedIndex) {
+        if (model.items.isNotEmpty() && lastFocusedIndex != model.focusedIndex) {
+            lastFocusedIndex = model.focusedIndex
             listState.animateScrollToItem(model.focusedIndex.coerceIn(0, model.items.lastIndex))
         }
     }
@@ -1733,8 +1775,19 @@ private fun DsHomeCoverFlowPane(
                                 paneType = PaneType.GRID_CAPSULE,
                                 showFocusGlow = false,
                                 enableFocusScale = false,
-                                animateStats = false,
                             )
+                            if (index == model.focusedIndex) {
+                                Box(
+                                    modifier = Modifier
+                                        .matchParentSize()
+                                        .padding(vertical = 4.dp)
+                                        .border(
+                                            2.dp,
+                                            PluviaTheme.colors.focusRingColor,
+                                            RoundedCornerShape(PluviaTheme.tokens.cornerMd),
+                                        ),
+                                )
+                            }
                         }
                     }
                 }
@@ -1903,10 +1956,8 @@ private fun DsHomeCoverWallPane(
     model: DsHomeSecondScreen.Model,
     firstItemFocusRequester: FocusRequester,
 ) {
-    val listState = rememberLazyListState()
-    LaunchedEffect(model.currentTab) {
-        listState.scrollToItem(0)
-    }
+    val listState = rememberLazyListState(initialFirstVisibleItemIndex = model.focusedIndex)
+    var lastFocusedIndex by remember { mutableIntStateOf(model.focusedIndex) }
     LaunchedEffect(listState, model.items.size, model.totalItemCount) {
         snapshotFlow { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index }
             .filterNotNull()
@@ -1918,7 +1969,8 @@ private fun DsHomeCoverWallPane(
             }
     }
     LaunchedEffect(model.focusedIndex) {
-        if (model.focusedIndex >= 0 && model.focusedIndex < model.items.size) {
+        if (model.focusedIndex in model.items.indices && lastFocusedIndex != model.focusedIndex) {
+            lastFocusedIndex = model.focusedIndex
             listState.animateScrollToItem(model.focusedIndex)
         }
     }
@@ -1931,6 +1983,7 @@ private fun DsHomeCoverWallPane(
         itemsIndexed(model.items, key = { _, item -> item.appId }) { index, item ->
             DsCoverWallRow(
                 item = item,
+                selected = index == model.focusedIndex,
                 onFocused = { model.onFocused(index) },
                 onClick = { model.onNavigate(item.appId) },
                 focusRequester = if (index == model.focusedIndex) firstItemFocusRequester else null,
@@ -1942,6 +1995,7 @@ private fun DsHomeCoverWallPane(
 @Composable
 private fun DsCoverWallRow(
     item: LibraryItem,
+    selected: Boolean,
     onFocused: () -> Unit,
     onClick: () -> Unit,
     focusRequester: FocusRequester?,
@@ -1964,14 +2018,27 @@ private fun DsCoverWallRow(
             .semantics { contentDescription = item.name }
             .clip(shape)
             .background(MaterialTheme.colorScheme.surfaceContainerLow)
-            .focusRing(interactionSource, shape, width = PluviaTheme.tokens.focusRingWidth)
+            .then(
+                if (selected && !isFocused) {
+                    Modifier.border(2.dp, PluviaTheme.colors.focusRingColor, shape)
+                } else {
+                    Modifier
+                },
+            )
+            .focusRing(interactionSource, shape, width = maxOf(2.dp, PluviaTheme.tokens.focusRingWidth))
             .selectable(
-                selected = isFocused,
+                selected = selected,
                 interactionSource = interactionSource,
                 indication = null,
                 onClick = onClick,
             ),
     ) {
+        Icon(
+            imageVector = Icons.Default.Gamepad,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.align(Alignment.Center).size(36.dp),
+        )
         if (imageUrl.isNotEmpty()) {
             CoilImage(
                 modifier = Modifier.fillMaxSize(),
@@ -2161,16 +2228,24 @@ private fun SecondScreenGamePanel(
                 selected = model.mode == DsHomeSecondScreen.Mode.GAME_DASHBOARD,
                 onClick = model.onShowDashboard,
             )
-            if (model.menuContent != null) InGamePanelTab(
+            if (model.menuContent != null || model.onOpenGameMenu != null) InGamePanelTab(
                 text = stringResource(app.gamenative.R.string.quick_menu_title),
                 selected = showMenu,
-                onClick = model.onShowMenu,
+                onClick = model.onOpenGameMenu ?: model.onShowMenu,
             )
             if (model.gameInputContent != null) {
                 InGamePanelTab(
                     text = stringResource(app.gamenative.R.string.live_input_tab),
                     selected = model.mode == DsHomeSecondScreen.Mode.GAME_INPUT,
                     onClick = model.onShowGameInput,
+                )
+            }
+            if (model.mode == DsHomeSecondScreen.Mode.QUICK_MENU) {
+                InGamePanelTab(
+                    text = stringResource(app.gamenative.R.string.resume_game),
+                    selected = false,
+                    onClick = model.onResumeGame,
+                    primaryAction = true,
                 )
             }
         }
@@ -2203,6 +2278,7 @@ private fun RowScope.InGamePanelTab(
     text: String,
     selected: Boolean,
     onClick: () -> Unit,
+    primaryAction: Boolean = false,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val shape = RoundedCornerShape(PluviaTheme.tokens.cornerMd)
@@ -2213,25 +2289,26 @@ private fun RowScope.InGamePanelTab(
             .weight(1f)
             .height(if (PluviaTheme.tokens.densityCompact) 48.dp else 52.dp)
             .focusRing(interactionSource, shape, width = PluviaTheme.tokens.focusRingWidth)
-            .semantics { this.selected = selected },
+            .semantics { if (!primaryAction) this.selected = selected },
         shape = shape,
-        color = if (selected) {
-            MaterialTheme.colorScheme.primaryContainer
-        } else {
-            MaterialTheme.colorScheme.surfaceContainerLow
+        color = when {
+            primaryAction -> MaterialTheme.colorScheme.primary
+            selected -> MaterialTheme.colorScheme.primaryContainer
+            else -> MaterialTheme.colorScheme.surfaceContainerLow
         },
-        contentColor = if (selected) {
-            MaterialTheme.colorScheme.onPrimaryContainer
-        } else {
-            MaterialTheme.colorScheme.onSurfaceVariant
+        contentColor = when {
+            primaryAction -> MaterialTheme.colorScheme.onPrimary
+            selected -> MaterialTheme.colorScheme.onPrimaryContainer
+            else -> MaterialTheme.colorScheme.onSurfaceVariant
         },
     ) {
-        Box(contentAlignment = Alignment.Center) {
+        Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 4.dp)) {
             Text(
                 text = text,
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
+                maxLines = 2,
+                textAlign = TextAlign.Center,
                 overflow = TextOverflow.Ellipsis,
             )
         }
@@ -2241,7 +2318,6 @@ private fun RowScope.InGamePanelTab(
 @Composable
 private fun SecondScreenGameDashboard(model: DsHomeSecondScreen.Model) {
     val compact = PluviaTheme.tokens.densityCompact
-    val hasGameTitle = model.dashboardTitle.isNotBlank() || model.dashboardLogoUrl.isNotBlank()
     Surface(
         modifier = Modifier
             .fillMaxSize()
@@ -2254,14 +2330,14 @@ private fun SecondScreenGameDashboard(model: DsHomeSecondScreen.Model) {
             horizontalArrangement = Arrangement.spacedBy(if (compact) 12.dp else 20.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Surface(
-                modifier = Modifier
-                    .width(if (compact) 96.dp else 128.dp)
-                    .height(if (compact) 138.dp else 184.dp),
-                shape = RoundedCornerShape(PluviaTheme.tokens.cornerLg),
-                color = MaterialTheme.colorScheme.surfaceContainerHighest,
-            ) {
-                if (model.dashboardImageUrl.isNotBlank()) {
+            if (model.dashboardImageUrl.isNotBlank()) {
+                Surface(
+                    modifier = Modifier
+                        .width(if (compact) 96.dp else 128.dp)
+                        .height(if (compact) 138.dp else 184.dp),
+                    shape = RoundedCornerShape(PluviaTheme.tokens.cornerLg),
+                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                ) {
                     CoilImage(
                         modifier = Modifier.fillMaxSize(),
                         imageModel = { model.dashboardImageUrl },
@@ -2270,28 +2346,12 @@ private fun SecondScreenGameDashboard(model: DsHomeSecondScreen.Model) {
                             contentDescription = null,
                         ),
                     )
-                } else {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.Default.Gamepad,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(42.dp),
-                        )
-                    }
                 }
             }
             Column(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.Center,
             ) {
-                if (hasGameTitle) {
-                    Text(
-                        text = stringResource(app.gamenative.R.string.second_screen_game_running),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                }
                 if (model.dashboardLogoUrl.isNotBlank()) {
                     CoilImage(
                         imageModel = { model.dashboardLogoUrl },
@@ -2313,7 +2373,6 @@ private fun SecondScreenGameDashboard(model: DsHomeSecondScreen.Model) {
                         color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(top = if (compact) 4.dp else 8.dp),
                     )
                 }
                 if (model.dashboardSubtitle.isNotBlank()) {
@@ -2366,34 +2425,18 @@ internal fun DsHomePresentationHost(appearance: GameplayAppearance) {
 
     DisposableEffect(secondScreenEnabled, display?.displayId) {
         if (!secondScreenEnabled || display == null) {
-            DsHomeSecondScreen.markPresentationActive(false)
             return@DisposableEffect onDispose { }
         }
         val presentation = DsHomePresentation(context, display, currentAppearance)
         runCatching { presentation.show() }
-            .onSuccess {
-                DsHomeSecondScreen.markPresentationActive(true)
-                DsHomeSecondScreen.publishPresentationWindow(
-                    token = presentation.window?.decorView?.windowToken,
-                    type = presentation.window?.attributes?.type,
-                )
-                // decorView.windowToken is null until the presentation window is
-                // attached; re-publish once attached so dialogs get a valid token.
-                // publishPresentationWindow short-circuits when the value did not
-                // change, so this only fires a recomposition when the token was
-                // actually null at show time and is now non-null.
-                presentation.window?.decorView?.post {
-                    DsHomeSecondScreen.publishPresentationWindow(
-                        token = presentation.window?.decorView?.windowToken,
-                        type = presentation.window?.attributes?.type,
-                    )
-                }
+            .onSuccess { DsHomeSecondScreen.markPresentationShown(presentation) }
+            .onFailure {
+                DsHomeSecondScreen.detachPresentation(presentation)
+                Timber.e(it, "Failed to show DS_HOME presentation")
             }
-            .onFailure { Timber.e(it, "Failed to show DS_HOME presentation") }
         onDispose {
-            DsHomeSecondScreen.publishPresentationWindow(null, null)
-            DsHomeSecondScreen.markPresentationActive(false)
             runCatching { presentation.dismiss() }
+            DsHomeSecondScreen.detachPresentation(presentation)
         }
     }
 }

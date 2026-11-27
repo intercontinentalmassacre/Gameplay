@@ -35,6 +35,23 @@ class LibrarySortUtilsTest {
     }
 
     @Test
+    fun recentlyPlayedComparator_canOrderStrictlyByRecencyAcrossInstallStates() {
+        val olderInstalled = Entry(name = "Installed", isInstalled = true, lastPlayed = 1000L)
+        val newerUninstalled = Entry(name = "Uninstalled", isInstalled = false, lastPlayed = 5000L)
+        val comparator = LibrarySortUtils.recentlyPlayedComparator(
+            name = Entry::name,
+            isInstalled = Entry::isInstalled,
+            lastPlayed = Entry::lastPlayed,
+            installedFirst = false,
+        )
+
+        assertEquals(
+            listOf(newerUninstalled, olderInstalled),
+            listOf(olderInstalled, newerUninstalled).sortedWith(comparator),
+        )
+    }
+
+    @Test
     fun recentlyPlayedComparator_usesNameFallbackWhenLastPlayedMatches() {
         val entries = listOf(
             Entry(name = "Beta", isInstalled = false, lastPlayed = 0L),

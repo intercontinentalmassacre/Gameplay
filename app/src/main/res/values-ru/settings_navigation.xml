@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_destination_play">Запуск и управление</string>
+    <string name="settings_destination_collection">Управление играми</string>
+    <string name="settings_destination_app">Настройки приложения</string>
+    <string name="settings_previous_category">Предыдущий раздел</string>
+    <string name="settings_next_category">Следующий раздел</string>
+</resources>

@@ -4,6 +4,7 @@ import app.gamenative.utils.ContainerUtils
 import com.winlator.core.KeyValueSet
 
 import android.content.Context
+import android.content.SharedPreferences
 import androidx.compose.runtime.mutableStateOf
 import app.gamenative.display.GamescopeSettings
 import androidx.datastore.core.DataStore
@@ -20,6 +21,9 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import app.gamenative.data.GameSource
+import app.gamenative.data.LibraryFavorites
+import app.gamenative.data.readLibraryFavorites
+import app.gamenative.data.writeLibraryFavorites
 import app.gamenative.enums.AppTheme
 import app.gamenative.ui.enums.AppFilter
 import app.gamenative.ui.enums.HomeDestination
@@ -39,6 +43,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -72,12 +78,35 @@ object PrefManager {
     @Volatile private var preferences = emptyPreferences()
     private val writeMutex = Mutex()
 
+    private lateinit var favoritePreferences: SharedPreferences
+    private val _libraryFavorites = MutableStateFlow(LibraryFavorites())
+    internal val libraryFavorites = _libraryFavorites.asStateFlow()
+
+    @Synchronized
+    fun toggleFavorite(gameId: String) {
+        if (gameId.isBlank()) return
+        saveLibraryFavorites(_libraryFavorites.value.toggleFavorite(gameId))
+    }
+
+    @Synchronized
+    fun togglePlayNext(gameId: String) {
+        saveLibraryFavorites(_libraryFavorites.value.togglePlayNext(gameId))
+    }
+
+    private fun saveLibraryFavorites(updated: LibraryFavorites) {
+        if (updated == _libraryFavorites.value) return
+        favoritePreferences.writeLibraryFavorites(updated)
+        _libraryFavorites.value = updated
+    }
+
     @Synchronized
     fun init(context: Context) {
         val store = context.datastore
         if (::dataStore.isInitialized && dataStore === store) return
         preferences = runBlocking { store.data.first() }
         dataStore = store
+        favoritePreferences = context.getSharedPreferences("library_favorites", Context.MODE_PRIVATE)
+        _libraryFavorites.value = favoritePreferences.readLibraryFavorites()
 
         // Note: Should remove after a few release versions. we've moved to encrypted values.
         val oldPassword = stringPreferencesKey("password")
@@ -466,6 +495,11 @@ object PrefManager {
         }
 
     private val QUICK_MENU_LAST_TAB = intPreferencesKey("quick_menu_last_tab")
+    private val GAMEPAD_QUICK_MENU_BUTTON = intPreferencesKey("gamepad_quick_menu_button")
+    var gamepadQuickMenuButton: Int
+        get() = getPref(GAMEPAD_QUICK_MENU_BUTTON, android.view.KeyEvent.KEYCODE_UNKNOWN)
+        set(value) = setPref(GAMEPAD_QUICK_MENU_BUTTON, value)
+
     var quickMenuLastTab: Int
         get() = getPref(QUICK_MENU_LAST_TAB, 0)
         set(value) {
@@ -1341,6 +1375,32 @@ object PrefManager {
         }
 
     // Game counts for skeleton loaders
+    internal suspend fun saveLibraryCounts(
+        custom: Int, steam: Int, gog: Int, gogInstalled: Int,
+        epic: Int, epicInstalled: Int, amazonInstalled: Int,
+    ) {
+        writeMutex.withLock {
+            if (customGamesCount == custom && steamGamesCount == steam &&
+                gogGamesCount == gog && gogInstalledGamesCount == gogInstalled &&
+                epicGamesCount == epic && epicInstalledGamesCount == epicInstalled &&
+                amazonInstalledGamesCount == amazonInstalled
+            ) return
+            try {
+                preferences = dataStore.edit {
+                    it[CUSTOM_GAMES_COUNT] = custom
+                    it[STEAM_GAMES_COUNT] = steam
+                    it[GOG_GAMES_COUNT] = gog
+                    it[GOG_INSTALLED_GAMES_COUNT] = gogInstalled
+                    it[EPIC_GAMES_COUNT] = epic
+                    it[EPIC_INSTALLED_GAMES_COUNT] = epicInstalled
+                    it[AMAZON_INSTALLED_GAMES_COUNT] = amazonInstalled
+                }
+            } catch (error: java.io.IOException) {
+                Timber.w(error, "Could not save library counts")
+            }
+        }
+    }
+
     private val CUSTOM_GAMES_COUNT = intPreferencesKey("custom_games_count")
     var customGamesCount: Int
         get() = getPref(CUSTOM_GAMES_COUNT, 0)
@@ -1420,14 +1480,9 @@ object PrefManager {
             setPref(REC_DISCLOSURE_SHOWN, value)
         }
 
-    // Show dialog when adding custom game folder
     private val SHOW_ADD_CUSTOM_GAME_DIALOG = booleanPreferencesKey("show_add_custom_game_dialog")
-    var showAddCustomGameDialog: Boolean
+    val showAddCustomGameDialog: Boolean
         get() = getPref(SHOW_ADD_CUSTOM_GAME_DIALOG, true)
-        set(value) {
-            setPref(SHOW_ADD_CUSTOM_GAME_DIALOG, value)
-        }
-
 
     // Import the custom game as a Steam game
     private val IMPORT_CUSTOM_GAME_AS_STEAM_GAME = booleanPreferencesKey("import_custom_game_as_steam_game")

@@ -244,7 +244,7 @@ class ItchStoreActivity : ComponentActivity() {
             (ownedTab || query.isNotEmpty()) && !signedIn -> stringResource(if (ownedTab) R.string.itch_settings_login_title else R.string.itch_store_search_login)
             !ownedTab && games == null -> stringResource(R.string.main_loading)
             entry == null -> stringResource(if (ownedTab && query.isEmpty()) R.string.itch_owned_empty else R.string.itch_store_search_empty)
-            else -> subtitle
+            else -> ""
         }
         StoreCompanion(stageTitle, stageNote, entry?.image.orEmpty())
         DisposableEffect(searching, category) {
@@ -381,9 +381,12 @@ class ItchStoreActivity : ComponentActivity() {
                             horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             Column(Modifier.weight(1f)) {
                                 Text(entry.title, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                                Text(local?.lastError?.takeIf { percent == null } ?: subtitle,
-                                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                val detail = local?.lastError?.takeIf { percent == null } ?: subtitle
+                                if (detail.isNotBlank()) {
+                                    Text(detail,
+                                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                }
                             }
                             Button(modifier = Modifier.focusRequester(installFocus), enabled = installEnabled, onClick = {
                                 if (!ItchAuthUi.hasAccount(this@ItchStoreActivity)) {
@@ -432,7 +435,9 @@ class ItchStoreActivity : ComponentActivity() {
                                 .background(PluviaTheme.colors.surfaceElevated))
                     } else Spacer(Modifier.weight(1f))
                     Text(title, style = MaterialTheme.typography.headlineMedium, maxLines = 3, overflow = TextOverflow.Ellipsis)
-                    Text(note, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (note.isNotBlank()) {
+                        Text(note, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
             }
         }

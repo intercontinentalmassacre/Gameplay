@@ -40,7 +40,6 @@ import com.winlator.core.KeyValueSet
 internal data class CompatPreset(
     val id: String,
     @StringRes val nameRes: Int,
-    @StringRes val descRes: Int,
     @StringRes val changesRes: Int,
     val apply: (ContainerData) -> ContainerData,
 )
@@ -61,7 +60,6 @@ internal val compatPresets = listOf(
     CompatPreset(
         id = "PERFORMANCE",
         nameRes = R.string.compat_preset_performance_name,
-        descRes = R.string.compat_preset_performance_desc,
         changesRes = R.string.compat_preset_performance_changes,
         apply = { config ->
             val isBionic = config.containerVariant.equals(Container.BIONIC, ignoreCase = true)
@@ -90,7 +88,6 @@ internal val compatPresets = listOf(
     CompatPreset(
         id = "STABILITY",
         nameRes = R.string.compat_preset_stability_name,
-        descRes = R.string.compat_preset_stability_desc,
         changesRes = R.string.compat_preset_stability_changes,
         apply = { config ->
             val isBionic = config.containerVariant.equals(Container.BIONIC, ignoreCase = true)
@@ -118,7 +115,6 @@ internal val compatPresets = listOf(
     CompatPreset(
         id = "OLD_GAMES",
         nameRes = R.string.compat_preset_old_games_name,
-        descRes = R.string.compat_preset_old_games_desc,
         changesRes = R.string.compat_preset_old_games_changes,
         apply = { config ->
             config.copy(
@@ -132,7 +128,6 @@ internal val compatPresets = listOf(
     CompatPreset(
         id = "DX12",
         nameRes = R.string.compat_preset_dx12_name,
-        descRes = R.string.compat_preset_dx12_desc,
         changesRes = R.string.compat_preset_dx12_changes,
         apply = { config ->
             config.copy(
@@ -148,7 +143,6 @@ internal val compatPresets = listOf(
     CompatPreset(
         id = "LOW_MEMORY",
         nameRes = R.string.compat_preset_low_memory_name,
-        descRes = R.string.compat_preset_low_memory_desc,
         changesRes = R.string.compat_preset_low_memory_changes,
         apply = { config ->
             config.copy(
@@ -171,28 +165,6 @@ fun CompatPresetsTabContent(state: ContainerConfigState) {
     val selectedPreset = compatPresets.firstOrNull { it.id == selectedPresetId }
 
     Column {
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 10.dp),
-            shape = RoundedCornerShape(12.dp),
-            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.42f),
-        ) {
-            Column(modifier = Modifier.padding(14.dp)) {
-                Text(
-                    text = stringResource(R.string.compat_presets_choose_title),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Text(
-                    text = stringResource(R.string.compat_presets_subtitle),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 4.dp),
-                )
-            }
-        }
-
         compatPresets.forEachIndexed { index, preset ->
             val isSelected = selectedPresetId == preset.id
             SettingsMenuLink(
@@ -202,17 +174,6 @@ fun CompatPresetsTabContent(state: ContainerConfigState) {
                         text = stringResource(preset.nameRes),
                         fontWeight = FontWeight.SemiBold,
                     )
-                },
-                subtitle = {
-                    Column {
-                        Text(stringResource(preset.descRes))
-                        Text(
-                            text = stringResource(preset.changesRes),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(top = 4.dp),
-                        )
-                    }
                 },
                 action = if (isSelected || lastAppliedId == preset.id) {
                     {
@@ -245,12 +206,12 @@ fun CompatPresetsTabContent(state: ContainerConfigState) {
             ) {
                 Column(modifier = Modifier.padding(14.dp)) {
                     Text(
-                        text = stringResource(R.string.compat_presets_ready_title, stringResource(preset.nameRes)),
+                        text = stringResource(preset.nameRes),
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold,
                     )
                     Text(
-                        text = stringResource(R.string.compat_presets_apply_hint),
+                        text = stringResource(preset.changesRes),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 4.dp, bottom = 12.dp),

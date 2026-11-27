@@ -11,6 +11,15 @@ class SteamCollectionFilterTest {
     private val shooters = SteamCollection("sht", "Shooters", setOf(730))
     private val all = listOf(favorites, shooters)
 
+    @Test fun collectionBadgesCountOnlyVisibleMembersEvenWhenCollectionsOverlap() {
+        val collections = all + SteamCollection("mixed", "Mixed", setOf(440, 730, 999))
+        assertEquals(
+            mapOf("fav" to 1, "sht" to 1, "mixed" to 2),
+            SteamCollectionFilter.visibleCounts(collections, setOf(440, 730)),
+        )
+        assertTrue(SteamCollectionFilter.visibleCounts(collections, emptySet()).values.all { it == 0 })
+    }
+
     @Test fun notLoadedShowsAll() =
         assertTrue(SteamCollectionFilter.passes(999, setOf("fav"), collections = null))
 

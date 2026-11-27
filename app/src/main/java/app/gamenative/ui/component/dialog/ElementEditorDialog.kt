@@ -429,7 +429,6 @@ fun ElementEditorDialog(
                         SettingsTextField(
                             colors = settingsTileColors(),
                             title = { Text(stringResource(R.string.label_text)) },
-                            subtitle = { Text(stringResource(R.string.label_text_subtitle)) },
                             value = currentText,
                             onValueChange = {
                                 currentText = it
@@ -465,7 +464,6 @@ fun ElementEditorDialog(
                     SettingsListDropdown(
                         colors = settingsTileColors(),
                         title = { Text(stringResource(R.string.element_type)) },
-                        subtitle = { Text(stringResource(R.string.element_type_subtitle)) },
                         value = currentTypeIndex,
                         items = typeNames,
                         onItemSelected = { index ->
@@ -524,7 +522,6 @@ fun ElementEditorDialog(
                         SettingsListDropdown(
                             colors = settingsTileColors(),
                             title = { Text(stringResource(R.string.shape)) },
-                            subtitle = { Text(stringResource(R.string.shape_subtitle)) },
                             value = currentShapeIndexInList,
                             items = shapeNames,
                             onItemSelected = { index ->
@@ -669,7 +666,6 @@ fun ElementEditorDialog(
                         SettingsListDropdown(
                             colors = settingsTileColors(),
                             title = { Text(stringResource(R.string.range_orientation)) },
-                            subtitle = { Text(stringResource(R.string.range_orientation_subtitle)) },
                             value = currentOrientation,
                             items = orientationLabels,
                             onItemSelected = { index ->
@@ -763,7 +759,6 @@ fun ElementEditorDialog(
                         SettingsMenuLink(
                             colors = settingsTileColors(),
                             title = { Text(stringResource(R.string.look_sensitivity)) },
-                            subtitle = { Text(stringResource(R.string.look_sensitivity_subtitle)) },
                             onClick = {}
                         )
                         Row(
@@ -793,7 +788,6 @@ fun ElementEditorDialog(
                         SettingsMenuLink(
                             colors = settingsTileColors(),
                             title = { Text(stringResource(R.string.joystick_size)) },
-                            subtitle = { Text(stringResource(R.string.joystick_size_subtitle)) },
                             onClick = {}
                         )
                         Row(
@@ -933,7 +927,6 @@ fun ElementEditorDialog(
                     SettingsListDropdown(
                         colors = settingsTileColors(),
                         title = { Text(stringResource(R.string.control_stroke_width)) },
-                        subtitle = { Text(stringResource(R.string.control_stroke_width_subtitle)) },
                         value = strokeWidthIndex,
                         items = strokeWidthItems,
                         onItemSelected = { index ->

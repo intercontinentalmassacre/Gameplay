@@ -1,11 +1,22 @@
 package app.gamenative.drivers
 
+import app.gamenative.utils.ManifestEntry
+import kotlinx.coroutines.runBlocking
+import okhttp3.mockwebserver.MockResponse
+import okhttp3.mockwebserver.MockWebServer
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
+import java.net.InetAddress
 
 class DriverRepositoryCatalogTest {
+    @get:Rule
+    val temporaryFolder = TemporaryFolder()
+
     private val repository = DriverRepository(
         id = "test",
         name = "Test drivers",
@@ -14,6 +25,40 @@ class DriverRepositoryCatalogTest {
         category = DriverCategory.TURNIP_STABLE,
         targets = setOf(AdrenoTarget.GENERIC),
     )
+
+    @Test
+    fun `corrupt catalog download leaves existing package and removes partial file`() {
+        MockWebServer().use { server ->
+            server.enqueue(MockResponse().setBody("damaged"))
+            server.start(InetAddress.getByName("127.0.0.1"), 0)
+            val downloadUrl = "http://127.0.0.1:${server.port}/driver.zip"
+            val entry = ManifestEntry(
+                id = "driver",
+                name = "Test driver",
+                url = downloadUrl,
+                sizeBytes = 7,
+                sha256 = "a".repeat(64),
+            )
+            val driverPackage = RemoteDriverPackage(
+                id = entry.id,
+                displayName = entry.name,
+                fileName = "driver.zip",
+                downloadUrl = downloadUrl,
+                sizeBytes = 7,
+                repositoryName = repository.name,
+                catalogEntry = entry,
+            )
+            val destination = temporaryFolder.newFile(driverPackage.fileName).apply { writeText("existing") }
+
+            val failure = assertThrows(IllegalStateException::class.java) {
+                runBlocking { DriverRepositoryCatalog.downloadPackage(driverPackage, destination) { _, _ -> } }
+            }
+
+            assertEquals("artifact SHA-256 mismatch", failure.message)
+            assertEquals("existing", destination.readText())
+            assertEquals(listOf(destination), temporaryFolder.root.listFiles()?.toList())
+        }
+    }
 
     @Test
     fun `parser keeps unique zip assets from published releases`() {

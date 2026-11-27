@@ -1,5 +1,7 @@
 package app.gamenative.ui.screen.xserver
 
+import androidx.activity.compose.BackHandler
+
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
@@ -99,6 +101,7 @@ fun InGameAchievementsOverlay(
 
     val currentAchievements = state.achievements
     if (currentAchievements == null) {
+        BackHandler(onBack = state::close)
         Surface(
             modifier = Modifier
                 .fillMaxSize()

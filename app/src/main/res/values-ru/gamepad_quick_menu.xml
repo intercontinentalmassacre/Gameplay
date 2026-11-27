@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_gamepad_quick_menu_title">Кнопка быстрого меню</string>
+    <string name="settings_gamepad_quick_menu_description">Удерживайте выбранную кнопку геймпада, чтобы открыть быстрое меню в игре. Короткое нажатие передаётся игре.</string>
+</resources>

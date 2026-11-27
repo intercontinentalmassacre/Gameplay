@@ -32,6 +32,7 @@ public class WineRegistryEditor implements Closeable {
         public final int offset;
         public final int start;
         private Object tag;
+        private boolean matchesRawValue;
 
         public Location(int offset, int start, int end) {
             this.offset = offset;
@@ -255,7 +256,9 @@ public class WineRegistryEditor implements Closeable {
             else return;
         }
 
-        Location valueLocation = getValueLocation(keyLocation, name);
+        Location valueLocation = getValueLocation(keyLocation, name, value);
+        if (valueLocation != null && valueLocation.matchesRawValue) return;
+
         char[] buffer = new char[StreamUtils.BUFFER_SIZE];
         boolean success = false;
 
@@ -536,6 +539,10 @@ public class WineRegistryEditor implements Closeable {
     }
 
     private Location getValueLocation(Location keyLocation, String name) {
+        return getValueLocation(keyLocation, name, null);
+    }
+
+    private Location getValueLocation(Location keyLocation, String name, String rawValue) {
         if (keyLocation.start == keyLocation.end) return null;
         try (BufferedReader reader = new BufferedReader(new FileReader(cloneFile), StreamUtils.BUFFER_SIZE)) {
             reader.skip(keyLocation.start);
@@ -544,6 +551,7 @@ public class WineRegistryEditor implements Closeable {
             int start = -1;
             int end = -1;
             int offset = 0;
+            boolean matchesFirstLine = false;
 
             String line;
             while ((line = reader.readLine()) != null && totalLength < keyLocation.length()) {
@@ -551,6 +559,8 @@ public class WineRegistryEditor implements Closeable {
                     if (line.startsWith(name)) {
                         offset = totalLength - 1;
                         start = totalLength + name.length();
+                        matchesFirstLine = rawValue != null && line.length() == name.length() + rawValue.length() &&
+                                line.startsWith(rawValue, name.length());
                     }
                 }
                 else {
@@ -563,7 +573,10 @@ public class WineRegistryEditor implements Closeable {
             }
 
             if (end == -1) end = totalLength - 1;
-            return start != -1 ? new Location(keyLocation.start + offset, keyLocation.start + start, keyLocation.start + end) : null;
+            if (start == -1) return null;
+            Location location = new Location(keyLocation.start + offset, keyLocation.start + start, keyLocation.start + end);
+            location.matchesRawValue = matchesFirstLine && location.length() == rawValue.length();
+            return location;
         }
         catch (IOException e) {
             return null;

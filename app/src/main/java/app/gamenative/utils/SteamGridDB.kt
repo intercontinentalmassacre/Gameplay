@@ -574,16 +574,18 @@ object SteamGridDB {
      * Returns a file:// URI string or null.
      */
     fun findSteamGridDBImage(folder: File, imageType: String, excludePattern: String? = null): String? {
-        if (!folder.exists() || !folder.isDirectory) return null
-        return folder.listFiles()?.firstOrNull { file ->
-            file.isFile &&
-                file.name.startsWith("steamgriddb_$imageType", ignoreCase = true) &&
+        return findSteamGridDBImage(folder.listFiles().orEmpty(), imageType, excludePattern)
+    }
+
+    internal fun findSteamGridDBImage(files: Array<out File>, imageType: String, excludePattern: String? = null): String? {
+        return files.firstOrNull { file ->
+            file.name.startsWith("steamgriddb_$imageType", ignoreCase = true) &&
                 (excludePattern == null || !file.name.contains(excludePattern, ignoreCase = true)) &&
                 (
                     file.name.endsWith(".png", ignoreCase = true) ||
                         file.name.endsWith(".jpg", ignoreCase = true) ||
                         file.name.endsWith(".webp", ignoreCase = true)
-                    )
+                    ) && file.isFile
         }?.let { android.net.Uri.fromFile(it).toString() }
     }
 

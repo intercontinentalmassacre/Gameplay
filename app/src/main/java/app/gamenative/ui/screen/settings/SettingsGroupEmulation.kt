@@ -28,77 +28,76 @@ import app.gamenative.ui.component.settings.SettingsSwitch
 
 @Composable
 fun SettingsGroupEmulation() {
-    SettingsGroup(
-    ) {
-        var showConfigDialog by rememberSaveable { mutableStateOf(false) }
-        var showOrientationDialog by rememberSaveable { mutableStateOf(false) }
-        var showBox64PresetsDialog by rememberSaveable { mutableStateOf(false) }
+    var showConfigDialog by rememberSaveable { mutableStateOf(false) }
+    var showOrientationDialog by rememberSaveable { mutableStateOf(false) }
+    var showBox64PresetsDialog by rememberSaveable { mutableStateOf(false) }
 
-        OrientationDialog(
-            openDialog = showOrientationDialog,
-            onDismiss = { showOrientationDialog = false },
+    OrientationDialog(
+        openDialog = showOrientationDialog,
+        onDismiss = { showOrientationDialog = false },
+    )
+
+    ContainerConfigDialog(
+        visible = showConfigDialog,
+        title = stringResource(R.string.settings_emulation_default_config_dialog_title),
+        default = true,
+        initialConfig = ContainerUtils.getDefaultContainerData(),
+        onDismissRequest = { showConfigDialog = false },
+        onSave = {
+            showConfigDialog = false
+            ContainerUtils.setDefaultContainerData(it)
+        },
+    )
+
+    Box64PresetsDialog(
+        visible = showBox64PresetsDialog,
+        onDismissRequest = { showBox64PresetsDialog = false },
+    )
+    var showFexcorePresetsDialog by rememberSaveable { mutableStateOf(false) }
+    if (showFexcorePresetsDialog) {
+        FEXCorePresetsDialog(
+            visible = showFexcorePresetsDialog,
+            onDismissRequest = { showFexcorePresetsDialog = false },
         )
+    }
 
-        ContainerConfigDialog(
-            visible = showConfigDialog,
-            title = stringResource(R.string.settings_emulation_default_config_dialog_title),
-            default = true,
-            initialConfig = ContainerUtils.getDefaultContainerData(),
-            onDismissRequest = { showConfigDialog = false },
-            onSave = {
-                showConfigDialog = false
-                ContainerUtils.setDefaultContainerData(it)
+    var showGetDriver by rememberSaveable { mutableStateOf(false) }
+    if (showGetDriver) {
+        GetDriverDialog(
+            open = showGetDriver,
+            onDismiss = { showGetDriver = false },
+        )
+    }
+
+    var showManageDrivers by rememberSaveable { mutableStateOf(false) }
+    if (showManageDrivers) {
+        // Map the default container's graphicsDriver field to the adrenotools
+        // driver id it represents. Empty string = no active card shown.
+        val activeDriverId = remember {
+            ContainerUtils.getDefaultContainerData().graphicsDriver.takeIf { it.isNotEmpty() }
+        }
+        ManageDriversDialog(
+            open = showManageDrivers,
+            onDismiss = { showManageDrivers = false },
+            onAddDriver = {
+                showManageDrivers = false
+                showGetDriver = true
             },
+            activeDriverId = activeDriverId,
         )
+    }
 
-        Box64PresetsDialog(
-            visible = showBox64PresetsDialog,
-            onDismissRequest = { showBox64PresetsDialog = false },
-        )
-        var showFexcorePresetsDialog by rememberSaveable { mutableStateOf(false) }
-        if (showFexcorePresetsDialog) {
-            FEXCorePresetsDialog(
-                visible = showFexcorePresetsDialog,
-                onDismissRequest = { showFexcorePresetsDialog = false },
-            )
-        }
+    var showContentsManager by rememberSaveable { mutableStateOf(false) }
+    if (showContentsManager) {
+        ContentsManagerDialog(open = showContentsManager, onDismiss = { showContentsManager = false })
+    }
 
-        var showGetDriver by rememberSaveable { mutableStateOf(false) }
-        if (showGetDriver) {
-            GetDriverDialog(
-                open = showGetDriver,
-                onDismiss = { showGetDriver = false },
-            )
-        }
+    var showWineProtonManager by rememberSaveable { mutableStateOf(false) }
+    if (showWineProtonManager) {
+        WineProtonManagerDialog(open = showWineProtonManager, onDismiss = { showWineProtonManager = false })
+    }
 
-        var showManageDrivers by rememberSaveable { mutableStateOf(false) }
-        if (showManageDrivers) {
-            // Map the default container's graphicsDriver field to the adrenotools
-            // driver id it represents. Empty string = no active card shown.
-            val activeDriverId = remember {
-                ContainerUtils.getDefaultContainerData().graphicsDriver.takeIf { it.isNotEmpty() }
-            }
-            ManageDriversDialog(
-                open = showManageDrivers,
-                onDismiss = { showManageDrivers = false },
-                onAddDriver = {
-                    showManageDrivers = false
-                    showGetDriver = true
-                },
-                activeDriverId = activeDriverId,
-            )
-        }
-
-        var showContentsManager by rememberSaveable { mutableStateOf(false) }
-        if (showContentsManager) {
-            ContentsManagerDialog(open = showContentsManager, onDismiss = { showContentsManager = false })
-        }
-
-        var showWineProtonManager by rememberSaveable { mutableStateOf(false) }
-        if (showWineProtonManager) {
-            WineProtonManagerDialog(open = showWineProtonManager, onDismiss = { showWineProtonManager = false })
-        }
-
+    SettingsGroup(title = { Text(stringResource(R.string.settings_runtime_game_defaults_group)) }) {
         SettingsMenuLink(
             colors = settingsTileColors(),
             title = { Text(text = stringResource(R.string.settings_emulation_orientations_title)) },
@@ -123,27 +122,14 @@ fun SettingsGroupEmulation() {
                 PrefManager.autoApplyKnownConfig = it
             },
         )
-        var sharedContainerBase by rememberSaveable { mutableStateOf(PrefManager.sharedContainerBase) }
-        SettingsSwitch(
-            colors = settingsTileColorsAlt(),
-            state = sharedContainerBase,
-            title = { Text(text = stringResource(R.string.settings_emulation_shared_container_base_title)) },
-            subtitle = { Text(text = stringResource(R.string.settings_emulation_shared_container_base_subtitle)) },
-            onCheckedChange = {
-                sharedContainerBase = it
-                PrefManager.sharedContainerBase = it
-            },
-        )
-        var migrateExistingPrefixes by rememberSaveable { mutableStateOf(PrefManager.migrateExistingPrefixes) }
-        SettingsSwitch(
-            colors = settingsTileColorsAlt(),
-            state = migrateExistingPrefixes,
-            title = { Text(text = stringResource(R.string.settings_emulation_migrate_existing_prefixes_title)) },
-            subtitle = { Text(text = stringResource(R.string.settings_emulation_migrate_existing_prefixes_subtitle)) },
-            onCheckedChange = {
-                migrateExistingPrefixes = it
-                PrefManager.migrateExistingPrefixes = it
-            },
+    }
+
+    SettingsGroup(title = { Text(stringResource(R.string.settings_runtime_components_group)) }) {
+        SettingsMenuLink(
+            colors = settingsTileColors(),
+            title = { Text(text = stringResource(R.string.settings_emulation_wine_proton_manager_title)) },
+            subtitle = { Text(text = stringResource(R.string.settings_emulation_wine_proton_manager_subtitle)) },
+            onClick = { showWineProtonManager = true },
         )
         SettingsMenuLink(
             colors = settingsTileColors(),
@@ -175,11 +161,30 @@ fun SettingsGroupEmulation() {
             subtitle = { Text(text = stringResource(R.string.settings_emulation_contents_manager_subtitle)) },
             onClick = { showContentsManager = true },
         )
-        SettingsMenuLink(
-            colors = settingsTileColors(),
-            title = { Text(text = stringResource(R.string.settings_emulation_wine_proton_manager_title)) },
-            subtitle = { Text(text = stringResource(R.string.settings_emulation_wine_proton_manager_subtitle)) },
-            onClick = { showWineProtonManager = true },
+    }
+
+    SettingsGroup(title = { Text(stringResource(R.string.settings_runtime_container_storage_group)) }) {
+        var sharedContainerBase by rememberSaveable { mutableStateOf(PrefManager.sharedContainerBase) }
+        SettingsSwitch(
+            colors = settingsTileColorsAlt(),
+            state = sharedContainerBase,
+            title = { Text(text = stringResource(R.string.settings_emulation_shared_container_base_title)) },
+            subtitle = { Text(text = stringResource(R.string.settings_emulation_shared_container_base_subtitle)) },
+            onCheckedChange = {
+                sharedContainerBase = it
+                PrefManager.sharedContainerBase = it
+            },
+        )
+        var migrateExistingPrefixes by rememberSaveable { mutableStateOf(PrefManager.migrateExistingPrefixes) }
+        SettingsSwitch(
+            colors = settingsTileColorsAlt(),
+            state = migrateExistingPrefixes,
+            title = { Text(text = stringResource(R.string.settings_emulation_migrate_existing_prefixes_title)) },
+            subtitle = { Text(text = stringResource(R.string.settings_emulation_migrate_existing_prefixes_subtitle)) },
+            onCheckedChange = {
+                migrateExistingPrefixes = it
+                PrefManager.migrateExistingPrefixes = it
+            },
         )
     }
 }

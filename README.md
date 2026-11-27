@@ -24,6 +24,16 @@ The HTML5 integration includes patches from [GameNative](https://github.com/utka
 - **Tune each game independently.** Pick a Wine or Proton runtime, CPU translation and GPU driver, then set up DXVK, VKD3D-Proton or your preferred graphics path. Containers keep game settings separate and reuse downloaded runtime components.
 - **Pick up where you left off.** Use achievements and Steam Cloud for supported titles, track play sessions and check live FPS in the in-game HUD. Make the console yours with built-in themes or [importable themes](docs/themes).
 
+Library search accepts partial words in any order, so `automata nier` finds *NieR:Automata*. For Windows games, open the container's General settings to bookmark a working graphics, audio and performance configuration before experimenting. Restore it from the same page when using the same Wine runtime.
+
+Open **Recent** to find games played on this device, newest first. You can also add games from different stores to **Favorites** from their cards. Choose **Play next** on a favorite to keep it first in that list. Select its card and press **Play** whenever you’re ready.
+
+After a Windows or HTML5 game session ends, its card shows the last session length and total time recorded on this device. Existing library history keeps its last-played dates. Time tracking begins with sessions played on the updated app.
+
+In **Settings → Controls → Quick menu shortcut**, choose a controller button to hold during Windows or HTML5 games. A short press still goes to the game. The shortcut starts disabled. In an HTML5 game, you can also open the menu with Android Back to resume or exit.
+
+Windows startup shows the current stage. If the runtime takes more than 30 seconds to show a game window, you can dismiss the startup screen and inspect the running session.
+
 ## What's new in 0.4
 
 - **Choose X11 or Gamescope per game.** Gamescope brings adjustable output resolution, FSR, NIS and SGSR scaling, plus color filters and ReShade effects. HDR is in beta. Experimental Adreno presentation and frame pacing are opt-in. See the [Gamescope notes](docs/gamescope-experimental.md).
@@ -47,6 +57,12 @@ See the [changelog](CHANGELOG.md) for device results and the full list of change
 3. Install or launch the game from your library. Allow extra storage for game files and the shared runtime downloaded during setup.
 
 Games run on your device through Windows compatibility tools. Use your own game files and accounts. Compatibility varies by game, Android version, GPU and driver. Vulkan-capable hardware is recommended for modern DirectX titles. Anti-cheat, kernel drivers and some DRM can prevent games from running. The local importer also supports ISO9660 images containing a Windows installer or portable executable. Standalone DOS titles need a separate workflow.
+
+To copy a portable Windows game from your PC, choose **Add game → Receive over Wi-Fi** in Gameplay. Open the displayed address in your PC browser on the same local network, enter the six-digit code and select the game folder. Keep the receiver open until the transfer finishes. If Gameplay finds multiple executables, choose the one you normally run, then open the game from your library with **Play**.
+
+To send a newer build, open the received portable game's card and choose **Update over Wi-Fi**. Select the updated folder with the same name on your PC. Gameplay compares file contents, transfers new or changed files and keeps the existing game card and container. Files present only on the handheld stay in place. If both copies of a file have changed since the last transfer, Gameplay reports the conflict before applying the update.
+
+For a custom Windows game, open its save backups and enter the folder containing its saves, such as `Saves` inside the game directory or a subfolder of `C:/` in its Wine container. You can restore a snapshot on the handheld or export its files as a ZIP for your PC.
 
 See [per-game compatibility notes](docs/game-compatibility.md) for specific fixes and optional graphics settings.
 

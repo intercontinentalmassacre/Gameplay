@@ -9,6 +9,7 @@ import app.gamenative.utils.CdnRankingUtils
 import app.gamenative.utils.MarkerUtils
 import app.gamenative.data.EpicGame
 import app.gamenative.service.StreamingAssembly
+import app.gamenative.service.computeDigest
 import app.gamenative.service.epic.manifest.ChunkPart
 import app.gamenative.service.epic.manifest.EpicManifest
 import app.gamenative.service.epic.manifest.ManifestUtils
@@ -18,6 +19,7 @@ import app.gamenative.utils.Net
 import kotlinx.coroutines.CoroutineScope
 import java.io.ByteArrayInputStream
 import java.io.File
+import java.io.DataInputStream
 import java.io.InputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -570,7 +572,7 @@ class EpicDownloadManager @Inject constructor(
             // Skip if already downloaded and decompressed
             if (decompressedFile.exists() && decompressedFile.length() == chunk.windowSize.toLong()) {
                 // Quick verification - only verify if size matches
-                if (verifyChunkHashBytes(decompressedFile.readBytes(), chunk.shaHash)) {
+                if (verifyChunkHash(decompressedFile, chunk.shaHash)) {
                     Timber.tag("Epic").d("Chunk ${chunk.guidStr} already exists and verified, skipping")
                     downloadInfo.updateBytesDownloaded(chunk.fileSize)
                     return@withContext Result.success(decompressedFile)
@@ -648,12 +650,10 @@ class EpicDownloadManager @Inject constructor(
         var totalBytesWritten = 0L
         var lastProgressEmitAt = System.currentTimeMillis()
 
-        inputStream.buffered().use { input ->
+        DataInputStream(inputStream.buffered()).use { input ->
             // Read the entire header - determine size dynamically
             val headerStart = ByteArray(12)
-            if (input.read(headerStart) != 12) {
-                throw Exception("Failed to read chunk header start")
-            }
+            input.readFully(headerStart)
 
             val startBuffer = ByteBuffer.wrap(headerStart).order(ByteOrder.LITTLE_ENDIAN)
             val magic = startBuffer.int
@@ -673,9 +673,7 @@ class EpicDownloadManager @Inject constructor(
             // Read the remaining header bytes
             val remainingSize = headerSize - 12
             val remainingBytes = ByteArray(remainingSize)
-            if (input.read(remainingBytes) != remainingSize) {
-                throw Exception("Failed to read remaining header: expected $remainingSize bytes")
-            }
+            input.readFully(remainingBytes)
 
             // Parse the header fields from the remaining bytes sequentially
             // This matches the format in legendary/models/chunk.py
@@ -822,13 +820,11 @@ class EpicDownloadManager @Inject constructor(
     }
 
     /**
-     * Verify chunk SHA-1 hash from byte array
+     * Verify a cached chunk before reusing it.
      */
-    private fun verifyChunkHashBytes(data: ByteArray, expectedHash: ByteArray): Boolean {
+    private fun verifyChunkHash(file: File, expectedHash: ByteArray): Boolean {
         return try {
-            val digest = MessageDigest.getInstance("SHA-1")
-            digest.update(data)
-            val actualHash = digest.digest()
+            val actualHash = file.computeDigest("SHA-1")
             val matches = actualHash.contentEquals(expectedHash)
 
             if (!matches) {
