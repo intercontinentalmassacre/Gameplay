@@ -1,8 +1,8 @@
 package app.gamenative.ui.component.dialog
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ViewList
@@ -21,6 +21,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import app.gamenative.R
 import app.gamenative.ui.component.NoExtractOutlinedTextField
 import app.gamenative.ui.component.settings.SettingsCenteredLabel
@@ -37,23 +38,33 @@ import com.winlator.core.envvars.EnvVarSelectionType
 fun EnvironmentTabContent(state: ContainerConfigState) {
     val config = state.config.value
     val envVars = EnvVars(config.envVars)
-    SettingsGroup() {
-        if (config.envVars.isNotEmpty()) {
+    SettingsGroup {
+        SettingsMenuLink(
+            colors = settingsTileColors(),
+            icon = { Icon(Icons.Outlined.AddCircleOutline, contentDescription = null) },
+            title = { Text(stringResource(R.string.container_env_add_variable)) },
+            onClick = { state.showEnvVarCreateDialog.value = true },
+        )
+        if (!envVars.isEmpty()) {
             SettingsEnvVars(
                 colors = settingsTileColors(),
                 envVars = envVars,
                 onEnvVarsChange = {
-                    state.config.value = config.copy(envVars = it.toString())
+                    state.config.value = state.config.value.copy(envVars = it.toString())
                 },
                 knownEnvVars = EnvVarInfo.KNOWN_ENV_VARS,
-                envVarAction = {
+                envVarAction = { identifier ->
                     IconButton(
                         onClick = {
-                            envVars.remove(it)
-                            state.config.value = config.copy(envVars = envVars.toString())
+                            val draft = state.config.value
+                            val remaining = EnvVars(draft.envVars).apply { remove(identifier) }
+                            state.config.value = draft.copy(envVars = remaining.toString())
                         },
                         content = {
-                            Icon(Icons.Filled.Delete, contentDescription = "Delete variable")
+                            Icon(
+                                Icons.Filled.Delete,
+                                contentDescription = stringResource(R.string.container_env_delete_variable, identifier),
+                            )
                         },
                     )
                 },
@@ -64,45 +75,41 @@ fun EnvironmentTabContent(state: ContainerConfigState) {
                 title = { Text(text = stringResource(R.string.no_environment_variables)) },
             )
         }
-        SettingsMenuLink(
-            title = {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center,
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.AddCircleOutline,
-                        contentDescription = "Add environment variable",
-                    )
-                }
-            },
-            onClick = { state.showEnvVarCreateDialog.value = true },
-        )
     }
 
     if (state.showEnvVarCreateDialog.value) {
         var envVarName by rememberSaveable { mutableStateOf("") }
         var envVarValue by rememberSaveable { mutableStateOf("") }
-        val config = state.config.value
+        val variableName = envVarName.trim()
+        val nameError = when {
+            '=' in variableName || '\u0000' in variableName -> R.string.container_env_invalid_name
+            envVars.has(variableName) -> R.string.container_env_duplicate_name
+            else -> null
+        }
         AlertDialog(
             onDismissRequest = { state.showEnvVarCreateDialog.value = false },
             title = { Text(text = stringResource(R.string.new_environment_variable)) },
             text = {
                 var knownVarsMenuOpen by rememberSaveable { mutableStateOf(false) }
-                Column {
-                    Row {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Box {
                         NoExtractOutlinedTextField(
                             value = envVarName,
                             onValueChange = { envVarName = it },
+                            modifier = Modifier.fillMaxWidth(),
                             label = { Text(text = stringResource(R.string.name)) },
                             singleLine = true,
+                            isError = nameError != null,
+                            supportingText = if (nameError != null) {
+                                { Text(stringResource(nameError)) }
+                            } else null,
                             trailingIcon = {
                                 IconButton(
                                     onClick = { knownVarsMenuOpen = true },
                                     content = {
                                         Icon(
                                             imageVector = Icons.AutoMirrored.Outlined.ViewList,
-                                            contentDescription = "List known variable names",
+                                            contentDescription = stringResource(R.string.container_env_known_variables),
                                         )
                                     },
                                 )
@@ -112,9 +119,7 @@ fun EnvironmentTabContent(state: ContainerConfigState) {
                             expanded = knownVarsMenuOpen,
                             onDismissRequest = { knownVarsMenuOpen = false },
                         ) {
-                            val knownEnvVars = EnvVarInfo.KNOWN_ENV_VARS.values.filter {
-                                !config.envVars.contains("${it.identifier}=")
-                            }
+                            val knownEnvVars = EnvVarInfo.KNOWN_ENV_VARS.values.filterNot { envVars.has(it.identifier) }
                             if (knownEnvVars.isNotEmpty()) {
                                 for (knownVariable in knownEnvVars) {
                                     androidx.compose.material3.DropdownMenuItem(
@@ -133,9 +138,11 @@ fun EnvironmentTabContent(state: ContainerConfigState) {
                             }
                         }
                     }
-                    val selectedEnvVarInfo = EnvVarInfo.KNOWN_ENV_VARS[envVarName]
+                    val selectedEnvVarInfo = EnvVarInfo.KNOWN_ENV_VARS[variableName]
                     if (selectedEnvVarInfo?.selectionType == EnvVarSelectionType.MULTI_SELECT) {
-                        var multiSelectedIndices by remember { mutableStateOf(listOf<Int>()) }
+                        val multiSelectedIndices = envVarValue.split(',')
+                            .map { selectedEnvVarInfo.possibleValues.indexOf(it) }
+                            .filter { it >= 0 }
                         SettingsMultiListDropdown(
                             enabled = true,
                             values = multiSelectedIndices,
@@ -147,7 +154,6 @@ fun EnvironmentTabContent(state: ContainerConfigState) {
                                 } else {
                                     multiSelectedIndices + index
                                 }
-                                multiSelectedIndices = newIndices
                                 envVarValue = newIndices.joinToString(",") { selectedEnvVarInfo.possibleValues[it] }
                             },
                             title = { Text(text = stringResource(R.string.value)) },
@@ -159,6 +165,7 @@ fun EnvironmentTabContent(state: ContainerConfigState) {
                         NoExtractOutlinedTextField(
                             value = envVarValue,
                             onValueChange = { envVarValue = it },
+                            modifier = Modifier.fillMaxWidth(),
                             label = { Text(text = stringResource(R.string.value)) },
                             singleLine = true,
                             trailingIcon = if (hasSuggestions) {
@@ -166,7 +173,7 @@ fun EnvironmentTabContent(state: ContainerConfigState) {
                                     IconButton(onClick = { suggestionsExpanded = true }) {
                                         Icon(
                                             imageVector = Icons.AutoMirrored.Outlined.ViewList,
-                                            contentDescription = "Presets",
+                                            contentDescription = stringResource(R.string.container_env_value_presets),
                                         )
                                     }
                                     DropdownMenu(
@@ -212,14 +219,14 @@ fun EnvironmentTabContent(state: ContainerConfigState) {
             },
             confirmButton = {
                 TextButton(
-                    enabled = envVarName.isNotEmpty(),
+                    enabled = variableName.isNotEmpty() && nameError == null,
                     onClick = {
-                        val envVars = EnvVars(config.envVars)
-                        envVars.put(envVarName, envVarValue)
-                        state.config.value = config.copy(envVars = envVars.toString())
+                        val draft = state.config.value
+                        val updated = EnvVars(draft.envVars).apply { put(variableName, envVarValue) }
+                        state.config.value = draft.copy(envVars = updated.toString())
                         state.showEnvVarCreateDialog.value = false
                     },
-                    content = { Text(text = stringResource(R.string.ok)) },
+                    content = { Text(stringResource(R.string.add)) },
                 )
             },
         )

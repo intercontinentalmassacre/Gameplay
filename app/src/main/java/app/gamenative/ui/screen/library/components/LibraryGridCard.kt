@@ -3,7 +3,6 @@ package app.gamenative.ui.screen.library.components
 import android.content.Context
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -17,18 +16,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.ArrowUpward
-import androidx.compose.material.icons.rounded.Star
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Face4
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -43,7 +33,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.TransformOrigin
@@ -51,21 +40,14 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import app.gamenative.R
-import app.gamenative.data.GameCompatibilityStatus
 import app.gamenative.data.GameSource
 import app.gamenative.data.LibraryItem
-import app.gamenative.data.gog.GogRecommendationsRepository
-import app.gamenative.ui.component.CompatibilityBadge
-import app.gamenative.ui.component.GameStatsRow
 import app.gamenative.ui.component.focusRing
-import app.gamenative.ui.data.GameCardStats
 import app.gamenative.ui.data.InstallProgress
 import app.gamenative.ui.enums.PaneType
 import app.gamenative.ui.theme.PluviaTheme
@@ -94,21 +76,16 @@ internal fun GridViewCard(
     scale: Float,
     paneType: PaneType,
     imageRefreshCounter: Long,
-    hideText: Boolean,
+    showMissingArtwork: Boolean,
     imageAlpha: Float,
     onImageLoadFailed: () -> Unit,
-    compatibilityStatus: GameCompatibilityStatus?,
-    gameStats: GameCardStats?,
     showFocusGlow: Boolean,
     context: Context,
-    animateStats: Boolean = true,
     installProgress: InstallProgress? = null,
 ) {
     val aspectRatio = if (paneType == PaneType.GRID_CAPSULE || paneType == PaneType.INSTALLED_COMPACT) 2f / 3f else 460f / 215f
     val isCapsule = (paneType == PaneType.GRID_CAPSULE || paneType == PaneType.INSTALLED_COMPACT)
-    val topOverlayPadding = if (isCapsule) 8.dp else 4.dp
     val cardContentBottomPadding = if (isCapsule) 12.dp else 8.dp
-    val topIconPadding = if (isCapsule) 10.dp else 8.dp
     val bottomGradientHeight = if (isCapsule) 80.dp else 56.dp
     val cardShape = RoundedCornerShape(PluviaTheme.tokens.cornerMd)
     val interactionSource = remember { MutableInteractionSource() }
@@ -144,13 +121,6 @@ internal fun GridViewCard(
             colors = CardDefaults.cardColors(
                 containerColor = Color.Transparent,
             ),
-            border = when {
-                appInfo.isRecommended -> BorderStroke(
-                    1.dp,
-                    MaterialTheme.colorScheme.primary.copy(alpha = 0.4f),
-                )
-                else -> null
-            },
         ) {
             Box(modifier = Modifier.fillMaxSize()) {
                 // Game image (primary + optional fallback for Steam header/hero)
@@ -216,8 +186,8 @@ internal fun GridViewCard(
                     },
                 )
 
-                // Fallback text when image fails to load (drawn before overlays so badges/icons stay visible)
-                if (!hideText) {
+                // Show the game name in place of missing art.
+                if (showMissingArtwork) {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
@@ -251,7 +221,7 @@ internal fun GridViewCard(
                         ),
                 )
 
-                // Title + status icons, with per-device stats directly under the title
+                // Keep the game name and live progress legible over the cover.
                 Column(
                     modifier = Modifier
                         .align(Alignment.BottomStart)
@@ -259,19 +229,16 @@ internal fun GridViewCard(
                         .padding(horizontal = 10.dp, vertical = cardContentBottomPadding),
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (!showMissingArtwork) {
                         Text(
                             text = appInfo.name,
                             style = MaterialTheme.typography.labelMedium.copy(
                                 fontWeight = FontWeight.SemiBold,
                             ),
                             color = Color.White,
-                            maxLines = if ((paneType == PaneType.GRID_CAPSULE || paneType == PaneType.INSTALLED_COMPACT)) 2 else 1,
+                            maxLines = if (isCapsule) 2 else 1,
                             overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f),
                         )
-
-                        GridStatusIcons(appInfo = appInfo)
                     }
 
                     if (appInfo.isRecommended && appInfo.recStoreCard && appInfo.recPrice != null) {
@@ -294,82 +261,9 @@ internal fun GridViewCard(
                         }
                     }
 
-                    if (!appInfo.isFeatured) {
-                        GameStatsRow(
-                            stats = gameStats,
-                            tint = Color.White.copy(alpha = 0.55f),
-                            animate = animateStats,
-                        )
-                    }
-
                     // Live install progress: thin determinate/indeterminate bar + stage label
                     installProgress?.let { progress ->
                         InstallProgressOverlay(progress = progress)
-                    }
-                }
-
-                // Top-left: Featured badge, GOG rating (store rec), or Recommended/compat badge
-                if (appInfo.isFeatured) {
-                    FeaturedBadge(
-                        modifier = Modifier
-                            .align(Alignment.TopStart)
-                            .padding(top = topOverlayPadding, start = topOverlayPadding),
-                    )
-                } else if (appInfo.isRecommended && appInfo.recStoreCard) {
-                    val productId = appInfo.recommendedGameId.toLongOrNull()
-                    val rating by produceState(initialValue = appInfo.recRating, productId) {
-                        if (value == null && productId != null) {
-                            value = GogRecommendationsRepository.getRating(productId)
-                        }
-                    }
-                    rating?.let {
-                        RecRatingPill(
-                            rating = it,
-                            modifier = Modifier
-                                .align(Alignment.TopStart)
-                                .padding(top = topOverlayPadding, start = topOverlayPadding),
-                        )
-                    }
-                } else {
-                    val badgeStatus = if (appInfo.isRecommended) {
-                        GameCompatibilityStatus.RECOMMENDED
-                    } else {
-                        compatibilityStatus
-                    }
-                    badgeStatus?.let { status ->
-                        CompatibilityBadge(
-                            status = status,
-                            showLabel = true,
-                            modifier = Modifier
-                                .align(Alignment.TopStart)
-                                .padding(top = topOverlayPadding, start = topOverlayPadding),
-                        )
-                    }
-                }
-
-                // Top-right: seed-game badge (store rec), source icon for normal cards
-                if (appInfo.isRecommended && appInfo.recStoreCard) {
-                    if (!appInfo.recSeedIconUrl.isNullOrBlank() || appInfo.recSeedCount >= 2) {
-                        RecSimilarBadge(
-                            iconUrl = appInfo.recSeedIconUrl,
-                            extraCount = (appInfo.recSeedCount - 1).coerceAtLeast(0),
-                            modifier = Modifier
-                                .align(Alignment.TopEnd)
-                                .padding(top = topOverlayPadding, end = topOverlayPadding),
-                        )
-                    }
-                } else if (!appInfo.isRecommended) {
-                    Row(
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(top = topIconPadding, end = topIconPadding),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        OtherSourceIcons(appInfo.otherSources)
-                        GameSourceIcon(
-                            gameSource = appInfo.gameSource,
-                            iconSize = if (isCapsule) 14 else 12,
-                        )
                     }
                 }
             }
@@ -409,141 +303,6 @@ private fun CapsuleFallbackBackdrop(
                     ),
                 ),
         )
-    }
-}
-
-@Composable
-private fun FeaturedBadge(modifier: Modifier = Modifier) {
-    Row(
-        modifier = modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(PluviaTheme.colors.accentWarning)
-            .padding(horizontal = 8.dp, vertical = 3.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            imageVector = Icons.Rounded.Star,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.background,
-            modifier = Modifier.size(12.dp),
-        )
-        Text(
-            text = stringResource(R.string.featured_badge),
-            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-            color = MaterialTheme.colorScheme.background,
-            modifier = Modifier.padding(start = 3.dp),
-        )
-    }
-}
-
-@Composable
-private fun RecRatingPill(rating: Int, modifier: Modifier = Modifier) {
-    val color = when {
-        rating >= 70 -> PluviaTheme.colors.accentSuccess
-        rating >= 40 -> PluviaTheme.colors.accentWarning
-        else -> PluviaTheme.colors.accentDanger
-    }
-    Row(
-        modifier = modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(Color.Black.copy(alpha = 0.55f))
-            .padding(horizontal = 6.dp, vertical = 3.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            imageVector = Icons.Rounded.Star,
-            contentDescription = null,
-            tint = color,
-            modifier = Modifier.size(12.dp),
-        )
-        Text(
-            text = "$rating%",
-            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-            color = Color.White,
-            modifier = Modifier.padding(start = 3.dp),
-        )
-    }
-}
-
-@Composable
-private fun RecSimilarBadge(iconUrl: String?, extraCount: Int, modifier: Modifier = Modifier) {
-    Row(
-        modifier = modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(Color.Black.copy(alpha = 0.55f))
-            .padding(horizontal = 4.dp, vertical = 3.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (!iconUrl.isNullOrBlank()) {
-            CoilImage(
-                imageModel = { iconUrl },
-                imageOptions = ImageOptions(contentScale = ContentScale.Crop),
-                modifier = Modifier
-                    .size(20.dp)
-                    .clip(RoundedCornerShape(4.dp)),
-            )
-        } else {
-            Icon(
-                imageVector = Icons.Rounded.ArrowUpward,
-                contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.size(12.dp),
-            )
-        }
-        if (extraCount > 0) {
-            Text(
-                text = "+$extraCount",
-                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                color = Color.White,
-                modifier = Modifier.padding(start = 3.dp, end = 2.dp),
-            )
-        }
-    }
-}
-
-/**
- * Status icons for grid view (installed, family share).
- */
-@Composable
-private fun GridStatusIcons(appInfo: LibraryItem) {
-    val isInstalled = appInfo.isInstalled
-
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (isInstalled) {
-            Box(
-                modifier = Modifier
-                    .size(20.dp)
-                    .clip(CircleShape)
-                    .background(Color.Black.copy(alpha = 0.5f)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    Icons.Filled.Check,
-                    contentDescription = stringResource(R.string.library_installed),
-                    tint = PluviaTheme.colors.statusInstalled,
-                    modifier = Modifier.size(12.dp),
-                )
-            }
-        }
-        if (appInfo.isShared) {
-            Box(
-                modifier = Modifier
-                    .size(20.dp)
-                    .clip(CircleShape)
-                    .background(Color.Black.copy(alpha = 0.5f)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    Icons.Filled.Face4,
-                    contentDescription = stringResource(R.string.library_family_shared),
-                    tint = MaterialTheme.colorScheme.tertiary,
-                    modifier = Modifier.size(12.dp),
-                )
-            }
-        }
     }
 }
 
@@ -601,12 +360,18 @@ internal fun getGridImageUrl(
         null
     }
 
-    // 0. Persistent on-device cover cache (works offline, no network).
     val cachedUri = CoverCache.fileUri(appInfo.appId, when (paneType) {
         PaneType.GRID_CAPSULE, PaneType.INSTALLED_COMPACT -> CoverCache.Type.GRID_CAPSULE
         PaneType.GRID_HERO -> CoverCache.Type.GRID_HERO
         else -> CoverCache.Type.HEADER
     })
+    if (cachedUri != null) {
+        return if (customMediaUri == null) {
+            GridImageUrls(primary = cachedUri)
+        } else {
+            GridImageUrls(primary = customMediaUri.toString(), fallback = cachedUri)
+        }
+    }
 
     val baseUrls = when (appInfo.gameSource) {
         GameSource.CUSTOM_GAME -> {
@@ -675,9 +440,7 @@ internal fun getGridImageUrl(
         else -> GridImageUrls(primary = appInfo.iconHash)
     }
 
-    return if (cachedUri != null) {
-        GridImageUrls(primary = cachedUri)
-    } else if (customMediaUri != null) {
+    return if (customMediaUri != null) {
         GridImageUrls(primary = customMediaUri.toString(), fallback = baseUrls.primary)
     } else {
         baseUrls

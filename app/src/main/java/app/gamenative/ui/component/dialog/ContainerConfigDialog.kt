@@ -3,6 +3,7 @@ package app.gamenative.ui.component.dialog
 import android.widget.Spinner
 import android.widget.ArrayAdapter
 import android.content.res.Configuration
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -10,31 +11,18 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.calculateEndPadding
-import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.ScrollState
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ViewList
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.outlined.AddCircleOutline
-import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.DropdownMenu
 import app.gamenative.ui.component.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -43,13 +31,8 @@ import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.TopAppBarDefaults
 import app.gamenative.ui.component.NoExtractOutlinedTextField
 import app.gamenative.ui.component.ConsoleDialogButton
-import app.gamenative.ui.component.ConsoleIconButton
-import app.gamenative.ui.component.SettingsSearchToggle
-import androidx.activity.compose.BackHandler
-import androidx.compose.material3.Scaffold
 import app.gamenative.ui.component.Slider
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
@@ -69,21 +52,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.input.key.type
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -94,6 +74,8 @@ import app.gamenative.PluviaApp
 import app.gamenative.R
 import app.gamenative.externaldisplay.DsHomeSecondScreen
 import app.gamenative.ui.util.SnackbarManager
+import app.gamenative.ui.util.WorkingContainerConfig
+import app.gamenative.ui.util.withWorkingSettings
 import app.gamenative.ui.component.dialog.state.MessageDialogState
 import app.gamenative.ui.component.settings.SettingsCPUList
 import app.gamenative.ui.component.settings.SettingsCenteredLabel
@@ -101,10 +83,6 @@ import app.gamenative.ui.component.settings.SettingsListDropdown
 import app.gamenative.ui.components.rememberCustomGameFolderPicker
 import app.gamenative.ui.components.requestPermissionsForPath
 import app.gamenative.ui.theme.PluviaTheme
-import app.gamenative.ui.gcds.GcdsRail
-import app.gamenative.ui.gcds.GcdsStrip
-import app.gamenative.ui.component.GamepadHint
-import app.gamenative.ui.component.GamepadButton
 import app.gamenative.ui.theme.settingsTileColors
 import app.gamenative.ui.theme.settingsTileColorsAlt
 import app.gamenative.utils.CustomGameScanner
@@ -130,7 +108,6 @@ import com.winlator.container.Container
 import com.winlator.container.ContainerData
 import com.winlator.core.KeyValueSet
 import com.winlator.core.StringUtils
-import com.winlator.core.envvars.EnvVars
 import com.winlator.core.DefaultVersion
 import com.winlator.core.GPUHelper
 import com.winlator.core.WineInfo
@@ -202,11 +179,10 @@ internal fun calculateAspectRatio(width: Int, height: Int): String {
 }
 
 internal fun matchesContainerConfigTab(label: String, keywords: String, query: String): Boolean {
-    val normalizedQuery = query.trim().lowercase()
-    return normalizedQuery.isNotBlank() && (
-        label.lowercase().contains(normalizedQuery) ||
-            keywords.lowercase().contains(normalizedQuery)
-        )
+    val terms = query.trim().lowercase().replace('ё', 'е')
+    if (terms.isEmpty()) return false
+    val searchable = "$label $keywords".lowercase().replace('ё', 'е')
+    return terms.split(Regex("\\s+")).all(searchable::contains)
 }
 
 private data class ContainerConfigDialogStaticData(
@@ -362,49 +338,9 @@ fun ContainerConfigDialog(
     appId: String? = null,
     embedded: Boolean = false,
     onPrepareCodeCache: ((ContainerData) -> Unit)? = null,
+    enableWorkingConfig: Boolean = false,
 ) {
     if (visible) {
-        val hasExternalDisplay = rememberHasExternalDisplay()
-        val alreadyOnSecondScreen = LocalSecondScreenDialogWindowType.current != null
-        // Route from the main display to the lower display. When already inside
-        // the Presentation, keep the dialog in that window instead of publishing
-        // a second full-screen settings workspace.
-        if (!embedded && hasExternalDisplay && !alreadyOnSecondScreen) {
-            val secondScreenContent: @Composable () -> Unit = {
-                ContainerConfigDialog(
-                    visible = true,
-                    default = default,
-                    title = title,
-                    initialConfig = initialConfig,
-                    onDismissRequest = onDismissRequest,
-                    onSave = onSave,
-                    mediaHeroUrl = mediaHeroUrl,
-                    mediaLogoUrl = mediaLogoUrl,
-                    mediaCapsuleUrl = mediaCapsuleUrl,
-                    mediaHeaderUrl = mediaHeaderUrl,
-                    mediaIconUrl = mediaIconUrl,
-                    gameId = gameId,
-                    appId = appId,
-                    embedded = false,
-                    onPrepareCodeCache = onPrepareCodeCache,
-                )
-            }
-            SideEffect {
-                DsHomeSecondScreen.publish(
-                    DsHomeSecondScreen.Model(
-                        owner = DsHomeSecondScreen.Owner.DIALOG,
-                        mode = DsHomeSecondScreen.Mode.SETTINGS,
-                        onBack = onDismissRequest,
-                        settingsContent = secondScreenContent,
-                    ),
-                )
-            }
-            DisposableEffect(Unit) {
-                onDispose { DsHomeSecondScreen.clear(DsHomeSecondScreen.Owner.DIALOG) }
-            }
-            return
-        }
-
         val context = LocalContext.current
         val scope = rememberCoroutineScope()
         val installScope = remember {
@@ -594,7 +530,7 @@ fun ContainerConfigDialog(
         }
 
         suspend fun refreshInstalledLists() {
-            val availabilityUpdated = ManifestComponentHelper.loadComponentAvailability(context)
+            val availabilityUpdated = ManifestComponentHelper.loadComponentAvailability(context, componentAvailability?.manifest)
             componentAvailability = availabilityUpdated
 
             val installed = availabilityUpdated.installed
@@ -982,11 +918,10 @@ fun ContainerConfigDialog(
         var dxvkVersionIndex by dxvkVersionIndexRef
 
         // VKD3D version control (forced depending on driver)
-        fun vkd3dForcedVersion(): String {
-            val driverType = StringUtils.parseIdentifier(graphicsDrivers[graphicsDriverIndex])
+        fun vkd3dForcedVersion(draft: ContainerData): String {
             return ContainerConfigResolver.defaultVkd3dVersion(
-                containerVariant = config.containerVariant,
-                driverType = driverType,
+                containerVariant = draft.containerVariant,
+                driverType = draft.graphicsDriver,
                 availableIds = vkd3dOptions.ids,
                 muted = vkd3dOptions.muted,
             )
@@ -999,85 +934,27 @@ fun ContainerConfigDialog(
             mutableIntStateOf(driverIndex)
         }
         var graphicsDriverVersionIndex by graphicsDriverVersionIndexRef
-        fun currentDxvkContext(): ManifestComponentHelper.DxvkContext =
+        fun currentDxvkContext(draft: ContainerData): ManifestComponentHelper.DxvkContext =
             ManifestComponentHelper.buildDxvkContext(
-                containerVariant = config.containerVariant,
+                containerVariant = draft.containerVariant,
                 graphicsDrivers = graphicsDrivers,
-                graphicsDriverIndex = graphicsDriverIndex,
+                graphicsDriverIndex = graphicsDrivers.indexOfFirst {
+                    StringUtils.parseIdentifier(it) == draft.graphicsDriver
+                }.coerceAtLeast(0),
                 dxWrappers = dxWrappers,
-                dxWrapperIndex = dxWrapperIndex,
+                dxWrapperIndex = dxWrappers.indexOfFirst {
+                    StringUtils.parseIdentifier(it) == draft.dxwrapper
+                }.coerceAtLeast(0),
                 inspectionMode = inspectionMode,
-                isBionicVariant = isBionicVariant,
+                isBionicVariant = draft.containerVariant.equals(Container.BIONIC, ignoreCase = true),
                 dxvkVersionsBase = dxvkVersionsBase,
                 dxvkOptions = dxvkOptions,
             )
-        // Keep dxwrapperConfig in sync when VKD3D selected
-        LaunchedEffect(graphicsDriverIndex, dxWrapperIndex) {
-            val isVKD3D = StringUtils.parseIdentifier(dxWrappers[dxWrapperIndex]) == "vkd3d"
-            if (isVKD3D) {
-                val kvs = KeyValueSet(config.dxwrapperConfig)
-                if (kvs.get("vkd3dVersion").isEmpty()) {
-                    kvs.put("vkd3dVersion", vkd3dForcedVersion())
-                }
-                // Ensure a default VKD3D feature level is set
-                if (kvs.get("vkd3dFeatureLevel").isEmpty()) {
-                    kvs.put("vkd3dFeatureLevel", "12_1")
-                }
-                config = config.copy(dxwrapperConfig = kvs.toString())
-            }
-        }
-
-        LaunchedEffect(versionsLoaded, dxvkOptions, dxvkVersionsBase, graphicsDriverIndex, dxWrapperIndex, config.dxwrapperConfig) {
+        LaunchedEffect(versionsLoaded, dxvkOptions, isBionicVariant, config.graphicsDriver, config.dxwrapper, config.dxwrapperConfig) {
             if (!versionsLoaded) return@LaunchedEffect
-            val kvs = KeyValueSet(config.dxwrapperConfig)
-            val configuredVersion = kvs.get("version")
-            if (configuredVersion.isEmpty()) return@LaunchedEffect
-            val context = currentDxvkContext()
-            if (context.ids.isEmpty()) return@LaunchedEffect
-            val normalizedConfiguredVersion = StringUtils.parseIdentifier(configuredVersion)
-            val foundIndex = context.ids.indexOfFirst {
-                it == configuredVersion || StringUtils.parseIdentifier(it) == normalizedConfiguredVersion
-            }
-            val defaultIndex = context.ids.indexOfFirst {
-                it == DefaultVersion.DXVK || StringUtils.parseIdentifier(it) == StringUtils.parseIdentifier(DefaultVersion.DXVK)
-            }.coerceAtLeast(0)
-            val newIdx = if (foundIndex >= 0) foundIndex else defaultIndex
+            val configuredVersion = KeyValueSet(config.dxwrapperConfig).get("version")
+            val newIdx = dxvkSelectionIndex(currentDxvkContext(config).ids, configuredVersion)
             if (dxvkVersionIndex != newIdx) dxvkVersionIndex = newIdx
-        }
-        // When DXVK version defaults to an 'async' build, enable DXVK_ASYNC by default
-        LaunchedEffect(versionsLoaded, dxvkVersionIndex, graphicsDriverIndex, dxWrapperIndex) {
-            if (!versionsLoaded) return@LaunchedEffect
-            val context = currentDxvkContext()
-            if (context.ids.isEmpty()) return@LaunchedEffect
-            if (dxvkVersionIndex !in context.ids.indices) dxvkVersionIndex = 0
-
-            // Ensure index within range or default
-            val selectedVersion = context.ids.getOrNull(dxvkVersionIndex).orEmpty()
-            val version = if (selectedVersion.isEmpty()) {
-                if (context.isVortekLike) "async-1.10.3" else DefaultVersion.DXVK
-            } else selectedVersion
-            val envSet = EnvVars(config.envVars)
-            // Update dxwrapperConfig version regardless of wrapper type (allows DXVK config even when VKD3D is selected)
-            val kvs = KeyValueSet(config.dxwrapperConfig)
-            val currentVersion = kvs.get("version")
-            // Always allow DXVK version updates (removed wrapper type restriction)
-            // Check if we need to update - only if current version doesn't match selected version
-            val needsUpdate = currentVersion.isEmpty() ||
-                (currentVersion != version && StringUtils.parseIdentifier(currentVersion) != StringUtils.parseIdentifier(version))
-            if (needsUpdate) {
-                kvs.put("version", version)
-            }
-            if (version.contains("async", ignoreCase = true)) {
-                kvs.put("async", "1")
-            } else {
-                kvs.put("async", "0")
-            }
-            if (version.contains("gplasync", ignoreCase = true)) {
-                kvs.put("asyncCache", "1")
-            } else {
-                kvs.put("asyncCache", "0")
-            }
-            config = config.copy(envVars = envSet.toString(), dxwrapperConfig = kvs.toString())
         }
         val audioDriverIndexRef = rememberSaveable {
             val driverIndex = audioDrivers.indexOfFirst { StringUtils.parseIdentifier(it) == config.audioDriver }
@@ -1120,9 +997,7 @@ fun ContainerConfigDialog(
         }
         var languageIndex by languageIndexRef
 
-        var dismissDialogState by rememberSaveable(stateSaver = MessageDialogState.Saver) {
-            mutableStateOf(MessageDialogState(visible = false))
-        }
+
         val showEnvVarCreateDialogRef = rememberSaveable { mutableStateOf(false) }
         var showEnvVarCreateDialog by showEnvVarCreateDialogRef
         val showAddDriveDialogRef = rememberSaveable { mutableStateOf(false) }
@@ -1198,25 +1073,6 @@ fun ContainerConfigDialog(
             }
             config = config.copy(screenSize = screenSize)
         }
-
-        val onDismissCheck: () -> Unit = {
-            if (initialConfig != config) {
-                dismissDialogState = MessageDialogState(
-                    visible = true,
-                    title = context.getString(R.string.container_config_unsaved_changes_title),
-                    message = context.getString(R.string.container_config_unsaved_changes_message),
-                    confirmBtnText = context.getString(R.string.discard),
-                    dismissBtnText = context.getString(R.string.cancel),
-                )
-            } else {
-                onDismissRequest()
-            }
-        }
-
-        val resolutionRangeError = stringResource(
-            R.string.container_config_custom_resolution_error_range,
-            maxCustomResolutionDimension,
-        )
 
         val html5Available by androidx.compose.runtime.produceState(false, appId) {
             value = withContext(Dispatchers.IO) {
@@ -1365,295 +1221,302 @@ fun ContainerConfigDialog(
             getVersionsForDriver = { getVersionsForDriver() },
             getVersionsForBox64 = { getVersionsForBox64() },
             applyScreenSizeToConfig = applyScreenSizeToConfig,
-            vkd3dForcedVersion = { vkd3dForcedVersion() },
-            currentDxvkContext = { currentDxvkContext() },
+            vkd3dForcedVersion = ::vkd3dForcedVersion,
+            currentDxvkContext = ::currentDxvkContext,
         )
 
-        LoadingDialog(
-            visible = !embedded && showManifestDownloadDialog,
-            progress = manifestDownloadProgress,
-            message = manifestDownloadMessage,
+        ContainerConfigEditor(
+            state = state,
+            initialConfig = initialConfig,
+            default = default,
+            title = title,
+            onDismissRequest = onDismissRequest,
+            onSave = onSave,
+            mediaHeroUrl = mediaHeroUrl,
+            mediaLogoUrl = mediaLogoUrl,
+            mediaCapsuleUrl = mediaCapsuleUrl,
+            mediaHeaderUrl = mediaHeaderUrl,
+            mediaIconUrl = mediaIconUrl,
+            gameId = gameId,
+            appId = appId,
+            embedded = embedded,
+            onPrepareCodeCache = onPrepareCodeCache,
+            workingConfigAppId = appId.takeIf { enableWorkingConfig },
+            showManifestDownloadDialog = showManifestDownloadDialog,
+            manifestDownloadProgress = manifestDownloadProgress,
+            manifestDownloadMessage = manifestDownloadMessage,
         )
+    }
+}
 
-        MessageDialog(
-            visible = !embedded && dismissDialogState.visible,
-            title = dismissDialogState.title,
-            message = dismissDialogState.message,
-            confirmBtnText = dismissDialogState.confirmBtnText,
-            dismissBtnText = dismissDialogState.dismissBtnText,
-            onDismissRequest = { dismissDialogState = MessageDialogState(visible = false) },
-            onDismissClick = { dismissDialogState = MessageDialogState(visible = false) },
-            onConfirmClick = onDismissRequest,
-        )
+@Composable
+private fun ContainerConfigEditor(
+    state: ContainerConfigState,
+    initialConfig: ContainerData,
+    default: Boolean,
+    title: String,
+    onDismissRequest: () -> Unit,
+    onSave: (ContainerData) -> Unit,
+    mediaHeroUrl: String?,
+    mediaLogoUrl: String?,
+    mediaCapsuleUrl: String?,
+    mediaHeaderUrl: String?,
+    mediaIconUrl: String?,
+    gameId: Int?,
+    appId: String?,
+    embedded: Boolean,
+    onPrepareCodeCache: ((ContainerData) -> Unit)?,
+    workingConfigAppId: String?,
+    showManifestDownloadDialog: Boolean,
+    manifestDownloadProgress: Float,
+    manifestDownloadMessage: String,
+) {
+    val context = LocalContext.current
+    val config by state.config
+    val hasExternalDisplay = rememberHasExternalDisplay()
+    val alreadyOnSecondScreen = LocalSecondScreenDialogWindowType.current != null
+    val routeToSecondScreen = !embedded && hasExternalDisplay && !alreadyOnSecondScreen
+    val renderInline = embedded || alreadyOnSecondScreen || routeToSecondScreen
+    val configuration = LocalConfiguration.current
+    val splitPane = !renderInline &&
+        configuration.orientation == Configuration.ORIENTATION_LANDSCAPE &&
+        configuration.screenWidthDp / configuration.fontScale.coerceAtLeast(1f) >= 600
 
-        val useTabStrip = embedded || LocalSecondScreenDialogWindowType.current != null ||
-            LocalConfiguration.current.orientation != Configuration.ORIENTATION_LANDSCAPE
+    var dismissDialogState by rememberSaveable(stateSaver = MessageDialogState.Saver) {
+        mutableStateOf(MessageDialogState(visible = false))
+    }
 
-        val configurationContent: @Composable () -> Unit = {
-                var selectedTab by rememberSaveable { mutableIntStateOf(0) }
-                // Each tab owns its own scroll position; sharing one state left
-                // users mid-content after switching tabs.
-                val scrollState = remember(selectedTab) { ScrollState(0) }
-                var searchActive by rememberSaveable { mutableStateOf(false) }
-                 var searchQuery by rememberSaveable { mutableStateOf("") }
-                val closeSearch: () -> Unit = {
-                    searchActive = false
-                    searchQuery = ""
-                }
-                 // Lowest-priority back: close the dialog through the unsaved-changes
-                 // gate. Higher-priority BackHandlers (search, confirm overlay)
-                // are registered later and win when enabled.
-                 BackHandler(enabled = !searchActive && !dismissDialogState.visible) {
-                    onDismissCheck()
-                }
-                BackHandler(enabled = searchActive, onBack = closeSearch)
-                val tabs = listOf(
-                    stringResource(R.string.container_config_tab_general),
-                    stringResource(R.string.container_config_tab_presets),
-                    stringResource(R.string.container_config_tab_graphics),
-                    stringResource(R.string.container_config_tab_emulation),
-                    stringResource(R.string.container_config_tab_controller),
-                    stringResource(R.string.container_config_tab_wine),
-                    stringResource(R.string.container_config_tab_win_components),
-                    stringResource(R.string.container_config_tab_environment),
-                    stringResource(R.string.container_config_tab_drives),
-                    stringResource(R.string.container_config_tab_media),
-                    stringResource(R.string.container_config_tab_advanced),
-                )
-                val tabKeywords = listOf(
-                    "resolution display screen",
-                    "compatibility performance preset",
-                    "graphics driver vulkan opengl dxvk vkd3d",
-                    "box64 fex cpu emulator",
-                    "controller gamepad touch input",
-                    "wine proton runtime",
-                    "directx dll vcredist component",
-                    "environment variable env",
-                    "drive storage path",
-                    "artwork icon header hero media",
-                    "debug launch experimental",
-                )
-                val filteredTabIndices = tabs.indices.filter { index ->
-                    matchesContainerConfigTab(tabs[index], tabKeywords[index], searchQuery)
-                }
-                val visibleTabIndices = filteredTabIndices.ifEmpty { tabs.indices.toList() }
-                val firstVisibleTab = visibleTabIndices.firstOrNull()
-                LaunchedEffect(searchQuery, visibleTabIndices.size, firstVisibleTab) {
-                    if (firstVisibleTab != null && selectedTab !in visibleTabIndices) {
-                        selectedTab = firstVisibleTab
+    val onDismissCheck: () -> Unit = {
+        if (initialConfig != config) {
+            dismissDialogState = MessageDialogState(
+                visible = true,
+                title = context.getString(R.string.container_config_unsaved_changes_title),
+                message = context.getString(R.string.container_config_unsaved_changes_message),
+                confirmBtnText = context.getString(R.string.container_discard_changes),
+                dismissBtnText = context.getString(R.string.container_keep_editing),
+            )
+        } else {
+            onDismissRequest()
+        }
+    }
+
+    val resolutionRangeError = stringResource(
+        R.string.container_config_custom_resolution_error_range,
+        maxCustomResolutionDimension,
+    )
+
+    LoadingDialog(
+        visible = !renderInline && showManifestDownloadDialog,
+        progress = manifestDownloadProgress,
+        message = manifestDownloadMessage,
+    )
+
+    MessageDialog(
+        visible = !renderInline && dismissDialogState.visible,
+        title = dismissDialogState.title,
+        message = dismissDialogState.message,
+        confirmBtnText = dismissDialogState.confirmBtnText,
+        dismissBtnText = dismissDialogState.dismissBtnText,
+        onDismissRequest = { dismissDialogState = MessageDialogState(visible = false) },
+        onDismissClick = { dismissDialogState = MessageDialogState(visible = false) },
+        onConfirmClick = onDismissRequest,
+    )
+
+    var selectedPage by rememberSaveable { mutableStateOf<ContainerConfigPage?>(null) }
+    val currentPage = selectedPage ?: ContainerConfigPage.GENERAL.takeIf { splitPane }
+    var previousPage by rememberSaveable { mutableStateOf<ContainerConfigPage?>(null) }
+    var searchActive by rememberSaveable { mutableStateOf(false) }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
+
+    fun closeSearch() {
+        searchActive = false
+        searchQuery = ""
+    }
+
+    fun selectPage(page: ContainerConfigPage) {
+        previousPage = page
+        selectedPage = page
+        closeSearch()
+    }
+
+    fun cyclePage(step: Int) {
+        if (!searchActive && !dismissDialogState.visible && !showManifestDownloadDialog) {
+            selectPage(containerConfigPageAfter(currentPage, step))
+        }
+    }
+
+    fun navigateBack() {
+        when {
+            showManifestDownloadDialog -> Unit
+            dismissDialogState.visible -> dismissDialogState = MessageDialogState(visible = false)
+            searchActive -> closeSearch()
+            selectedPage != null && !splitPane -> selectedPage = null
+            else -> onDismissCheck()
+        }
+    }
+
+    val configurationContent: @Composable () -> Unit = {
+        ContainerConfigNavigation(
+            title = title,
+            isDirty = initialConfig != config,
+            selectedPage = currentPage,
+            previousPage = previousPage,
+            onSelectPage = ::selectPage,
+            onCyclePage = ::cyclePage,
+            searchActive = searchActive,
+            searchQuery = searchQuery,
+            onOpenSearch = { searchActive = true },
+            onSearchQuery = { searchQuery = it },
+            onCloseSearch = ::closeSearch,
+            onBack = ::navigateBack,
+            onSave = { onSave(config) },
+            controlsBlocked = dismissDialogState.visible || showManifestDownloadDialog,
+            embedded = renderInline,
+            splitPane = splitPane,
+        ) { page ->
+            when (page) {
+                ContainerConfigPage.GENERAL -> {
+                    if (workingConfigAppId != null && initialConfig.platform != Container.PLATFORM_ANDROID) {
+                        WorkingConfigControls(workingConfigAppId, initialConfig, initialConfig != config, onSave)
                     }
+                    GeneralTabContent(state, resolutionRangeError)
                 }
-
-                Scaffold(
-                     // Shoulder-button tab cycling lives on the whole dialog so it
-                     // fires no matter where focus sits (top bar, category nav, content).
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .onPreviewKeyEvent { event ->
-                            if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-                            val currentIndex = visibleTabIndices.indexOf(selectedTab).coerceAtLeast(0)
-                            when (event.key) {
-                                Key.ButtonR1, Key.ButtonR2 -> {
-                                    selectedTab = visibleTabIndices[(currentIndex + 1) % visibleTabIndices.size]
-                                    true
-                                }
-                                Key.ButtonL1, Key.ButtonL2 -> {
-                                    selectedTab = visibleTabIndices[(currentIndex - 1 + visibleTabIndices.size) % visibleTabIndices.size]
-                                    true
-                                }
-                                else -> false
-                            }
-                        },
-                    topBar = {
-                        CenterAlignedTopAppBar(
-                            colors = TopAppBarDefaults.topAppBarColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-                            ),
-                            title = {
-                                Text(
-                                    text = "$title${if (initialConfig != config) "*" else ""}",
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                            },
-                            navigationIcon = {
-                                ConsoleIconButton(
-                                    onClick = onDismissCheck,
-                                    icon = Icons.Default.Close,
-                                    contentDescription = stringResource(R.string.close),
-                                )
-                            },
-                            actions = {
-                                SettingsSearchToggle(
-                                    active = searchActive,
-                                    query = searchQuery,
-                                    onQueryChange = { searchQuery = it },
-                                    onOpen = { searchActive = true },
-                                    onClose = closeSearch,
-                                    fieldWidth = 220.dp,
-                                )
-                                ConsoleIconButton(
-                                    onClick = { onSave(config) },
-                                    icon = Icons.Default.Save,
-                                    contentDescription = stringResource(R.string.save),
-                                )
-                            },
-                        )
+                ContainerConfigPage.PRESETS -> CompatPresetsTabContent(state)
+                ContainerConfigPage.GRAPHICS -> GraphicsTabContent(state, default)
+                ContainerConfigPage.EMULATION -> EmulationTabContent(
+                    state,
+                    appId = appId,
+                    onPrepareCodeCache = onPrepareCodeCache?.let { callback ->
+                        { callback(state.config.value) }
                     },
-                ) { paddingValues ->
-                    // Let controller shoulder buttons cycle through the tabs: R1/R2
-                    // forward, L1/L2 back (both wrap). The handler lives on the content
-                    // container (not a focusable wrapper, which would break up/down
-                     // traversal), so it fires whenever focus is anywhere in the tabs or
-                     // content below. Category navigation stays visible in every layout.
-                    @Composable
-                    fun tabContent() {
-                        if (searchQuery.isNotBlank() && filteredTabIndices.isEmpty()) {
-                            Text(
-                                text = stringResource(R.string.settings_search_no_results),
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        } else {
-                            if (selectedTab == 0) GeneralTabContent(state, resolutionRangeError)
-                            if (selectedTab == 1) CompatPresetsTabContent(state)
-                            if (selectedTab == 2) GraphicsTabContent(state, default)
-                            if (selectedTab == 3) EmulationTabContent(
-                                state,
-                                appId = appId,
-                                onPrepareCodeCache = onPrepareCodeCache?.let { callback ->
-                                    { callback(state.config.value) }
-                                },
-                            )
-                            if (selectedTab == 4) ControllerTabContent(state, default)
-                            if (selectedTab == 5) WineTabContent(state)
-                            if (selectedTab == 6) WinComponentsTabContent(state)
-                            if (selectedTab == 7) EnvironmentTabContent(state)
-                            if (selectedTab == 8) DrivesTabContent(state)
-                            if (selectedTab == 9) {
-                                MediaTabContent(
-                                    gameId = gameId,
-                                    appId = appId,
-                                    mediaHeroUrl = mediaHeroUrl,
-                                    mediaLogoUrl = mediaLogoUrl,
-                                    mediaCapsuleUrl = mediaCapsuleUrl,
-                                    mediaHeaderUrl = mediaHeaderUrl,
-                                    mediaIconUrl = mediaIconUrl,
-                                )
-                            }
-                            if (selectedTab == 10) AdvancedTabContent(state)
-                        }
-                    }
-
-                    val contentModifier = Modifier
-                        .padding(
-                            top = paddingValues.calculateTopPadding(),
-                            bottom = 32.dp + paddingValues.calculateBottomPadding(),
-                            start = paddingValues.calculateStartPadding(LayoutDirection.Ltr),
-                            end = paddingValues.calculateEndPadding(LayoutDirection.Ltr),
-                        )
-                        .fillMaxSize()
-
-                    // Highest-priority back: the unsaved-changes confirm overlay
-                    // closes back to the editor (keep editing), never discards.
-                    BackHandler(enabled = dismissDialogState.visible) {
-                        dismissDialogState = MessageDialogState(visible = false)
-                    }
-
-                     if (useTabStrip) {
-                         // Dual-screen and portrait layouts keep category navigation
-                         // visible above content. No hidden drawer or burger action.
-                         Column(
-                             modifier = Modifier
-                                 .fillMaxSize()
-                                .padding(top = paddingValues.calculateTopPadding()),
-                        ) {
-                            GcdsStrip(
-                                items = visibleTabIndices,
-                                selectedItem = selectedTab,
-                                label = { tabs[it] },
-                                onSelected = { selectedTab = it },
-                                modifier = Modifier.fillMaxWidth(),
-                            )
-                            Column(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .padding(
-                                        bottom = 32.dp + paddingValues.calculateBottomPadding(),
-                                        start = paddingValues.calculateStartPadding(LayoutDirection.Ltr),
-                                        end = paddingValues.calculateEndPadding(LayoutDirection.Ltr),
-                                    ),
-                            ) {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .padding(horizontal = 22.dp)
-                                        .verticalScroll(scrollState),
-                                ) {
-                                    tabContent()
-                                 }
-                             }
-                         }
-                     } else {
-                         // Landscape single-screen layout keeps the rail visible
-                         // beside content. It is never hidden behind a menu.
-                         Row(modifier = contentModifier) {
-                             GcdsRail(
-                                 items = visibleTabIndices,
-                                 selectedItem = selectedTab,
-                                 label = { tabs[it] },
-                                 onSelected = { selectedTab = it },
-                                 footer = stringResource(R.string.container_config_console_controls_hint),
-                                 footerHints = listOf(
-                                     GamepadHint(GamepadButton.A, R.string.action_select),
-                                     GamepadHint(GamepadButton.B, R.string.back),
-                                 ),
-                                 requestInitialFocus = true,
-                                 compact = true,
-                                 modifier = Modifier.width(220.dp),
-                             )
-                             Column(
-                                 modifier = Modifier
-                                     .weight(1f)
-                                     .padding(horizontal = 22.dp)
-                                     .verticalScroll(scrollState),
-                             ) {
-                                 tabContent()
-                             }
-                         }
-                     }
-                }
+                )
+                ContainerConfigPage.CONTROLLER -> ControllerTabContent(state, default)
+                ContainerConfigPage.WINE -> WineTabContent(state)
+                ContainerConfigPage.WIN_COMPONENTS -> WinComponentsTabContent(state)
+                ContainerConfigPage.ENVIRONMENT -> EnvironmentTabContent(state)
+                ContainerConfigPage.DRIVES -> DrivesTabContent(state)
+                ContainerConfigPage.MEDIA -> MediaTabContent(
+                    gameId = gameId,
+                    appId = appId,
+                    mediaHeroUrl = mediaHeroUrl,
+                    mediaLogoUrl = mediaLogoUrl,
+                    mediaCapsuleUrl = mediaCapsuleUrl,
+                    mediaHeaderUrl = mediaHeaderUrl,
+                    mediaIconUrl = mediaIconUrl,
+                )
+                ContainerConfigPage.ADVANCED -> AdvancedTabContent(state)
             }
+        }
+    }
 
-        if (embedded) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 1.dp, max = 900.dp),
-            ) {
-                configurationContent()
+    val inlineContent: @Composable () -> Unit = {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 1.dp, max = 900.dp),
+        ) {
+            if (dismissDialogState.visible || showManifestDownloadDialog) {
+                BackHandler(onBack = ::navigateBack)
                 EmbeddedContainerOverlay(
                     dismissState = dismissDialogState,
                     loading = showManifestDownloadDialog,
                     loadingProgress = manifestDownloadProgress,
                     loadingMessage = manifestDownloadMessage,
-                    onKeepEditing = {
-                        dismissDialogState = MessageDialogState(visible = false)
-                    },
+                    onKeepEditing = ::navigateBack,
                     onDiscard = onDismissRequest,
                 )
+            } else {
+                configurationContent()
             }
-        } else {
-            Dialog(
-                onDismissRequest = onDismissCheck,
-                properties = secondScreenDialogProperties(
-                    DialogProperties(
-                        usePlatformDefaultWidth = false,
-                        dismissOnClickOutside = false,
-                        decorFitsSystemWindows = false,
-                    ),
+        }
+    }
+    if (routeToSecondScreen) {
+        val focusPage = selectedPage
+        SideEffect {
+            DsHomeSecondScreen.publish(
+                DsHomeSecondScreen.Model(
+                    owner = DsHomeSecondScreen.Owner.DIALOG,
+                    mode = DsHomeSecondScreen.Mode.SETTINGS,
+                    focusRequestKey = focusPage,
+                    onPreviousTab = { cyclePage(-1) },
+                    onNextTab = { cyclePage(1) },
+                    onBack = ::navigateBack,
+                    settingsContent = inlineContent,
                 ),
-                content = configurationContent,
+            )
+        }
+        DisposableEffect(Unit) {
+            onDispose { DsHomeSecondScreen.clear(DsHomeSecondScreen.Owner.DIALOG) }
+        }
+    } else if (renderInline) {
+        inlineContent()
+    } else {
+        Dialog(
+            onDismissRequest = ::navigateBack,
+            properties = secondScreenDialogProperties(
+                DialogProperties(
+                    usePlatformDefaultWidth = false,
+                    dismissOnClickOutside = false,
+                    decorFitsSystemWindows = false,
+                ),
+            ),
+            content = configurationContent,
+        )
+    }
+}
+
+@Composable
+private fun WorkingConfigControls(
+    appId: String,
+    savedConfig: ContainerData,
+    hasUnsavedChanges: Boolean,
+    restore: (ContainerData) -> Unit,
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val storage = remember(context, appId) { WorkingContainerConfig(context, appId) }
+    var bookmark by remember(storage) { mutableStateOf<ContainerData?>(null) }
+    var busy by remember(storage) { mutableStateOf(true) }
+    LaunchedEffect(storage) {
+        bookmark = withContext(Dispatchers.IO) { storage.load() }
+        busy = false
+    }
+
+    SettingsGroup {
+        SettingsMenuLink(
+            title = { Text(stringResource(R.string.working_config_bookmark)) },
+            subtitle = { Text(stringResource(R.string.working_config_bookmark_summary)) },
+            enabled = !busy,
+            onClick = {
+                if (!busy) {
+                    busy = true
+                    scope.launch {
+                        val stored = withContext(Dispatchers.IO) { storage.save(savedConfig) }
+                        if (stored) bookmark = savedConfig
+                        busy = false
+                        SnackbarManager.show(context.getString(
+                            if (stored) R.string.working_config_bookmarked else R.string.working_config_bookmark_failed,
+                        ))
+                    }
+                }
+            },
+        )
+        bookmark?.let { working ->
+            val sameRuntime = savedConfig.containerVariant == working.containerVariant &&
+                savedConfig.wineVersion == working.wineVersion
+            SettingsMenuLink(
+                title = { Text(stringResource(R.string.working_config_restore)) },
+                subtitle = {
+                    Text(stringResource(when {
+                        hasUnsavedChanges -> R.string.working_config_restore_unsaved
+                        !sameRuntime -> R.string.working_config_restore_runtime
+                        else -> R.string.working_config_restore_summary
+                    }))
+                },
+                enabled = !busy && !hasUnsavedChanges && sameRuntime,
+                onClick = {
+                    if (!busy && !hasUnsavedChanges && sameRuntime) restore(savedConfig.withWorkingSettings(working))
+                },
             )
         }
     }
@@ -1669,10 +1532,15 @@ private fun EmbeddedContainerOverlay(
     onDiscard: () -> Unit,
 ) {
     if (!loading && !dismissState.visible) return
+    val keepEditingFocus = remember { FocusRequester() }
+    LaunchedEffect(loading) {
+        if (!loading) runCatching { keepEditingFocus.requestFocus() }
+    }
 
     Surface(
         modifier = Modifier.fillMaxSize(),
-        color = MaterialTheme.colorScheme.scrim.copy(alpha = 0.72f),
+        color = MaterialTheme.colorScheme.background,
+        contentColor = MaterialTheme.colorScheme.onBackground,
     ) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Surface(
@@ -1717,6 +1585,7 @@ private fun EmbeddedContainerOverlay(
                             ConsoleDialogButton(
                                 text = dismissState.dismissBtnText,
                                 onClick = onKeepEditing,
+                                focusRequester = keepEditingFocus,
                             )
                             ConsoleDialogButton(
                                 text = dismissState.confirmBtnText,

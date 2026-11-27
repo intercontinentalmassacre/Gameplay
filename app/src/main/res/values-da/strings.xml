@@ -67,21 +67,15 @@
     <string name="cancel_import_title">Annullér import?</string>
     <string name="compat_preset_applied">Anvendt</string>
     <string name="compat_preset_dx12_changes">Ændringer: VKD3D 3.0.1 · feature level 12_1</string>
-    <string name="compat_preset_dx12_desc">Routér DirectX 12 gennem VKD3D med en nyere version og feature level. Kun nødvendigt til DX12-titler; DX11 og ældre forbliver på DXVK.</string>
     <string name="compat_preset_dx12_name">DirectX 12-spil</string>
     <string name="compat_preset_low_memory_changes">Ændringer: 1 GB videohukommelse · 1 GB enhedshukommelse · aggressiv opstart · let Steam</string>
-    <string name="compat_preset_low_memory_desc">Reducer hukommelsespresset på enheder med begrænset RAM: mindre rapporteret videohukommelse, mindre GPU-enhedshukommelse, aggressiv oprydning ved opstart og den lette Steam-runtime.</string>
     <string name="compat_preset_low_memory_name">Enheder med lidt hukommelse</string>
     <string name="compat_preset_old_games_changes">Ændringer: cnc-ddraw-renderer · 1280x960-opløsning · 256 MB videohukommelse</string>
-    <string name="compat_preset_old_games_desc">Til titler fra slutningen af 90\'erne og starten af 2000\'erne: cnc-ddraw-renderen til ældre DirectDraw/Direct3D, en 4:3-opløsning og en lille rapporteret videohukommelse, som gamle motorer forventer.</string>
     <string name="compat_preset_old_games_name">Gamle spil (DirectDraw / DX8-æraen)</string>
     <string name="compat_preset_performance_changes">Ændringer: DXVK 3.0 (async) · Box64 Performance-forudindstilling · 4 GB enhedshukommelse · mailbox-present-tilstand</string>
-    <string name="compat_preset_performance_desc">Prioritér billedhastighed frem for forsigtighed: asynkron shader-kompilering, ydeevneorienteret CPU-oversættelse og et større GPU-hukommelsesbudget.</string>
     <string name="compat_preset_performance_name">Bedst ydeevne</string>
     <string name="compat_preset_stability_changes">Ændringer: DXVK 2.7.1 · Box64 Compatibility-forudindstilling · streng shader-matematik · fifo-present-tilstand</string>
-    <string name="compat_preset_stability_desc">Konservative indstillinger til spil, der går ned, hakker eller renderer forkert: en bevist DXVK-udgivelse uden async-tricks, kompatibilitetsorienteret CPU-oversættelse og streng shader-matematik.</string>
     <string name="compat_preset_stability_name">Maksimal kompatibilitet</string>
-    <string name="compat_presets_subtitle">Beviste kombinationer af indstillinger til almindelige situationer. Når du anvender en forudindstilling, redigeres den aktuelle konfiguration — intet gemmes, før du trykker på Gem, og alle værdier kan stadig finjusteres i de andre faner.</string>
     <string name="connection_auth_required">Steam-godkendelse påkrævet</string>
     <string name="console_back_hint">B  Tilbage</string>
     <string name="console_hint_select_back">A  Vælg   ·   B  Tilbage</string>
@@ -268,13 +262,9 @@
     <string name="settings_shortcut_opens_page_subtitle">Fra: fastgjorte genveje på startskærmen starter spillet direkte.</string>
     <string name="settings_shortcut_opens_page_title">Genveje åbner spilsiden</string>
     <string name="settings_shortcuts_group_title">Genveje i launcher</string>
-    <string name="settings_stage_controls_description">Gamepad, touch-styring og inputfeedback.</string>
-    <string name="settings_stage_downloads_description">Netværk, lagerplads og installationspræferencer.</string>
     <string name="settings_stage_interface_description">Tema, layout, sprog og opførsel på anden skærm.</string>
     <string name="settings_stage_library_description">Kilder, præsentation og hvordan din samling er organiseret.</string>
     <string name="settings_stage_navigation_hint">Vælg en sektion på den nederste skærm</string>
-    <string name="settings_stage_runtime_description">Wine, grafikdrivere og spilkompatibilitet.</string>
-    <string name="settings_stage_system_description">Diagnostik, programoplysninger og fejlfindingsværktøjer.</string>
     <string name="settings_system_title">System</string>
     <string name="sharpness_denoise">Støjreduktion</string>
     <string name="sharpness_effect">Skarphedsforøgelse</string>
@@ -288,18 +278,10 @@
     <string name="sync_frame">Synkronisér hver frame</string>
     <string name="system_hub_connected">Tilsluttet</string>
     <string name="system_hub_connections_section">Tilsluttede tjenester</string>
-    <string name="system_hub_destinations_section">Bibliotek og system</string>
-    <string name="system_hub_downloads_description">Følg overførsler, og administrer lagerplads til installerede spil.</string>
     <string name="system_hub_not_connected">Ikke tilsluttet</string>
     <string name="system_hub_offline">Offline</string>
     <string name="system_hub_open">Åbn Gameplay-center</string>
-    <string name="system_hub_profile_section">Steam-konto</string>
-    <string name="system_hub_settings_description">Udseende, styring, runtime og programindstillinger.</string>
     <string name="system_hub_stage_description">Konti, downloads og globale indstillinger på ét sted.</string>
-    <string name="system_hub_steam_action_description">Tilslut Steam og opdater dit bibliotek.</string>
-    <string name="system_hub_steam_offline_description">Hold det lokale bibliotek tilgængeligt uden netværksforbindelse.</string>
-    <string name="system_hub_steam_sign_out_description">Fjern den aktive Steam-session fra Gameplay.</string>
-    <string name="system_hub_support_description">Åbn hjælp, support og Gameplay-fællesskabet.</string>
     <string name="system_hub_title">Gameplay-center</string>
     <string name="theme_editor_general_description">Navngiv dette tema. Når du gemmer, oprettes eller erstattes dit aktive brugerdefinerede tema.</string>
     <string name="theme_editor_hex_error">Brug #RRGGBB</string>
@@ -698,11 +680,8 @@
     <string name="appearance">Udseende</string>
     <string name="size_subtitle">%.2fx</string>
     <string name="label_text">Etikettekst</string>
-    <string name="label_text_subtitle">Tilpasset tekst til denne knap</string>
     <string name="element_type">Elementtype</string>
-    <string name="element_type_subtitle">Skift typen af denne kontrol</string>
     <string name="shape">Form</string>
-    <string name="shape_subtitle">Visuelt udseende</string>
     <string name="shape_restricted">%1$s er begrænset til %2$s form</string>
     <string name="bindings">Bindings</string>
     <string name="bindings_auto_generated">Bindings (Auto-genereret)</string>
@@ -858,7 +837,7 @@
     <string name="connection_retry">Prøv igen</string>
 
     <!-- Profile & Menu -->
-    <string name="help_and_support">Hjælp &amp; support</string>
+    <string name="help_and_support">GitHub Issues</string>
     <string name="hall_of_fame">Hall of Fame</string>
     <string name="go_online">Gå online</string>
     <string name="go_offline">Gå offline</string>
@@ -1036,9 +1015,7 @@
     <string name="movement_type">Bevægelsestype</string>
     <string name="movement_type_subtitle">Joystick-output til venstre bevægelse</string>
     <string name="look_sensitivity">Kig-følsomhed</string>
-    <string name="look_sensitivity_subtitle">Mus-kig-følsomhedsmultiplikator</string>
     <string name="joystick_size">Joystick-størrelse</string>
-    <string name="joystick_size_subtitle">Dynamisk joystick-størrelsesmultiplikator</string>
     <string name="movement_wasd">WASD</string>
     <string name="movement_arrow_keys">Piletaster</string>
     <string name="movement_gamepad_left_stick">Gamepad venstre stick</string>
@@ -1051,7 +1028,6 @@
     <string name="range_type">Tastinterval</string>
     <string name="range_type_subtitle">Hvilket sæt taster der gennemgås</string>
     <string name="range_orientation">Orientering</string>
-    <string name="range_orientation_subtitle">Layout-retning for intervalknap</string>
     <string name="range_orientation_horizontal">Vandret</string>
     <string name="range_orientation_vertical">Lodret</string>
     <string name="range_visible_segments">Synlige segmenter</string>
@@ -1112,7 +1088,6 @@
     <string name="select_wine_debug_channels">Vælg Wine debug-kanaler</string>
     <string name="cpu_label">CPU%d</string>
     <string name="describe_what_happened">Beskriv hvad der skete</string>
-    <string name="get_support_on_discord">Få support på Discord</string>
 
     <!-- Driver Manager -->
     <string name="driver_manager">Driverhåndtering</string>
@@ -1301,10 +1276,7 @@
     <string name="main_recent_crash_message">Beklager det!\nDet ville være dejligt at vide om det nylige problem, du har haft.\nDu kan se og eksportere den nyeste crash-log i appens indstillinger og vedhæfte den som et Github-problem i projektets repository.\nLink til Github-repo er også i indstillinger!</string>
     <string name="main_thank_you_title">Tak for at bruge Gameplay!</string>
     <string name="main_share">Del</string>
-    <string name="main_share_text">Prøv Gameplay - spil dine PC Steam-spil på Android med fuld understøttelse af cloud-gemmer!\nhttps://github.com/intercontinentalmassacre/Gameplay\nTilmeld dig fællesskabet: https://discord.gg/KPzU4Dhwq</string>
-    <string name="main_discord_support_title">Virkede spillet?</string>
-    <string name="main_discord_support_message">Tilmeld dig Discord for at få support til at rette dit spil eller forbedre ydelsen.</string>
-    <string name="main_open_discord">Åbn Discord</string>
+    <string name="main_share_text">Prøv Gameplay - spil dine PC Steam-spil på Android med fuld understøttelse af cloud-gemmer!\nhttps://github.com/intercontinentalmassacre/Gameplay</string>
     <string name="main_downloading_entry">Downloader %s</string>
 
     <!-- TODO: Manual review - PluviaMain: Game Launch -->
@@ -1688,7 +1660,6 @@
     <string name="custom_game_import_failed">Import mislykkedes</string>
     <string name="custom_game_import_dialog_message">Vælg mappen der indeholder spillet. Det importeres til Gameplays lager, så det kan køre uden nogen lagertilladelse. Store spil kan tage et par minutter.</string>
     <string name="custom_game_import_remove_original">Fjern originalen efter import</string>
-    <string name="add_custom_game_dont_show_again">Vis ikke denne dialog igen</string>
     <string name="base_app_shortcut_created">Genvej oprettet</string>
     <string name="base_app_shortcut_failed">Kunne ikke oprette genvej: %s</string>
     <string name="base_app_images_fetched">Billeder hentet</string>
@@ -1789,7 +1760,7 @@
     <string name="option_open_container">Åbn container</string>
     <string name="option_edit_container">Redigér container</string>
     <string name="option_reset_to_defaults">Nulstil container</string>
-    <string name="option_get_support">Få support</string>
+    <string name="option_get_support">GitHub Issues</string>
     <string name="option_submit_feedback">Send feedback</string>
     <string name="option_reset_drm">Nulstil DRM</string>
     <string name="option_use_known_config">Brug kendt konfiguration</string>
@@ -1868,7 +1839,6 @@
     <string name="game_launch_tip_14">Tip: Du kan få tastaturet frem med din enheds tilbage-knap.</string>
     <string name="game_launch_tip_15">Tip: Du kan trykke med to fingre inde i containeren for at højreklikke.</string>
     <string name="game_launch_tip_16">Tip: Hvis du bruger skærmcontrolleren, kan du deaktivere musen for at forhindre utilsigtede berøringer.</string>
-    <string name="game_launch_tip_17">Tip: Rapporter problemer på Discord, så vi kan rette dem.</string>
     <string name="game_launch_tip_18">Tip: Brug Turnip Gen8 V25/V30- eller MrPurple T26-driveren, hvis du er på en 8 Elite-enhed.</string>
     <string name="game_launch_tip_19">Tip: Sænk opløsningen og brug FSR fra hurtigmenuen i spillet for at øge ydelsen.</string>
     <string name="game_launch_tip_20">Tip: Hvis hele appen går ned efter indlæsning af et spil, er din enhed ved at løbe tør for RAM.</string>
@@ -2173,8 +2143,6 @@
     <string name="nexus_summary_bar">%1$d mods | %2$d aktiveret | %3$s | %4$s</string>
     <string name="nexus_storage_cleanup_title">Oprydning af lager</string>
     <string name="nexus_scan">Scan</string>
-    <string name="nexus_storage_cleanup_description">Viser lager, der bruges af Nexus mod downloads, udpakkede cache og sikkerhedskopier til dette spil.</string>
-    <string name="nexus_storage_cleanup_cache_backups_description">Udpakkede cache- og rollback-sikkerhedskopier opbevares, så mods kan genanvendes, deaktiveres eller gendannes sikkert.</string>
     <string name="nexus_storage_cleanup_actions_description">Ryd midlertidige filer fjerner efterladte filer. Slet mislykkede arkiver fjerner mislykkede downloads, så et nyt forsøg downloader igen. Ryd overflødige sikkerhedskopier fjerner sikkerhedskopier, der ikke længere er nødvendige.</string>
     <string name="nexus_temp_orphaned_files">Midlertidige/forældreløse filer</string>
     <string name="nexus_failed_download_archives">Mislykket download af arkiver</string>
@@ -2368,7 +2336,6 @@
     <string name="button_opacity_value">%1$d%%</string>
     <string name="button_opacity_inherited">%1$d%% (global standard)</string>
     <string name="control_stroke_width">Linjetykkelse</string>
-    <string name="control_stroke_width_subtitle">Juster tykkelsen på kontrollens omrids og opdelere</string>
     <string name="control_stroke_width_thin">Tynd</string>
     <string name="control_stroke_width_default">Standard</string>
     <string name="control_stroke_width_thick">Tyk</string>
@@ -2414,7 +2381,6 @@
     <string name="steam_collections_clear">Ryd</string>
     <string name="steam_collections_smart_unsupported">Kun standardsamlinger vises. Smarte samlinger understøttes ikke endnu.</string>
     <string name="local_mod_title">Importér mod fra enheden</string>
-    <string name="local_mod_description">Importér et arkiv, en mappe eller en eller flere løse filer. Lokale importer bruger de samme profiler, placeringer, konflikter samt FOMOD- og pluginadministration som Nexus-downloads.</string>
     <string name="local_mod_supported">Arkiver: ZIP, 7Z, RAR og placerbare EXE-filer. Løse filer kan bruge alle filtypenavne, herunder INI, DLL, ESP, ESM, ESL, PAK, JSON, CFG og TOML.</string>
     <string name="local_mod_choose_archive">Vælg arkiv</string>
     <string name="local_mod_choose_files">Vælg filer</string>

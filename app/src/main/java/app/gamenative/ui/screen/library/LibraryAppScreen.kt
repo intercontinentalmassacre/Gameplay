@@ -2,18 +2,24 @@
 
 package app.gamenative.ui.screen.library
 
+import android.content.Context
+import android.icu.text.MeasureFormat
+import android.icu.util.Measure
+import android.icu.util.MeasureUnit
+import android.text.format.DateFormat
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import app.gamenative.utils.LibrarySessionTracker
+import app.gamenative.localgames.AppImageRuntime
+
 import android.content.Intent
 import android.content.res.Configuration
 import app.gamenative.ui.screen.library.components.ambient.AmbientDownloadOverlay
 import android.content.ActivityNotFoundException
-import android.content.Context
 import android.net.Uri
 import android.view.KeyEvent
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.*
-import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.ExperimentalFoundationApi
 import app.gamenative.ui.component.ConsoleListRow
@@ -22,7 +28,6 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
-import androidx.compose.foundation.focusable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -49,26 +54,21 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.wrapContentWidth
-import androidx.compose.foundation.relocation.bringIntoViewRequester
-import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import app.gamenative.ui.component.dialog.AlertDialog
-import app.gamenative.ui.component.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -84,7 +84,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.SideEffect
@@ -96,12 +95,9 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.onKeyEvent
@@ -113,9 +109,10 @@ import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.platform.LocalWindowInfo
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -129,8 +126,8 @@ import app.gamenative.service.SteamService
 import app.gamenative.ui.component.GamepadAction
 import app.gamenative.ui.component.GamepadActionBar
 import app.gamenative.ui.component.GamepadButton
+import app.gamenative.ui.component.OutlinedButton
 import app.gamenative.ui.component.focusRing
-import app.gamenative.ui.component.LoadingScreen
 import app.gamenative.ui.data.AppMenuOption
 import app.gamenative.ui.data.Achievement
 import app.gamenative.ui.data.GameDisplayInfo
@@ -144,6 +141,10 @@ import app.gamenative.ui.screen.library.appscreen.ItchAppScreen
 import app.gamenative.ui.screen.library.appscreen.SteamAppScreen
 import app.gamenative.ui.screen.library.components.GameOptionsPanel
 import app.gamenative.ui.screen.library.components.GameSourceIcon
+import app.gamenative.ui.screen.library.components.GameIdentityArtwork
+import app.gamenative.ui.screen.library.components.GameIdentityFallback
+import app.gamenative.ui.screen.library.components.GameIdentityScrim
+import app.gamenative.ui.screen.library.components.GameIdentityTitle
 import app.gamenative.ui.screen.library.components.VideoHero
 import app.gamenative.externaldisplay.DsHomeSecondScreen
 import app.gamenative.utils.ContainerUtils
@@ -156,6 +157,7 @@ import app.gamenative.ui.util.shouldShowGamepadUI
 import com.skydoves.landscapist.ImageOptions
 import com.skydoves.landscapist.coil.CoilImage
 import com.winlator.container.ContainerData
+import com.winlator.container.Container
 import com.winlator.core.KeyValueSet
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -165,6 +167,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import timber.log.Timber
@@ -250,8 +253,8 @@ private fun PrimaryActionButton(
             )
             .focusRing(interactionSource, RoundedCornerShape(8.dp))
             .focusRequester(focusRequester)
-            .selectable(
-                selected = isFocused,
+            .clickable(
+                role = Role.Button,
                 interactionSource = interactionSource,
                 indication = null,
                 enabled = enabled,
@@ -267,7 +270,7 @@ private fun PrimaryActionButton(
             ) {
                 Icon(
                     imageVector = Icons.Default.Pause,
-                    contentDescription = null,
+                    contentDescription = text,
                     tint = Color.White,
                     modifier = Modifier.size(16.dp),
                 )
@@ -358,8 +361,8 @@ private fun ActionIconButton(
                 },
             )
             .focusRing(interactionSource, RoundedCornerShape(8.dp))
-            .selectable(
-                selected = isFocused,
+            .clickable(
+                role = Role.Button,
                 interactionSource = interactionSource,
                 indication = null,
                 onClick = onClick,
@@ -381,6 +384,7 @@ private fun ConsoleSecondaryActionButton(
     icon: ImageVector,
     label: String,
     onClick: () -> Unit,
+    focusRequester: FocusRequester,
     modifier: Modifier = Modifier,
     onHero: Boolean = true,
 ) {
@@ -407,8 +411,9 @@ private fun ConsoleSecondaryActionButton(
                 },
             )
             .focusRing(interactionSource, shape)
-            .selectable(
-                selected = isFocused,
+            .focusRequester(focusRequester)
+            .clickable(
+                role = Role.Button,
                 interactionSource = interactionSource,
                 indication = null,
                 onClick = onClick,
@@ -437,9 +442,6 @@ private fun ConsoleSecondaryActionButton(
 private fun GameRuntimeSummary(
     config: ContainerData,
     modifier: Modifier = Modifier,
-    onHero: Boolean = true,
-    sizeText: String? = null,
-    playtimeText: String? = null,
 ) {
     val directXName = remember(config.dxwrapper, config.dxwrapperConfig) {
         directXSummary(config.dxwrapper, config.dxwrapperConfig)
@@ -454,34 +456,22 @@ private fun GameRuntimeSummary(
         RuntimeSummaryValue(
             label = stringResource(R.string.game_runtime_driver),
             value = graphicsDriverSummary(config),
-            onHero = onHero,
         )
         RuntimeSummaryValue(
             label = stringResource(R.string.game_runtime_wine_proton),
             value = config.wineVersion.ifBlank { "—" },
-            onHero = onHero,
         )
         RuntimeSummaryValue(
             label = stringResource(R.string.game_runtime_directx),
             value = directXName.ifBlank { "—" },
-            onHero = onHero,
         )
-        if (!sizeText.isNullOrBlank()) {
-            RuntimeSummaryValue(
-                label = stringResource(R.string.game_runtime_size),
-                value = sizeText,
-                onHero = onHero,
-            )
-        }
-        if (!playtimeText.isNullOrBlank()) {
-            RuntimeSummaryValue(
-                label = stringResource(R.string.game_runtime_playtime),
-                value = playtimeText,
-                onHero = onHero,
-            )
-        }
     }
 }
+
+internal fun usesWindowsRuntime(appId: String, gameRuntime: String, platform: String, executablePath: String): Boolean =
+    gameRuntime != "html5" &&
+        !platform.equals(Container.PLATFORM_ANDROID, ignoreCase = true) &&
+        !AppImageRuntime.selected(appId, executablePath)
 
 internal fun directXSummary(wrapper: String, config: String): String {
     val options = KeyValueSet(config)
@@ -534,7 +524,7 @@ internal fun graphicsDriverDisplayName(identifier: String): String = when (ident
     "sd-8-elite" -> "SD 8 Elite"
     "wrapper" -> "Wrapper"
     "wrapper-v2" -> "Wrapper v2"
-    "wrapper-gamenative" -> "Wrapper Gameplay"
+    "wrapper-gamenative" -> "Wrapper (GameNative)"
     "wrapper-leegao" -> "Wrapper Leegao"
     "wrapper-legacy" -> "Wrapper Legacy"
     else -> identifier
@@ -547,97 +537,63 @@ internal fun graphicsDriverDisplayName(identifier: String): String = when (ident
 private fun RuntimeSummaryValue(
     label: String,
     value: String,
-    onHero: Boolean,
 ) {
     Column(modifier = Modifier.widthIn(min = 132.dp, max = 260.dp)) {
         Text(
-            text = label.uppercase(Locale.getDefault()),
+            text = label,
             style = MaterialTheme.typography.labelSmall,
-            color = if (onHero) Color.White.copy(alpha = 0.64f) else MaterialTheme.colorScheme.onSurfaceVariant,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
         )
         Text(
             text = value,
             style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
-            color = if (onHero) Color.White.copy(alpha = 0.92f) else MaterialTheme.colorScheme.onSurface,
+            color = MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
     }
 }
 
-/**
- * Info card for game details with optional status indicator
- */
 @Composable
-private fun InfoCard(
+private fun GameDetailValue(
     label: String,
     value: String,
     modifier: Modifier = Modifier,
-    statusColor: Color? = null,
-    isCompact: Boolean = false,
-    focusableForNavigation: Boolean = false,
+    valueColor: Color = MaterialTheme.colorScheme.onSurface,
 ) {
-    val shape = RoundedCornerShape(PluviaTheme.tokens.cornerMd)
-    var isFocused by remember { mutableStateOf(false) }
-    val interactionSource = remember { MutableInteractionSource() }
-    val bringIntoViewRequester = remember { BringIntoViewRequester() }
-    val scope = rememberCoroutineScope()
-    val cardModifier = if (focusableForNavigation) {
-        modifier
-            .bringIntoViewRequester(bringIntoViewRequester)
-            .onFocusChanged { state ->
-                isFocused = state.isFocused
-                if (state.isFocused) {
-                    scope.launch { bringIntoViewRequester.bringIntoView() }
-                }
-            }
-            .focusable(interactionSource = interactionSource)
-            .focusRing(interactionSource, shape)
-    } else {
-        modifier
-    }
-
-    Surface(
-        modifier = cardModifier,
-        shape = shape,
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        shadowElevation = 0.dp,
+    Column(
+        modifier = modifier.padding(vertical = 4.dp, horizontal = 6.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        Column(
-            modifier = Modifier.padding(if (isCompact) 14.dp else 18.dp),
-        ) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontWeight = FontWeight.Medium,
-            )
-            Spacer(modifier = Modifier.height(6.dp))
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                if (statusColor != null) {
-                    Box(
-                        modifier = Modifier
-                            .size(10.dp)
-                            .background(statusColor, CircleShape),
-                    )
-                    Spacer(modifier = Modifier.width(10.dp))
-                }
-                Text(
-                    text = value,
-                    style = if (isCompact) {
-                        MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold)
-                    } else {
-                        MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
-                    },
-                    color = if (statusColor != null) statusColor else MaterialTheme.colorScheme.onSurface,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = valueColor,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+internal fun formatLibraryPlayDuration(context: Context, durationMs: Long): String {
+    val totalMinutes = durationMs / 60_000
+    if (totalMinutes == 0L) return context.getString(R.string.library_play_duration_under_minute)
+
+    val locale = context.resources.configuration.locales[0]
+    val formatter = MeasureFormat.getInstance(locale, MeasureFormat.FormatWidth.SHORT)
+    val hours = totalMinutes / 60
+    val minutes = totalMinutes % 60
+    return when {
+        hours == 0L -> formatter.formatMeasures(Measure(minutes, MeasureUnit.MINUTE))
+        minutes == 0L -> formatter.formatMeasures(Measure(hours, MeasureUnit.HOUR))
+        else -> formatter.formatMeasures(Measure(hours, MeasureUnit.HOUR), Measure(minutes, MeasureUnit.MINUTE))
     }
 }
 
@@ -796,6 +752,7 @@ private data class AppScreenNetworkState(
 private class AppScreenRuntimeState {
     val scrollState = androidx.compose.foundation.ScrollState(0)
     val playButtonFocusRequester = FocusRequester()
+    val optionsButtonFocusRequester = FocusRequester()
     var optionsMenuVisible by mutableStateOf(false)
     var achievementsVisible by mutableStateOf(false)
     var progressBarBounds by mutableStateOf<Rect?>(null)
@@ -962,41 +919,21 @@ private fun BoxScope.GameHeroBackdrop(
             .graphicsLayer { translationY = if (trailerUrl != null) 0f else parallaxOffset },
     ) {
         if (trailerUrl != null) {
+            GameIdentityFallback(displayInfo.name, Modifier.fillMaxSize())
             VideoHero(
                 videoUrl = trailerUrl,
-                fallbackImageUrl = displayInfo.heroImageUrl ?: "",
+                fallbackImageUrl = displayInfo.heroImageUrl.orEmpty(),
                 contentDescription = displayInfo.name,
                 modifier = Modifier.fillMaxSize(),
             )
-        } else if (displayInfo.heroImageUrl != null) {
-            CoilImage(
-                modifier = Modifier.fillMaxSize(),
-                imageModel = { displayInfo.heroImageUrl },
-                imageOptions = ImageOptions(contentScale = ContentScale.Crop),
-                loading = { LoadingScreen() },
-                failure = { GameHeroFallback() },
-                previewPlaceholder = painterResource(R.drawable.testhero),
-            )
         } else {
-            GameHeroFallback()
+            GameIdentityArtwork(
+                name = displayInfo.name,
+                imageUrl = displayInfo.heroImageUrl,
+                modifier = Modifier.fillMaxSize(),
+            )
         }
-        // Gradients live inside the parallax layer so the shading stays glued
-        // to the image while it drifts (previously they were pinned and the
-        // shadow appeared to slide off the picture on scroll).
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            Color.Transparent,
-                            Color.Black.copy(alpha = 0.3f),
-                            Color.Black.copy(alpha = 0.85f),
-                        ),
-                        endY = Float.POSITIVE_INFINITY,
-                    ),
-                ),
-        )
+        GameIdentityScrim(Modifier.matchParentSize())
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1109,36 +1046,19 @@ private fun CommunityStatChip(
 }
 
 @Composable
-private fun GameHeroFallback() {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    listOf(
-                        MaterialTheme.colorScheme.surfaceContainerHighest,
-                        MaterialTheme.colorScheme.background,
-                    ),
-                ),
-            ),
-    )
-}
-
-@Composable
 private fun AppScreenBody(content: @Composable () -> Unit) {
     content()
 }
 
 /**
- * Content section below the hero: update banner, store-install banners, info
- * cards, HLTB, play stats, other-source chips and news. Extracted so the same
- * column can be rendered on the second display while a game card is open.
+ * Game information rendered below the hero or in the second-display card.
  */
 @Composable
 private fun AppScreenBelowHeroContent(
     isPortrait: Boolean,
-    showUpdateBanner: Boolean,
-    onUpdateClick: () -> Unit,
+    runtimeConfig: ContainerData?,
+    reviewScore: app.gamenative.utils.SteamReviewScore.Score?,
+    playerCount: Int?,
     isInstalled: Boolean,
     isInstalledOnOtherSource: Boolean,
     displayInfo: GameDisplayInfo,
@@ -1149,7 +1069,6 @@ private fun AppScreenBelowHeroContent(
     storeDetails: app.gamenative.utils.SteamStoreDetails.Details?,
     compact: Boolean = false,
 ) {
-    val context = LocalContext.current
     val sidePadding = when {
         compact -> 16.dp
         isPortrait -> 20.dp
@@ -1167,49 +1086,6 @@ private fun AppScreenBelowHeroContent(
                 bottom = if (compact) 32.dp else 96.dp,
             ),
     ) {
-        storeDetails?.let { details ->
-            SteamStoreOverview(details = details)
-            Spacer(modifier = Modifier.height(26.dp))
-        }
-
-        // Update available banner
-        if (showUpdateBanner) {
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                color = MaterialTheme.colorScheme.primaryContainer,
-            ) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.CloudDownload,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                    )
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = stringResource(R.string.update_available),
-                            style = MaterialTheme.typography.titleSmall,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        )
-                    }
-                    Button(
-                        onClick = onUpdateClick,
-                        shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary,
-                        ),
-                    ) {
-                        Text(stringResource(R.string.update_now))
-                    }
-                }
-            }
-            Spacer(modifier = Modifier.height(16.dp))
-        }
-
         if (!isInstalled && isInstalledOnOtherSource) {
             Surface(
                 modifier = Modifier.fillMaxWidth(),
@@ -1226,14 +1102,6 @@ private fun AppScreenBelowHeroContent(
             Spacer(modifier = Modifier.height(16.dp))
         }
 
-        // Game information section
-        Text(
-            text = stringResource(R.string.game_information),
-            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-            modifier = Modifier.padding(bottom = 12.dp),
-        )
-
-        // Info cards in 2-column grid
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -1246,101 +1114,129 @@ private fun AppScreenBelowHeroContent(
             val statusColor = when {
                 isInstalled -> PluviaTheme.colors.statusInstalled
                 isDownloading -> MaterialTheme.colorScheme.tertiary
-                else -> null
+                else -> MaterialTheme.colorScheme.onSurface
             }
-            InfoCard(
+            GameDetailValue(
                 label = stringResource(R.string.status),
                 value = statusText,
-                statusColor = statusColor,
-                isCompact = true,
+                valueColor = statusColor,
                 modifier = Modifier.weight(1f),
-                focusableForNavigation = true,
             )
-            InfoCard(
+            GameDetailValue(
                 label = stringResource(R.string.size),
                 value = when {
                     isInstalled && displayInfo.sizeOnDisk != null -> displayInfo.sizeOnDisk
                     !isInstalled && displayInfo.sizeFromStore != null -> displayInfo.sizeFromStore
                     else -> stringResource(R.string.library_compatibility_unknown)
                 },
-                isCompact = true,
                 modifier = Modifier.weight(1f),
-                focusableForNavigation = true,
             )
         }
 
-        displayInfo.hltbStats?.let { hltb ->
-            Spacer(modifier = Modifier.height(10.dp))
-            HltbInfoBar(hltb)
+        val context = LocalContext.current
+        val isPreview = LocalInspectionMode.current
+        val historyFlow = remember(context.applicationContext, displayInfo.appId, isPreview) {
+            if (isPreview) flowOf(null) else LibrarySessionTracker.from(context).observe(displayInfo.appId)
         }
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            InfoCard(
-                label = stringResource(R.string.developer),
-                value = displayInfo.developer,
-                isCompact = true,
-                modifier = Modifier.weight(1f),
-                focusableForNavigation = true,
-            )
-            InfoCard(
-                label = stringResource(R.string.release_date),
-                value = remember(displayInfo.releaseDate) {
-                    if (displayInfo.releaseDate > 0) {
-                        SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
-                            .format(Date(displayInfo.releaseDate * 1000))
-                    } else {
-                        context.getString(R.string.library_compatibility_unknown)
-                    }
-                },
-                isCompact = true,
-                modifier = Modifier.weight(1f),
-                focusableForNavigation = true,
-            )
+        val observedHistory by historyFlow.collectAsStateWithLifecycle(initialValue = null)
+        val history = observedHistory?.takeIf { it.appId == displayInfo.appId }
+        val localLastPlayed = history?.lastPlayed?.takeIf { it > 0 }?.let {
+            DateFormat.getMediumDateFormat(context).format(Date(it))
         }
-
-        // Install location (when installed)
-        if (isInstalled && displayInfo.installLocation != null) {
-            Spacer(modifier = Modifier.height(10.dp))
-            InfoCard(
-                label = stringResource(R.string.location),
-                value = displayInfo.installLocation,
-                isCompact = true,
-                modifier = Modifier.fillMaxWidth(),
-                focusableForNavigation = true,
-            )
+        val lastPlayedText = localLastPlayed ?: displayInfo.lastPlayedText
+        val lastSessionText = history?.lastSessionMs?.takeIf { it > 0 }?.let {
+            formatLibraryPlayDuration(context, it)
         }
-
-        // Play time and last played
-        if (displayInfo.playtimeText != null || displayInfo.lastPlayedText != null) {
+        val localPlaytimeText = history?.totalPlayMs?.takeIf { it > 0 }?.let {
+            formatLibraryPlayDuration(context, it)
+        }
+        if (lastPlayedText != null || lastSessionText != null || localPlaytimeText != null) {
             Spacer(modifier = Modifier.height(10.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                if (displayInfo.playtimeText != null) {
-                    InfoCard(
-                        label = stringResource(R.string.play_time),
-                        value = displayInfo.playtimeText,
-                        isCompact = true,
+                if (lastPlayedText != null) {
+                    GameDetailValue(
+                        label = stringResource(R.string.last_played),
+                        value = lastPlayedText,
                         modifier = Modifier.weight(1f),
-                        focusableForNavigation = true,
                     )
                 }
-                if (displayInfo.lastPlayedText != null) {
-                    InfoCard(
-                        label = stringResource(R.string.last_played),
-                        value = displayInfo.lastPlayedText,
-                        isCompact = true,
+                if (lastSessionText != null) {
+                    GameDetailValue(
+                        label = stringResource(R.string.library_last_session),
+                        value = lastSessionText,
                         modifier = Modifier.weight(1f),
-                        focusableForNavigation = true,
+                    )
+                }
+                if (localPlaytimeText != null) {
+                    GameDetailValue(
+                        label = stringResource(R.string.library_playtime_on_device),
+                        value = localPlaytimeText,
+                        modifier = Modifier.weight(1f),
                     )
                 }
             }
+        }
+        displayInfo.playtimeText?.let { playtime ->
+            GameDetailValue(
+                label = stringResource(R.string.play_time),
+                value = playtime,
+                modifier = Modifier.padding(top = 10.dp),
+            )
+        }
+
+        if (runtimeConfig != null && usesWindowsRuntime(
+                displayInfo.appId, runtimeConfig.gameRuntime, runtimeConfig.platform, runtimeConfig.executablePath,
+            )
+        ) {
+            GameRuntimeSummary(
+                config = runtimeConfig,
+                modifier = Modifier.padding(top = 16.dp),
+            )
+        }
+
+        if (displayInfo.compatibilityMessage != null && displayInfo.compatibilityColor != null) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = displayInfo.compatibilityMessage,
+                style = MaterialTheme.typography.labelSmall,
+                color = Color(displayInfo.compatibilityColor),
+            )
+        }
+
+        if (reviewScore != null || playerCount != null) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                reviewScore?.let { score ->
+                    CommunityStatChip(
+                        text = "${score.description} (${score.percentPositive}%)",
+                        color = when (score.sentiment) {
+                            app.gamenative.utils.SteamReviewScore.Sentiment.POSITIVE ->
+                                PluviaTheme.colors.statusInstalled
+                            app.gamenative.utils.SteamReviewScore.Sentiment.NEGATIVE ->
+                                PluviaTheme.colors.accentDanger
+                            app.gamenative.utils.SteamReviewScore.Sentiment.MIXED ->
+                                MaterialTheme.colorScheme.onSurface
+                        },
+                    )
+                }
+                playerCount?.let { count ->
+                    CommunityStatChip(
+                        text = stringResource(
+                            R.string.game_players_now,
+                            app.gamenative.utils.SteamPlayerCount.formatCount(count),
+                        ),
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+            }
+        }
+
+        displayInfo.hltbStats?.let { hltb ->
+            Spacer(modifier = Modifier.height(10.dp))
+            HltbInfoBar(hltb)
         }
 
         if (otherSources.isNotEmpty()) {
@@ -1391,6 +1287,45 @@ private fun AppScreenBelowHeroContent(
                     }
                 }
             }
+        }
+
+        val installLocation = displayInfo.installLocation
+        if (isInstalled && !installLocation.isNullOrBlank()) {
+            var expanded by rememberSaveable(displayInfo.appId, installLocation) { mutableStateOf(false) }
+            Spacer(modifier = Modifier.height(16.dp))
+            OutlinedButton(onClick = { expanded = !expanded }, modifier = Modifier.heightIn(min = 48.dp)) {
+                Text(stringResource(R.string.location))
+                Icon(
+                    imageVector = if (expanded) Icons.Default.KeyboardArrowDown else Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = null,
+                    modifier = Modifier.padding(start = 6.dp),
+                )
+            }
+            if (expanded) {
+                SelectionContainer {
+                    Text(
+                        text = installLocation,
+                        modifier = Modifier.padding(top = 8.dp),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+
+        if (displayInfo.releaseDate > 0) {
+            Spacer(modifier = Modifier.height(8.dp))
+            GameDetailValue(
+                label = stringResource(R.string.release_date),
+                value = remember(displayInfo.releaseDate) {
+                    java.text.DateFormat.getDateInstance().format(Date(displayInfo.releaseDate * 1000))
+                },
+            )
+        }
+
+        storeDetails?.let { details ->
+            Spacer(modifier = Modifier.height(20.dp))
+            SteamStoreOverview(details = details)
         }
 
         if (newsItems.isNotEmpty()) {
@@ -1494,8 +1429,7 @@ private fun SteamStoreOverview(details: app.gamenative.utils.SteamStoreDetails.D
 }
 
 /**
- * Steam-style hero: backdrop image with parallax, back button, and the bottom
- * overlay (logo/title, developer, integrated action bar).
+ * Game artwork and identity, with launch actions on single-display devices.
  */
 @Composable
 private fun AppScreenHeroSection(
@@ -1506,22 +1440,14 @@ private fun AppScreenHeroSection(
     trailerUrl: String?,
     runtime: AppScreenRuntimeState,
     network: AppScreenNetworkState,
-    scope: kotlinx.coroutines.CoroutineScope,
-    context: Context,
     isInstalled: Boolean,
     isValidToDownload: Boolean,
     isDownloading: Boolean,
     hasPartialDownload: Boolean,
-    hasLeftoverInstall: Boolean = false,
     downloadProgress: Float,
     downloadInfo: app.gamenative.data.DownloadInfo?,
     onPauseResumeClick: () -> Unit,
     onDownloadInstallClick: () -> Unit,
-    onDeleteDownloadClick: () -> Unit,
-    runtimeConfig: ContainerData?,
-    achievements: List<Achievement>?,
-    reviewScore: app.gamenative.utils.SteamReviewScore.Score?,
-    playerCount: Int?,
     contentScrollState: ScrollState? = null,
     minimalHero: Boolean = false,
     preferLogo: Boolean = true,
@@ -1564,59 +1490,33 @@ private fun AppScreenHeroSection(
                 .padding(16.dp),
         )
 
-        // Bottom overlay with title and action bar. Scrollable when the hero is
-        // confined to a fixed display (dual-display mode) so its content is never
-        // squeezed by an overflowing, height-capped layout.
         Column(
             modifier = Modifier
+                .align(Alignment.BottomStart)
                 .fillMaxWidth()
                 .then(
-                    if (contentScrollState != null) {
-                        Modifier.verticalScroll(contentScrollState)
-                    } else {
-                        Modifier
-                    },
+                    if (contentScrollState != null) Modifier.verticalScroll(contentScrollState)
+                    else Modifier,
                 )
                 .padding(
-                    top = if (isPortrait) 152.dp else 184.dp,
-                    start = if (isPortrait) 20.dp else 48.dp,
-                    end = if (isPortrait) 20.dp else 48.dp,
+                    top = if (minimalHero) 64.dp else if (isPortrait) 140.dp else 160.dp,
+                    start = if (isPortrait) 24.dp else 40.dp,
+                    end = if (isPortrait) 24.dp else 40.dp,
                     bottom = 24.dp,
                 ),
         ) {
-            // Steam-style hero: game logo art instead of a plain text
-            // title when available (title stays as fallback).
-            if (preferLogo && !displayInfo.logoUrl.isNullOrBlank()) {
-                CoilImage(
-                    imageModel = { displayInfo.logoUrl },
-                    imageOptions = ImageOptions(contentScale = ContentScale.Fit),
-                    modifier = Modifier
-                        .widthIn(max = if (minimalHero) 620.dp else 340.dp)
-                        .heightIn(max = if (minimalHero) 200.dp else 110.dp),
-                )
-            } else {
-                Text(
-                    text = displayInfo.name,
-                    style = (if (minimalHero) {
-                        if (isPortrait) MaterialTheme.typography.headlineLarge else MaterialTheme.typography.displayMedium
-                    } else if (isPortrait) {
-                        MaterialTheme.typography.headlineLarge
-                    } else {
-                        MaterialTheme.typography.displaySmall
-                    }).copy(
-                        fontWeight = FontWeight.Bold,
-                        shadow = Shadow(
-                            color = Color.Black.copy(alpha = 0.6f),
-                            offset = Offset(0f, 2f),
-                            blurRadius = 8f,
-                        ),
-                    ),
-                    color = Color.White,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.widthIn(max = 840.dp),
-                )
-            }
+            GameIdentityTitle(
+                name = displayInfo.name,
+                logoUrl = displayInfo.logoUrl.takeIf { preferLogo },
+                style = when {
+                    isPortrait -> MaterialTheme.typography.headlineLarge
+                    minimalHero -> MaterialTheme.typography.displayMedium
+                    else -> MaterialTheme.typography.displaySmall
+                },
+                logoWidth = if (minimalHero) 420.dp else 340.dp,
+                logoHeight = if (minimalHero) 118.dp else 100.dp,
+                modifier = Modifier.widthIn(max = 840.dp),
+            )
 
             // Developer and year
             val releaseYear = remember(displayInfo.releaseDate) {
@@ -1626,34 +1526,30 @@ private fun AppScreenHeroSection(
                     ""
                 }
             }
-            Text(
-                text = listOf(displayInfo.developer, releaseYear)
-                    .filter { it.isNotBlank() }
-                    .joinToString(" • "),
-                style = MaterialTheme.typography.bodyLarge,
-                color = Color.White.copy(alpha = 0.78f),
-            )
+            val byline = listOf(displayInfo.developer, releaseYear)
+                .filter { it.isNotBlank() }
+                .joinToString(" • ")
+            if (byline.isNotEmpty()) {
+                Text(
+                    text = byline,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = Color.White.copy(alpha = 0.78f),
+                )
+            }
 
             if (!minimalHero) {
                 AppScreenActionBar(
-                    displayInfo = displayInfo,
                     isPortrait = isPortrait,
                     isInstalled = isInstalled,
                     isValidToDownload = isValidToDownload,
                     isDownloading = isDownloading,
                     hasPartialDownload = hasPartialDownload,
-                    hasLeftoverInstall = hasLeftoverInstall,
                     downloadProgress = downloadProgress,
                     downloadInfo = downloadInfo,
                     runtime = runtime,
                     network = network,
                     onPauseResumeClick = onPauseResumeClick,
                     onDownloadInstallClick = onDownloadInstallClick,
-                    onDeleteDownloadClick = onDeleteDownloadClick,
-                    runtimeConfig = runtimeConfig,
-                    achievements = achievements,
-                    reviewScore = reviewScore,
-                    playerCount = playerCount,
                     isUpdatePending = isUpdatePending,
                     onUpdateClick = onUpdateClick,
                     primaryActionLabelOverride = primaryActionLabelOverride,
@@ -1663,31 +1559,19 @@ private fun AppScreenHeroSection(
     }
 }
 
-/**
- * Console-style command rail overlaid on the hero. The primary action stays
- * visually dominant; management actions and runtime details remain available,
- * but no longer compete with starting the game as a launcher-like card.
- */
 @Composable
 private fun AppScreenActionBar(
-    displayInfo: GameDisplayInfo,
     isPortrait: Boolean,
     isInstalled: Boolean,
     isValidToDownload: Boolean,
     isDownloading: Boolean,
     hasPartialDownload: Boolean,
-    hasLeftoverInstall: Boolean,
     downloadProgress: Float,
     downloadInfo: app.gamenative.data.DownloadInfo?,
     runtime: AppScreenRuntimeState,
     network: AppScreenNetworkState,
     onPauseResumeClick: () -> Unit,
     onDownloadInstallClick: () -> Unit,
-    onDeleteDownloadClick: () -> Unit,
-    runtimeConfig: ContainerData?,
-    achievements: List<Achievement>?,
-    reviewScore: app.gamenative.utils.SteamReviewScore.Score?,
-    playerCount: Int?,
     isUpdatePending: Boolean = false,
     onUpdateClick: () -> Unit = {},
     onHero: Boolean = true,
@@ -1733,21 +1617,15 @@ private fun AppScreenActionBar(
     }
 
     @Composable
-    fun SecondaryActions() {
+    fun OptionsAction(modifier: Modifier = Modifier) {
         ConsoleSecondaryActionButton(
             icon = Icons.Default.Settings,
             label = stringResource(R.string.options),
             onClick = { runtime.optionsMenuVisible = true },
+            modifier = modifier,
             onHero = onHero,
+            focusRequester = runtime.optionsButtonFocusRequester,
         )
-        if (!achievements.isNullOrEmpty()) {
-            ActionIconButton(
-                icon = Icons.Default.EmojiEvents,
-                contentDescription = stringResource(R.string.achievements),
-                onClick = { runtime.achievementsVisible = true },
-                onHero = onHero,
-            )
-        }
     }
 
     val compact = !onHero && PluviaTheme.tokens.densityCompact
@@ -1766,12 +1644,7 @@ private fun AppScreenActionBar(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 PrimaryAction(Modifier.fillMaxWidth())
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End),
-                ) {
-                    SecondaryActions()
-                }
+                OptionsAction(Modifier.align(Alignment.End))
             }
         } else {
             Row(
@@ -1781,7 +1654,8 @@ private fun AppScreenActionBar(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                PrimaryAction()
+                val expandPrimary = !onHero && !isDownloading
+                PrimaryAction(if (expandPrimary) Modifier.weight(1f) else Modifier)
 
                 // Download size / ETA text — inline only in landscape
                 if (isDownloading && !isPortrait) {
@@ -1812,15 +1686,13 @@ private fun AppScreenActionBar(
                             )
                         }
                     }
-                } else {
+                } else if (!expandPrimary) {
                     Spacer(modifier = Modifier.weight(1f))
                 }
-                SecondaryActions()
+                OptionsAction()
             }
         }
 
-        // An update should be as visible as the primary game command, not hidden
-        // in a lower information card or inside the options panel.
         if (isUpdatePending) {
             Surface(
                 modifier = Modifier
@@ -1846,34 +1718,18 @@ private fun AppScreenActionBar(
                         color = if (onHero) Color.White else MaterialTheme.colorScheme.onPrimaryContainer,
                         modifier = Modifier.weight(1f),
                     )
-                    Button(
+                    OutlinedButton(
                         onClick = onUpdateClick,
                         modifier = Modifier.heightIn(min = 48.dp),
                         shape = RoundedCornerShape(PluviaTheme.tokens.cornerMd),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (onHero) Color.White else MaterialTheme.colorScheme.primary,
-                            contentColor = if (onHero) Color.Black else MaterialTheme.colorScheme.onPrimary,
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = if (onHero) Color.White else MaterialTheme.colorScheme.onPrimaryContainer,
                         ),
                     ) {
                         Text(stringResource(R.string.update_now))
                     }
                 }
             }
-        }
-
-        if (runtimeConfig != null) {
-            HorizontalDivider(
-                modifier = Modifier.padding(top = if (compact) 10.dp else 18.dp),
-                color = if (onHero) Color.White.copy(alpha = 0.14f)
-                else MaterialTheme.colorScheme.outlineVariant,
-            )
-            GameRuntimeSummary(
-                config = runtimeConfig,
-                modifier = Modifier.padding(top = if (compact) 8.dp else 12.dp),
-                onHero = onHero,
-                sizeText = displayInfo.sizeOnDisk ?: displayInfo.sizeFromStore,
-                playtimeText = displayInfo.playtimeText,
-            )
         }
 
         if (isDownloading && isPortrait) {
@@ -1905,118 +1761,24 @@ private fun AppScreenActionBar(
             }
         }
     }
-
-    // Compatibility status (if applicable)
-    if (displayInfo.compatibilityMessage != null && displayInfo.compatibilityColor != null) {
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = displayInfo.compatibilityMessage,
-            style = MaterialTheme.typography.labelSmall,
-            color = Color(displayInfo.compatibilityColor),
-        )
-    }
-
-    // Community stats chips: review score + playing now (Steam only)
-    if (reviewScore != null || playerCount != null) {
-        Spacer(modifier = Modifier.height(8.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            reviewScore?.let { score ->
-                CommunityStatChip(
-                    text = "${score.description} (${score.percentPositive}%)",
-                    color = when (score.sentiment) {
-                        app.gamenative.utils.SteamReviewScore.Sentiment.POSITIVE ->
-                            PluviaTheme.colors.statusInstalled
-                        app.gamenative.utils.SteamReviewScore.Sentiment.NEGATIVE ->
-                            PluviaTheme.colors.accentDanger
-                        app.gamenative.utils.SteamReviewScore.Sentiment.MIXED ->
-                            if (onHero) Color.White.copy(alpha = 0.85f)
-                            else MaterialTheme.colorScheme.onSurface
-                    },
-                )
-            }
-            playerCount?.let { count ->
-                CommunityStatChip(
-                    text = stringResource(
-                        R.string.game_players_now,
-                        app.gamenative.utils.SteamPlayerCount.formatCount(count),
-                    ),
-                    color = if (onHero) Color.White.copy(alpha = 0.85f)
-                    else MaterialTheme.colorScheme.onSurface,
-                )
-            }
-        }
-    }
 }
 
 /** Compact context header for the actionable half of a dual-screen game card. */
 @Composable
 private fun SecondScreenGameHeader(displayInfo: GameDisplayInfo) {
     val compact = PluviaTheme.tokens.densityCompact
-    val releaseYear = remember(displayInfo.releaseDate) {
-        if (displayInfo.releaseDate > 0) {
-            SimpleDateFormat("yyyy", Locale.getDefault()).format(Date(displayInfo.releaseDate * 1000))
-        } else {
-            ""
-        }
-    }
-
-    Row(
+    Text(
+        text = displayInfo.name,
+        style = MaterialTheme.typography.titleMedium,
+        fontWeight = FontWeight.SemiBold,
+        color = MaterialTheme.colorScheme.onSurface,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
         modifier = Modifier
             .widthIn(max = 1180.dp)
             .fillMaxWidth()
-            .wrapContentWidth(Alignment.CenterHorizontally)
             .padding(horizontal = if (compact) 16.dp else 24.dp, vertical = if (compact) 8.dp else 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(if (compact) 10.dp else 16.dp),
-    ) {
-        Surface(
-            modifier = Modifier.size(if (compact) 40.dp else 56.dp),
-            shape = RoundedCornerShape(PluviaTheme.tokens.cornerMd),
-            color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        ) {
-            if (!displayInfo.iconUrl.isNullOrBlank()) {
-                CoilImage(
-                    imageModel = { displayInfo.iconUrl },
-                    imageOptions = ImageOptions(
-                        contentScale = ContentScale.Crop,
-                        contentDescription = null,
-                    ),
-                    modifier = Modifier.fillMaxSize(),
-                )
-            } else {
-                Icon(
-                    imageVector = Icons.Default.PlayArrow,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(if (compact) 9.dp else 16.dp),
-                )
-            }
-        }
-
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            Text(
-                text = displayInfo.name,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-            val byline = listOf(displayInfo.developer, releaseYear)
-                .filter { it.isNotBlank() }
-                .joinToString(" • ")
-            if (byline.isNotBlank()) {
-                Text(
-                    text = byline,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
-    }
+    )
     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 }
 
@@ -2032,7 +1794,6 @@ private fun AppScreenSecondScreenCard(
     isValidToDownload: Boolean,
     isDownloading: Boolean,
     hasPartialDownload: Boolean,
-    hasLeftoverInstall: Boolean,
     downloadProgress: Float,
     downloadInfo: app.gamenative.data.DownloadInfo?,
     isUpdatePending: Boolean,
@@ -2052,8 +1813,9 @@ private fun AppScreenSecondScreenCard(
     playerCount: Int?,
     onPauseResumeClick: () -> Unit,
     onDownloadInstallClick: () -> Unit,
-    onDeleteDownloadClick: () -> Unit,
     onBack: () -> Unit,
+    primaryActionLabelOverride: ((Boolean, Boolean, Boolean) -> String?)?,
+    dialogOpen: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val achievementsVisible = runtime.achievementsVisible
@@ -2068,16 +1830,22 @@ private fun AppScreenSecondScreenCard(
     // this display in dual mode.
     val windowInfo = LocalWindowInfo.current
     val controllerFocusEpoch = DsHomeSecondScreen.controllerFocusEpoch
-    LaunchedEffect(controllerFocusEpoch) {
+    val primaryEnabled = runtime.startActionEnabled(
+        isInstalled, isValidToDownload, isDownloading, hasPartialDownload, network,
+    )
+    val overlayOpen = runtime.optionsMenuVisible || achievementsVisible || dialogOpen
+    LaunchedEffect(displayInfo.appId, controllerFocusEpoch, overlayOpen) {
+        if (overlayOpen) return@LaunchedEffect
         withTimeoutOrNull(2_000) {
             snapshotFlow { windowInfo.isWindowFocused }
                 .filter { it }
                 .first()
         }
+        val firstAction = if (primaryEnabled) runtime.playButtonFocusRequester else runtime.optionsButtonFocusRequester
         var retries = 0
         while (retries < 8) {
             val accepted = runCatching {
-                runtime.playButtonFocusRequester.requestFocus()
+                firstAction.requestFocus()
             }.getOrDefault(false)
             if (accepted) {
                 break
@@ -2153,34 +1921,29 @@ private fun AppScreenSecondScreenCard(
                     .padding(horizontal = if (compact) 16.dp else 24.dp),
             ) {
                 AppScreenActionBar(
-                    displayInfo = displayInfo,
                     isPortrait = stackedActions,
                     isInstalled = isInstalled,
                     isValidToDownload = isValidToDownload,
                     isDownloading = isDownloading,
                     hasPartialDownload = hasPartialDownload,
-                    hasLeftoverInstall = hasLeftoverInstall,
                     downloadProgress = downloadProgress,
                     downloadInfo = downloadInfo,
                     runtime = runtime,
                     network = network,
                     onPauseResumeClick = onPauseResumeClick,
                     onDownloadInstallClick = onDownloadInstallClick,
-                    onDeleteDownloadClick = onDeleteDownloadClick,
-                    runtimeConfig = runtimeConfig,
-                    achievements = achievements,
-                    reviewScore = reviewScore,
-                    playerCount = playerCount,
                     isUpdatePending = isUpdatePending,
                     onUpdateClick = onUpdateClick,
                     onHero = false,
+                    primaryActionLabelOverride = primaryActionLabelOverride,
                 )
             }
 
             AppScreenBelowHeroContent(
                 isPortrait = isPortrait,
-                showUpdateBanner = false,
-                onUpdateClick = onUpdateClick,
+                runtimeConfig = runtimeConfig,
+                reviewScore = reviewScore,
+                playerCount = playerCount,
                 isInstalled = isInstalled,
                 isInstalledOnOtherSource = isInstalledOnOtherSource,
                 displayInfo = displayInfo,
@@ -2211,7 +1974,7 @@ private fun AppScreenSecondScreenCard(
         if (!achievementsVisible) GameOptionsPanel(
             isOpen = runtime.optionsMenuVisible,
             onDismiss = { runtime.optionsMenuVisible = false },
-            options = optionsMenu.toList(),
+            options = optionsMenu,
             gameName = displayInfo.name,
             compactDisplay = true,
             modifier = Modifier.align(Alignment.CenterEnd),
@@ -2265,10 +2028,24 @@ internal fun AppScreenContent(
     achievementRarity: Map<String, Float> = emptyMap(),
     primaryActionLabelOverride: ((isInstalled: Boolean, isDownloading: Boolean, hasPartialDownload: Boolean) -> String?)? = null,
 ) {
-    val context = LocalContext.current
-    // reactive — recomposes when network state changes
     val runtime = remember { AppScreenRuntimeState() }
-    val scope = rememberCoroutineScope()
+    val favorites by PrefManager.libraryFavorites.collectAsState()
+    val isFavorite = displayInfo.appId in favorites.gameIds
+    val isPlayNext = displayInfo.appId == favorites.playNextGameId
+    val cardOptions = remember(optionsMenu, achievements, runtime, displayInfo.appId, isFavorite, isPlayNext) {
+        buildList {
+            val favoriteAction = if (isFavorite) AppOptionMenuType.RemoveFavorite else AppOptionMenuType.AddFavorite
+            add(AppMenuOption(favoriteAction) { PrefManager.toggleFavorite(displayInfo.appId) })
+            if (isFavorite) {
+                val pinAction = if (isPlayNext) AppOptionMenuType.UnpinPlayNext else AppOptionMenuType.PinPlayNext
+                add(AppMenuOption(pinAction) { PrefManager.togglePlayNext(displayInfo.appId) })
+            }
+            if (!achievements.isNullOrEmpty()) {
+                add(AppMenuOption(AppOptionMenuType.Achievements) { runtime.achievementsVisible = true })
+            }
+            addAll(optionsMenu)
+        }
+    }
 
     // Steam-only community stats chips (playing now / review score)
     val gameSource = remember(displayInfo.appId) {
@@ -2316,6 +2093,7 @@ internal fun AppScreenContent(
                 owner = DsHomeSecondScreen.Owner.GAME_CARD,
                 mode = DsHomeSecondScreen.Mode.CARD,
                 controllerNavigation = DsHomeSecondScreen.ControllerNavigation.VERTICAL_LIST,
+                focusRequestKey = displayInfo.appId,
                 onBack = onBack,
                 cardContent = {
                     AppScreenSecondScreenCard(
@@ -2324,7 +2102,6 @@ internal fun AppScreenContent(
                         isValidToDownload = isValidToDownload,
                         isDownloading = isDownloading,
                         hasPartialDownload = hasPartialDownload,
-                        hasLeftoverInstall = hasLeftoverInstall,
                         downloadProgress = downloadProgress,
                         downloadInfo = downloadInfo,
                         isUpdatePending = isUpdatePending,
@@ -2336,7 +2113,7 @@ internal fun AppScreenContent(
                         storeDetails = storeDetails,
                         runtime = runtime,
                         network = network,
-                        optionsMenu = optionsMenu,
+                        optionsMenu = cardOptions,
                         achievements = achievements,
                         achievementRarity = achievementRarity,
                         runtimeConfig = runtimeConfig,
@@ -2344,7 +2121,8 @@ internal fun AppScreenContent(
                         playerCount = playerCount,
                         onPauseResumeClick = onPauseResumeClick,
                         onDownloadInstallClick = onDownloadInstallClick,
-                        onDeleteDownloadClick = onDeleteDownloadClick,
+                        primaryActionLabelOverride = primaryActionLabelOverride,
+                        dialogOpen = dialogOpen,
                         onBack = onBack,
                     )
                 },
@@ -2374,9 +2152,8 @@ internal fun AppScreenContent(
         }
     }
 
-    // Restore focus when options menu, dialogs
-    LaunchedEffect(runtime.optionsMenuVisible, dialogOpen) {
-        if (!runtime.optionsMenuVisible && !dialogOpen) {
+    LaunchedEffect(hasExternalDisplay, runtime.optionsMenuVisible, achievementsVisible, dialogOpen) {
+        if (!hasExternalDisplay && !runtime.optionsMenuVisible && !achievementsVisible && !dialogOpen) {
             kotlinx.coroutines.delay(100) // Brief delay for menu/dialog animation
             try {
                 runtime.playButtonFocusRequester.requestFocus()
@@ -2436,11 +2213,7 @@ internal fun AppScreenContent(
             },
         ) {
         if (hasExternalDisplay) {
-            // Dual-display: the hero fills the main display (fixed, no parallax —
-            // the hero image must stay still). The below-hero content and all
-            // overlays render on the second display (published as a CARD model in
-            // the SideEffect above). The hero's own content column scrolls so the
-            // action bar is never squeezed by the height-capped hero.
+            // Keep game artwork stationary on the upper display. Details and actions use the lower display.
             val mainHeroScroll = rememberScrollState()
             Box(
                 modifier = Modifier.fillMaxSize(),
@@ -2453,22 +2226,14 @@ internal fun AppScreenContent(
                     trailerUrl = trailerUrl,
                     runtime = runtime,
                     network = network,
-                    scope = scope,
-                    context = context,
                     isInstalled = isInstalled,
                     isValidToDownload = isValidToDownload,
                     isDownloading = isDownloading,
                     hasPartialDownload = hasPartialDownload,
-                    hasLeftoverInstall = hasLeftoverInstall,
                     downloadProgress = downloadProgress,
                     downloadInfo = downloadInfo,
                     onPauseResumeClick = onPauseResumeClick,
                     onDownloadInstallClick = onDownloadInstallClick,
-                    onDeleteDownloadClick = onDeleteDownloadClick,
-                    runtimeConfig = runtimeConfig,
-                    achievements = achievements,
-                    reviewScore = reviewScore,
-                    playerCount = playerCount,
                     contentScrollState = mainHeroScroll,
                     minimalHero = true,
                     preferLogo = PrefManager.dualScreenHeroUseLogo,
@@ -2494,22 +2259,14 @@ internal fun AppScreenContent(
                     trailerUrl = trailerUrl,
                     runtime = runtime,
                     network = network,
-                    scope = scope,
-                    context = context,
                     isInstalled = isInstalled,
                     isValidToDownload = isValidToDownload,
                     isDownloading = isDownloading,
                     hasPartialDownload = hasPartialDownload,
-                    hasLeftoverInstall = hasLeftoverInstall,
                     downloadProgress = downloadProgress,
                     downloadInfo = downloadInfo,
                     onPauseResumeClick = onPauseResumeClick,
                     onDownloadInstallClick = onDownloadInstallClick,
-                    onDeleteDownloadClick = onDeleteDownloadClick,
-                    runtimeConfig = runtimeConfig,
-                    achievements = achievements,
-                    reviewScore = reviewScore,
-                    playerCount = playerCount,
                     isUpdatePending = isUpdatePending,
                     onUpdateClick = onUpdateClick,
                     primaryActionLabelOverride = primaryActionLabelOverride,
@@ -2517,8 +2274,9 @@ internal fun AppScreenContent(
 
                 AppScreenBelowHeroContent(
                     isPortrait = isPortrait,
-                    showUpdateBanner = isUpdatePending,
-                    onUpdateClick = onUpdateClick,
+                    runtimeConfig = runtimeConfig,
+                    reviewScore = reviewScore,
+                    playerCount = playerCount,
                     isInstalled = isInstalled,
                     isInstalledOnOtherSource = isInstalledOnOtherSource,
                     displayInfo = displayInfo,
@@ -2547,7 +2305,7 @@ internal fun AppScreenContent(
             if (!achievementsVisible) GameOptionsPanel(
                 isOpen = runtime.optionsMenuVisible,
                 onDismiss = { runtime.optionsMenuVisible = false },
-                options = optionsMenu.toList(),
+                options = cardOptions,
                 gameName = displayInfo.name,
                 modifier = Modifier.align(Alignment.CenterEnd),
             )

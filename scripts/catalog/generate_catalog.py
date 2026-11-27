@@ -28,7 +28,7 @@ SOURCE_LAYOUT = (
     ("audio.yml", "audio"),
 )
 LEGACY_TYPES = {group for _, group in SOURCE_LAYOUT if group != "audio"}
-ENTRY_KEYS = {"id", "name", "url", "variant", "arch", "sizeBytes", "sha256", "archiveFormat", "sourceRepository"}
+ENTRY_KEYS = {"id", "name", "url", "variant", "arch", "sizeBytes", "sha256", "archiveFormat", "sourceRepository", "sourceCommit"}
 V2_REQUIRED_KEYS = {
     "id",
     "name",
@@ -216,6 +216,10 @@ def load_and_validate_sources(index_path: Path = DEFAULT_INDEX) -> tuple[dict[st
                 if any(not isinstance(entry[key], str) or not entry[key].strip() for key in ("id", "name", "url")):
                     raise CatalogError(f"{label}: id, name and url must be non-empty strings")
                 _validate_https_url(entry["url"], label, require_archive=True)
+                if "sourceCommit" in entry:
+                    if not isinstance(entry["sourceCommit"], str) or not COMMIT_RE.fullmatch(entry["sourceCommit"]):
+                        raise CatalogError(f"{label}: sourceCommit must be a commit hash")
+                    _validate_https_url(entry.get("sourceRepository"), f"{label} sourceRepository")
             else:
                 _validate_v2_entry(entry, label)
             # Legacy IDs are scoped to their install type. V2 dependency IDs are global.

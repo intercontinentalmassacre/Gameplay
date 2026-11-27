@@ -17,6 +17,7 @@ import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Before
@@ -117,6 +118,52 @@ class CloudSaveBackupManagerTest {
         write(File(saves, "slot1.sav"), "one", mtime = 1_700_000_100_000L)
         assertTrue(backup())
         assertEquals(2, list().size)
+    }
+
+    @Test
+    fun customSaveFolderRejectsAbsoluteAndTraversalPaths() {
+        assertNull(CloudSaveBackupManager.customSaveRoot(saves, root.absolutePath))
+        assertNull(CloudSaveBackupManager.customSaveRoot(saves, ".."))
+        assertNull(CloudSaveBackupManager.customSaveRoot(root, "saves/../saves"))
+        assertNull(CloudSaveBackupManager.customSaveRoot(root, "C:/saves"))
+    }
+
+    @Test
+    fun customSaveFolderRejectsSymlinkOutsideGame() {
+        assumeTrue("file system does not support symlinks", canCreateSymlinks())
+        val outside = File(root, "outside").apply { mkdir() }
+        Files.createSymbolicLink(File(saves, "link").toPath(), outside.toPath())
+        assertNull(CloudSaveBackupManager.customSaveRoot(saves, "link"))
+    }
+
+    @Test
+    fun manualCustomBackupExportsRelativePathsAndRestoresWithUndo() = runBlocking {
+        keep = 0
+        val manager = CloudSaveBackupManager
+        val customProvider = CloudSaveBackupManager.PROVIDER_CUSTOM
+        val customId = "CUSTOM_GAME_4242"
+        val file = write(File(saves, "profile/slot.sav"), "backup")
+        val sibling = write(File(root, "settings.ini"), "settings")
+        val chosenFolder = requireNotNull(manager.customSaveRoot(root, "saves"))
+        assertTrue(manager.backup(context, customProvider, customId, listOf(chosenFolder), Kind.MANUAL))
+        val saved = manager.listBackups(context, customProvider, customId).single()
+        assertEquals(saves.canonicalPath, saved.folder)
+
+        val exported = File(root, "export.zip")
+        assertTrue(manager.exportCustomBackup(context, customId, saved.file.name) { exported.outputStream() })
+        ZipFile(exported).use { zip ->
+            val entry = zip.entries().toList().single()
+            assertEquals("profile/slot.sav", entry.name)
+            assertEquals("backup", zip.getInputStream(entry).use { it.readBytes().decodeToString() })
+        }
+
+        write(file, "changes")
+        assertTrue(manager.restore(context, saved))
+        assertEquals("backup", file.readText())
+        assertEquals("settings", sibling.readText())
+        val undo = manager.listBackups(context, customProvider, customId).single { it.kind == Kind.PRE_RESTORE }
+        assertTrue(manager.restore(context, undo))
+        assertEquals("changes", file.readText())
     }
 
     @Test

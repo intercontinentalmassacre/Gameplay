@@ -6,7 +6,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
@@ -36,11 +35,9 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.painterResource
 import app.gamenative.PrefManager
-import app.gamenative.data.GameCompatibilityStatus
 import app.gamenative.data.GameSource
 import app.gamenative.data.LibraryItem
 import app.gamenative.ui.enums.PaneType
-import app.gamenative.ui.data.GameCardStats
 import app.gamenative.ui.data.InstallProgress
 import app.gamenative.ui.icons.Amazon
 import app.gamenative.ui.icons.Steam
@@ -72,24 +69,21 @@ internal fun AppItem(
     onFocus: () -> Unit = {},
     isRefreshing: Boolean = false,
     imageRefreshCounter: Long = 0L,
-    compatibilityStatus: GameCompatibilityStatus? = null,
-    gameStats: GameCardStats? = null,
     showFocusGlow: Boolean = true,
     enableFocusScale: Boolean = true,
-    animateStats: Boolean = true,
     installProgress: InstallProgress? = null,
 ) {
     val context = LocalContext.current
-    var hideText by remember { mutableStateOf(true) }
+    var showMissingArtwork by remember { mutableStateOf(false) }
     var alpha by remember { mutableFloatStateOf(1f) }
 
     LaunchedEffect(paneType) {
-        hideText = true
+        showMissingArtwork = false
         alpha = 1f
     }
 
     LaunchedEffect(imageRefreshCounter) {
-        hideText = true
+        showMissingArtwork = false
         alpha = 1f
     }
 
@@ -123,17 +117,14 @@ internal fun AppItem(
             scale = scale,
             paneType = paneType,
             imageRefreshCounter = imageRefreshCounter,
-            hideText = hideText,
+            showMissingArtwork = showMissingArtwork,
             imageAlpha = alpha,
             onImageLoadFailed = {
-                hideText = false
+                showMissingArtwork = true
                 alpha = 0.1f
             },
-            compatibilityStatus = compatibilityStatus,
-            gameStats = gameStats,
             showFocusGlow = showFocusGlow,
             context = context,
-            animateStats = animateStats,
             installProgress = installProgress,
         )
     }
@@ -158,24 +149,6 @@ fun GameSourceIcon(
             GameSource.AMAZON -> Icon(imageVector = Icons.Filled.Amazon, contentDescription = "Amazon", modifier = Modifier.size(iconSize.dp).alpha(0.7f))
             GameSource.ITCH -> Icon(imageVector = Icons.Filled.Storefront, contentDescription = "itch.io", modifier = Modifier.size(iconSize.dp).alpha(0.7f))
             else -> Unit
-        }
-    }
-}
-
-@Composable
-fun OtherSourceIcons(
-    sources: List<GameSource>,
-    modifier: Modifier = Modifier,
-    iconSize: Int = 11,
-) {
-    if (sources.isEmpty()) return
-    Row(modifier = modifier) {
-        sources.distinct().forEach { source ->
-            GameSourceIcon(
-                gameSource = source,
-                iconSize = iconSize,
-                alignmentBoxSize = 17,
-            )
         }
     }
 }
@@ -206,16 +179,9 @@ private fun Preview_AppItem() {
                         )
                     },
                     itemContent = {
-                        val status = when (it.index % 4) {
-                            0 -> GameCompatibilityStatus.COMPATIBLE
-                            1 -> GameCompatibilityStatus.GPU_COMPATIBLE
-                            2 -> GameCompatibilityStatus.NOT_COMPATIBLE
-                            else -> GameCompatibilityStatus.UNKNOWN
-                        }
                         AppItem(
                             appInfo = it,
                             onClick = {},
-                            compatibilityStatus = status,
                         )
                     },
                 )
@@ -249,17 +215,10 @@ private fun Preview_AppItemGrid() {
                     contentPadding = PaddingValues(20.dp),
                 ) {
                     items(items = appInfoList, key = { it.index }) { item ->
-                        val status = when (item.index % 4) {
-                            0 -> GameCompatibilityStatus.COMPATIBLE
-                            1 -> GameCompatibilityStatus.GPU_COMPATIBLE
-                            2 -> GameCompatibilityStatus.NOT_COMPATIBLE
-                            else -> GameCompatibilityStatus.UNKNOWN
-                        }
                         AppItem(
                             appInfo = item,
                             onClick = { },
                             paneType = PaneType.GRID_HERO,
-                            compatibilityStatus = status,
                         )
                     }
                 }

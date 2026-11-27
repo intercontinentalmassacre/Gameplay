@@ -29,6 +29,11 @@ class Html5InputSynthesizer(
         }
     }
 
+    fun cancelBinding(binding: Binding) {
+        if (isMouseButton(binding)) emitMouseButton(binding, isDown = false, click = false)
+        else onBindingPress(binding, false)
+    }
+
     fun onCursorMove(dx: Float, dy: Float) {
         val newX = (cursorX + dx).coerceIn(0f, (viewportW - 1).toFloat())
         val newY = (cursorY + dy).coerceIn(0f, (viewportH - 1).toFloat())
@@ -63,14 +68,14 @@ class Html5InputSynthesizer(
         )
     }
 
-    private fun emitMouseButton(binding: Binding, isDown: Boolean) {
+    private fun emitMouseButton(binding: Binding, isDown: Boolean, click: Boolean = true) {
         val button = mouseButtonIndex(binding) ?: return
         val type = if (isDown) "mousedown" else "mouseup"
         bridge.enqueue(
             eventJson("type" to type, "button" to button, "x" to cursorX.toInt(), "y" to cursorY.toInt()),
         )
         // RMMV/C3 listen for click, not just mouseup.
-        if (!isDown && button == 0) {
+        if (!isDown && click && button == 0) {
             bridge.enqueue(
                 eventJson("type" to "click", "button" to 0, "x" to cursorX.toInt(), "y" to cursorY.toInt()),
             )

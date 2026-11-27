@@ -31,8 +31,10 @@ internal object AppImageRuntime {
     private const val SHA256 = "3c16c82a1948d3804de45e75c41ff455f1a393a36349af90eae06fd5b93d248b"
     private val installLock = Mutex()
 
-    fun selected(appId: String, container: Container) =
-        container.executablePath.endsWith(".AppImage", ignoreCase = true) &&
+    fun selected(appId: String, container: Container) = selected(appId, container.executablePath)
+
+    fun selected(appId: String, executablePath: String) =
+        executablePath.endsWith(".AppImage", ignoreCase = true) &&
             ContainerUtils.extractGameSourceFromContainerId(appId) == GameSource.CUSTOM_GAME
 
     private fun root(context: Context) = File(context.filesDir, "appimage-linux-v1-${SHA256.take(12)}")
@@ -90,10 +92,7 @@ internal object AppImageRuntime {
     fun start(context: Context, container: Container, xServer: XServer, onError: ((String) -> Unit)?): XEnvironment {
         val root = root(context)
         require(root.isDirectory) { "The Linux runtime is missing" }
-        AssetUtils.extractComponentsWithVersionCheck(
-            listOf("pulseaudio-gamenative-20260612.tzst" to File(context.filesDir, "pulseaudio")),
-            context.assets, TarCompressorUtils.Type.ZSTD,
-        )
+        AssetUtils.preparePulseAudio(context.assets, File(context.filesDir, "pulseaudio"))
         val environment = XEnvironment(context, ImageFs.find(root))
         environment.addComponent(XServerComponent(xServer, UnixSocketConfig.createSocket(root.path, UnixSocketConfig.XSERVER_PATH)))
         environment.addComponent(PulseAudioComponent(UnixSocketConfig.createSocket(root.path, UnixSocketConfig.PULSE_SERVER_PATH), container.pulseaudioLowLatency))

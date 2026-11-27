@@ -6,7 +6,6 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.MutableTransitionState
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -37,6 +36,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -48,9 +48,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.BarChart
-import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Fingerprint
@@ -71,7 +72,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -317,30 +317,16 @@ fun QuickMenu(
     onAnimationComplete: (Boolean) -> Unit = {},
     /** Lets the menu open itself when the running game asks for its Steam invite dialog. */
     onRequestOpen: () -> Unit = {},
+    onResumeGame: () -> Unit = onDismiss,
     fullScreen: Boolean = false,
     modifier: Modifier = Modifier,
     isGamescopeSession: Boolean = false,
 ) {
-    val exitGameItem = QuickMenuItem(
-        id = QuickMenuAction.EXIT_GAME,
-        icon = Icons.AutoMirrored.Filled.ExitToApp,
-        labelResId = R.string.exit_game,
-        accentColor = PluviaTheme.colors.accentDanger,
-    )
-
     val controllerItems = buildList {
         // Steam Controller editors live behind a single root entry (most relevant when a Triton is connected).
         if (isSteamControllerLive) {
             add(QuickMenuItem(QuickMenuAction.SC_ROOT, Icons.Filled.Gamepad, R.string.sc_edit_root, PluviaTheme.colors.accentPurple))
         }
-        add(
-            QuickMenuItem(
-                id = QuickMenuAction.DISABLE_MOUSE,
-                icon = Icons.Filled.Mouse,
-                labelResId = R.string.disable_mouse_input,
-                accentColor = PluviaTheme.colors.accentPurple,
-            )
-        )
         add(
             QuickMenuItem(
                 id = QuickMenuAction.KEYBOARD,
@@ -354,6 +340,14 @@ fun QuickMenu(
                 id = QuickMenuAction.INPUT_CONTROLS,
                 icon = Icons.Default.TouchApp,
                 labelResId = R.string.input_controls,
+                accentColor = PluviaTheme.colors.accentPurple,
+            )
+        )
+        add(
+            QuickMenuItem(
+                id = QuickMenuAction.DISABLE_MOUSE,
+                icon = Icons.Filled.Mouse,
+                labelResId = R.string.disable_mouse_input,
                 accentColor = PluviaTheme.colors.accentPurple,
             )
         )
@@ -455,30 +449,15 @@ fun QuickMenu(
             if (!lsfgFrameGenerationConfirmed) delay(750)
         }
     }
-    val selectedTabLabelResId = when (selectedTab) {
-        QuickMenuTab.HUD -> R.string.performance_hud
-        QuickMenuTab.LSFG -> R.string.lsfg_tab_title
-        QuickMenuTab.EFFECTS -> effectsTitle
-        QuickMenuTab.TOOLS -> R.string.task_manager
-        QuickMenuTab.INVITE -> R.string.steam_invite_tab_title
-        else -> R.string.quick_menu_tab_controller
-    }
-
     val hudScrollState = rememberScrollState()
     val effectsScrollState = rememberScrollState()
     val lsfgScrollState = rememberScrollState()
-    val effectsTabFocusRequester = remember { FocusRequester() }
     val controllerScrollState = rememberScrollState()
-    val lsfgTabFocusRequester = remember { FocusRequester() }
-    val hudTabFocusRequester = remember { FocusRequester() }
-    val controllerTabFocusRequester = remember { FocusRequester() }
-    val toolsTabFocusRequester = remember { FocusRequester() }
     val hudItemFocusRequester = remember { FocusRequester() }
     val effectsItemFocusRequester = remember { FocusRequester() }
     val controllerItemFocusRequester = remember { FocusRequester() }
     val toolsItemFocusRequester = remember { FocusRequester() }
     val lsfgItemFocusRequester = remember { FocusRequester() }
-    val inviteTabFocusRequester = remember { FocusRequester() }
     val inviteItemFocusRequester = remember { FocusRequester() }
 
     // The game's own "Invite friends" button reaches us as an engine callback the bionic host
@@ -508,7 +487,7 @@ fun QuickMenu(
     }
 
     BackHandler(enabled = isVisible) {
-        onDismiss()
+        if (fullScreen) onResumeGame() else onDismiss()
     }
 
     Box(modifier = modifier.fillMaxSize()) {
@@ -563,43 +542,7 @@ fun QuickMenu(
                         .statusBarsPadding(),
                 ) {
                     val compact = fullScreen && PluviaTheme.tokens.densityCompact
-                    if (compact && container != null) {
-                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            QuickMenuRuntimeRow(container, Modifier.weight(1f))
-                            QuickMenuCloseButton(onClick = onDismiss)
-                        }
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                    } else {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(start = 20.dp, end = 8.dp, top = 16.dp, bottom = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                        ) {
-                            Text(
-                                text = stringResource(R.string.quick_menu_title),
-                                style = MaterialTheme.typography.titleLarge.copy(
-                                    fontWeight = FontWeight.SemiBold,
-                                ),
-                                color = MaterialTheme.colorScheme.onSurface,
-                            )
-                            QuickMenuCloseButton(onClick = onDismiss)
-                        }
-
-                        HorizontalDivider(
-                            modifier = Modifier.padding(horizontal = 16.dp),
-                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
-                        )
-
-                        if (container != null) {
-                            QuickMenuRuntimeRow(container = container)
-                            HorizontalDivider(
-                                modifier = Modifier.padding(horizontal = 16.dp),
-                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
-                            )
-                        }
-                    }
+                    if (!fullScreen) QuickMenuHeader(onResumeGame = onResumeGame)
 
                     Row(
                         modifier = Modifier
@@ -608,7 +551,7 @@ fun QuickMenu(
                     ) {
                         Column(
                             modifier = Modifier
-                                .width(64.dp)
+                                .width(108.dp)
                                 .fillMaxHeight()
                                 .focusGroup(),
                             horizontalAlignment = Alignment.CenterHorizontally,
@@ -625,125 +568,99 @@ fun QuickMenu(
                             ) {
                                 QuickMenuTabButton(
                                     icon = Icons.Default.QueryStats,
-                                    contentDescriptionResId = R.string.performance_hud,
+                                    labelResId = R.string.quick_menu_hud_tab,
                                     selected = selectedTab == QuickMenuTab.HUD,
-                                    accentColor = PluviaTheme.colors.accentPurple,
                                     onSelected = {
                                         selectedTab = QuickMenuTab.HUD
                                         PrefManager.quickMenuLastTab = selectedTab
                                     },
-                                    modifier = Modifier.width(56.dp),
-                                    focusRequester = hudTabFocusRequester,
                                 )
                                 if (isLsfgAvailable) {
                                     QuickMenuTabButton(
                                         icon = Icons.Default.Speed,
-                                        contentDescriptionResId = R.string.lsfg_tab_title,
+                                        labelResId = R.string.lsfg_tab_title,
                                         selected = selectedTab == QuickMenuTab.LSFG,
-                                        accentColor = PluviaTheme.colors.accentPurple,
                                         onSelected = {
                                             selectedTab = QuickMenuTab.LSFG
                                             PrefManager.quickMenuLastTab = selectedTab
                                         },
-                                        modifier = Modifier.width(56.dp),
-                                        focusRequester = lsfgTabFocusRequester,
                                     )
                                 }
                                 if (inviteMenu != null) {
                                     QuickMenuTabButton(
                                         icon = Icons.Default.PersonAdd,
-                                        contentDescriptionResId = R.string.steam_invite_tab_title,
+                                        labelResId = R.string.steam_invite_tab_title,
                                         selected = selectedTab == QuickMenuTab.INVITE,
-                                        accentColor = PluviaTheme.colors.accentPurple,
                                         onSelected = {
                                             selectedTab = QuickMenuTab.INVITE
                                             PrefManager.quickMenuLastTab = selectedTab
                                         },
-                                        modifier = Modifier.width(56.dp),
-                                        focusRequester = inviteTabFocusRequester,
                                     )
                                 }
                                 if (hasEffects) {
                                     QuickMenuTabButton(
                                         icon = Icons.Default.AutoFixHigh,
-                                        contentDescriptionResId = effectsTitle,
+                                        labelResId = effectsTitle,
                                         selected = selectedTab == QuickMenuTab.EFFECTS,
-                                        accentColor = PluviaTheme.colors.accentPurple,
                                         onSelected = {
                                             selectedTab = QuickMenuTab.EFFECTS
                                             PrefManager.quickMenuLastTab = selectedTab
                                         },
-                                        modifier = Modifier.width(56.dp),
-                                        focusRequester = effectsTabFocusRequester,
                                     )
                                 }
                                 QuickMenuTabButton(
                                     icon = Icons.Default.Gamepad,
-                                    contentDescriptionResId = R.string.quick_menu_tab_controller,
+                                    labelResId = R.string.quick_menu_tab_controller,
                                     selected = selectedTab == QuickMenuTab.CONTROLLER,
-                                    accentColor = PluviaTheme.colors.accentPurple,
                                     onSelected = {
                                         selectedTab = QuickMenuTab.CONTROLLER
                                         PrefManager.quickMenuLastTab = selectedTab
                                     },
-                                    modifier = Modifier.width(56.dp),
-                                    focusRequester = controllerTabFocusRequester,
                                 )
                                 QuickMenuTabButton(
                                     icon = Icons.Default.BarChart,
-                                    contentDescriptionResId = R.string.task_manager,
+                                    labelResId = R.string.task_manager,
                                     selected = selectedTab == QuickMenuTab.TOOLS,
-                                    accentColor = PluviaTheme.colors.accentPurple,
                                     onSelected = { selectedTab = QuickMenuTab.TOOLS },
-                                    modifier = Modifier.width(56.dp),
-                                    focusRequester = toolsTabFocusRequester,
                                 )
 
                                 if (inGameAchievements != null) {
                                     QuickMenuTabButton(
                                         icon = Icons.Default.EmojiEvents,
-                                        contentDescriptionResId = R.string.achievements,
+                                        labelResId = R.string.achievements,
                                         selected = false,
-                                        accentColor = PluviaTheme.colors.accentPurple,
                                         onSelected = {
                                             inGameAchievements.open()
                                             if (!fullScreen) onDismiss()
                                         },
                                         activateOnFocus = false,
-                                        modifier = Modifier.width(56.dp),
                                     )
                                 }
 
-                                QuickMenuTabButton(
+                                if (containerSettings != null) QuickMenuTabButton(
                                     icon = Icons.Default.Tune,
-                                    contentDescriptionResId = R.string.quick_menu_container_settings,
+                                    labelResId = R.string.quick_menu_container_settings,
                                     selected = false,
-                                    accentColor = PluviaTheme.colors.accentPurple,
                                     onSelected = {
-                                        containerSettings?.let { settings ->
-                                            settings.open()
-                                            if (!fullScreen) onDismiss()
-                                        }
+                                        containerSettings.open()
+                                        if (!fullScreen) onDismiss()
                                     },
                                     activateOnFocus = false,
-                                    modifier = Modifier.width(56.dp),
                                 )
 
-                                QuickMenuRailActionButton(
-                                    item = exitGameItem,
+                                QuickMenuExitButton(
                                     onClick = {
                                         if (onItemSelected(QuickMenuAction.EXIT_GAME)) {
                                             onDismiss()
                                         }
                                     },
-                                    modifier = Modifier.width(56.dp),
                                 )
                             }
                         }
 
                         Box(
                             modifier = Modifier
-                                .padding(horizontal = 12.dp)
+                                .padding(horizontal = 6.dp)
                                 .width(1.dp)
                                 .fillMaxHeight()
                                 .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f)),
@@ -753,18 +670,6 @@ fun QuickMenu(
                             modifier = Modifier
                                 .fillMaxSize(),
                         ) {
-                            Text(
-                                text = stringResource(selectedTabLabelResId),
-                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-                                color = MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                            )
-
-                            HorizontalDivider(
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f),
-                            )
-
                             Box(
                                 modifier = Modifier.weight(1f),
                             ) {
@@ -857,6 +762,7 @@ fun QuickMenu(
 
                                     QuickMenuTab.TOOLS -> {
                                         ToolsQuickMenuTab(
+                                            container = container,
                                             processes = wineProcesses,
                                             isLoadingProcesses = isWineProcessesLoading,
                                             onEndProcess = onEndWineProcess,
@@ -1030,6 +936,7 @@ private fun SteamInviteQuickMenuTab(
 
 @Composable
 private fun ToolsQuickMenuTab(
+    container: Container?,
     processes: List<ProcessInfo>,
     isLoadingProcesses: Boolean,
     onEndProcess: (ProcessInfo) -> Unit,
@@ -1073,9 +980,19 @@ private fun ToolsQuickMenuTab(
                 )
             }
         }
+
+        if (container != null) {
+            QuickMenuDisclosure(
+                labelResId = R.string.settings_runtime_title,
+                focusRequester = firstItemFocusRequester.takeIf { processes.isEmpty() },
+            ) {
+                QuickMenuRuntimeRow(container)
+            }
+        }
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun PerformanceHudQuickMenuTab(
     isPerformanceHudEnabled: Boolean,
@@ -1145,7 +1062,6 @@ private fun PerformanceHudQuickMenuTab(
         // ── Performance HUD ──────────────────────────────────────────────
         QuickMenuToggleRow(
             title = stringResource(R.string.performance_hud),
-            subtitle = stringResource(R.string.performance_hud_description),
             enabled = isPerformanceHudEnabled,
             onToggle = onTogglePerformanceHud,
             accentColor = accentColor,
@@ -1157,9 +1073,10 @@ private fun PerformanceHudQuickMenuTab(
             title = stringResource(R.string.performance_hud_presets),
         )
 
-        Row(
+        FlowRow(
             modifier = Modifier.padding(horizontal = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             PerformanceHudPreset.values().forEach { preset ->
                 QuickMenuChoiceChip(
@@ -1177,321 +1094,323 @@ private fun PerformanceHudQuickMenuTab(
             }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        QuickMenuDisclosure(labelResId = R.string.container_config_tab_advanced) {
+            QuickMenuSectionHeader(
+                title = stringResource(R.string.performance_hud_appearance),
+            )
 
-        QuickMenuSectionHeader(
-            title = stringResource(R.string.performance_hud_appearance),
-        )
+            Text(
+                text = stringResource(R.string.performance_hud_size),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+            )
 
-        Text(
-            text = stringResource(R.string.performance_hud_size),
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurface,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-        )
-
-        Row(
-            modifier = Modifier.padding(horizontal = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            listOf(
-                PerformanceHudSize.SMALL to R.string.performance_hud_size_small,
-                PerformanceHudSize.MEDIUM to R.string.performance_hud_size_medium,
-                PerformanceHudSize.LARGE to R.string.performance_hud_size_large,
-            ).forEach { (size, labelResId) ->
-                QuickMenuChoiceChip(
-                    text = stringResource(labelResId),
-                    selected = performanceHudConfig.size == size,
-                    accentColor = accentColor,
-                    onClick = {
-                        onPerformanceHudConfigChanged(performanceHudConfig.copy(size = size))
-                    },
-                    modifier = Modifier.width(56.dp),
-                )
+            FlowRow(
+                modifier = Modifier.padding(horizontal = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                listOf(
+                    PerformanceHudSize.SMALL to R.string.performance_hud_size_small,
+                    PerformanceHudSize.MEDIUM to R.string.performance_hud_size_medium,
+                    PerformanceHudSize.LARGE to R.string.performance_hud_size_large,
+                ).forEach { (size, labelResId) ->
+                    QuickMenuChoiceChip(
+                        text = stringResource(labelResId),
+                        selected = performanceHudConfig.size == size,
+                        accentColor = accentColor,
+                        onClick = {
+                            onPerformanceHudConfigChanged(performanceHudConfig.copy(size = size))
+                        },
+                        modifier = Modifier.width(56.dp),
+                    )
+                }
             }
-        }
 
-        QuickMenuAdjustmentRow(
-            title = stringResource(R.string.performance_hud_background_opacity),
-            valueText = stringResource(
-                R.string.performance_hud_percentage_value,
-                (performanceHudConfig.backgroundOpacity * 100f).roundToInt(),
-            ),
-            progress = normalizedProgress(performanceHudConfig.backgroundOpacity, 0f, 1f),
-            onDecrease = {
-                onPerformanceHudConfigChanged(
-                    performanceHudConfig.copy(
-                        backgroundOpacity = (performanceHudConfig.backgroundOpacity - 0.05f).coerceIn(0f, 1f),
-                    ),
-                )
-            },
-            onIncrease = {
-                onPerformanceHudConfigChanged(
-                    performanceHudConfig.copy(
-                        backgroundOpacity = (performanceHudConfig.backgroundOpacity + 0.05f).coerceIn(0f, 1f),
-                    ),
-                )
-            },
-            accentColor = accentColor,
-        )
-
-        QuickMenuAdjustmentRow(
-            title = stringResource(R.string.performance_hud_color_intensity),
-            valueText = stringResource(
-                R.string.performance_hud_percentage_value,
-                (performanceHudConfig.colorIntensity * 100f).roundToInt(),
-            ),
-            progress = normalizedProgress(performanceHudConfig.colorIntensity, 0f, 1f),
-            onDecrease = {
-                onPerformanceHudConfigChanged(
-                    performanceHudConfig.copy(
-                        colorIntensity = (performanceHudConfig.colorIntensity - 0.05f).coerceIn(0f, 1f),
-                    ),
-                )
-            },
-            onIncrease = {
-                onPerformanceHudConfigChanged(
-                    performanceHudConfig.copy(
-                        colorIntensity = (performanceHudConfig.colorIntensity + 0.05f).coerceIn(0f, 1f),
-                    ),
-                )
-            },
-            accentColor = accentColor,
-        )
-
-        QuickMenuToggleRow(
-            title = stringResource(R.string.performance_hud_text_outline),
-            enabled = performanceHudConfig.showTextOutline,
-            onToggle = {
-                onPerformanceHudConfigChanged(
-                    performanceHudConfig.copy(showTextOutline = !performanceHudConfig.showTextOutline),
-                )
-            },
-            accentColor = accentColor,
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        QuickMenuSectionHeader(
-            title = stringResource(R.string.performance_hud_metrics),
-        )
-
-        QuickMenuToggleRow(
-            title = stringResource(R.string.performance_hud_frame_rate),
-            enabled = performanceHudConfig.showFrameRate,
-            onToggle = {
-                onPerformanceHudConfigChanged(
-                    performanceHudConfig.copy(showFrameRate = !performanceHudConfig.showFrameRate),
-                )
-            },
-            accentColor = accentColor,
-        )
-        QuickMenuToggleRow(
-            title = stringResource(R.string.performance_hud_frame_rate_graph),
-            enabled = performanceHudConfig.showFrameRateGraph,
-            onToggle = {
-                onPerformanceHudConfigChanged(
-                    performanceHudConfig.copy(showFrameRateGraph = !performanceHudConfig.showFrameRateGraph),
-                )
-            },
-            accentColor = accentColor,
-        )
-        QuickMenuToggleRow(
-            title = stringResource(R.string.performance_hud_cpu_usage),
-            enabled = performanceHudConfig.showCpuUsage,
-            onToggle = {
-                onPerformanceHudConfigChanged(
-                    performanceHudConfig.copy(showCpuUsage = !performanceHudConfig.showCpuUsage),
-                )
-            },
-            accentColor = accentColor,
-        )
-        QuickMenuToggleRow(
-            title = stringResource(R.string.performance_hud_cpu_usage_graph),
-            enabled = performanceHudConfig.showCpuUsageGraph,
-            onToggle = {
-                onPerformanceHudConfigChanged(
-                    performanceHudConfig.copy(showCpuUsageGraph = !performanceHudConfig.showCpuUsageGraph),
-                )
-            },
-            accentColor = accentColor,
-        )
-        QuickMenuToggleRow(
-            title = stringResource(R.string.performance_hud_gpu_usage),
-            enabled = performanceHudConfig.showGpuUsage,
-            onToggle = {
-                onPerformanceHudConfigChanged(
-                    performanceHudConfig.copy(showGpuUsage = !performanceHudConfig.showGpuUsage),
-                )
-            },
-            accentColor = accentColor,
-        )
-        QuickMenuToggleRow(
-            title = stringResource(R.string.performance_hud_gpu_usage_graph),
-            enabled = performanceHudConfig.showGpuUsageGraph,
-            onToggle = {
-                onPerformanceHudConfigChanged(
-                    performanceHudConfig.copy(showGpuUsageGraph = !performanceHudConfig.showGpuUsageGraph),
-                )
-            },
-            accentColor = accentColor,
-        )
-        QuickMenuToggleRow(
-            title = stringResource(R.string.performance_hud_ram_usage),
-            enabled = performanceHudConfig.showRamUsage,
-            onToggle = {
-                onPerformanceHudConfigChanged(
-                    performanceHudConfig.copy(showRamUsage = !performanceHudConfig.showRamUsage),
-                )
-            },
-            accentColor = accentColor,
-        )
-        QuickMenuToggleRow(
-            title = stringResource(R.string.performance_hud_battery_level),
-            enabled = performanceHudConfig.showBatteryLevel,
-            onToggle = {
-                onPerformanceHudConfigChanged(
-                    performanceHudConfig.copy(showBatteryLevel = !performanceHudConfig.showBatteryLevel),
-                )
-            },
-            accentColor = accentColor,
-        )
-        QuickMenuToggleRow(
-            title = stringResource(R.string.performance_hud_low_battery_warning),
-            enabled = performanceHudConfig.lowBatteryWarningEnabled,
-            onToggle = {
-                onPerformanceHudConfigChanged(
-                    performanceHudConfig.copy(lowBatteryWarningEnabled = !performanceHudConfig.lowBatteryWarningEnabled),
-                )
-            },
-            accentColor = accentColor,
-        )
-        if (performanceHudConfig.lowBatteryWarningEnabled) {
             QuickMenuAdjustmentRow(
-                title = stringResource(R.string.performance_hud_low_battery_threshold),
+                title = stringResource(R.string.performance_hud_background_opacity),
                 valueText = stringResource(
                     R.string.performance_hud_percentage_value,
-                    performanceHudConfig.lowBatteryThresholdPercent,
+                    (performanceHudConfig.backgroundOpacity * 100f).roundToInt(),
                 ),
-                progress = normalizedProgress(performanceHudConfig.lowBatteryThresholdPercent.toFloat(), 5f, 50f),
+                progress = normalizedProgress(performanceHudConfig.backgroundOpacity, 0f, 1f),
                 onDecrease = {
                     onPerformanceHudConfigChanged(
                         performanceHudConfig.copy(
-                            lowBatteryThresholdPercent = (performanceHudConfig.lowBatteryThresholdPercent - 5).coerceAtLeast(5),
+                            backgroundOpacity = (performanceHudConfig.backgroundOpacity - 0.05f).coerceIn(0f, 1f),
                         ),
                     )
                 },
                 onIncrease = {
                     onPerformanceHudConfigChanged(
                         performanceHudConfig.copy(
-                            lowBatteryThresholdPercent = (performanceHudConfig.lowBatteryThresholdPercent + 5).coerceAtMost(50),
+                            backgroundOpacity = (performanceHudConfig.backgroundOpacity + 0.05f).coerceIn(0f, 1f),
                         ),
                     )
                 },
                 accentColor = accentColor,
             )
-        }
-        QuickMenuToggleRow(
-            title = stringResource(R.string.performance_hud_power_draw),
-            enabled = performanceHudConfig.showPowerDraw,
-            onToggle = {
-                onPerformanceHudConfigChanged(
-                    performanceHudConfig.copy(showPowerDraw = !performanceHudConfig.showPowerDraw),
-                )
-            },
-            accentColor = accentColor,
-        )
-        QuickMenuToggleRow(
-            title = stringResource(R.string.performance_hud_runtime_left),
-            enabled = performanceHudConfig.showBatteryRuntime,
-            onToggle = {
-                onPerformanceHudConfigChanged(
-                    performanceHudConfig.copy(showBatteryRuntime = !performanceHudConfig.showBatteryRuntime),
-                )
-            },
-            accentColor = accentColor,
-        )
-        QuickMenuToggleRow(
-            title = stringResource(R.string.performance_hud_battery_temperature),
-            enabled = performanceHudConfig.showBatteryTemperature,
-            onToggle = {
-                onPerformanceHudConfigChanged(
-                    performanceHudConfig.copy(showBatteryTemperature = !performanceHudConfig.showBatteryTemperature),
-                )
-            },
-            accentColor = accentColor,
-        )
-        QuickMenuToggleRow(
-            title = stringResource(R.string.performance_hud_high_battery_temperature_warning),
-            enabled = performanceHudConfig.highBatteryTemperatureWarningEnabled,
-            onToggle = {
-                onPerformanceHudConfigChanged(
-                    performanceHudConfig.copy(
-                        highBatteryTemperatureWarningEnabled =
-                            !performanceHudConfig.highBatteryTemperatureWarningEnabled,
-                    ),
-                )
-            },
-            accentColor = accentColor,
-        )
-        if (performanceHudConfig.highBatteryTemperatureWarningEnabled) {
+
             QuickMenuAdjustmentRow(
-                title = stringResource(R.string.performance_hud_high_battery_temperature_threshold),
+                title = stringResource(R.string.performance_hud_color_intensity),
                 valueText = stringResource(
-                    R.string.performance_hud_temperature_value,
-                    performanceHudConfig.highBatteryTemperatureThresholdC,
+                    R.string.performance_hud_percentage_value,
+                    (performanceHudConfig.colorIntensity * 100f).roundToInt(),
                 ),
-                progress = normalizedProgress(performanceHudConfig.highBatteryTemperatureThresholdC.toFloat(), 30f, 60f),
+                progress = normalizedProgress(performanceHudConfig.colorIntensity, 0f, 1f),
                 onDecrease = {
                     onPerformanceHudConfigChanged(
                         performanceHudConfig.copy(
-                            highBatteryTemperatureThresholdC =
-                                (performanceHudConfig.highBatteryTemperatureThresholdC - 1).coerceAtLeast(30),
+                            colorIntensity = (performanceHudConfig.colorIntensity - 0.05f).coerceIn(0f, 1f),
                         ),
                     )
                 },
                 onIncrease = {
                     onPerformanceHudConfigChanged(
                         performanceHudConfig.copy(
-                            highBatteryTemperatureThresholdC =
-                                (performanceHudConfig.highBatteryTemperatureThresholdC + 1).coerceAtMost(60),
+                            colorIntensity = (performanceHudConfig.colorIntensity + 0.05f).coerceIn(0f, 1f),
                         ),
                     )
                 },
                 accentColor = accentColor,
             )
+
+            QuickMenuToggleRow(
+                title = stringResource(R.string.performance_hud_text_outline),
+                enabled = performanceHudConfig.showTextOutline,
+                onToggle = {
+                    onPerformanceHudConfigChanged(
+                        performanceHudConfig.copy(showTextOutline = !performanceHudConfig.showTextOutline),
+                    )
+                },
+                accentColor = accentColor,
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            QuickMenuSectionHeader(
+                title = stringResource(R.string.performance_hud_metrics),
+            )
+
+            QuickMenuToggleRow(
+                title = stringResource(R.string.performance_hud_frame_rate),
+                enabled = performanceHudConfig.showFrameRate,
+                onToggle = {
+                    onPerformanceHudConfigChanged(
+                        performanceHudConfig.copy(showFrameRate = !performanceHudConfig.showFrameRate),
+                    )
+                },
+                accentColor = accentColor,
+            )
+            QuickMenuToggleRow(
+                title = stringResource(R.string.performance_hud_frame_rate_graph),
+                enabled = performanceHudConfig.showFrameRateGraph,
+                onToggle = {
+                    onPerformanceHudConfigChanged(
+                        performanceHudConfig.copy(showFrameRateGraph = !performanceHudConfig.showFrameRateGraph),
+                    )
+                },
+                accentColor = accentColor,
+            )
+            QuickMenuToggleRow(
+                title = stringResource(R.string.performance_hud_cpu_usage),
+                enabled = performanceHudConfig.showCpuUsage,
+                onToggle = {
+                    onPerformanceHudConfigChanged(
+                        performanceHudConfig.copy(showCpuUsage = !performanceHudConfig.showCpuUsage),
+                    )
+                },
+                accentColor = accentColor,
+            )
+            QuickMenuToggleRow(
+                title = stringResource(R.string.performance_hud_cpu_usage_graph),
+                enabled = performanceHudConfig.showCpuUsageGraph,
+                onToggle = {
+                    onPerformanceHudConfigChanged(
+                        performanceHudConfig.copy(showCpuUsageGraph = !performanceHudConfig.showCpuUsageGraph),
+                    )
+                },
+                accentColor = accentColor,
+            )
+            QuickMenuToggleRow(
+                title = stringResource(R.string.performance_hud_gpu_usage),
+                enabled = performanceHudConfig.showGpuUsage,
+                onToggle = {
+                    onPerformanceHudConfigChanged(
+                        performanceHudConfig.copy(showGpuUsage = !performanceHudConfig.showGpuUsage),
+                    )
+                },
+                accentColor = accentColor,
+            )
+            QuickMenuToggleRow(
+                title = stringResource(R.string.performance_hud_gpu_usage_graph),
+                enabled = performanceHudConfig.showGpuUsageGraph,
+                onToggle = {
+                    onPerformanceHudConfigChanged(
+                        performanceHudConfig.copy(showGpuUsageGraph = !performanceHudConfig.showGpuUsageGraph),
+                    )
+                },
+                accentColor = accentColor,
+            )
+            QuickMenuToggleRow(
+                title = stringResource(R.string.performance_hud_ram_usage),
+                enabled = performanceHudConfig.showRamUsage,
+                onToggle = {
+                    onPerformanceHudConfigChanged(
+                        performanceHudConfig.copy(showRamUsage = !performanceHudConfig.showRamUsage),
+                    )
+                },
+                accentColor = accentColor,
+            )
+            QuickMenuToggleRow(
+                title = stringResource(R.string.performance_hud_battery_level),
+                enabled = performanceHudConfig.showBatteryLevel,
+                onToggle = {
+                    onPerformanceHudConfigChanged(
+                        performanceHudConfig.copy(showBatteryLevel = !performanceHudConfig.showBatteryLevel),
+                    )
+                },
+                accentColor = accentColor,
+            )
+            QuickMenuToggleRow(
+                title = stringResource(R.string.performance_hud_low_battery_warning),
+                enabled = performanceHudConfig.lowBatteryWarningEnabled,
+                onToggle = {
+                    onPerformanceHudConfigChanged(
+                        performanceHudConfig.copy(lowBatteryWarningEnabled = !performanceHudConfig.lowBatteryWarningEnabled),
+                    )
+                },
+                accentColor = accentColor,
+            )
+            if (performanceHudConfig.lowBatteryWarningEnabled) {
+                QuickMenuAdjustmentRow(
+                    title = stringResource(R.string.performance_hud_low_battery_threshold),
+                    valueText = stringResource(
+                        R.string.performance_hud_percentage_value,
+                        performanceHudConfig.lowBatteryThresholdPercent,
+                    ),
+                    progress = normalizedProgress(performanceHudConfig.lowBatteryThresholdPercent.toFloat(), 5f, 50f),
+                    onDecrease = {
+                        onPerformanceHudConfigChanged(
+                            performanceHudConfig.copy(
+                                lowBatteryThresholdPercent = (performanceHudConfig.lowBatteryThresholdPercent - 5).coerceAtLeast(5),
+                            ),
+                        )
+                    },
+                    onIncrease = {
+                        onPerformanceHudConfigChanged(
+                            performanceHudConfig.copy(
+                                lowBatteryThresholdPercent = (performanceHudConfig.lowBatteryThresholdPercent + 5).coerceAtMost(50),
+                            ),
+                        )
+                    },
+                    accentColor = accentColor,
+                )
+            }
+            QuickMenuToggleRow(
+                title = stringResource(R.string.performance_hud_power_draw),
+                enabled = performanceHudConfig.showPowerDraw,
+                onToggle = {
+                    onPerformanceHudConfigChanged(
+                        performanceHudConfig.copy(showPowerDraw = !performanceHudConfig.showPowerDraw),
+                    )
+                },
+                accentColor = accentColor,
+            )
+            QuickMenuToggleRow(
+                title = stringResource(R.string.performance_hud_runtime_left),
+                enabled = performanceHudConfig.showBatteryRuntime,
+                onToggle = {
+                    onPerformanceHudConfigChanged(
+                        performanceHudConfig.copy(showBatteryRuntime = !performanceHudConfig.showBatteryRuntime),
+                    )
+                },
+                accentColor = accentColor,
+            )
+            QuickMenuToggleRow(
+                title = stringResource(R.string.performance_hud_battery_temperature),
+                enabled = performanceHudConfig.showBatteryTemperature,
+                onToggle = {
+                    onPerformanceHudConfigChanged(
+                        performanceHudConfig.copy(showBatteryTemperature = !performanceHudConfig.showBatteryTemperature),
+                    )
+                },
+                accentColor = accentColor,
+            )
+            QuickMenuToggleRow(
+                title = stringResource(R.string.performance_hud_high_battery_temperature_warning),
+                enabled = performanceHudConfig.highBatteryTemperatureWarningEnabled,
+                onToggle = {
+                    onPerformanceHudConfigChanged(
+                        performanceHudConfig.copy(
+                            highBatteryTemperatureWarningEnabled =
+                                !performanceHudConfig.highBatteryTemperatureWarningEnabled,
+                        ),
+                    )
+                },
+                accentColor = accentColor,
+            )
+            if (performanceHudConfig.highBatteryTemperatureWarningEnabled) {
+                QuickMenuAdjustmentRow(
+                    title = stringResource(R.string.performance_hud_high_battery_temperature_threshold),
+                    valueText = stringResource(
+                        R.string.performance_hud_temperature_value,
+                        performanceHudConfig.highBatteryTemperatureThresholdC,
+                    ),
+                    progress = normalizedProgress(performanceHudConfig.highBatteryTemperatureThresholdC.toFloat(), 30f, 60f),
+                    onDecrease = {
+                        onPerformanceHudConfigChanged(
+                            performanceHudConfig.copy(
+                                highBatteryTemperatureThresholdC =
+                                    (performanceHudConfig.highBatteryTemperatureThresholdC - 1).coerceAtLeast(30),
+                            ),
+                        )
+                    },
+                    onIncrease = {
+                        onPerformanceHudConfigChanged(
+                            performanceHudConfig.copy(
+                                highBatteryTemperatureThresholdC =
+                                    (performanceHudConfig.highBatteryTemperatureThresholdC + 1).coerceAtMost(60),
+                            ),
+                        )
+                    },
+                    accentColor = accentColor,
+                )
+            }
+            QuickMenuToggleRow(
+                title = stringResource(R.string.performance_hud_clock_time),
+                enabled = performanceHudConfig.showClockTime,
+                onToggle = {
+                    onPerformanceHudConfigChanged(
+                        performanceHudConfig.copy(showClockTime = !performanceHudConfig.showClockTime),
+                    )
+                },
+                accentColor = accentColor,
+            )
+            QuickMenuToggleRow(
+                title = stringResource(R.string.performance_hud_cpu_temperature),
+                enabled = performanceHudConfig.showCpuTemperature,
+                onToggle = {
+                    onPerformanceHudConfigChanged(
+                        performanceHudConfig.copy(showCpuTemperature = !performanceHudConfig.showCpuTemperature),
+                    )
+                },
+                accentColor = accentColor,
+            )
+            QuickMenuToggleRow(
+                title = stringResource(R.string.performance_hud_gpu_temperature),
+                enabled = performanceHudConfig.showGpuTemperature,
+                onToggle = {
+                    onPerformanceHudConfigChanged(
+                        performanceHudConfig.copy(showGpuTemperature = !performanceHudConfig.showGpuTemperature),
+                    )
+                },
+                accentColor = accentColor,
+            )
+
         }
-        QuickMenuToggleRow(
-            title = stringResource(R.string.performance_hud_clock_time),
-            enabled = performanceHudConfig.showClockTime,
-            onToggle = {
-                onPerformanceHudConfigChanged(
-                    performanceHudConfig.copy(showClockTime = !performanceHudConfig.showClockTime),
-                )
-            },
-            accentColor = accentColor,
-        )
-        QuickMenuToggleRow(
-            title = stringResource(R.string.performance_hud_cpu_temperature),
-            enabled = performanceHudConfig.showCpuTemperature,
-            onToggle = {
-                onPerformanceHudConfigChanged(
-                    performanceHudConfig.copy(showCpuTemperature = !performanceHudConfig.showCpuTemperature),
-                )
-            },
-            accentColor = accentColor,
-        )
-        QuickMenuToggleRow(
-            title = stringResource(R.string.performance_hud_gpu_temperature),
-            enabled = performanceHudConfig.showGpuTemperature,
-            onToggle = {
-                onPerformanceHudConfigChanged(
-                    performanceHudConfig.copy(showGpuTemperature = !performanceHudConfig.showGpuTemperature),
-                )
-            },
-            accentColor = accentColor,
-        )
 
         Spacer(modifier = Modifier.height(12.dp))
     }
@@ -1696,13 +1615,6 @@ private fun LsfgQuickMenuTab(
                                 R.string.lsfg_runtime_waiting
                             },
                         ),
-                        subtitle = stringResource(
-                            if (runtimeConfirmed) {
-                                R.string.lsfg_runtime_confirmed_desc
-                            } else {
-                                R.string.lsfg_runtime_waiting_desc
-                            },
-                        ),
                     )
 
                 } else {
@@ -1787,14 +1699,14 @@ private fun QuickMenuSectionHeader(
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun QuickMenuRuntimeRow(container: Container, modifier: Modifier = Modifier) {
+private fun QuickMenuRuntimeRow(container: Container) {
     val wineValue = container.wineVersion.ifBlank { container.containerVariant }
     val driverValue = container.graphicsDriver
     val directX = directXSummary(container.dxWrapper, container.dxWrapperConfig)
     val variantValue = container.containerVariant
 
     FlowRow(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = if (PluviaTheme.tokens.densityCompact) 4.dp else 10.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -1844,169 +1756,141 @@ private fun QuickMenuRuntimePill(
 }
 
 @Composable
-private fun QuickMenuCloseButton(
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val isFocused by interactionSource.collectIsFocusedAsState()
-    val shape = MaterialTheme.shapes.medium
-
-    Box(
-        modifier = modifier
-            .size(48.dp)
-            .clip(shape)
-            .background(
-                if (isFocused) {
-                    MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
-                } else {
-                    Color.Transparent
-                },
-            )
-            .focusRing(interactionSource, shape, width = PluviaTheme.tokens.focusRingWidth)
-            .clickable(
-                interactionSource = interactionSource,
-                indication = null,
-                onClick = onClick,
-            )
-            .focusable(interactionSource = interactionSource),
-        contentAlignment = Alignment.Center,
+private fun QuickMenuHeader(onResumeGame: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 20.dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
+        Text(
+            text = stringResource(R.string.quick_menu_title),
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.weight(1f),
+        )
+        Button(
+            onClick = onResumeGame,
+            modifier = Modifier.weight(1f, fill = false).heightIn(min = 48.dp),
+        ) {
+            Text(stringResource(R.string.resume_game))
+        }
+    }
+    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+}
+
+@Composable
+private fun QuickMenuDisclosure(
+    labelResId: Int,
+    focusRequester: FocusRequester? = null,
+    content: @Composable () -> Unit,
+) {
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    OutlinedButton(
+        onClick = { expanded = !expanded },
+        modifier = Modifier
+            .padding(horizontal = 8.dp, vertical = 4.dp)
+            .heightIn(min = 48.dp)
+            .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier),
+    ) {
+        Text(stringResource(labelResId))
         Icon(
-            imageVector = Icons.Default.Close,
-            contentDescription = stringResource(R.string.quick_menu_back),
-            tint = if (isFocused) {
-                MaterialTheme.colorScheme.primary
-            } else {
-                MaterialTheme.colorScheme.onSurfaceVariant
-            },
-            modifier = Modifier.size(24.dp),
+            imageVector = if (expanded) Icons.Default.KeyboardArrowDown else Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            modifier = Modifier.padding(start = 4.dp).size(20.dp),
         )
     }
+    if (expanded) content()
 }
 
 @Composable
 private fun QuickMenuTabButton(
     icon: ImageVector,
-    contentDescriptionResId: Int,
+    labelResId: Int,
     selected: Boolean,
-    accentColor: Color,
     onSelected: () -> Unit,
-    modifier: Modifier = Modifier,
-    focusRequester: FocusRequester? = null,
     activateOnFocus: Boolean = true,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
-    val shape = RoundedCornerShape(14.dp)
+    val shape = RoundedCornerShape(PluviaTheme.tokens.cornerMd)
+    val colors = MaterialTheme.colorScheme
+    val foreground = if (selected) colors.onSecondaryContainer else colors.onSurfaceVariant
 
-    Box(
-        modifier = modifier
-            .size(56.dp)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
             .clip(shape)
             .background(
                 when {
-                    selected -> accentColor.copy(alpha = 0.18f)
-                    isFocused -> accentColor.copy(alpha = 0.12f)
-                    else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+                    selected -> colors.secondaryContainer
+                    isFocused -> colors.surfaceContainerHigh
+                    else -> Color.Transparent
                 },
             )
-            .focusRing(interactionSource, shape, width = PluviaTheme.tokens.focusRingWidth)
-            .then(
-                if (focusRequester != null) {
-                    Modifier.focusRequester(focusRequester)
-                } else {
-                    Modifier
-                }
-            )
+            .focusRing(interactionSource, shape)
             .onFocusChanged {
-                if (activateOnFocus && it.isFocused && !selected) {
-                    onSelected()
-                }
+                if (activateOnFocus && it.isFocused && !selected) onSelected()
             }
             .selectable(
                 selected = selected,
+                role = if (activateOnFocus) Role.Tab else Role.Button,
                 interactionSource = interactionSource,
                 indication = null,
                 onClick = onSelected,
             )
-            .focusable(interactionSource = interactionSource),
-        contentAlignment = Alignment.Center,
+            .padding(horizontal = 6.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = stringResource(contentDescriptionResId),
-            tint = when {
-                selected || isFocused -> accentColor
-                else -> MaterialTheme.colorScheme.onSurfaceVariant
-            },
-            modifier = Modifier.size(24.dp),
+        Icon(icon, contentDescription = null, tint = foreground, modifier = Modifier.size(18.dp))
+        Text(
+            text = stringResource(labelResId),
+            style = MaterialTheme.typography.labelMedium,
+            color = foreground,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
         )
     }
 }
 
 @Composable
-private fun QuickMenuRailActionButton(
-    item: QuickMenuItem,
+private fun QuickMenuExitButton(
     onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    focusRequester: FocusRequester? = null,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
-    val accentColor = if (item.accentColor != Color.Unspecified) {
-        item.accentColor
-    } else {
-        MaterialTheme.colorScheme.error
-    }
-    val shape = RoundedCornerShape(14.dp)
-
-    Box(
-        modifier = modifier
-            .size(56.dp)
-            .then(
-                if (isFocused) {
-                    Modifier.border(
-                        width = 2.dp,
-                        color = accentColor.copy(alpha = 0.7f),
-                        shape = shape,
-                    )
-                } else {
-                    Modifier.border(
-                        width = 1.dp,
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f),
-                        shape = shape,
-                    )
-                }
-            )
+    val colors = MaterialTheme.colorScheme
+    val shape = RoundedCornerShape(PluviaTheme.tokens.cornerMd)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
             .clip(shape)
-            .background(
-                if (isFocused) {
-                    accentColor.copy(alpha = 0.18f)
-                } else {
-                    accentColor.copy(alpha = 0.08f)
-                },
-            )
-            .then(
-                if (focusRequester != null) {
-                    Modifier.focusRequester(focusRequester)
-                } else {
-                    Modifier
-                }
-            )
+            .background(if (isFocused) colors.errorContainer else Color.Transparent)
+            .focusRing(interactionSource, shape)
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
+                role = Role.Button,
                 onClick = onClick,
             )
-            .focusable(interactionSource = interactionSource),
-        contentAlignment = Alignment.Center,
+            .padding(horizontal = 6.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
+        val foreground = if (isFocused) colors.onErrorContainer else colors.error
         Icon(
-            imageVector = item.icon,
-            contentDescription = stringResource(item.labelResId),
-            tint = if (isFocused) accentColor else accentColor.copy(alpha = 0.9f),
-            modifier = Modifier.size(24.dp),
+            Icons.AutoMirrored.Filled.ExitToApp,
+            contentDescription = null,
+            tint = foreground,
+            modifier = Modifier.size(18.dp),
+        )
+        Text(
+            text = stringResource(R.string.exit_game),
+            style = MaterialTheme.typography.labelMedium,
+            color = foreground,
         )
     }
 }

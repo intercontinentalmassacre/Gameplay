@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="quick_menu_hud_tab" translatable="false">FPS / HUD</string>
+</resources>

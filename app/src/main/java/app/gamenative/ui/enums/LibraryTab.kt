@@ -20,6 +20,8 @@ enum class LibraryTab(
     val showItch: Boolean,
     val installedOnly: Boolean,
     val icon: ImageVector? = null,
+    @get:StringRes val emptyMessageResId: Int = R.string.library_no_results,
+    val fixedSortOption: SortOption? = null,
 ) {
     INSTALLED(
         labelResId = R.string.tab_installed,
@@ -30,6 +32,29 @@ enum class LibraryTab(
         showAmazon = true,
         showItch = true,
         installedOnly = true,
+    ),
+    RECENT(
+        labelResId = R.string.tab_recent,
+        emptyMessageResId = R.string.library_recent_no_results,
+        fixedSortOption = SortOption.RECENTLY_PLAYED,
+        showCustom = true,
+        showSteam = true,
+        showGoG = true,
+        showEpic = true,
+        showAmazon = true,
+        showItch = true,
+        installedOnly = false,
+    ),
+    FAVORITES(
+        labelResId = R.string.tab_favorites,
+        emptyMessageResId = R.string.library_favorites_no_results,
+        showCustom = true,
+        showSteam = true,
+        showGoG = true,
+        showEpic = true,
+        showAmazon = true,
+        showItch = true,
+        installedOnly = false,
     ),
     ALL(
         labelResId = R.string.tab_all,
@@ -102,6 +127,12 @@ enum class LibraryTab(
         installedOnly = false,
     );
 
+    internal fun matchesEntry(appId: String, lastPlayed: Long, favoriteGameIds: Set<String>): Boolean = when (this) {
+        RECENT -> lastPlayed > 0L
+        FAVORITES -> appId in favoriteGameIds
+        else -> true
+    }
+
     companion object {
         /**
          * Tabs shown in the UI. Custom (LOCAL) games work on all flavors: legacy maps folders
@@ -115,7 +146,7 @@ enum class LibraryTab(
                 AMAZON -> AmazonService.hasStoredCredentials(context)
                 ITCH -> itchLoggedIn
                 LOCAL -> true
-                INSTALLED, ALL -> true
+                INSTALLED, ALL, RECENT, FAVORITES -> true
             }
         }
 

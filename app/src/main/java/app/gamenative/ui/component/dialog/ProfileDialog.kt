@@ -1,7 +1,6 @@
 package app.gamenative.ui.component.dialog
 
 import android.content.res.Configuration
-import app.gamenative.Constants
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -44,7 +43,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.LocalContext
+import app.gamenative.utils.CommunityFeedbackLinks
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -81,7 +81,7 @@ fun ProfileDialog(
         onDismissRequest = onDismiss,
         text = {
             Column(modifier = Modifier.fillMaxWidth()) {
-                val uriHandler = LocalUriHandler.current
+                val context = LocalContext.current
                 /* Icon, Name, and Status */
                 ListItem(
                     colors = ListItemDefaults.colors(
@@ -150,7 +150,7 @@ fun ProfileDialog(
                                     Text(text = stringResource(R.string.settings_text))
                                 }
 
-                                FilledTonalButton(modifier = Modifier.fillMaxWidth(), onClick = { uriHandler.openUri(Constants.Misc.DISCORD_LINK) }) {
+                                FilledTonalButton(modifier = Modifier.fillMaxWidth(), onClick = { CommunityFeedbackLinks.open(context) }) {
                                     Icon(imageVector = Icons.AutoMirrored.Filled.Help, contentDescription = null)
                                     Spacer(modifier = Modifier.size(ButtonDefaults.IconSize))
                                     Text(text = stringResource(R.string.help_and_support))

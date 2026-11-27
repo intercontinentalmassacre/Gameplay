@@ -21,4 +21,10 @@ class SettingsSearchTest {
             filterSettings(entries, "interface") { titles.getValue(it) },
         )
     }
+    @Test
+    fun `finds touchpad vibration across title and Russian aliases`() {
+        val matches = filterSettings(settingsSearchEntries, "  ВИБРАЦ  тачпад  ") { "" }
+        assertEquals(listOf(app.gamenative.R.string.settings_touchpad_scroll_haptics), matches.map { it.titleRes })
+        assertEquals(emptyList<SettingsSearchEntry>(), filterSettings(settingsSearchEntries, "  ") { "" })
+    }
 }

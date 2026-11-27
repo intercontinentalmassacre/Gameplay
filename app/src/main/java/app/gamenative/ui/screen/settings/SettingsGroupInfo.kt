@@ -34,35 +34,30 @@ fun SettingsGroupInfo() {
         SettingsMenuLink(
             colors = settingsTileColors(),
             title = { Text(text = stringResource(R.string.settings_info_source_title)) },
-            subtitle = { Text(text = stringResource(R.string.settings_info_source_subtitle)) },
             onClick = { context.openExternalLink(Constants.Misc.GITHUB_LINK) },
         )
 
         SettingsMenuLink(
             colors = settingsTileColors(),
             title = { Text(text = stringResource(R.string.settings_info_libraries_title)) },
-            subtitle = { Text(text = stringResource(R.string.settings_info_libraries_subtitle)) },
             onClick = { showLibrariesDialog = true },
         )
 
         SettingsMenuLink(
             colors = settingsTileColors(),
             title = { Text(text = stringResource(R.string.settings_support_boosty_title)) },
-            subtitle = { Text(text = stringResource(R.string.settings_support_boosty_subtitle)) },
             onClick = { context.openExternalLink(Constants.Misc.BOOSTY_DONATION_LINK) },
         )
 
         SettingsMenuLink(
             colors = settingsTileColors(),
             title = { Text(text = stringResource(R.string.settings_support_donationalerts_title)) },
-            subtitle = { Text(text = stringResource(R.string.settings_support_donationalerts_subtitle)) },
             onClick = { context.openExternalLink(Constants.Misc.DONATIONALERTS_DONATION_LINK) },
         )
 
         SettingsMenuLink(
             colors = settingsTileColors(),
             title = { Text(text = stringResource(R.string.settings_info_privacy_title)) },
-            subtitle = { Text(text = stringResource(R.string.settings_info_privacy_subtitle)) },
             onClick = {
                 context.openExternalLink(Constants.Misc.PRIVACY_LINK)
             },

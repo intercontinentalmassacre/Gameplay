@@ -54,6 +54,8 @@ data class LibraryState(
     val steamCollections: List<SteamCollection>? = null, // null = not loaded
     val skippedDynamicCollections: Boolean = false,
     val steamCollectionCounts: Map<String, Int> = emptyMap(),
+    val favoriteGameIds: Set<String> = PrefManager.libraryFavorites.value.gameIds,
+    val playNextGameId: String? = PrefManager.libraryFavorites.value.playNextGameId,
 
     // Loading state for skeleton loaders
     val isLoading: Boolean = false,
@@ -86,6 +88,7 @@ data class LibraryState(
 
     // Current library tab for quick filter access
     val currentTab: LibraryTab = LibraryTab.INSTALLED,
+    val contentTab: LibraryTab = currentTab,
 
     // Per-source game counts for tab badges
     val installedCount: Int = 0,

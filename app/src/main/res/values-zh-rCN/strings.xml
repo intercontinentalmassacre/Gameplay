@@ -369,11 +369,8 @@
     <string name="appearance">外观</string>
     <string name="size_subtitle">%.2fx</string>
     <string name="label_text">标签文字</string>
-    <string name="label_text_subtitle">此按钮的自定义文字</string>
     <string name="element_type">元素类型</string>
-    <string name="element_type_subtitle">更改此控件的类型</string>
     <string name="shape">形状</string>
-    <string name="shape_subtitle">视觉外观</string>
     <string name="shape_restricted">%1$s 仅限于 %2$s 形状</string>
     <string name="bindings">绑定</string>
     <string name="bindings_auto_generated">绑定（自动生成）</string>
@@ -584,7 +581,6 @@
     <string name="custom_game_import_failed">导入失败</string>
     <string name="custom_game_import_dialog_message">请选择包含游戏的文件夹。游戏将被导入到 Gameplay 的存储空间，无需任何存储权限即可运行。大型游戏可能需要几分钟。</string>
     <string name="custom_game_import_remove_original">导入后删除原文件</string>
-    <string name="add_custom_game_dont_show_again">不再显示</string>
     <string name="base_app_shortcut_created">快捷方式已创建</string>
     <string name="base_app_shortcut_failed">无法创建快捷方式：%s</string>
     <string name="base_app_images_fetched">图像获取成功</string>
@@ -621,7 +617,7 @@
     <string name="game_feedback_issues_question">选择您遇到的任何问题：</string>
 
     <!-- 个人资料与菜单 -->
-    <string name="help_and_support">帮助与支持</string>
+    <string name="help_and_support">GitHub Issues</string>
     <string name="hall_of_fame">名人堂</string>
     <string name="go_online">进入在线模式</string>
     <string name="go_offline">进入离线模式</string>
@@ -813,9 +809,7 @@
     <string name="movement_type">移动类型</string>
     <string name="movement_type_subtitle">左侧移动的摇杆输出</string>
     <string name="look_sensitivity">视角灵敏度</string>
-    <string name="look_sensitivity_subtitle">鼠标视角灵敏度倍数</string>
     <string name="joystick_size">摇杆大小</string>
-    <string name="joystick_size_subtitle">动态摇杆大小倍数</string>
     <string name="movement_wasd">WASD</string>
     <string name="movement_arrow_keys">方向键</string>
     <string name="movement_gamepad_left_stick">手柄左摇杆</string>
@@ -828,7 +822,6 @@
     <string name="range_type">按键范围</string>
     <string name="range_type_subtitle">循环使用的按键组</string>
     <string name="range_orientation">方向</string>
-    <string name="range_orientation_subtitle">范围按钮的布局方向</string>
     <string name="range_orientation_horizontal">水平</string>
     <string name="range_orientation_vertical">垂直</string>
     <string name="range_visible_segments">可见分段</string>
@@ -888,7 +881,6 @@
     <string name="select_wine_debug_channels">选择 Wine 调试通道</string>
     <string name="cpu_label">CPU%d</string>
     <string name="describe_what_happened">描述发生了什么</string>
-    <string name="get_support_on_discord">在 Discord 上获取支持</string>
 
     <!-- 驱动程序管理器 -->
     <string name="driver_manager">驱动程序管理</string>
@@ -1071,10 +1063,7 @@
     <string name="main_recent_crash_message">若能了解您最近遇到的问题，将有助于我们改善应用程序。\n您可在应用程序设置中查看并导出最近的崩溃日志，将其附加至项目源代码仓库的 Github Issue中\nGithub 源代码仓库的链接亦位于设置页面内</string>
     <string name="main_thank_you_title">感谢您使用 Gameplay！</string>
     <string name="main_share">分享</string>
-    <string name="main_share_text">试试 Gameplay - 在 Android 上畅玩您的 PC Steam 游戏，完整支持云存档！\nhttps://github.com/intercontinentalmassacre/Gameplay\n加入社区：https://discord.gg/KPzU4Dhwq</string>
-    <string name="main_discord_support_title">游戏运行正常吗？</string>
-    <string name="main_discord_support_message">加入 Discord 社区，获取游戏修复与性能优化的支持</string>
-    <string name="main_open_discord">打开 Discord</string>
+    <string name="main_share_text">试试 Gameplay - 在 Android 上畅玩您的 PC Steam 游戏，完整支持云存档！\nhttps://github.com/intercontinentalmassacre/Gameplay</string>
 
     <!-- 主界面：游戏启动 -->
     <string name="main_downloading_steam">正在下载 Steam...</string>
@@ -1525,7 +1514,7 @@
     <string name="option_open_container">打开容器</string>
     <string name="option_edit_container">编辑容器</string>
     <string name="option_reset_to_defaults">重置容器</string>
-    <string name="option_get_support">获取支持</string>
+    <string name="option_get_support">GitHub Issues</string>
     <string name="option_submit_feedback">提交反馈</string>
     <string name="option_test_graphics">测试图形渲染</string>
     <string name="option_fetch_game_images">获取游戏封面</string>
@@ -1655,7 +1644,6 @@
     <string name="game_launch_tip_14">提示：你可以通过设备的返回键调出键盘。</string>
     <string name="game_launch_tip_15">提示：在容器中用双指点击可以模拟鼠标右键。</string>
     <string name="game_launch_tip_16">提示：使用屏幕手柄时，可以禁用鼠标以防止误触。</string>
-    <string name="game_launch_tip_17">提示：在 Discord 上报告问题，以便我们修复。</string>
     <string name="game_launch_tip_18">提示：如果你使用的是 8 Elite 设备，请使用 Turnip Gen8 V25/V30 或 MrPurple T26 驱动。</string>
     <string name="game_launch_tip_19">提示：在游戏中通过快捷菜单降低分辨率并使用 FSR 可以提升性能。</string>
     <string name="game_launch_tip_20">提示：如果加载游戏后整个应用都崩溃，说明你的设备 RAM 不足。</string>
@@ -1928,8 +1916,6 @@
     <string name="nexus_summary_bar">%1$d模组| %2$d 已启用 | %3$s| %4$s</string>
     <string name="nexus_storage_cleanup_title">存储清理</string>
     <string name="nexus_scan">扫描</string>
-    <string name="nexus_storage_cleanup_description">显示Nexus mod 下载、提取的缓存和该游戏的备份所使用的存储空间。</string>
-    <string name="nexus_storage_cleanup_cache_backups_description">保留提取的缓存和回滚备份，以便可以安全地重新应用、禁用或恢复 mod。</string>
     <string name="nexus_storage_cleanup_actions_description">清理临时文件会删除遗留文件。删除失败的归档会移除失败的下载，因此重试时会重新下载。清理冗余备份会删除不再需要的备份。</string>
     <string name="nexus_temp_orphaned_files">临时/孤立文件</string>
     <string name="nexus_failed_download_archives">下载档案失败</string>
@@ -2123,7 +2109,6 @@
     <string name="button_opacity_value">%1$d%%</string>
     <string name="button_opacity_inherited">%1$d%%（全局默认）</string>
     <string name="control_stroke_width">线条粗细</string>
-    <string name="control_stroke_width_subtitle">调整控件轮廓和分隔线粗细</string>
     <string name="control_stroke_width_thin">细</string>
     <string name="control_stroke_width_default">默认</string>
     <string name="control_stroke_width_thick">粗</string>
@@ -2169,7 +2154,6 @@
     <string name="steam_collections_clear">清除</string>
     <string name="steam_collections_smart_unsupported">仅显示标准收藏集。智能收藏集尚不受支持。</string>
     <string name="local_mod_title">从设备导入模组</string>
-    <string name="local_mod_description">导入压缩包、文件夹或一个或多个独立文件。本地导入与 Nexus 下载使用相同的配置文件、放置方式、冲突、FOMOD 和插件管理。</string>
     <string name="local_mod_supported">压缩包：ZIP、7Z、RAR 和可放置的 EXE。独立文件可使用任意扩展名，包括 INI、DLL、ESP、ESM、ESL、PAK、JSON、CFG 和 TOML。</string>
     <string name="local_mod_choose_archive">选择压缩包</string>
     <string name="local_mod_choose_files">选择文件</string>
@@ -2261,21 +2245,15 @@
     <string name="base_app_images_fetching">正在获取图片...</string>
     <string name="compat_preset_applied">已应用</string>
     <string name="compat_preset_dx12_changes">更改：VKD3D 3.0.1 · 功能级别 12_1</string>
-    <string name="compat_preset_dx12_desc">通过较新版本和功能级别的 VKD3D 运行 DirectX 12。仅 DX12 游戏需要；DX11 及更早版本继续使用 DXVK。</string>
     <string name="compat_preset_dx12_name">DirectX 12 游戏</string>
     <string name="compat_preset_low_memory_changes">更改：1 GB 显存 · 1 GB 设备内存 · 激进启动优化 · 精简版 Steam</string>
-    <string name="compat_preset_low_memory_desc">减少内存受限设备的内存压力：更小的报告显存、更小的 GPU 设备内存、激进的启动精简和精简版 Steam 运行时。</string>
     <string name="compat_preset_low_memory_name">低内存设备</string>
     <string name="compat_preset_old_games_changes">更改：cnc-ddraw 渲染器 · 1280x960 分辨率 · 256 MB 显存</string>
-    <string name="compat_preset_old_games_desc">适用于 90 年代末和 2000 年代初的游戏：cnc-ddraw 渲染器用于传统 DirectDraw/Direct3D，4:3 分辨率，以及旧引擎所期望的小报告显存。</string>
     <string name="compat_preset_old_games_name">老游戏（DirectDraw / DX8 时代）</string>
     <string name="compat_preset_performance_changes">更改：DXVK 2.6.1（异步）· Box64 性能预设 · 4 GB 设备内存 · mailbox 呈现模式</string>
-    <string name="compat_preset_performance_desc">优先保证帧率：异步着色器编译、面向性能的 CPU 转译，以及更大的 GPU 内存预算。</string>
     <string name="compat_preset_performance_name">最佳性能</string>
     <string name="compat_preset_stability_changes">更改：DXVK 2.7.1 · Box64 兼容性预设 · 严格着色器数学 · fifo 呈现模式</string>
-    <string name="compat_preset_stability_desc">针对崩溃、卡顿或渲染错误的游戏使用保守设置：无异步技巧的成熟 DXVK 版本、兼容性 CPU 转译和严格着色器数学。</string>
     <string name="compat_preset_stability_name">最大兼容性</string>
-    <string name="compat_presets_subtitle">针对常见情况的成熟设置组合。应用预设会编辑当前配置 — 点击“保存”前不会保存任何内容，所有数值仍可在其他标签页中微调。</string>
     <string name="connection_auth_required">需要 Steam 身份验证</string>
     <string name="console_back_hint">B  返回</string>
     <string name="console_hint_select_back">A  选择   ·   B  返回</string>
@@ -2432,28 +2410,16 @@
     <string name="settings_shortcut_opens_page_subtitle">关闭：主屏幕上的固定快捷方式将直接启动游戏。</string>
     <string name="settings_shortcut_opens_page_title">快捷方式打开游戏页面</string>
     <string name="settings_shortcuts_group_title">启动器快捷方式</string>
-    <string name="settings_stage_controls_description">手柄、触摸控制与输入反馈。</string>
-    <string name="settings_stage_downloads_description">网络、存储和安装偏好。</string>
     <string name="settings_stage_interface_description">主题、布局、语言和第二屏行为。</string>
     <string name="settings_stage_library_description">来源、展示以及游戏库的组织方式。</string>
     <string name="settings_stage_navigation_hint">在下屏选择分区</string>
-    <string name="settings_stage_runtime_description">Wine、图形驱动和游戏兼容性。</string>
-    <string name="settings_stage_system_description">诊断、应用程序信息和调试工具。</string>
     <string name="settings_system_title">系统</string>
     <string name="system_hub_connected">已连接</string>
     <string name="system_hub_connections_section">已连接的服务</string>
-    <string name="system_hub_destinations_section">游戏库和系统</string>
-    <string name="system_hub_downloads_description">跟踪传输并管理已安装游戏的存储。</string>
     <string name="system_hub_not_connected">未连接</string>
     <string name="system_hub_offline">离线</string>
     <string name="system_hub_open">打开 Gameplay 中心</string>
-    <string name="system_hub_profile_section">Steam 帐户</string>
-    <string name="system_hub_settings_description">外观、控制、运行时和应用程序选项。</string>
     <string name="system_hub_stage_description">在一个地方管理帐户、下载和全局设置。</string>
-    <string name="system_hub_steam_action_description">连接 Steam 并刷新您的游戏库。</string>
-    <string name="system_hub_steam_offline_description">无网络连接时也可使用本地游戏库。</string>
-    <string name="system_hub_steam_sign_out_description">从 Gameplay 中移除活动的 Steam 会话。</string>
-    <string name="system_hub_support_description">打开帮助、支持与 Gameplay 社区。</string>
     <string name="system_hub_title">Gameplay 中心</string>
     <string name="theme_editor_general_description">为此主题命名。保存将创建或替换您正在使用的自定义主题。</string>
     <string name="theme_editor_hex_error">使用 #RRGGBB</string>

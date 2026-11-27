@@ -82,68 +82,6 @@ private enum class AchievementFilter {
 }
 
 @Composable
-internal fun AchievementSummaryButton(
-    achievements: List<Achievement>,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val unlocked = achievements.count(Achievement::isUnlocked)
-    val progress = unlocked.toFloat() / achievements.size.coerceAtLeast(1)
-    val interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
-
-    Surface(
-        modifier = modifier
-            .focusRing(interactionSource, RoundedCornerShape(10.dp))
-            .selectable(
-                selected = false,
-                interactionSource = interactionSource,
-                indication = null,
-                onClick = onClick,
-            ),
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        shape = RoundedCornerShape(10.dp),
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            Icon(
-                imageVector = Icons.Default.EmojiEvents,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(28.dp),
-            )
-            Column(modifier = Modifier.weight(1f)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = stringResource(R.string.achievements),
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    Text(
-                        text = stringResource(R.string.achievements_count, unlocked, achievements.size),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                Spacer(Modifier.height(8.dp))
-                LinearProgressIndicator(
-                    progress = { progress },
-                    modifier = Modifier.fillMaxWidth().height(5.dp).clip(RoundedCornerShape(3.dp)),
-                    color = PluviaTheme.colors.statusInstalled,
-                    trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                )
-            }
-        }
-    }
-}
-
-@Composable
 internal fun SteamAchievementsPage(
     gameName: String,
     achievements: List<Achievement>,

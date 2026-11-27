@@ -373,11 +373,8 @@
     <string name="appearance">Вигляд</string>
     <string name="size_subtitle">%.2fx</string>
     <string name="label_text">Текст підпису</string>
-    <string name="label_text_subtitle">Власний текст для цієї кнопки</string>
     <string name="element_type">Тип елемента</string>
-    <string name="element_type_subtitle">Змінити тип цього елемента керування</string>
     <string name="shape">Форма</string>
-    <string name="shape_subtitle">Зовнішній вигляд</string>
     <string name="shape_restricted">%1$s обмежено формою %2$s</string>
     <string name="bindings">Призначення</string>
     <string name="bindings_auto_generated">Призначення (Автоматичні)</string>
@@ -589,7 +586,6 @@
     <string name="custom_game_import_failed">Не вдалося імпортувати</string>
     <string name="custom_game_import_dialog_message">Виберіть папку з грою. Її буде імпортовано до сховища Gameplay, щоб вона могла працювати без дозволу на доступ до сховища. Імпорт великих ігор може тривати кілька хвилин.</string>
     <string name="custom_game_import_remove_original">Видалити оригінал після імпорту</string>
-    <string name="add_custom_game_dont_show_again">Більше не показувати</string>
     <string name="base_app_shortcut_created">Ярлик створено</string>
     <string name="base_app_shortcut_failed">Не вдалося створити ярлик: %s</string>
     <string name="base_app_images_fetched">Зображення успішно отримано</string>
@@ -628,7 +624,7 @@
 
 
     <!-- Profile & Menu -->
-    <string name="help_and_support">Довідка та підтримка</string>
+    <string name="help_and_support">GitHub Issues</string>
     <string name="hall_of_fame">Зал слави</string>
     <string name="go_online">Увійти в мережу</string>
     <string name="go_offline">Вийти з мережі</string>
@@ -823,9 +819,7 @@
     <string name="movement_type">Тип руху</string>
     <string name="movement_type_subtitle">Вихід джойстика для руху зліва</string>
     <string name="look_sensitivity">Чутливість огляду</string>
-    <string name="look_sensitivity_subtitle">Множник чутливості миші</string>
     <string name="joystick_size">Розмір джойстика</string>
-    <string name="joystick_size_subtitle">Множник розміру динамічного джойстика</string>
     <string name="movement_wasd">WASD</string>
     <string name="movement_arrow_keys">Стрілки</string>
     <string name="movement_gamepad_left_stick">Лівий джойстик геймпада</string>
@@ -838,7 +832,6 @@
     <string name="range_type">Діапазон клавіш</string>
     <string name="range_type_subtitle">Який набір клавіш перегортати</string>
     <string name="range_orientation">Орієнтація</string>
-    <string name="range_orientation_subtitle">Напрямок кнопки діапазону</string>
     <string name="range_orientation_horizontal">Горизонтальна</string>
     <string name="range_orientation_vertical">Вертикальна</string>
     <string name="range_visible_segments">Видимі сегменти</string>
@@ -898,7 +891,6 @@
     <string name="select_wine_debug_channels">Обрати канали налагодження Wine</string>
     <string name="cpu_label">CPU%d</string>
     <string name="describe_what_happened">Опишіть, що сталось</string>
-    <string name="get_support_on_discord">Отримати допомогу в Discord</string>
 
     <!-- Driver Manager -->
     <string name="driver_manager">Менеджер драйверів</string>
@@ -1086,10 +1078,7 @@
     <string name="main_recent_crash_message">Перепрошуємо!\nБуло б добре дізнатися про проблему, з якою Ви нещодавно зіткнулися.\nВи можете переглянути та експортувати останній журнал збою в налаштуваннях застосунку і додати його як проблему (issue) на GitHub у репозиторії проєкту.\nПосилання на репозиторій GitHub також знаходиться в налаштуваннях!</string>
     <string name="main_thank_you_title">Дякуємо за користування Gameplay!</string>
     <string name="main_share">Поділитися</string>
-    <string name="main_share_text">Спробуй Gameplay — грай у свої Steam-ігри з ПК на Android з повною підтримкою хмарних збережень!\nhttps://github.com/intercontinentalmassacre/Gameplay\nПриєднуйся до спільноти: https://discord.gg/KPzU4Dhwq</string>
-    <string name="main_discord_support_title">Чи працювала гра?</string>
-    <string name="main_discord_support_message">Долучайтесь до нашого Discord, щоб отримати підтримку у виправленні чи покращенні роботи ігор.</string>
-    <string name="main_open_discord">Відкрити Discord</string>
+    <string name="main_share_text">Спробуй Gameplay — грай у свої Steam-ігри з ПК на Android з повною підтримкою хмарних збережень!\nhttps://github.com/intercontinentalmassacre/Gameplay</string>
     <string name="main_downloading_entry">Завантаження %s</string>
 
     <!-- PluviaMain: Game Launch -->
@@ -1523,7 +1512,7 @@
     <string name="option_open_container">Відкрити контейнер</string>
     <string name="option_edit_container">Редагувати контейнер</string>
     <string name="option_reset_to_defaults">Скинути контейнер</string>
-    <string name="option_get_support">Отримати підтримку</string>
+    <string name="option_get_support">GitHub Issues</string>
     <string name="option_submit_feedback">Надіслати відгук</string>
     <string name="option_reset_drm">Скинути DRM</string>
     <string name="option_use_known_config">Використати відому конфігурацію</string>
@@ -1602,7 +1591,6 @@
     <string name="game_launch_tip_14">Порада: Ви можете викликати клавіатуру за допомогою кнопки «Назад» на вашому пристрої.</string>
     <string name="game_launch_tip_15">Порада: Ви можете натиснути двома пальцями всередині контейнера для клацання правою кнопкою миші.</string>
     <string name="game_launch_tip_16">Порада: Якщо ви використовуєте екранний контролер, ви можете вимкнути мишу, щоб запобігти випадковим дотикам.</string>
-    <string name="game_launch_tip_17">Порада: Повідомляйте про проблеми в Discord, щоб ми могли їх виправити.</string>
     <string name="game_launch_tip_18">Порада: Використовуйте драйвер Turnip Gen8 V25/V30 або MrPurple T26, якщо у вас пристрій 8 Elite.</string>
     <string name="game_launch_tip_19">Порада: Зменшіть роздільну здатність і використовуйте FSR зі швидкого меню в грі для підвищення продуктивності.</string>
     <string name="game_launch_tip_20">Порада: Якщо весь застосунок вилітає після завантаження гри, вашому пристрою бракує RAM.</string>
@@ -1907,8 +1895,6 @@
     <string name="nexus_summary_bar">%1$d моди | %2$d увімкнено | %3$s | %4$s</string>
     <string name="nexus_storage_cleanup_title">Очищення сховища</string>
     <string name="nexus_scan">Сканування</string>
-    <string name="nexus_storage_cleanup_description">Показує сховище, яке використовується для завантажень модів Nexus, видобутий кеш і резервні копії для цієї гри.</string>
-    <string name="nexus_storage_cleanup_cache_backups_description">Витягнутий кеш і резервні копії відкоту зберігаються, щоб моди можна було повторно застосувати, вимкнути або безпечно відновити.</string>
     <string name="nexus_storage_cleanup_actions_description">Очищення тимчасових файлів видаляє залишені файли. Видалення невдалих архівів видаляє невдалі завантаження, тому повторна спроба завантажить їх знову. Очищення зайвих резервних копій видаляє копії, які більше не потрібні.</string>
     <string name="nexus_temp_orphaned_files">Тимчасові/загублені файли</string>
     <string name="nexus_failed_download_archives">Помилка завантаження архівів</string>
@@ -2102,7 +2088,6 @@
     <string name="button_opacity_value">%1$d%%</string>
     <string name="button_opacity_inherited">%1$d%% (глобально за замовчуванням)</string>
     <string name="control_stroke_width">Товщина лінії</string>
-    <string name="control_stroke_width_subtitle">Налаштувати товщину контуру та розділювачів елемента</string>
     <string name="control_stroke_width_thin">Тонка</string>
     <string name="control_stroke_width_default">За замовчуванням</string>
     <string name="control_stroke_width_thick">Товста</string>
@@ -2148,7 +2133,6 @@
     <string name="steam_collections_clear">Очистити</string>
     <string name="steam_collections_smart_unsupported">Показано лише звичайні колекції. Розумні колекції ще не підтримуються.</string>
     <string name="local_mod_title">Імпорт мода з пристрою</string>
-    <string name="local_mod_description">Імпортуйте архів, папку або один чи кілька окремих файлів. Локальний імпорт використовує ті самі профілі, розміщення, конфлікти та керування FOMOD і плагінами, що й завантаження Nexus.</string>
     <string name="local_mod_supported">Архіви: ZIP, 7Z, RAR і розміщувані EXE. Окремі файли можуть мати будь-яке розширення, зокрема INI, DLL, ESP, ESM, ESL, PAK, JSON, CFG і TOML.</string>
     <string name="local_mod_choose_archive">Вибрати архів</string>
     <string name="local_mod_choose_files">Вибрати файли</string>
@@ -2246,21 +2230,15 @@
     <string name="base_app_images_fetching">Отримуємо зображення...</string>
     <string name="compat_preset_applied">Застосовано</string>
     <string name="compat_preset_dx12_changes">Зміни: VKD3D 3.0.1 · рівень функцій 12_1</string>
-    <string name="compat_preset_dx12_desc">Спрямовуйте DirectX 12 через VKD3D новішої версії та рівня функцій. Потрібно лише для ігор DX12; DX11 і старші залишаються на DXVK.</string>
     <string name="compat_preset_dx12_name">Ігри DirectX 12</string>
     <string name="compat_preset_low_memory_changes">Зміни: 1 ГБ відеопам\'яті · 1 ГБ пам\'яті пристрою · агресивний запуск · полегшений Steam</string>
-    <string name="compat_preset_low_memory_desc">Зменшує тиск на пам\'ять пристроїв з обмеженою ОЗП: менша заявлена відеопам\'ять, менша пам\'ять пристрою GPU, агресивне прибирання під час запуску та полегшений час виконання Steam.</string>
     <string name="compat_preset_low_memory_name">Пристрої з малою пам\'яттю</string>
     <string name="compat_preset_old_games_changes">Зміни: рендерер cnc-ddraw · роздільна здатність 1280x960 · 256 МБ відеопам\'яті</string>
-    <string name="compat_preset_old_games_desc">Для ігор кінця 90-х і початку 2000-х: рендерер cnc-ddraw для застарілих DirectDraw/Direct3D, роздільна здатність 4:3 і невелика заявлена відеопам\'ять, якої очікують старі рушії.</string>
     <string name="compat_preset_old_games_name">Старі ігри (епоха DirectDraw / DX8)</string>
     <string name="compat_preset_performance_changes">Зміни: DXVK 3.0 (async) · пресет Box64 Performance · 4 ГБ пам\'яті пристрою · режим представлення mailbox</string>
-    <string name="compat_preset_performance_desc">На користь частоти кадрів, а не обережності: асинхронна компіляція шейдерів, трансляція CPU, орієнтована на продуктивність, і більший бюджет пам\'яті GPU.</string>
     <string name="compat_preset_performance_name">Найкраща продуктивність</string>
     <string name="compat_preset_stability_changes">Зміни: DXVK 2.7.1 · пресет Box64 Compatibility · сувора шейдерна математика · режим представлення fifo</string>
-    <string name="compat_preset_stability_desc">Консервативні налаштування для ігор, які падають, заїкаються або відтворюються неправильно: перевірений випуск DXVK без async-хитрощів, сумісна трансляція CPU і сувора шейдерна математика.</string>
     <string name="compat_preset_stability_name">Максимальна сумісність</string>
-    <string name="compat_presets_subtitle">Перевірені комбінації налаштувань для типових ситуацій. Застосування пресета редагує поточну конфігурацію — нічого не зберігається, доки ви не натиснете «Зберегти», а кожне значення можна додатково налаштувати в інших вкладках.</string>
     <string name="connection_auth_required">Потрібна автентифікація Steam</string>
     <string name="console_back_hint">B  Назад</string>
     <string name="console_hint_select_back">A  Вибрати   ·   B  Назад</string>
@@ -2421,28 +2399,16 @@
     <string name="settings_shortcut_opens_page_subtitle">Вимк.: закріплені ярлики на головному екрані запускають гру безпосередньо.</string>
     <string name="settings_shortcut_opens_page_title">Ярлики відкривають сторінку гри</string>
     <string name="settings_shortcuts_group_title">Ярлики запускача</string>
-    <string name="settings_stage_controls_description">Геймпад, сенсорне керування та відгук на введення.</string>
-    <string name="settings_stage_downloads_description">Налаштування мережі, сховища та інсталяції.</string>
     <string name="settings_stage_interface_description">Тема, розкладка, мова та поведінка другого екрана.</string>
     <string name="settings_stage_library_description">Джерела, відображення та організація вашої колекції.</string>
     <string name="settings_stage_navigation_hint">Виберіть розділ на нижньому екрані</string>
-    <string name="settings_stage_runtime_description">Wine, графічні драйвери та сумісність ігор.</string>
-    <string name="settings_stage_system_description">Діагностика, інформація про застосунок та інструменти налагодження.</string>
     <string name="settings_system_title">Система</string>
     <string name="system_hub_connected">Підключено</string>
     <string name="system_hub_connections_section">Підключені служби</string>
-    <string name="system_hub_destinations_section">Бібліотека та система</string>
-    <string name="system_hub_downloads_description">Відстежуйте передавання та керуйте сховищем встановлених ігор.</string>
     <string name="system_hub_not_connected">Не підключено</string>
     <string name="system_hub_offline">Офлайн</string>
     <string name="system_hub_open">Відкрити центр Gameplay</string>
-    <string name="system_hub_profile_section">Обліковий запис Steam</string>
-    <string name="system_hub_settings_description">Параметри вигляду, керування, часу виконання та застосунку.</string>
     <string name="system_hub_stage_description">Облікові записи, завантаження та глобальні налаштування в одному місці.</string>
-    <string name="system_hub_steam_action_description">Підключіть Steam і оновіть свою бібліотеку.</string>
-    <string name="system_hub_steam_offline_description">Тримайте локальну бібліотеку доступною без мережевого з\'єднання.</string>
-    <string name="system_hub_steam_sign_out_description">Видаліть активний сеанс Steam із Gameplay.</string>
-    <string name="system_hub_support_description">Відкрийте довідку, підтримку та спільноту Gameplay.</string>
     <string name="system_hub_title">Центр Gameplay</string>
     <string name="theme_editor_general_description">Назвіть цю тему. Збереження створює або замінює вашу активну власну тему.</string>
     <string name="theme_editor_hex_error">Використовуйте #RRGGBB</string>

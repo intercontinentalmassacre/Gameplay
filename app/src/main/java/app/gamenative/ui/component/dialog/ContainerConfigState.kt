@@ -143,6 +143,6 @@ class ContainerConfigState(
     val getVersionsForDriver: () -> List<String>,
     val getVersionsForBox64: () -> ManifestComponentHelper.VersionOptionList,
     val applyScreenSizeToConfig: () -> Unit,
-    val vkd3dForcedVersion: () -> String,
-    val currentDxvkContext: () -> ManifestComponentHelper.DxvkContext,
+    val vkd3dForcedVersion: (ContainerData) -> String,
+    val currentDxvkContext: (ContainerData) -> ManifestComponentHelper.DxvkContext,
 )

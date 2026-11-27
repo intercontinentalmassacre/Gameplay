@@ -1,0 +1,8 @@
+<resources>
+    <string name="controller_profile_save_as">Save as profile</string>
+    <string name="controller_profile_name">Profile name</string>
+    <string name="controller_profiles_saved">Saved profiles</string>
+    <string name="controller_profile_edit_bindings">Edit bindings</string>
+    <string name="controller_profile_duplicate_name">A profile with this name already exists.</string>
+    <string name="controller_profile_save_failed">Could not save the controller profile.</string>
+</resources>

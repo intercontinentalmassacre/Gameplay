@@ -189,11 +189,13 @@ internal fun RecommendedGameScreen(
                     game.developer.ifBlank { null },
                     releaseDate,
                 ).joinToString(" • ")
-                Text(
-                    text = subtitleText,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = Color.White.copy(alpha = 0.8f),
-                )
+                if (subtitleText.isNotBlank()) {
+                    Text(
+                        text = subtitleText,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = Color.White.copy(alpha = 0.8f),
+                    )
+                }
             }
 
             if (media.size > 1) {
@@ -307,7 +309,7 @@ internal fun RecommendedGameScreen(
 
             if (game.isFeatured) {
                 // Status callout (e.g. "Coming Soon")
-                featuredStatusText(game.featuredStatus)?.let { (titleRes, bodyRes) ->
+                featuredStatusText(game.featuredStatus)?.let { titleRes ->
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(
@@ -325,18 +327,12 @@ internal fun RecommendedGameScreen(
                                 tint = PluviaTheme.colors.accentWarning,
                                 modifier = Modifier.size(24.dp),
                             )
-                            Column(modifier = Modifier.padding(start = 12.dp)) {
-                                Text(
-                                    text = stringResource(titleRes),
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.Bold,
-                                )
-                                Text(
-                                    text = stringResource(bodyRes),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
+                            Text(
+                                text = stringResource(titleRes),
+                                modifier = Modifier.padding(start = 12.dp),
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                            )
                         }
                     }
                     Spacer(modifier = Modifier.height(12.dp))
@@ -412,12 +408,6 @@ internal fun RecommendedGameScreen(
             // Description
             if (game.description.isNotBlank()) {
                 Text(
-                    text = stringResource(R.string.recommended_about_heading),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
                     text = game.description,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
@@ -450,12 +440,11 @@ internal fun RecommendedGameScreen(
     }
 }
 
-/** Maps a featured status to a localized (title, body) callout, or null for none. */
-private fun featuredStatusText(status: String?): Pair<Int, Int>? = when (status?.uppercase()) {
-    "COMING_SOON" -> R.string.featured_status_coming_soon_title to R.string.featured_status_coming_soon_body
-    "EARLY_ACCESS" -> R.string.featured_status_early_access_title to R.string.featured_status_early_access_body
-    "PREORDER_OPEN" -> R.string.featured_status_preorder_title to R.string.featured_status_preorder_body
-    "OUT_NOW" -> R.string.featured_status_out_now_title to R.string.featured_status_out_now_body
+private fun featuredStatusText(status: String?): Int? = when (status?.uppercase()) {
+    "COMING_SOON" -> R.string.featured_status_coming_soon_title
+    "EARLY_ACCESS" -> R.string.featured_status_early_access_title
+    "PREORDER_OPEN" -> R.string.featured_status_preorder_title
+    "OUT_NOW" -> R.string.featured_status_out_now_title
     else -> null
 }
 

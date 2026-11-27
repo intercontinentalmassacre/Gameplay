@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="library_last_session">Last session</string>
+    <string name="library_playtime_on_device">Time on this device</string>
+    <string name="library_play_duration_under_minute">Under 1 min</string>
+</resources>

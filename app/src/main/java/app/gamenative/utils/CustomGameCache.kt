@@ -6,27 +6,26 @@ import timber.log.Timber
 
 /**
  * Manages caching of Custom Game app IDs and their folder paths.
- * Provides fast lookups and automatic invalidation when manual folders change.
+ * Provides fast lookups and automatic invalidation when candidate folders change.
  */
 internal object CustomGameCache {
     // Cache: appId (Int) -> folder path (String)
     private var appIdCache: Map<Int, String>? = null
-    private var cacheManualFolders: Set<String>? = null
+    private var cachedFolders: Set<String>? = null
 
     /**
-     * Builds the appId cache by scanning all Custom Game manual folders.
+     * Builds the appId cache by scanning the supplied candidate folders.
      * Returns a map of appId (Int) -> folder path (String).
      */
-    fun buildCache(
-        getManualFolders: () -> Set<String>,
+    private fun buildCache(
+        folders: Set<String>,
         readGameIdFromFile: (File) -> Int?
     ): Map<Int, String> {
         val cache = mutableMapOf<Int, String>()
         
-        val manualFolders = getManualFolders()
-        for (path in manualFolders) {
+        for (path in folders) {
             val folder = File(path)
-            if (!folder.exists() || !folder.isDirectory) continue
+            if (!folder.isDirectory) continue
 
             val folderId = readGameIdFromFile(folder)
                 ?: abs(folder.absolutePath.hashCode()).let { if (it == 0) 1 else it }
@@ -40,31 +39,32 @@ internal object CustomGameCache {
 
     /**
      * Gets or rebuilds the appId cache if needed.
-     * Cache is invalidated when Custom Game manual folders change.
+     * Callers can share the same candidate snapshot throughout one scan.
      */
+    @Synchronized
     fun getOrRebuildCache(
-        getManualFolders: () -> Set<String>,
+        folders: Set<String>,
         readGameIdFromFile: (File) -> Int?
     ): Map<Int, String> {
-        val currentManualFolders = getManualFolders()
-        val cachedManual = cacheManualFolders
-        
-        // Rebuild if manual folders changed or cache is null
-        if (appIdCache == null || cachedManual != currentManualFolders) {
-            appIdCache = buildCache(getManualFolders, readGameIdFromFile)
-            cacheManualFolders = currentManualFolders
+        val cached = appIdCache
+        val result = if (cached != null && cachedFolders == folders) {
+            cached
+        } else {
+            buildCache(folders, readGameIdFromFile)
         }
-        
-        return appIdCache!!
+        appIdCache = result
+        cachedFolders = folders
+        return result
     }
 
     /**
      * Invalidates the appId cache, forcing a rebuild on next access.
      * Call this when Custom Game paths change, after deletion, or after manual refresh.
      */
+    @Synchronized
     fun invalidate() {
         appIdCache = null
-        cacheManualFolders = null
+        cachedFolders = null
         Timber.tag("CustomGameCache").d("AppId cache invalidated")
     }
 
@@ -73,23 +73,14 @@ internal object CustomGameCache {
      * Removes any stale entries with the same path but different appId to maintain consistency.
      * Used for incremental updates when scanning new games.
      */
+    @Synchronized
     fun addEntry(appId: Int, folderPath: String) {
-        if (appIdCache != null) {
-            appIdCache = appIdCache!!.toMutableMap().apply {
-                // Remove any stale entries with the same path but different appId
-                val staleEntries = filter { it.value == folderPath && it.key != appId }.keys
-                staleEntries.forEach { remove(it) }
-                
-                // Add or update the entry with the correct appId
-                put(appId, folderPath)
-            }
+        val cached = appIdCache ?: return
+        if (cached[appId] == folderPath) return
+        appIdCache = cached.toMutableMap().apply {
+            values.remove(folderPath)
+            put(appId, folderPath)
         }
     }
-
-    /**
-     * Gets the current cache (without rebuilding).
-     * Returns null if cache is not built yet.
-     */
-    fun getCache(): Map<Int, String>? = appIdCache
 }
 

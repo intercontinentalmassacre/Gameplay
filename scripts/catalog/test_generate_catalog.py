@@ -56,6 +56,13 @@ class GenerateCatalogTest(unittest.TestCase):
         self.assertEqual(first, second)
         self.assertEqual("dxvk-2.7", json.loads(first)["items"]["dxvk"][0]["id"])
 
+    def test_source_commit_requires_a_source_repository(self):
+        entry = {"id": "dxvk", "name": "DXVK", "url": "https://example.com/dxvk.wcp", "sourceCommit": "f" * 40}
+        with self.assertRaisesRegex(CatalogError, "sourceRepository"):
+            generate_manifest(self.write_source([entry]))
+        entry["sourceRepository"] = "https://example.com/dxvk"
+        self.assertEqual(entry, json.loads(generate_manifest(self.write_source([entry])))["items"]["dxvk"][0])
+
     def test_duplicate_ids_are_rejected(self):
         entry = {"id": "same", "name": "Same", "url": "https://example.com/a.wcp"}
         index = self.write_source([entry, entry])

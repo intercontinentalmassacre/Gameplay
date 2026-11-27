@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tab_recent">Recent</string>
+    <string name="tab_favorites">Favorites</string>
+    <string name="library_recent_no_results">No recently played games match current filters.</string>
+    <string name="library_favorites_no_results">No favorite games match current filters.</string>
+    <string name="library_browse_all_games">Browse all games</string>
+</resources>

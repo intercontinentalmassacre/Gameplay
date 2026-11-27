@@ -1,13 +1,29 @@
 package app.gamenative.utils
 
+import android.content.ActivityNotFoundException
+import android.content.Context
+import android.content.Intent
 import android.net.Uri
+import app.gamenative.ui.util.SnackbarManager
 import app.gamenative.BuildConfig
 import app.gamenative.Constants
+import app.gamenative.R
 import app.gamenative.ui.component.dialog.state.GameFeedbackDialogState
+import timber.log.Timber
 
 /** Community-owned destinations for the post-game feedback flow. */
 object CommunityFeedbackLinks {
-    const val DISCORD_INVITE_URL = Constants.Misc.DISCORD_LINK
+    fun open(context: Context, url: String = Constants.Misc.GITHUB_ISSUES_LINK) {
+        val activity = BrightnessManager.findActivity(context)
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+        if (activity == null) intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        try {
+            (activity ?: context).startActivity(intent)
+        } catch (error: ActivityNotFoundException) {
+            Timber.w(error, "No app available to open GitHub Issues")
+            SnackbarManager.show(context.getString(R.string.github_issues_no_browser))
+        }
+    }
 
     /** No data leaves the device until the player submits this pre-filled issue. */
     fun githubIssueUrl(state: GameFeedbackDialogState): String {

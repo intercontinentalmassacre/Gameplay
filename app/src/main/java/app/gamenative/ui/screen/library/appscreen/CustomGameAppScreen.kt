@@ -21,6 +21,7 @@ import app.gamenative.ui.enums.AppOptionMenuType
 import app.gamenative.ui.util.SnackbarManager
 import app.gamenative.utils.ContainerUtils
 import app.gamenative.utils.CustomGameScanner
+import app.gamenative.utils.CustomMediaUtils
 import app.gamenative.utils.GameImageUtils
 import app.gamenative.utils.GameMetadataManager
 import app.gamenative.utils.SteamGridDB
@@ -31,7 +32,6 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import android.net.Uri
 import kotlinx.coroutines.CoroutineScope
 import java.io.File
 import timber.log.Timber
@@ -70,91 +70,51 @@ class CustomGameAppScreen : BaseAppScreen() {
             CustomGameScanner.getFolderPathFromAppId(libraryItem.appId)
         }
 
-        // Helper function to find SteamGridDB images in the game folder
-        fun findSteamGridDBImage(folder: File, imageType: String): String? {
-            return folder.listFiles()?.firstOrNull { file ->
-                file.name.startsWith("steamgriddb_$imageType") &&
-                (file.name.endsWith(".png", ignoreCase = true) ||
-                 file.name.endsWith(".jpg", ignoreCase = true) ||
-                 file.name.endsWith(".webp", ignoreCase = true))
-            }?.let { Uri.fromFile(it).toString() }
-        }
-
-        // Observe custom media changes to refresh images reactively
-        val mediaVersion by app.gamenative.utils.CustomMediaUtils.mediaVersionFlow.collectAsState(initial = 0)
-        val mediaGameId = libraryItem.gameId
-
-        // Check for all SteamGridDB images in the game folder
-        // Hero view uses horizontal grid (grid_hero)
-        // A user-supplied "coverh"/"cover" image takes priority over SteamGridDB.
-        // coverh = horizontal cover
-        val heroImageUrl = remember(mediaVersion, gameFolderPath) {
-            app.gamenative.utils.CustomMediaUtils.getCustomHeroUri(mediaGameId)?.toString()
-                ?: gameFolderPath?.let { path ->
-                    val folder = File(path)
-                    CustomGameScanner.findHeroCoverInFolder(folder)
-                        ?: findSteamGridDBImage(folder, "grid_hero")
+        val mediaVersion by CustomMediaUtils.mediaVersionFlow.collectAsState()
+        val initialInfo = GameDisplayInfo(
+            name = libraryItem.name,
+            developer = "",
+            releaseDate = 0L,
+            heroImageUrl = null,
+            iconUrl = null,
+            gameId = libraryItem.gameId,
+            appId = libraryItem.appId,
+            installLocation = gameFolderPath,
+        )
+        val artwork by key(libraryItem.appId, gameFolderPath) {
+            produceState(initialInfo, mediaVersion) {
+                value = withContext(Dispatchers.IO) {
+                    val gameId = libraryItem.gameId
+                    val files by lazy { gameFolderPath?.let { File(it).listFiles() }.orEmpty() }
+                    val horizontalCover by lazy { CustomGameScanner.findHeroCover(files) }
+                    initialInfo.copy(
+                        heroImageUrl = CustomMediaUtils.getCustomHeroUri(gameId)?.toString()
+                            ?: horizontalCover ?: SteamGridDB.findSteamGridDBImage(files, "grid_hero"),
+                        capsuleUrl = CustomMediaUtils.getCustomCapsuleUri(gameId)?.toString()
+                            ?: CustomGameScanner.findCapsuleCover(files) ?: SteamGridDB.findSteamGridDBImage(files, "grid_capsule"),
+                        headerUrl = CustomMediaUtils.getCustomHeaderUri(gameId)?.toString()
+                            ?: horizontalCover ?: SteamGridDB.findSteamGridDBImage(files, "hero", excludePattern = "grid_"),
+                        logoUrl = CustomMediaUtils.getCustomLogoUri(gameId)?.toString()
+                            ?: SteamGridDB.findSteamGridDBImage(files, "logo"),
+                        iconUrl = GameImageUtils.getGameImage(libraryItem, "icon"),
+                    )
                 }
-        }
-
-        // Capsule view uses vertical grid (grid_capsule)
-        // A user-supplied "coverv"/"cover" image takes priority over SteamGridDB.
-        // coverv = vertical cover
-        val capsuleUrl = remember(mediaVersion, gameFolderPath) {
-            app.gamenative.utils.CustomMediaUtils.getCustomCapsuleUri(mediaGameId)?.toString()
-                ?: gameFolderPath?.let { path ->
-                    val folder = File(path)
-                    CustomGameScanner.findCapsuleCoverInFolder(folder)
-                        ?: findSteamGridDBImage(folder, "grid_capsule")
-                }
-        }
-
-        // Header view uses heroes endpoint (hero, but not grid_hero)
-        // This is also a horizontal banner, so the user "coverh"/"cover" applies here too.
-        val headerUrl = remember(mediaVersion, gameFolderPath) {
-            app.gamenative.utils.CustomMediaUtils.getCustomHeaderUri(mediaGameId)?.toString()
-                ?: gameFolderPath?.let { path ->
-                    val folder = File(path)
-                    CustomGameScanner.findHeroCoverInFolder(folder)
-                        ?: folder.listFiles()?.firstOrNull { file ->
-                            file.name.startsWith("steamgriddb_hero") &&
-                            !file.name.contains("grid") &&
-                            (file.name.endsWith(".png", ignoreCase = true) ||
-                             file.name.endsWith(".jpg", ignoreCase = true) ||
-                             file.name.endsWith(".webp", ignoreCase = true))
-                        }?.let { Uri.fromFile(it).toString() }
-                }
-        }
-
-        val logoUrl = remember(mediaVersion, gameFolderPath) {
-            app.gamenative.utils.CustomMediaUtils.getCustomLogoUri(mediaGameId)?.toString()
-                ?: gameFolderPath?.let { path ->
-                    val folder = File(path)
-                    findSteamGridDBImage(folder, "logo")
-                }
-        }
-
-        // Icon: custom media -> SteamGridDB -> extracted from the game executable
-        val iconUrl = remember(mediaVersion, gameFolderPath) {
-            GameImageUtils.getGameImage(
-                libraryItem = libraryItem,
-                imageType = "icon",
-            )
+            }
         }
 
         // Try to get release date from .gamenative metadata if available
-        var releaseDate by remember { mutableStateOf(0L) }
+        var releaseDate by remember(gameFolderPath) { mutableStateOf(0L) }
         LaunchedEffect(gameFolderPath) {
             gameFolderPath?.let { path ->
                 val folder = File(path)
                 // Get release date from metadata
-                val metadata = app.gamenative.utils.GameMetadataManager.read(folder)
+                val metadata = withContext(Dispatchers.IO) { GameMetadataManager.read(folder) }
                 releaseDate = metadata?.releaseDate ?: 0L
             }
         }
 
         // Calculate folder size on disk (async, will update via state)
-        var sizeOnDisk by remember { mutableStateOf<String?>(null) }
+        var sizeOnDisk by remember(gameFolderPath) { mutableStateOf<String?>(null) }
         LaunchedEffect(gameFolderPath) {
             gameFolderPath?.let { path ->
                 withContext(Dispatchers.IO) {
@@ -169,24 +129,7 @@ class CustomGameAppScreen : BaseAppScreen() {
             }
         }
 
-        // Custom Games don't have Steam metadata, so we use basic info
-        return GameDisplayInfo(
-            name = libraryItem.name,
-            developer = context.getString(R.string.custom_game_unknown_developer), // Custom Games don't have developer info
-            releaseDate = releaseDate,
-            heroImageUrl = heroImageUrl,
-            iconUrl = iconUrl,
-            gameId = libraryItem.gameId,
-            appId = libraryItem.appId,
-            installLocation = gameFolderPath,
-            sizeOnDisk = sizeOnDisk, // Calculated folder size
-            sizeFromStore = null, // No store size info
-            lastPlayedText = null, // Not tracked
-            playtimeText = null, // Not tracked
-            logoUrl = logoUrl,
-            capsuleUrl = capsuleUrl,
-            headerUrl = headerUrl,
-        )
+        return artwork.copy(name = libraryItem.name, releaseDate = releaseDate, sizeOnDisk = sizeOnDisk)
     }
 
     override fun isInstalled(context: Context, libraryItem: LibraryItem): Boolean {
@@ -452,23 +395,6 @@ class CustomGameAppScreen : BaseAppScreen() {
                     }
                 }
             },
-        )
-    }
-
-    /**
-     * Custom games support known configs (matched by folder name), the
-     * community browser and config transfer actions.
-     */
-    @Composable
-    override fun getConfigMenuOptions(
-        context: Context,
-        libraryItem: LibraryItem,
-    ): List<AppMenuOption> {
-        return listOfNotNull(
-            getUseKnownConfigOption(context, libraryItem),
-            getBrowseCommunityConfigsOption(context, libraryItem),
-            getExportConfigOption(context, libraryItem),
-            getImportConfigOption(context, libraryItem),
         )
     }
 

@@ -29,6 +29,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,6 +42,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import app.gamenative.PrefManager
 import app.gamenative.R
+import app.gamenative.data.GameSource
+import app.gamenative.data.LibraryItem
 import app.gamenative.data.SteamApp
 import app.gamenative.data.SteamCollection
 import app.gamenative.externaldisplay.DsHomeSecondScreen
@@ -61,13 +64,19 @@ import app.gamenative.ui.screen.library.components.ConsoleSidePanel
 import app.gamenative.ui.screen.library.components.LibraryOptionsPanel
 import app.gamenative.ui.screen.xserver.InGameContainerSettings
 import app.gamenative.ui.theme.PluviaTheme
+import app.gamenative.utils.CustomGameScanner
+import app.gamenative.utils.CustomMediaUtils
+import app.gamenative.utils.GameImageUtils
 import app.gamenative.utils.rememberHasExternalDisplay
 import com.winlator.container.Container
 import com.winlator.renderer.GLRenderer
 import com.winlator.renderer.VulkanRenderer
 import com.winlator.winhandler.ProcessInfo
 import com.winlator.widget.FrameRating
+import java.io.File
 import java.util.EnumSet
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * Context a quick menu is opened for. Content is role-specific: in-game it
@@ -102,6 +111,8 @@ fun GcdsQuickMenu(
     onItemSelected: (Int) -> Boolean,
     modifier: Modifier = Modifier,
     // GAME role state
+    onResumeGame: () -> Unit = onDismiss,
+    appId: String = "",
     renderer: VulkanRenderer? = null,
     glRenderer: GLRenderer? = null,
     container: Container? = null,
@@ -164,7 +175,9 @@ fun GcdsQuickMenu(
         GcdsQuickMenuRole.GAME -> GcdsGameQuickMenu(
             isVisible = isVisible,
             onDismiss = onDismiss,
+            onResumeGame = onResumeGame,
             onItemSelected = onItemSelected,
+            appId = appId,
             renderer = renderer,
             glRenderer = glRenderer,
             container = container,
@@ -245,7 +258,9 @@ fun GcdsQuickMenu(
 private fun GcdsGameQuickMenu(
     isVisible: Boolean,
     onDismiss: () -> Unit,
+    onResumeGame: () -> Unit,
     onItemSelected: (Int) -> Boolean,
+    appId: String,
     renderer: VulkanRenderer? = null,
     glRenderer: GLRenderer? = null,
     container: Container? = null,
@@ -285,12 +300,34 @@ private fun GcdsGameQuickMenu(
     modifier: Modifier = Modifier,
 ) {
     val hasExternalDisplay = rememberHasExternalDisplay()
-    val dashboardSubtitle = stringResource(R.string.second_screen_fps_target, fpsLimiterTarget)
-    val dashboardTitle = (itchGame?.title ?: game?.name).orEmpty().ifBlank { container?.name.orEmpty() }
-    val dashboardImageUrl = itchGame?.coverUrl?.takeIf { it.isNotBlank() } ?: game?.getCapsuleUrl(large = true)
-        ?.takeIf { it.isNotBlank() }
-        ?: game?.headerUrl.orEmpty()
-    val dashboardLogoUrl = game?.let { app ->
+    val isCustomGame = appId.startsWith("${GameSource.CUSTOM_GAME.name}_")
+    val dashboardSteamGame = game.takeUnless { isCustomGame }
+    val localGame by produceState<Pair<String, String>?>(null, appId, hasExternalDisplay) {
+        value = if (hasExternalDisplay && isCustomGame) {
+            withContext(Dispatchers.IO) {
+                CustomGameScanner.getFolderPathFromAppId(appId)?.let { path ->
+                    val folder = File(path)
+                    val item = LibraryItem(appId = appId, name = folder.name, gameSource = GameSource.CUSTOM_GAME)
+                    val cover = CustomMediaUtils.getCustomCapsuleUri(item.gameId)?.toString()
+                        ?: CustomGameScanner.findCapsuleCoverInFolder(folder)
+                        ?: GameImageUtils.getGameImage(item, "capsule")
+                        ?: CustomGameScanner.findHeroCoverInFolder(folder)
+                        ?: GameImageUtils.getGameImage(item, "hero")
+                    item.name to cover.orEmpty()
+                }
+            }
+        } else null
+    }
+    val dashboardSubtitle = if (fpsLimiterEnabled && (!isLsfgAvailable || lsfgMultiplier < 2)) {
+        stringResource(R.string.second_screen_fps_target, fpsLimiterTarget)
+    } else ""
+    val dashboardTitle = (localGame?.first ?: itchGame?.title ?: dashboardSteamGame?.name).orEmpty()
+        .ifBlank { container?.name.orEmpty() }
+    val dashboardImageUrl = localGame?.second?.takeIf { it.isNotBlank() }
+        ?: itchGame?.coverUrl?.takeIf { it.isNotBlank() }
+        ?: dashboardSteamGame?.getCapsuleUrl(large = true)?.takeIf { it.isNotBlank() }
+        ?: dashboardSteamGame?.headerUrl.orEmpty()
+    val dashboardLogoUrl = dashboardSteamGame?.let { app ->
         app.getLogoUrl(large = true)
             ?: app.getLogoUrl()
             ?: app.logoUrl.takeIf { app.logoHash.isNotBlank() }
@@ -311,11 +348,16 @@ private fun GcdsGameQuickMenu(
             showPassiveMenu = showPassiveMenu.value,
             showInput = inputAvailable && showInput.value,
         )
+        val resumeCompanionGame = {
+            showPassiveMenu.value = PrefManager.dualScreenGameDefaultPanel == 1
+            onResumeGame()
+        }
         SideEffect {
             DsHomeSecondScreen.publish(DsHomeSecondScreen.Model(
                 owner = DsHomeSecondScreen.Owner.GAME,
                 mode = mode,
-                onBack = onDismiss,
+                onBack = resumeCompanionGame,
+                onResumeGame = resumeCompanionGame,
                 gameInputContent = gameInputServer?.takeIf { inputAvailable }?.let { server ->
                     @Composable {
                         AndroidView(
@@ -361,6 +403,7 @@ private fun GcdsGameQuickMenu(
                     QuickMenu(
                         isVisible = true,
                         onDismiss = onDismiss,
+                        onResumeGame = resumeCompanionGame,
                         onItemSelected = onItemSelected,
                         renderer = renderer,
                         glRenderer = glRenderer,
@@ -435,6 +478,7 @@ private fun GcdsGameQuickMenu(
         QuickMenu(
             isVisible = isVisible,
             onDismiss = onDismiss,
+            onResumeGame = onResumeGame,
             onItemSelected = onItemSelected,
             renderer = renderer,
             glRenderer = glRenderer,

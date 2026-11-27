@@ -178,50 +178,12 @@ fun SettingsGroupDebug() {
         )
     }
 
-    SettingsGroup() {
+    SettingsGroup(title = { Text(stringResource(R.string.logs)) }) {
         SettingsMenuLink(
             colors = settingsTileColors(),
             title = { Text(text = stringResource(R.string.settings_save_logcat_title)) },
             subtitle = { Text(text = stringResource(R.string.settings_save_logcat_subtitle)) },
             onClick = { saveLogCat.launch("app_logs_${CrashHandler.timestamp}.txt") },
-        )
-        // Link to open channel selector
-        SettingsMenuLink(
-            colors = settingsTileColors(),
-            title = { Text(text = stringResource(R.string.settings_debug_wine_channels_title)) },
-            subtitle = {
-                Text(
-                    text = if (selectedWineChannels.isNotEmpty() && selectedWineChannels.any { it.isNotBlank() })
-                        selectedWineChannels.filter { it.isNotBlank() }.joinToString(",")
-                    else
-                        stringResource(R.string.settings_debug_no_channels_selected)
-                )
-            },
-            onClick = { showChannelsDialog = true },
-        )
-        SettingsSwitch(
-            colors = settingsTileColorsAlt(),
-            state = enableWineDebugPref,
-            title = { Text(text = stringResource(R.string.settings_debug_wine_logs_title)) },
-            subtitle = { Text(text = stringResource(R.string.settings_debug_wine_logs_subtitle)) },
-            onCheckedChange = {
-                enableWineDebugPref = it
-                if (!isPreview) {
-                    PrefManager.enableWineDebug = it
-                }
-            },
-        )
-        SettingsSwitch(
-            colors = settingsTileColorsAlt(),
-            state = enableBox86Logs,
-            title = { Text(text = stringResource(R.string.settings_debug_box_logs_title)) },
-            subtitle = { Text(text = stringResource(R.string.settings_debug_box_logs_subtitle)) },
-            onCheckedChange = {
-                enableBox86Logs = it
-                if (!isPreview) {
-                    WinlatorPrefManager.putBoolean("enable_box86_64_logs", it)
-                }
-            },
         )
         SettingsMenuLink(
             colors = settingsTileColors(),
@@ -252,7 +214,50 @@ fun SettingsGroupDebug() {
             enabled = latestWineLogFile != null,
             onClick = { showWineLogDialog = true },
         )
+    }
 
+    SettingsGroup(title = { Text(stringResource(R.string.settings_debug_capture_group)) }) {
+        val channelCount = selectedWineChannels.count { it.isNotBlank() }
+        SettingsMenuLink(
+            colors = settingsTileColors(),
+            title = { Text(text = stringResource(R.string.settings_debug_wine_channels_title)) },
+            subtitle = {
+                Text(
+                    text = if (channelCount > 0)
+                        stringResource(R.string.settings_debug_channel_count, channelCount)
+                    else
+                        stringResource(R.string.settings_debug_no_channels_selected)
+                )
+            },
+            onClick = { showChannelsDialog = true },
+        )
+        SettingsSwitch(
+            colors = settingsTileColorsAlt(),
+            state = enableWineDebugPref,
+            title = { Text(text = stringResource(R.string.settings_debug_wine_logs_title)) },
+            subtitle = { Text(text = stringResource(R.string.settings_debug_wine_logs_subtitle)) },
+            onCheckedChange = {
+                enableWineDebugPref = it
+                if (!isPreview) {
+                    PrefManager.enableWineDebug = it
+                }
+            },
+        )
+        SettingsSwitch(
+            colors = settingsTileColorsAlt(),
+            state = enableBox86Logs,
+            title = { Text(text = stringResource(R.string.settings_debug_box_logs_title)) },
+            subtitle = { Text(text = stringResource(R.string.settings_debug_box_logs_subtitle)) },
+            onCheckedChange = {
+                enableBox86Logs = it
+                if (!isPreview) {
+                    WinlatorPrefManager.putBoolean("enable_box86_64_logs", it)
+                }
+            },
+        )
+    }
+
+    SettingsGroup(title = { Text(stringResource(R.string.settings_debug_maintenance_group)) }) {
         SettingsMenuLink(
             modifier = Modifier.combinedClickable(
                 onLongClick = {

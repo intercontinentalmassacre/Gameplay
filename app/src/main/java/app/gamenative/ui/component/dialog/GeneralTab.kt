@@ -238,7 +238,7 @@ fun GeneralTabContent(
                         state.adrenotoolsTurnipChecked.value = true
 
                         val defaultGlibcWine = glibcWineEntries.firstOrNull() ?: Container.DEFAULT_WINE_VERSION
-                        state.config.value = config.copy(
+                        val draft = state.config.value.copy(
                             gameRuntime = "wine",
                             containerVariant = newVariant,
                             wineVersion = defaultGlibcWine,
@@ -248,6 +248,7 @@ fun GeneralTabContent(
                             box64Version = "0.3.6",
                             audioDriver = getValidatedAudioDriver(config.copy(wineVersion = defaultGlibcWine, containerVariant = newVariant)),
                         )
+                        state.config.value = state.withCompatibleDxWrapper(draft)
                     } else {
                         val defaultBionicDriver = StringUtils.parseIdentifier(state.bionicGraphicsDrivers.first())
                         val newWine = if (config.wineVersion == (glibcWineEntries.firstOrNull() ?: Container.DEFAULT_WINE_VERSION))
@@ -298,11 +299,12 @@ fun GeneralTabContent(
                 },
             )
             if (config.containerVariant.equals(Container.BIONIC, ignoreCase = true)) {
-                val wineIndex = state.bionicWineOptions.ids.indexOfFirst { it == config.wineVersion }.coerceAtLeast(0)
+                val wineIndex = state.bionicWineOptions.ids.indexOfFirst { it.equals(config.wineVersion, ignoreCase = true) }
                 SettingsListDropdown(
                     colors = settingsTileColors(),
                     title = { Text(text = stringResource(R.string.wine_version)) },
                     value = wineIndex,
+                    fallbackDisplay = config.wineVersion,
                     items = state.bionicWineOptions.labels,
                     itemMuted = state.bionicWineOptions.muted,
                     onItemSelected = { idx ->
@@ -316,10 +318,8 @@ fun GeneralTabContent(
                                 ContentProfile.ContentType.CONTENT_TYPE_WINE
                             }
                             state.launchManifestContentInstall(manifestEntry, expectedType) {
-                                state.config.value = config.copy(
-                                    wineVersion = selectedId,
-                                    audioDriver = getValidatedAudioDriver(config.copy(wineVersion = selectedId))
-                                )
+                                val updated = state.config.value.copy(wineVersion = selectedId)
+                                state.config.value = updated.copy(audioDriver = getValidatedAudioDriver(updated))
                             }
                             return@SettingsListDropdown
                         }
@@ -338,36 +338,6 @@ fun GeneralTabContent(
             onValueChange = { state.config.value = config.copy(executablePath = it) },
             containerData = config,
             enabled = !state.isAndroidPlatform,
-        )
-        NoExtractOutlinedTextField(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-            value = config.execArgs,
-            onValueChange = { state.config.value = config.copy(execArgs = it) },
-            enabled = !state.isAndroidPlatform,
-            label = { Text(text = stringResource(R.string.exec_arguments)) },
-            placeholder = { Text(text = stringResource(R.string.exec_arguments_example)) },
-            singleLine = true,
-        )
-        val displayNameForLanguage: (String) -> String = { code ->
-            when (code) {
-                "schinese" -> "Simplified Chinese"
-                "tchinese" -> "Traditional Chinese"
-                "koreana" -> "Korean"
-                "latam" -> "Spanish (Latin America)"
-                "brazilian" -> "Portuguese (Brazil)"
-                else -> code.replaceFirstChar { ch -> ch.titlecase(Locale.getDefault()) }
-            }
-        }
-        SettingsListDropdown(
-            value = state.languageIndex.value,
-            items = state.languages.map(displayNameForLanguage),
-            fallbackDisplay = displayNameForLanguage("english"),
-            onItemSelected = { index ->
-                state.languageIndex.value = index
-                state.config.value = config.copy(language = state.languages[index])
-            },
-            title = { Text(text = stringResource(R.string.language)) },
-            colors = settingsTileColors(),
         )
         SettingsListDropdown(
             colors = settingsTileColors(),
@@ -401,135 +371,26 @@ fun GeneralTabContent(
                 },
             )
         }
-        // Sync audioDriverIndex when config.audioDriver changes (e.g., when wine version changes)
-        LaunchedEffect(config.audioDriver) {
-            val driverIndex = state.audioDrivers.indexOfFirst {
-                StringUtils.parseIdentifier(it) == config.audioDriver
-            }
-            if (driverIndex >= 0 && driverIndex != state.audioDriverIndex.value) {
-                state.audioDriverIndex.value = driverIndex
+        val displayNameForLanguage: (String) -> String = { code ->
+            when (code) {
+                "schinese" -> "Simplified Chinese"
+                "tchinese" -> "Traditional Chinese"
+                "koreana" -> "Korean"
+                "latam" -> "Spanish (Latin America)"
+                "brazilian" -> "Portuguese (Brazil)"
+                else -> code.replaceFirstChar { ch -> ch.titlecase(Locale.getDefault()) }
             }
         }
         SettingsListDropdown(
+            value = state.languageIndex.value,
+            items = state.languages.map(displayNameForLanguage),
+            fallbackDisplay = displayNameForLanguage("english"),
+            onItemSelected = { index ->
+                state.languageIndex.value = index
+                state.config.value = config.copy(language = state.languages[index])
+            },
+            title = { Text(text = stringResource(R.string.language)) },
             colors = settingsTileColors(),
-            title = { Text(text = stringResource(R.string.audio_driver)) },
-            value = state.audioDriverIndex.value,
-            items = state.audioDrivers,
-            onItemSelected = {
-                val selectedDriver = StringUtils.parseIdentifier(state.audioDrivers[it])
-                // If DirectAudio is selected but wine version is not Proton 11 or variant is not bionic, revert to PulseAudio
-                if (getValidatedAudioDriver(config.copy(audioDriver = selectedDriver)) != selectedDriver) {
-                    val pulseaudioIndex = state.audioDrivers.indexOfFirst {
-                        StringUtils.parseIdentifier(it) == "pulseaudio"
-                    }.coerceAtLeast(0)
-                    state.audioDriverIndex.value = pulseaudioIndex
-                    state.config.value = config.copy(audioDriver = "pulseaudio")
-                } else {
-                    state.audioDriverIndex.value = it
-                    state.config.value = config.copy(audioDriver = selectedDriver)
-                }
-            },
-        )
-        if (config.audioDriver == "pulseaudio") {
-            SettingsSwitch(
-                colors = settingsTileColorsAlt(),
-                title = { Text(text = stringResource(R.string.pulseaudio_low_latency)) },
-                state = config.pulseaudioLowLatency,
-                onCheckedChange = { state.config.value = config.copy(pulseaudioLowLatency = it) },
-            )
-        }
-        if (config.audioDriver == Container.AUDIO_DRIVER_GNAUDIO) {
-            SettingsSwitch(
-                colors = settingsTileColorsAlt(),
-                title = { Text(stringResource(R.string.gnaudio_low_latency)) },
-                state = config.gnaudioLowLatency,
-                onCheckedChange = { state.config.value = config.copy(gnaudioLowLatency = it) },
-            )
-        }
-        SettingsSwitch(
-            colors = settingsTileColorsAlt(),
-            title = { Text(text = stringResource(R.string.force_dlc)) },
-            subtitle = { Text(text = stringResource(R.string.force_dlc_description)) },
-            state = config.forceDlc,
-            onCheckedChange = { state.config.value = config.copy(forceDlc = it) },
-        )
-
-        SettingsSwitch(
-            colors = settingsTileColorsAlt(),
-            title = { Text(text = stringResource(R.string.use_legacy_drm)) },
-            state = config.useLegacyDRM,
-            onCheckedChange = { state.config.value = config.copy(useLegacyDRM = it) },
-        )
-        if (!config.useLegacyDRM) {
-            SettingsSwitch(
-                colors = settingsTileColorsAlt(),
-                title = { Text(text = stringResource(R.string.unpack_files)) },
-                subtitle = { Text(text = stringResource(R.string.unpack_files_description)) },
-                state = config.unpackFiles,
-                onCheckedChange = { state.config.value = config.copy(unpackFiles = it) },
-            )
-        }
-        SettingsSwitch(
-            colors = settingsTileColorsAlt(),
-            title = { Text(text = stringResource(R.string.steam_offline_mode)) },
-            subtitle = { Text(text = stringResource(R.string.steam_offline_mode_description)) },
-            state = config.steamOfflineMode,
-            onCheckedChange = { state.config.value = config.copy(steamOfflineMode = it) },
-        )
-        SettingsSwitch(
-            colors = settingsTileColorsAlt(),
-            title = { Text(text = stringResource(R.string.epic_offline_mode)) },
-            subtitle = { Text(text = stringResource(R.string.epic_offline_mode_description)) },
-            state = config.epicOfflineMode,
-            onCheckedChange = { state.config.value = config.copy(epicOfflineMode = it) },
-        )
-        SettingsSwitch(
-            colors = settingsTileColorsAlt(),
-            title = { Text(text = stringResource(R.string.launch_steam_client_beta)) },
-            subtitle = { Text(text = stringResource(R.string.launch_steam_client_description)) },
-            state = config.launchRealSteam,
-            onCheckedChange = {
-                state.config.value = if (it) {
-                    config.copy(launchRealSteam = true, launchBionicSteam = false)
-                } else {
-                    config.copy(launchRealSteam = false)
-                }
-            },
-        )
-        if (config.containerVariant.equals(Container.BIONIC, ignoreCase = true)) {
-            SettingsSwitch(
-                colors = settingsTileColorsAlt(),
-                title = { Text(text = stringResource(R.string.launch_bionic_steam)) },
-                subtitle = { Text(text = stringResource(R.string.launch_bionic_steam_description)) },
-                state = config.launchBionicSteam,
-                onCheckedChange = {
-                    state.config.value = if (it) {
-                        config.copy(launchBionicSteam = true, launchRealSteam = false)
-                    } else {
-                        config.copy(launchBionicSteam = false)
-                    }
-                },
-            )
-        }
-        val steamTypeItems = listOf("Normal", "Light", "Ultra Light")
-        val currentSteamTypeIndex = when (config.steamType.lowercase()) {
-            Container.STEAM_TYPE_LIGHT -> 1
-            Container.STEAM_TYPE_ULTRALIGHT -> 2
-            else -> 0
-        }
-        SettingsListDropdown(
-            colors = settingsTileColors(),
-            title = { Text(text = stringResource(R.string.steam_type)) },
-            value = currentSteamTypeIndex,
-            items = steamTypeItems,
-            onItemSelected = {
-                val type = when (it) {
-                    1 -> Container.STEAM_TYPE_LIGHT
-                    2 -> Container.STEAM_TYPE_ULTRALIGHT
-                    else -> Container.STEAM_TYPE_NORMAL
-                }
-                state.config.value = config.copy(steamType = type)
-            },
         )
         SettingsListDropdown(
             colors = settingsTileColors(),
@@ -547,5 +408,148 @@ fun GeneralTabContent(
                 state.config.value = config.copy(suspendPolicy = policy)
             },
         )
+        ContainerAdvancedSettings(disclose = state.isPerContainer, titleRes = R.string.exec_arguments) {
+            NoExtractOutlinedTextField(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                value = config.execArgs,
+                onValueChange = { state.config.value = config.copy(execArgs = it) },
+                enabled = !state.isAndroidPlatform,
+                label = { Text(text = stringResource(R.string.exec_arguments)) },
+                placeholder = { Text(text = stringResource(R.string.exec_arguments_example)) },
+                singleLine = true,
+            )
+        }
+        ContainerAdvancedSettings(disclose = state.isPerContainer, titleRes = R.string.system_menu_audio) {
+            // Sync audioDriverIndex when config.audioDriver changes (e.g., when wine version changes)
+            LaunchedEffect(config.audioDriver) {
+                val driverIndex = state.audioDrivers.indexOfFirst {
+                    StringUtils.parseIdentifier(it) == config.audioDriver
+                }
+                if (driverIndex >= 0 && driverIndex != state.audioDriverIndex.value) {
+                    state.audioDriverIndex.value = driverIndex
+                }
+            }
+            SettingsListDropdown(
+                colors = settingsTileColors(),
+                title = { Text(text = stringResource(R.string.audio_driver)) },
+                value = state.audioDriverIndex.value,
+                items = state.audioDrivers,
+                onItemSelected = {
+                    val selectedDriver = StringUtils.parseIdentifier(state.audioDrivers[it])
+                    // If DirectAudio is selected but wine version is not Proton 11 or variant is not bionic, revert to PulseAudio
+                    if (getValidatedAudioDriver(config.copy(audioDriver = selectedDriver)) != selectedDriver) {
+                        val pulseaudioIndex = state.audioDrivers.indexOfFirst {
+                            StringUtils.parseIdentifier(it) == "pulseaudio"
+                        }.coerceAtLeast(0)
+                        state.audioDriverIndex.value = pulseaudioIndex
+                        state.config.value = config.copy(audioDriver = "pulseaudio")
+                    } else {
+                        state.audioDriverIndex.value = it
+                        state.config.value = config.copy(audioDriver = selectedDriver)
+                    }
+                },
+            )
+            if (config.audioDriver == "pulseaudio") {
+                SettingsSwitch(
+                    colors = settingsTileColorsAlt(),
+                    title = { Text(text = stringResource(R.string.pulseaudio_low_latency)) },
+                    state = config.pulseaudioLowLatency,
+                    onCheckedChange = { state.config.value = config.copy(pulseaudioLowLatency = it) },
+                )
+            }
+            if (config.audioDriver == Container.AUDIO_DRIVER_GNAUDIO) {
+                SettingsSwitch(
+                    colors = settingsTileColorsAlt(),
+                    title = { Text(stringResource(R.string.gnaudio_low_latency)) },
+                    state = config.gnaudioLowLatency,
+                    onCheckedChange = { state.config.value = config.copy(gnaudioLowLatency = it) },
+                )
+            }
+        }
+        ContainerAdvancedSettings(disclose = state.isPerContainer, titleRes = R.string.container_store_compatibility) {
+            SettingsSwitch(
+                colors = settingsTileColorsAlt(),
+                title = { Text(text = stringResource(R.string.force_dlc)) },
+                subtitle = { Text(text = stringResource(R.string.force_dlc_description)) },
+                state = config.forceDlc,
+                onCheckedChange = { state.config.value = config.copy(forceDlc = it) },
+            )
+
+            SettingsSwitch(
+                colors = settingsTileColorsAlt(),
+                title = { Text(text = stringResource(R.string.use_legacy_drm)) },
+                state = config.useLegacyDRM,
+                onCheckedChange = { state.config.value = config.copy(useLegacyDRM = it) },
+            )
+            if (!config.useLegacyDRM) {
+                SettingsSwitch(
+                    colors = settingsTileColorsAlt(),
+                    title = { Text(text = stringResource(R.string.unpack_files)) },
+                    subtitle = { Text(text = stringResource(R.string.unpack_files_description)) },
+                    state = config.unpackFiles,
+                    onCheckedChange = { state.config.value = config.copy(unpackFiles = it) },
+                )
+            }
+            SettingsSwitch(
+                colors = settingsTileColorsAlt(),
+                title = { Text(text = stringResource(R.string.steam_offline_mode)) },
+                state = config.steamOfflineMode,
+                onCheckedChange = { state.config.value = config.copy(steamOfflineMode = it) },
+            )
+            SettingsSwitch(
+                colors = settingsTileColorsAlt(),
+                title = { Text(text = stringResource(R.string.epic_offline_mode)) },
+                state = config.epicOfflineMode,
+                onCheckedChange = { state.config.value = config.copy(epicOfflineMode = it) },
+            )
+            SettingsSwitch(
+                colors = settingsTileColorsAlt(),
+                title = { Text(text = stringResource(R.string.launch_steam_client_beta)) },
+                subtitle = { Text(text = stringResource(R.string.launch_steam_client_description)) },
+                state = config.launchRealSteam,
+                onCheckedChange = {
+                    state.config.value = if (it) {
+                        config.copy(launchRealSteam = true, launchBionicSteam = false)
+                    } else {
+                        config.copy(launchRealSteam = false)
+                    }
+                },
+            )
+            if (config.containerVariant.equals(Container.BIONIC, ignoreCase = true)) {
+                SettingsSwitch(
+                    colors = settingsTileColorsAlt(),
+                    title = { Text(text = stringResource(R.string.launch_bionic_steam)) },
+                    subtitle = { Text(text = stringResource(R.string.launch_bionic_steam_description)) },
+                    state = config.launchBionicSteam,
+                    onCheckedChange = {
+                        state.config.value = if (it) {
+                            config.copy(launchBionicSteam = true, launchRealSteam = false)
+                        } else {
+                            config.copy(launchBionicSteam = false)
+                        }
+                    },
+                )
+            }
+            val steamTypeItems = listOf("Normal", "Light", "Ultra Light")
+            val currentSteamTypeIndex = when (config.steamType.lowercase()) {
+                Container.STEAM_TYPE_LIGHT -> 1
+                Container.STEAM_TYPE_ULTRALIGHT -> 2
+                else -> 0
+            }
+            SettingsListDropdown(
+                colors = settingsTileColors(),
+                title = { Text(text = stringResource(R.string.steam_type)) },
+                value = currentSteamTypeIndex,
+                items = steamTypeItems,
+                onItemSelected = {
+                    val type = when (it) {
+                        1 -> Container.STEAM_TYPE_LIGHT
+                        2 -> Container.STEAM_TYPE_ULTRALIGHT
+                        else -> Container.STEAM_TYPE_NORMAL
+                    }
+                    state.config.value = config.copy(steamType = type)
+                },
+            )
+        }
     }
 }

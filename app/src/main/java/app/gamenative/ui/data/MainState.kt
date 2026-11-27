@@ -26,10 +26,17 @@ data class MainState(
     val showBootingSplash: Boolean = false,
     val bootingSplashText: String = "Booting...",
     val bootingSplashHeroImageUrl: String = "",
+    val bootingSplashTakingLonger: Boolean = false,
 
     // Connection state for background reconnection
     // Default to DISCONNECTED - service will start and set to CONNECTING
     val connectionState: ConnectionState = ConnectionState.DISCONNECTED,
     val connectionMessage: String? = null,
     val connectionTimeoutSeconds: Int = 0,
-)
+) {
+    val canRevealGameScreen: Boolean
+        get() = showBootingSplash && bootingSplashTakingLonger && currentScreen == PluviaScreen.XServer
+
+    fun withBootingSplashText(text: String): MainState =
+        if (showBootingSplash) copy(bootingSplashText = text) else this
+}

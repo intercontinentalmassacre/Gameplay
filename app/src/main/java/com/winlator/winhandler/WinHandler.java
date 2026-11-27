@@ -1387,6 +1387,21 @@ public class WinHandler {
         return handled;
     }
 
+    public void neutralizeGamepads() {
+        GamepadState neutral = new GamepadState();
+        for (int slot = 0; slot < MAX_PLAYERS; slot++) {
+            for (ExternalController half : joyConInputs[slot]) {
+                if (half != null) half.state.copy(neutral);
+            }
+            ExternalController controller = getControllerFromSlot(slot);
+            if (controller != null) {
+                controller.state.copy(neutral);
+                sendMemoryFileState(controller, getGamepadBuffer(slot), slot);
+            }
+        }
+        sendGamepadState();
+    }
+
     public boolean onKeyEvent(KeyEvent event) {
         MappedByteBuffer buffer = null;
         boolean handled = false;
@@ -1488,44 +1503,7 @@ public class WinHandler {
         if (buffer == null || controller == null) {
             return;
         }
-        GamepadState state = controller.state;
-        buffer.putInt(OFF_CONNECTED, 1);
-
-        buffer.putShort(OFF_LX, (short)(state.thumbLX * 32767));
-        buffer.putShort(OFF_LY, (short)(state.thumbLY * 32767));
-        buffer.putShort(OFF_RX, (short)(state.thumbRX * 32767));
-        buffer.putShort(OFF_RY, (short)(state.thumbRY * 32767));
-        // Clamp the raw value first – some firmwares report 1.00–1.02 at the top end
-        float rawL = Math.max(0f, Math.min(1f, state.triggerL));
-        float rawR = Math.max(0f, Math.min(1f, state.triggerR));
-        float lCurve = (float)Math.sqrt(rawL);
-        float rCurve = (float)Math.sqrt(rawR);
-        int lAxis = Math.round(lCurve * 65_534f) - 32_767;  // 0 → -32 767, 1 → 32 767
-        int rAxis = Math.round(rCurve * 65_534f) - 32_767;
-        buffer.putShort(OFF_LT, (short)lAxis);
-        buffer.putShort(OFF_RT, (short)rAxis);
-
-        byte[] sdlButtons = new byte[15];
-        sdlButtons[0] = state.isPressed(0) ? (byte)1 : (byte)0;  // A
-        sdlButtons[1] = state.isPressed(1) ? (byte)1 : (byte)0;  // B
-        sdlButtons[2] = state.isPressed(2) ? (byte)1 : (byte)0;  // X
-        sdlButtons[3] = state.isPressed(3) ? (byte)1 : (byte)0;  // Y
-        sdlButtons[9] = state.isPressed(4) ? (byte)1 : (byte)0;  // Left Bumper
-        sdlButtons[10] = state.isPressed(5) ? (byte)1 : (byte)0; // Right Bumper
-        sdlButtons[4] = state.isPressed(6) ? (byte)1 : (byte)0;  // Select/Back
-        sdlButtons[6] = state.isPressed(7) ? (byte)1 : (byte)0;  // Start
-        sdlButtons[7] = state.isPressed(8) ? (byte)1 : (byte)0;  // Left Stick
-        sdlButtons[8] = state.isPressed(9) ? (byte)1 : (byte)0;  // Right Stick
-        sdlButtons[11] = state.dpad[0] ? (byte)1 : (byte)0;      // DPAD_UP
-        sdlButtons[12] = state.dpad[2] ? (byte)1 : (byte)0;      // DPAD_DOWN
-        sdlButtons[13] = state.dpad[3] ? (byte)1 : (byte)0;      // DPAD_LEFT
-        sdlButtons[14] = state.dpad[1] ? (byte)1 : (byte)0;      // DPAD_RIGHT
-        for (int i = 0; i < 15; i++) {
-            buffer.put(OFF_BTN + i, sdlButtons[i]);
-        }
-        buffer.put(OFF_HAT, (byte)0);
-
-        notifyStateChanged(slot);
+        writeGamepadState(controller.state, buffer, slot);
     }
 
     public void sendVirtualGamepadState(GamepadState state, int slot) {
@@ -1533,52 +1511,44 @@ public class WinHandler {
         if (buffer == null || state == null) {
             return;
         }
+        writeGamepadState(state, buffer, slot);
+    }
+
+    private void writeGamepadState(GamepadState state, MappedByteBuffer buffer, int slot) {
         buffer.putInt(OFF_CONNECTED, 1);
 
-        // Axes: write by fixed offsets, not sequential position
         buffer.putShort(OFF_LX, (short) (state.thumbLX * 32767));
         buffer.putShort(OFF_LY, (short) (state.thumbLY * 32767));
         buffer.putShort(OFF_RX, (short) (state.thumbRX * 32767));
         buffer.putShort(OFF_RY, (short) (state.thumbRY * 32767));
 
-        // Triggers: curve and map to signed short range like your current code
+        // Clamp first because some controllers report trigger values slightly above 1.
         float rawL = Math.max(0f, Math.min(1f, state.triggerL));
         float rawR = Math.max(0f, Math.min(1f, state.triggerR));
-
         float lCurve = (float) Math.sqrt(rawL);
         float rCurve = (float) Math.sqrt(rawR);
-
-        int lAxis = Math.round(lCurve * 65534f) - 32767;
-        int rAxis = Math.round(rCurve * 65534f) - 32767;
-
+        int lAxis = Math.round(lCurve * 65_534f) - 32_767;
+        int rAxis = Math.round(rCurve * 65_534f) - 32_767;
         buffer.putShort(OFF_LT, (short) lAxis);
         buffer.putShort(OFF_RT, (short) rAxis);
 
-        // Buttons: 15 bytes starting at offset 16
-        byte[] sdlButtons = new byte[15];
-        sdlButtons[0]  = state.isPressed(0) ? (byte) 1 : 0;   // A
-        sdlButtons[1]  = state.isPressed(1) ? (byte) 1 : 0;   // B
-        sdlButtons[2]  = state.isPressed(2) ? (byte) 1 : 0;   // X
-        sdlButtons[3]  = state.isPressed(3) ? (byte) 1 : 0;   // Y
-        sdlButtons[9]  = state.isPressed(4) ? (byte) 1 : 0;   // LB
-        sdlButtons[10] = state.isPressed(5) ? (byte) 1 : 0;   // RB
-        sdlButtons[4]  = state.isPressed(6) ? (byte) 1 : 0;   // Back / Select
-        sdlButtons[6]  = state.isPressed(7) ? (byte) 1 : 0;   // Start
-        sdlButtons[7]  = state.isPressed(8) ? (byte) 1 : 0;   // L3
-        sdlButtons[8]  = state.isPressed(9) ? (byte) 1 : 0;   // R3
-        sdlButtons[11] = state.dpad[0] ? (byte) 1 : 0;        // Up
-        sdlButtons[12] = state.dpad[2] ? (byte) 1 : 0;        // Down
-        sdlButtons[13] = state.dpad[3] ? (byte) 1 : 0;        // Left
-        sdlButtons[14] = state.dpad[1] ? (byte) 1 : 0;        // Right
-
-        for (int i = 0; i < 15; i++) {
-            buffer.put(OFF_BTN + i, sdlButtons[i]);
-        }
-
-        // Hat at offset 31
+        buffer.put(OFF_BTN, (byte) (state.isPressed(0) ? 1 : 0));       // A
+        buffer.put(OFF_BTN + 1, (byte) (state.isPressed(1) ? 1 : 0));   // B
+        buffer.put(OFF_BTN + 2, (byte) (state.isPressed(2) ? 1 : 0));   // X
+        buffer.put(OFF_BTN + 3, (byte) (state.isPressed(3) ? 1 : 0));   // Y
+        buffer.put(OFF_BTN + 4, (byte) (state.isPressed(6) ? 1 : 0));   // Back
+        buffer.put(OFF_BTN + 5, (byte) 0);                             // Guide
+        buffer.put(OFF_BTN + 6, (byte) (state.isPressed(7) ? 1 : 0));   // Start
+        buffer.put(OFF_BTN + 7, (byte) (state.isPressed(8) ? 1 : 0));   // Left Stick
+        buffer.put(OFF_BTN + 8, (byte) (state.isPressed(9) ? 1 : 0));   // Right Stick
+        buffer.put(OFF_BTN + 9, (byte) (state.isPressed(4) ? 1 : 0));   // Left Bumper
+        buffer.put(OFF_BTN + 10, (byte) (state.isPressed(5) ? 1 : 0));  // Right Bumper
+        buffer.put(OFF_BTN + 11, (byte) (state.dpad[0] ? 1 : 0));       // D-pad Up
+        buffer.put(OFF_BTN + 12, (byte) (state.dpad[2] ? 1 : 0));       // D-pad Down
+        buffer.put(OFF_BTN + 13, (byte) (state.dpad[3] ? 1 : 0));       // D-pad Left
+        buffer.put(OFF_BTN + 14, (byte) (state.dpad[1] ? 1 : 0));       // D-pad Right
         buffer.put(OFF_HAT, (byte) 0);
 
-        // Notify native side that state changed
         notifyStateChanged(slot);
     }
 

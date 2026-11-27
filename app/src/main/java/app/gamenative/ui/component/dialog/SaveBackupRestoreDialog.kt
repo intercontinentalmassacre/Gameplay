@@ -1,6 +1,9 @@
 package app.gamenative.ui.component.dialog
 
+import android.content.Context
 import android.text.format.Formatter
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -28,6 +31,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -43,10 +47,15 @@ import app.gamenative.R
 import app.gamenative.service.ActiveGameRegistry
 import app.gamenative.service.SteamService
 import app.gamenative.ui.component.IconButton
+import app.gamenative.ui.component.NoExtractOutlinedTextField
 import app.gamenative.ui.util.SnackbarManager
 import app.gamenative.utils.CloudSaveBackupManager
 import app.gamenative.utils.CloudSaveBackupManager.Kind
 import app.gamenative.utils.CloudSaveBackupManager.SaveBackup
+import app.gamenative.utils.CustomGameScanner
+import com.winlator.container.ContainerManager
+import java.io.File
+import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -81,6 +90,13 @@ fun SaveBackupRestoreDialog(
 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val custom = provider == CloudSaveBackupManager.PROVIDER_CUSTOM
+    val customPaths = remember(context, custom) {
+        if (custom) context.getSharedPreferences("custom_save_paths", Context.MODE_PRIVATE) else null
+    }
+    var savePath by rememberSaveable(provider, gameId) {
+        mutableStateOf(customPaths?.getString(gameId, "").orEmpty())
+    }
     var backups by remember(provider, gameId) { mutableStateOf(emptyList<SaveBackup>()) }
     var loading by remember(provider, gameId) { mutableStateOf(true) }
     var busy by remember(provider, gameId) { mutableStateOf(false) }
@@ -88,7 +104,24 @@ fun SaveBackupRestoreDialog(
     var reloadKey by remember(provider, gameId) { mutableIntStateOf(0) }
     var pendingRestore by remember(provider, gameId) { mutableStateOf<SaveBackup?>(null) }
     var pendingDelete by remember(provider, gameId) { mutableStateOf<SaveBackup?>(null) }
+    var pendingExport by rememberSaveable(gameId) { mutableStateOf<String?>(null) }
     val gameRunningMessage = stringResource(R.string.save_backup_game_running)
+    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
+        val source = pendingExport
+        pendingExport = null
+        if (source != null && uri != null) {
+            busy = true
+            scope.launch {
+                val exported = CloudSaveBackupManager.exportCustomBackup(context, gameId, source) {
+                    context.contentResolver.openOutputStream(uri, "wt")
+                }
+                busy = false
+                SnackbarManager.show(
+                    context.getString(if (exported) R.string.save_backup_export_success else R.string.save_backup_export_failed),
+                )
+            }
+        }
+    }
 
     LaunchedEffect(provider, gameId, reloadKey) {
         loading = true
@@ -141,6 +174,44 @@ fun SaveBackupRestoreDialog(
         }
     }
 
+    fun createBackup() {
+        if (busy || refuseIfGameRunning()) return
+        val path = savePath.trim()
+        busy = true
+        scope.launch {
+            val result = withContext(Dispatchers.IO) {
+                val root = try {
+                    val normalized = path.replace('\\', '/')
+                    val windows = normalized.startsWith("C:/", ignoreCase = true)
+                    val relative = if (windows) normalized.drop(3) else normalized
+                    val location = if (windows) {
+                        ContainerManager(context).getContainerById(gameId)?.let { File(it.rootDir, ".wine/drive_c") }
+                    } else {
+                        CustomGameScanner.getFolderPathFromAppId(gameId)?.let(::File)
+                    }
+                    location?.let { CloudSaveBackupManager.customSaveRoot(it, relative.trimEnd('/')) }
+                } catch (_: IllegalArgumentException) {
+                    null
+                } catch (_: IOException) {
+                    null
+                } catch (_: SecurityException) {
+                    null
+                }
+                when {
+                    root == null -> R.string.save_backup_custom_invalid_path
+                    CloudSaveBackupManager.backup(context, provider, gameId, listOf(root), Kind.MANUAL) -> {
+                        customPaths?.edit()?.putString(gameId, path)?.apply()
+                        R.string.save_backup_custom_success
+                    }
+                    else -> R.string.save_backup_custom_no_copy
+                }
+            }
+            busy = false
+            SnackbarManager.show(context.getString(result))
+            reloadKey++
+        }
+    }
+
     SecondScreenRoutedDialog(onDismissRequest = onDismissRequest) {
         Dialog(
             onDismissRequest = { if (!busy) onDismissRequest() },
@@ -188,6 +259,25 @@ fun SaveBackupRestoreDialog(
                             }
                         }
 
+                        if (custom) {
+                            item {
+                                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                                    Text(stringResource(R.string.save_backup_custom_path_help))
+                                    NoExtractOutlinedTextField(
+                                        value = savePath,
+                                        onValueChange = { savePath = it },
+                                        label = { Text(stringResource(R.string.save_backup_custom_path)) },
+                                        enabled = !busy && !gameRunning,
+                                        singleLine = true,
+                                    )
+                                    TextButton(
+                                        onClick = ::createBackup,
+                                        enabled = !busy && !gameRunning && savePath.isNotBlank(),
+                                    ) { Text(stringResource(R.string.save_backup_custom_create)) }
+                                }
+                            }
+                        }
+
                         if (loading) {
                             item {
                                 Text(
@@ -226,6 +316,18 @@ fun SaveBackupRestoreDialog(
                                                     backup.fileCount,
                                                 ),
                                             )
+                                            backup.folder?.let { Text(it) }
+                                            if (custom) {
+                                                TextButton(
+                                                    onClick = {
+                                                        pendingExport = backup.file.name
+                                                        exportLauncher.launch("saves-${backup.file.name}")
+                                                    },
+                                                    enabled = !busy && pendingExport == null,
+                                                ) {
+                                                    Text(stringResource(R.string.option_export_saves))
+                                                }
+                                            }
                                             if (backup.kind == Kind.PRE_RESTORE) {
                                                 Text(
                                                     text = stringResource(R.string.save_backup_kind_pre_restore),

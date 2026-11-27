@@ -10,6 +10,7 @@ import com.winlator.inputcontrols.ControlElement
 import com.winlator.inputcontrols.ControlsProfile
 import com.winlator.inputcontrols.ExternalController
 import com.winlator.inputcontrols.ExternalControllerBinding
+import com.winlator.inputcontrols.GamepadState
 import com.winlator.math.Mathf
 import com.winlator.xserver.XServer
 import java.util.Timer
@@ -42,6 +43,9 @@ class PhysicalControllerHandler(
     // track which axis keycodes are currently "pressed" so we only release on actual transitions.
     // accessed only from main thread (MotionEvent dispatch + Compose lifecycle), no sync needed.
     private val activeAxisBindings = mutableSetOf<Int>()
+    private val pressedButtons = mutableMapOf<Pair<Int, Int>, Binding>()
+    private var motionDeviceId = UNKNOWN_DEVICE_ID
+    private var motionController: ExternalController? = null
 
     // Tracks whether SHOW_KEYBOARD is currently held, so onShowKeyboard fires once per press (rising edge only)
     private var showKeyboardPressed = false
@@ -51,7 +55,7 @@ class PhysicalControllerHandler(
     private var radialMenuOpenerDeviceId = UNKNOWN_DEVICE_ID
 
     private fun releaseActiveAxes(exceptKeyCode: Int = KeyEvent.KEYCODE_UNKNOWN) {
-        val controller = profile?.getController("*") ?: return
+        val controller = motionController ?: profile?.getController("*") ?: return
         for (keyCode in activeAxisBindings.toList()) {
             if (keyCode == exceptKeyCode) continue
             activeAxisBindings.remove(keyCode)
@@ -62,7 +66,10 @@ class PhysicalControllerHandler(
     }
 
     fun setProfile(profile: ControlsProfile?) {
+        releaseButtons()
         releaseActiveAxes()
+        motionController = null
+        motionDeviceId = UNKNOWN_DEVICE_ID
         clearScrollRepeats()
         closeRadialMenuIfOpen(commit = false)
         this.profile = profile
@@ -80,13 +87,50 @@ class PhysicalControllerHandler(
      * Clean up resources when handler is destroyed
      */
     fun cleanup() {
+        pressedButtons.clear()
         releaseActiveAxes()
+        motionController = null
+        motionDeviceId = UNKNOWN_DEVICE_ID
         mouseMoveTimer?.cancel()
         mouseMoveTimer = null
         mouseMoveOffset.set(0f, 0f)
         clearScrollRepeats()
         showKeyboardPressed = false
         closeRadialMenuIfOpen(commit = false)
+    }
+
+    fun releaseForOverlay() {
+        neutralizeMotionInputs(KeyEvent.KEYCODE_UNKNOWN, motionController)
+        cleanup()
+        profile?.gamepadState?.copy(GamepadState())
+        sendGamepadState()
+    }
+
+    fun onDeviceRemoved(deviceId: Int) {
+        if (motionDeviceId != deviceId && radialMenuOpenerDeviceId != deviceId &&
+            pressedButtons.keys.none { it.first == deviceId }
+        ) return
+
+        if (radialMenuPressed && radialMenuOpenerDeviceId == deviceId) closeRadialMenuIfOpen(commit = false)
+        releaseButtons(deviceId)
+        if (motionDeviceId == deviceId) {
+            neutralizeMotionInputs(KeyEvent.KEYCODE_UNKNOWN, motionController)
+            motionController = null
+            motionDeviceId = UNKNOWN_DEVICE_ID
+        }
+        sendGamepadState()
+    }
+
+    private fun releaseButtons(deviceId: Int? = null) {
+        for ((key, binding) in pressedButtons.toMap()) {
+            if (deviceId != null && key.first != deviceId) continue
+            pressedButtons.remove(key)
+            if (binding == Binding.OPEN_RADIAL_MENU || pressedButtons.containsValue(binding)) continue
+            handleInputEvent(binding, false, sourceKeyCode = key.second, sourceDeviceId = key.first)
+            if (binding == Binding.MOUSE_MOVE_LEFT || binding == Binding.MOUSE_MOVE_RIGHT ||
+                binding == Binding.MOUSE_MOVE_UP || binding == Binding.MOUSE_MOVE_DOWN
+            ) mouseMoveOffset.set(0f, 0f)
+        }
     }
 
     /**
@@ -132,6 +176,9 @@ class PhysicalControllerHandler(
                     val offset = if (event.action == KeyEvent.ACTION_DOWN &&
                         (controllerBinding.binding == Binding.GAMEPAD_BUTTON_L2 || controllerBinding.binding == Binding.GAMEPAD_BUTTON_R2)
                     ) 1f else 0f
+                    val key = event.deviceId to event.keyCode
+                    if (event.action == KeyEvent.ACTION_DOWN) pressedButtons[key] = controllerBinding.binding
+                    else pressedButtons.remove(key)
                     handleInputEvent(
                         controllerBinding.binding,
                         event.action == KeyEvent.ACTION_DOWN,
@@ -175,6 +222,8 @@ class PhysicalControllerHandler(
             if (radialMenuPressed && !isRadialMenuOpenerDevice(event.deviceId)) return true
             val controller = profile?.getController(event.deviceId)
             if (controller != null && controller.updateStateFromMotionEvent(event)) {
+                motionController = controller
+                motionDeviceId = event.deviceId
                 if (radialMenuPressed) {
                     updateRadialMenuVector(controller)
                     if (radialMenuOpenedFromMotion && !isRadialMenuMotionOpenerPressed(controller)) {

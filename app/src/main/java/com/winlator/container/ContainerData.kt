@@ -9,7 +9,9 @@ import com.winlator.core.WineThemeManager
 import com.winlator.fexcore.FEXCorePreset
 import com.winlator.xenvironment.components.PulseAudioComponent
 import kotlin.String
+import kotlinx.serialization.Serializable
 
+@Serializable
 data class ContainerData(
     val name: String = "",
     val screenSize: String = PluviaApp.getDefaultScreenSize(),

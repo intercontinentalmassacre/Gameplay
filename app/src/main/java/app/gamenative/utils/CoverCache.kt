@@ -2,8 +2,13 @@ package app.gamenative.utils
 
 import app.gamenative.PluviaApp
 import app.gamenative.PrefManager
+import app.gamenative.data.GameSource
 import java.io.File
 import java.io.IOException
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption.ATOMIC_MOVE
+import java.nio.file.StandardCopyOption.REPLACE_EXISTING
+import java.util.TreeSet
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import okhttp3.Call
@@ -25,9 +30,9 @@ import timber.log.Timber
  * are de-duplicated by (appId, type) inside [inflight]. Disk writes go through
  * a temp file + atomic rename so partial files are never observed.
  *
- * Size cap: enforced lazily on each enqueue. When [sizeBytes] exceeds the
- * configured MB cap, oldest files (by last-modified) are evicted until under
- * limit. Orphan pruning is the caller's job (compare against owned appIds).
+ * Size cap: enforced when a download is committed using a disk index guarded
+ * by the same lock as [inflight]. Oldest files (by last-modified) are evicted
+ * first. Orphan pruning is the caller's job (compare against owned appIds).
  */
 object CoverCache {
 
@@ -58,6 +63,7 @@ object CoverCache {
     }
 
     private val inflight = mutableMapOf<String, Download>()
+    private val diskIndex by lazy { DiskIndex(cacheDir) }
 
     /**
      * Resolve a cached file URI for the given (appId, type). Returns null if
@@ -98,7 +104,7 @@ object CoverCache {
         if (appId.isEmpty() || urls.isEmpty()) return
         val key = key(appId, type)
         val dest = fileFor(appId, type) ?: return
-        val download = Download()
+        val download = Download(inflight, ::recordDownload)
         synchronized(inflight) {
             if (dest.isFile && dest.length() > 0L) return
             if (key in inflight) return
@@ -106,17 +112,15 @@ object CoverCache {
         }
 
         executor.execute {
-            val file = try {
+            try {
                 download.fetch(client, urls, dest)
             } catch (e: Exception) {
                 Timber.tag(TAG).w(e, "download failed appId=%s type=%s", appId, type)
-                null
             } finally {
                 synchronized(inflight) {
                     if (inflight[key] === download) inflight.remove(key)
                 }
             }
-            if (file != null) enforceSizeCap()
         }
     }
 
@@ -143,9 +147,8 @@ object CoverCache {
             inflight.entries.removeAll { (key, download) ->
                 key.startsWith(keyPrefix).also { if (it) download.cancel() }
             }
-            cacheDir.listFiles()?.forEach { f ->
-                if (f.name.startsWith(prefix(appId))) f.delete()
-            }
+            val filePrefix = prefix(appId)
+            diskIndex.deleteWhere { it.name.startsWith(filePrefix) }
         }
     }
 
@@ -156,13 +159,8 @@ object CoverCache {
     fun pruneOrphans(knownAppIds: Set<String>) {
         executor.execute {
             val known = knownAppIds.map { prefix(it) }.toHashSet()
-            val files = cacheDir.listFiles { _, name -> !name.endsWith(TEMP_SUFFIX) } ?: return@execute
-            var pruned = 0
-            for (f in files) {
-                val p = f.name.substringBefore("__")
-                if (prefix(p) !in known) {
-                    if (f.delete()) pruned++
-                }
+            val pruned = synchronized(inflight) {
+                diskIndex.deleteWhere { prefix(it.name.substringBefore("__")) !in known }
             }
             if (pruned > 0) Timber.tag(TAG).d("pruned %d orphan covers", pruned)
         }
@@ -181,7 +179,8 @@ object CoverCache {
         synchronized(inflight) {
             inflight.values.forEach { it.cancel() }
             inflight.clear()
-            cacheDir.listFiles()?.forEach { it.delete() }
+            diskIndex.deleteWhere { true }
+            cacheDir.listFiles { _, name -> name.endsWith(TEMP_SUFFIX) }?.forEach { it.delete() }
         }
     }
 
@@ -197,28 +196,32 @@ object CoverCache {
     private fun prefix(appId: String): String = sanitize(appId) + "__"
 
     private fun sanitize(appId: String): String {
-        // Steam appIds are numeric; custom appIds can be alphanumeric. Keep
-        // the namespace safe regardless.
-        val sb = StringBuilder(appId.length)
-        for (c in appId) {
+        // Steam sync writes numeric IDs and library items use source-prefixed IDs.
+        val cacheId = appId.removePrefix("${GameSource.STEAM.name}_")
+        val sb = StringBuilder(cacheId.length)
+        for (c in cacheId) {
             sb.append(if (c.isLetterOrDigit()) c else '_')
         }
         return sb.toString()
     }
 
-    internal class Download {
+    internal class Download(
+        private val lock: Any = Any(),
+        private val onPublished: (File) -> Unit = {},
+    ) {
         private var cancelled = false
         private var activeCall: Call? = null
 
-        @Synchronized
         fun cancel() {
-            cancelled = true
-            activeCall?.cancel()
+            synchronized(lock) {
+                cancelled = true
+                activeCall?.cancel()
+            }
         }
 
         fun fetch(client: OkHttpClient, urls: List<String>, dest: File): File? {
             for (url in urls.distinct()) {
-                val call = synchronized(this) {
+                val call = synchronized(lock) {
                     if (cancelled) return null
                     client.newCall(Request.Builder().url(url).build()).also {
                         it.timeout().timeout(10, TimeUnit.SECONDS)
@@ -230,7 +233,7 @@ object CoverCache {
                 } catch (e: IOException) {
                     if (!call.isCanceled()) Timber.tag(TAG).w(e, "cover download failed")
                 } finally {
-                    synchronized(this) { activeCall = null }
+                    synchronized(lock) { activeCall = null }
                 }
             }
             return null
@@ -246,10 +249,10 @@ object CoverCache {
                         body.byteStream().copyTo(out)
                     }
                     if (tmp.length() == 0L) return null
-                    synchronized(this) {
+                    synchronized(lock) {
                         if (cancelled) return null
-                        if (dest.exists()) dest.delete()
-                        if (!tmp.renameTo(dest)) tmp.copyTo(dest, overwrite = true)
+                        Files.move(tmp.toPath(), dest.toPath(), ATOMIC_MOVE, REPLACE_EXISTING)
+                        onPublished(dest)
                     }
                     return dest
                 } finally {
@@ -259,18 +262,63 @@ object CoverCache {
         }
     }
 
-    private fun enforceSizeCap() {
-        val capBytes = PrefManager.coverCacheMaxMb.toLong() * 1024L * 1024L
-        if (capBytes <= 0L) return
-        val files = cacheDir.listFiles { _, name -> !name.endsWith(TEMP_SUFFIX) } ?: return
-        var total = files.sumOf { it.length() }
-        if (total <= capBytes) return
-        val sorted = files.sortedBy { it.lastModified() }
-        for (f in sorted) {
-            if (total <= capBytes) break
-            val sz = f.length()
-            if (f.delete()) total -= sz
+    private fun recordDownload(file: File) {
+        diskIndex.record(file)
+        val capMb = PrefManager.coverCacheMaxMb
+        val capBytes = capMb.toLong() * 1024L * 1024L
+        if (capBytes > 0L && diskIndex.sizeBytes > capBytes) {
+            diskIndex.trimTo(capBytes)
+            Timber.tag(TAG).d("evicted to %d MB (cap %d MB)", diskIndex.sizeBytes / (1024 * 1024), capMb)
         }
-        Timber.tag(TAG).d("evicted to %d MB (cap %d MB)", total / (1024 * 1024), PrefManager.coverCacheMaxMb)
+    }
+
+    internal class DiskIndex(directory: File) {
+        private data class Entry(val file: File, val bytes: Long, val modified: Long)
+
+        private val entries = mutableMapOf<File, Entry>()
+        private val oldestFirst = TreeSet(compareBy<Entry> { it.modified }.thenBy { it.file.name })
+        var sizeBytes = 0L
+            private set
+
+        init {
+            directory.listFiles { _, name -> !name.endsWith(TEMP_SUFFIX) }?.forEach(::record)
+        }
+
+        fun record(file: File) {
+            val entry = Entry(file, file.length(), file.lastModified())
+            entries.put(file, entry)?.let { previous ->
+                oldestFirst.remove(previous)
+                sizeBytes -= previous.bytes
+            }
+            oldestFirst.add(entry)
+            sizeBytes += entry.bytes
+        }
+
+        fun deleteWhere(matches: (File) -> Boolean): Int {
+            var deleted = 0
+            val iterator = entries.values.iterator()
+            while (iterator.hasNext()) {
+                val entry = iterator.next()
+                if (matches(entry.file) && entry.file.delete()) {
+                    iterator.remove()
+                    oldestFirst.remove(entry)
+                    sizeBytes -= entry.bytes
+                    deleted++
+                }
+            }
+            return deleted
+        }
+
+        fun trimTo(capBytes: Long) {
+            val iterator = oldestFirst.iterator()
+            while (sizeBytes > capBytes && iterator.hasNext()) {
+                val entry = iterator.next()
+                if (entry.file.delete()) {
+                    iterator.remove()
+                    entries.remove(entry.file)
+                    sizeBytes -= entry.bytes
+                }
+            }
+        }
     }
 }

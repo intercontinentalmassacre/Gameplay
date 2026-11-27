@@ -38,7 +38,6 @@ import androidx.compose.material.icons.automirrored.filled.CallSplit
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.automirrored.filled.Help
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
-import androidx.compose.material.icons.filled.AltRoute
 import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
@@ -47,6 +46,10 @@ import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.StarBorder
+import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.Feedback
 import androidx.compose.material.icons.filled.Gamepad
@@ -181,13 +184,6 @@ fun GameOptionsPanel(
                 OptionCategory.CLOUD_SAVES to stringResource(R.string.game_options_cloud_saves),
                 OptionCategory.HELP_INFO to stringResource(R.string.game_options_help_info),
             )
-            val categoryDescriptions = mapOf(
-                OptionCategory.QUICK_ACTIONS to stringResource(R.string.game_options_quick_actions_description),
-                OptionCategory.GAME_MANAGEMENT to stringResource(R.string.game_options_game_management_description),
-                OptionCategory.CONTAINER to stringResource(R.string.game_options_container_description),
-                OptionCategory.CLOUD_SAVES to stringResource(R.string.game_options_cloud_saves_description),
-                OptionCategory.HELP_INFO to stringResource(R.string.game_options_help_info_description),
-            )
 
             Column(
                 modifier = Modifier
@@ -233,9 +229,7 @@ fun GameOptionsPanel(
                         controllerFocusable = false,
                         modifier = Modifier.fillMaxWidth(),
                     )
-                    CategoryContent(
-                        title = categoryLabels[selectedCategory] ?: selectedCategory.name,
-                        description = categoryDescriptions[selectedCategory].orEmpty(),
+                    OptionGrid(
                         options = groupedOptions[selectedCategory].orEmpty(),
                         onOptionClick = { option ->
                             option.onClick()
@@ -262,9 +256,7 @@ fun GameOptionsPanel(
                                 .width(210.dp)
                                 .fillMaxHeight(),
                         )
-                        CategoryContent(
-                            title = categoryLabels[selectedCategory] ?: selectedCategory.name,
-                            description = categoryDescriptions[selectedCategory].orEmpty(),
+                        OptionGrid(
                             options = groupedOptions[selectedCategory].orEmpty(),
                             onOptionClick = { option ->
                                 option.onClick()
@@ -292,39 +284,6 @@ fun GameOptionsPanel(
                 )
             }
         }
-    }
-}
-
-@Composable
-private fun CategoryContent(
-    title: String,
-    description: String,
-    options: List<AppMenuOption>,
-    onOptionClick: (AppMenuOption) -> Unit,
-    firstItemFocusRequester: FocusRequester,
-    compact: Boolean,
-    modifier: Modifier = Modifier,
-) {
-    Column(modifier = modifier) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-        Text(
-            text = description,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = 4.dp, bottom = 12.dp),
-        )
-        OptionGrid(
-            options = options,
-            onOptionClick = onOptionClick,
-            firstItemFocusRequester = firstItemFocusRequester,
-            compact = compact,
-            modifier = Modifier.weight(1f),
-        )
     }
 }
 
@@ -492,7 +451,7 @@ private fun getIconForOption(type: AppOptionMenuType): ImageVector {
         AppOptionMenuType.BrowseCommunityConfigs -> Icons.Default.Search
         AppOptionMenuType.Uninstall -> Icons.Default.Delete
         AppOptionMenuType.VerifyFiles -> Icons.Default.VerifiedUser
-        AppOptionMenuType.Update -> Icons.Default.Update
+        AppOptionMenuType.Update, AppOptionMenuType.UpdateOverWifi -> Icons.Default.Update
         AppOptionMenuType.MoveToExternalStorage -> Icons.Default.SdStorage
         AppOptionMenuType.MoveToInternalStorage -> Icons.Default.Storage
         AppOptionMenuType.ForceCloudSync -> Icons.Default.Sync
@@ -514,6 +473,10 @@ private fun getIconForOption(type: AppOptionMenuType): ImageVector {
         AppOptionMenuType.ManageMods -> Icons.Default.Extension
         AppOptionMenuType.ChangeBranch -> Icons.AutoMirrored.Filled.CallSplit
         AppOptionMenuType.PlayHtml5 -> Icons.Default.Apps
+        AppOptionMenuType.Achievements -> Icons.Default.EmojiEvents
+        AppOptionMenuType.AddFavorite -> Icons.Default.StarBorder
+        AppOptionMenuType.RemoveFavorite -> Icons.Default.Star
+        AppOptionMenuType.PinPlayNext, AppOptionMenuType.UnpinPlayNext -> Icons.Default.PushPin
         AppOptionMenuType.ItchCheckForUpdates -> Icons.Default.Update
         AppOptionMenuType.ItchChangeExecutable -> Icons.Default.Build
         AppOptionMenuType.ItchOpenOnSite -> Icons.AutoMirrored.Filled.OpenInNew
@@ -532,6 +495,11 @@ private fun groupOptions(options: List<AppMenuOption>): Map<OptionCategory, List
         when (option.optionType) {
             // Quick Actions
             AppOptionMenuType.PlayHtml5,
+            AppOptionMenuType.Achievements,
+            AppOptionMenuType.AddFavorite,
+            AppOptionMenuType.RemoveFavorite,
+            AppOptionMenuType.PinPlayNext,
+            AppOptionMenuType.UnpinPlayNext,
             AppOptionMenuType.RunContainer,
             AppOptionMenuType.CreateShortcut,
             AppOptionMenuType.ExportFrontend,
@@ -541,6 +509,7 @@ private fun groupOptions(options: List<AppMenuOption>): Map<OptionCategory, List
             AppOptionMenuType.Uninstall,
             AppOptionMenuType.VerifyFiles,
             AppOptionMenuType.Update,
+            AppOptionMenuType.UpdateOverWifi,
             AppOptionMenuType.MoveToExternalStorage,
             AppOptionMenuType.MoveToInternalStorage,
             AppOptionMenuType.ChangeBranch,

@@ -21,9 +21,11 @@ import androidx.compose.material.icons.filled.Compress
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.SortByAlpha
 import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.material.icons.rounded.SportsEsports
 import androidx.compose.material.icons.rounded.Star
@@ -44,6 +46,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
@@ -67,7 +70,7 @@ fun LibraryOptionsPanel(
     onDismiss: () -> Unit,
     selectedFilters: EnumSet<AppFilter>,
     onFilterChanged: (AppFilter) -> Unit,
-    currentSortOption: SortOption,
+    currentSortOption: SortOption?,
     onSortOptionChanged: (SortOption) -> Unit,
     steamCollections: List<SteamCollection>?,
     selectedSteamCollectionIds: Set<String>,
@@ -79,6 +82,8 @@ fun LibraryOptionsPanel(
     onClearSteamCollections: () -> Unit,
     modifier: Modifier = Modifier,
     scrimAlpha: Float = 0.58f,
+    onReceiveWifi: (() -> Unit)? = null,
+    onRefresh: (() -> Unit)? = null,
 ) {
     ConsoleSidePanel(
         isOpen = isOpen,
@@ -97,21 +102,50 @@ fun LibraryOptionsPanel(
                 .verticalScroll(rememberScrollState())
                 .padding(top = 8.dp, bottom = 20.dp),
         ) {
-                        OptionSectionHeader(text = stringResource(R.string.options_sort_by))
-                        OptionGroup {
-                            SortOption.entries.forEachIndexed { index, option ->
-                                OptionRadioItem(
-                                    text = stringResource(option.displayTextRes),
-                                    selected = currentSortOption == option,
-                                    onClick = { onSortOptionChanged(option) },
-                                    icon = option.icon(),
-                                    focusRequester = if (index == 0) firstItemFocusRequester else remember { FocusRequester() },
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                            }
+                        if (onReceiveWifi != null) {
+                            ConsoleMenuActionItem(
+                                icon = Icons.Default.Wifi,
+                                label = stringResource(R.string.wifi_game_receive),
+                                onClick = onReceiveWifi,
+                                modifier = Modifier.focusRequester(firstItemFocusRequester),
+                            )
+                        }
+                        if (onRefresh != null) {
+                            ConsoleMenuActionItem(
+                                icon = Icons.Default.Refresh,
+                                label = stringResource(R.string.action_refresh),
+                                onClick = onRefresh,
+                                modifier = if (onReceiveWifi == null) {
+                                    Modifier.focusRequester(firstItemFocusRequester)
+                                } else {
+                                    Modifier
+                                },
+                            )
+                        }
+                        if (onReceiveWifi != null || onRefresh != null) {
+                            Spacer(modifier = Modifier.height(12.dp))
                         }
 
-                        Spacer(modifier = Modifier.height(20.dp))
+                        if (currentSortOption != null) {
+                            OptionSectionHeader(text = stringResource(R.string.options_sort_by))
+                            OptionGroup {
+                                SortOption.entries.forEachIndexed { index, option ->
+                                    OptionRadioItem(
+                                        text = stringResource(option.displayTextRes),
+                                        selected = currentSortOption == option,
+                                        onClick = { onSortOptionChanged(option) },
+                                        icon = option.icon(),
+                                        focusRequester = if (index == 0 && onReceiveWifi == null && onRefresh == null) {
+                                            firstItemFocusRequester
+                                        } else {
+                                            remember { FocusRequester() }
+                                        },
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(20.dp))
+                        }
 
                         OptionSectionHeader(text = stringResource(R.string.library_app_type))
                         OptionGroup {
