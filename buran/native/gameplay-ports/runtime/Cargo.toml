@@ -1,0 +1,3 @@
+[workspace]
+members = ["kgslshim", "redirect", "redirect_bionic", "steambootstrap"]
+resolver = "2"

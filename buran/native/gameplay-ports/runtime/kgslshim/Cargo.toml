@@ -1,0 +1,12 @@
+[package]
+name = "kgslshim"
+version = "0.1.0"
+edition = "2021"
+build = "../host_build.rs"
+
+[lib]
+name = "kgslshim"
+crate-type = ["cdylib"]
+
+[dependencies]
+libc = "0.2"

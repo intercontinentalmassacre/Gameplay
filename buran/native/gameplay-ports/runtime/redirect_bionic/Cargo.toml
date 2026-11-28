@@ -1,0 +1,11 @@
+[package]
+name = "redirect_bionic"
+version = "0.1.0"
+edition = "2021"
+build = "../host_build.rs"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+libc = "0.2"

@@ -7,7 +7,7 @@ Gameplay includes Buran in the modern ARM64 variants. The module contains its ow
 Use Linux x86-64, JDK 17, Android SDK 36, NDK 27.3.13750724 and Rustup. The toolchain file selects Rust 1.89.0 and the Android ARM64 target. Install the archive tools on Debian or Ubuntu before the first build.
 
 ```sh
-sudo apt-get install binutils curl dpkg python3 unzip xz-utils zstd
+sudo apt-get install binutils curl dpkg python3 unzip xz-utils zstd gcc-aarch64-linux-gnu libc6-dev-arm64-cross
 sdkmanager --install 'platforms;android-36' 'ndk;27.3.13750724'
 ./gradlew :app:assembleModernDebug
 ```
@@ -16,13 +16,13 @@ The signed modern release uses the same runtime preparation. Its signing setup i
 
 The Gradle task `:buran:prepareRuntime` builds the native runner and JNI libraries and prepares the pinned guest assets in `buran/build/runtime`. Source download caches live under `${XDG_CACHE_HOME:-$HOME/.cache}` by default. The first build needs network access for the Android toolchain, Rust dependencies and pinned runtime packages.
 
-## Private release inputs
+## Gameplay Rust ports
 
-To include Gameplay's private Rust ports in a release, supply the workspace locally in `dist/nonfree/rea/rust` or set `GAMEPLAY_NATIVE_PORTS_SOURCE` to its absolute path. Install `gcc-aarch64-linux-gnu` and `libc6-dev-arm64-cross` for this build. The build adds the Rust ARM64 glibc target, compiles the Steam bootstrap and KGSL shim for Android, and packages the glibc KGSL and redirect shims as guest assets. Each variant uses the corresponding Gameplay application ID. The guest build checks compatibility with Buran's glibc 2.36. Public checkouts without the private workspace can build the normal Buran runtime.
+The modern build compiles the four crates in `native/gameplay-ports/runtime`. They implement the Android Steam bootstrap, the Android and glibc redirect shims, and the KGSL shim. Each build type gets libraries targeting its own Android application ID. The guest libraries are checked for compatibility with glibc 2.36. To test a different source workspace, set `GAMEPLAY_NATIVE_PORTS_SOURCE` to its absolute path.
 
 ## Using an existing runtime
 
-For Windows or macOS, or for a local build without the source download caches, prepare the runtime on a Linux x86-64 host from the same checkout and copy the result to `buran/.runtime`. Use the entire directory, including `assets`, `jniLibs` and `gameplay-ports` if the private ports were built.
+For Windows or macOS, or for a local build without the source download caches, prepare the runtime on a Linux x86-64 host from the same checkout and copy the result to `buran/.runtime`. Use the entire directory, including `assets`, `jniLibs` and `gameplay-ports` for all four build types.
 
 ```sh
 ./gradlew :buran:prepareRuntime

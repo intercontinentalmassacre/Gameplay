@@ -4,7 +4,7 @@ output=${1:?Usage: stage.sh OUTPUT PORTS_WORKSPACE}
 root=${2:?Usage: stage.sh OUTPUT PORTS_WORKSPACE}
 target_dir=${CARGO_TARGET_DIR:-build/gameplay-ports}
 if [[ ! -f $root/Cargo.toml || ! -f $root/Cargo.lock ]]; then
-    printf 'Missing private Gameplay ports workspace at %s\n' "$root" >&2
+    printf 'Missing Gameplay ports workspace at %s\n' "$root" >&2
     exit 1
 fi
 export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=${CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER:-aarch64-linux-gnu-gcc}

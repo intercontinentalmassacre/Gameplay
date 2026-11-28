@@ -1,0 +1,12 @@
+[package]
+name = "steambootstrap"
+version = "0.1.0"
+edition = "2021"
+build = "../host_build.rs"
+
+[[bin]]
+name = "libsteambootstrap"
+path = "src/main.rs"
+
+[dependencies]
+libc = "0.2"
