@@ -25,15 +25,11 @@ if (vendorSteam != null && (vendorSteam.isBlank() || !rootProject.file(vendorSte
     throw new GradleException('GAMEPLAY_ANDROID_STEAM_RUNTIME must point to steam-androidarm64-20260709.tzst')
 }
 def configuredPorts = providers.environmentVariable('GAMEPLAY_NATIVE_PORTS_SOURCE').orNull
-def portsSource = rootProject.file(configuredPorts ?: 'dist/nonfree/rea/rust')
-def portsManifest = new File(portsSource, 'Cargo.toml')
-def portsLockfile = new File(portsSource, 'Cargo.lock')
-if (configuredPorts != null && (configuredPorts.isBlank() || !portsManifest.isFile() || !portsLockfile.isFile())) {
-    throw new GradleException("GAMEPLAY_NATIVE_PORTS_SOURCE must point to the private Rust ports workspace: ${portsSource}")
+def portsSource = configuredPorts == null ? file('native/gameplay-ports/runtime') : rootProject.file(configuredPorts)
+if (configuredPorts != null && (configuredPorts.isBlank() || !new File(portsSource, 'Cargo.toml').isFile() || !new File(portsSource, 'Cargo.lock').isFile())) {
+    throw new GradleException("GAMEPLAY_NATIVE_PORTS_SOURCE must point to a Rust ports workspace: ${portsSource}")
 }
-def hasPorts = portsManifest.isFile() ||
-    (cached.isDirectory() && new File(cached, 'gameplay-ports').isDirectory())
-def buildTypesWithPorts = hasPorts ? ['debug', 'release', 'release-signed', 'release-gold'] : []
+def buildTypesWithPorts = ['debug', 'release', 'release-signed', 'release-gold']
 def requiredPaths = runtimeManifest.readLines('UTF-8').findAll { !it.isBlank() }
 buildTypesWithPorts.each { variant ->
     requiredPaths += [
@@ -241,12 +237,11 @@ if (!cached.isDirectory()) {
         inputs.files(fileTree('native') { exclude 'target/**' }, fileTree('box'), fileTree('gamescope'),
             fileTree('dxvk'), 'src/main/assets/buran-box-session.sh',
             'prepare-runtime.sh', 'runtime-files.txt', 'rust-toolchain.toml')
-        if (hasPorts) inputs.files(fileTree(portsSource) { exclude 'target/**' })
-        inputs.property('hasGameplayPorts', hasPorts)
+        inputs.files(fileTree(portsSource) { exclude 'target/**' })
         inputs.property('ndkVersion', android.ndkVersion)
         outputs.dir(runtime)
         doFirst {
-            if (hasPorts) environment 'GAMEPLAY_NATIVE_PORTS_SOURCE', portsSource.absolutePath
+            environment 'GAMEPLAY_NATIVE_PORTS_SOURCE', portsSource.absolutePath
             commandLine 'bash', 'prepare-runtime.sh', runtime, ndk.get().asFile
         }
     }

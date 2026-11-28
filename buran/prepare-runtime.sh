@@ -27,10 +27,7 @@ export AR_aarch64_linux_android="$bin/llvm-ar"
 export CARGO_TARGET_AARCH64_LINUX_ANDROID_RUSTFLAGS='-C link-arg=-Wl,-z,max-page-size=16384'
 cargo build --locked --release --manifest-path native/Cargo.toml \
     --target-dir build/cargo --target aarch64-linux-android
-ports_source=${GAMEPLAY_NATIVE_PORTS_SOURCE-../dist/nonfree/rea/rust}
-if [[ -v GAMEPLAY_NATIVE_PORTS_SOURCE || -f $ports_source/Cargo.toml ]]; then
-    bash native/gameplay-ports/stage.sh "$output" "$ports_source"
-fi
+bash native/gameplay-ports/stage.sh "$output" "${GAMEPLAY_NATIVE_PORTS_SOURCE-native/gameplay-ports/runtime}"
 cp build/cargo/aarch64-linux-android/release/buran "$abi/libburan.so"
 for component in gamepad guest_pause; do
     "$clang" -shared -fPIC -O3 -Wall -Wextra -Werror -Wl,-z,max-page-size=16384 \
@@ -47,7 +44,9 @@ bash dxvk/stage.sh "$output"
 bash gamescope/host-stage.sh "$output"
 bash gamescope/runtime-stage.sh native "$output/jniLibs"
 bash gamescope/runtime-stage.sh rootfs "$output/assets/gamescope-runtime/rootfs.tar.zst" "$ndk"
-"$bin/clang" --target=aarch64-linux-gnu -fuse-ld=lld -nostdlib -shared -fPIC -O2 +    -Wall -Wextra -Werror -Wl,-z,max-page-size=16384 gamescope/x11-filesystem.c +    -o "$output/assets/gamescope-runtime/x11-filesystem.so"
+"$bin/clang" --target=aarch64-linux-gnu -fuse-ld=lld -nostdlib -shared -fPIC -O2 \
+    -Wall -Wextra -Werror -Wl,-z,max-page-size=16384 gamescope/x11-filesystem.c \
+    -o "$output/assets/gamescope-runtime/x11-filesystem.so"
 cp gamescope/runtime-notices.txt "$output/assets/notices/gamescope-guest.txt"
 while IFS= read -r artifact; do
     if [[ ! -s "$output/$artifact" ]]; then
