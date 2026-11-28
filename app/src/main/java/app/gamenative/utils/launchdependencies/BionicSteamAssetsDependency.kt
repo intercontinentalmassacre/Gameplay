@@ -166,6 +166,9 @@ object BionicSteamAssetsDependency : LaunchDependency {
                 return
             }
         }
+        if (app.gamenative.BuildConfig.DEBUG) {
+            relocateSteamClientLookup(File(libDir, "aarch64-unix/lsteamclient.so"))
+        }
         val sys32Src = treeSystem32DllIn(libDir, container)
         val sysWowSrc = treeSyswow64DllIn(libDir)
         val dstSystem32 = system32Dll(container)
@@ -177,6 +180,25 @@ object BionicSteamAssetsDependency : LaunchDependency {
         }
         if (!FileUtils.copy(sysWowSrc, dstSyswow64)) {
             Timber.e("Failed to copy ${sysWowSrc.absolutePath} to ${dstSyswow64.absolutePath}")
+        }
+    }
+
+    // Some Proton builds name another application's private directory in dlopen().
+    // The Bionic launcher already puts this imagefs's usr/lib in LD_LIBRARY_PATH.
+    internal fun relocateSteamClientLookup(bridge: File) {
+        if (!bridge.isFile) return
+        val bytes = bridge.readBytes()
+        val old = "/data/data/app.gamenative/files/imagefs/usr/lib/libsteamclient.so\u0000"
+        val offset = bytes.toString(Charsets.ISO_8859_1).indexOf(old)
+        if (offset < 0) return
+        val temp = File.createTempFile(".lsteamclient-", ".so", bridge.parentFile)
+        try {
+            (LIBSTEAMCLIENT_SO + '\u0000').toByteArray().copyInto(bytes, offset)
+            temp.writeBytes(bytes)
+            android.system.Os.chmod(temp.path, android.system.Os.stat(bridge.path).st_mode and 511)
+            android.system.Os.rename(temp.path, bridge.path)
+        } finally {
+            temp.delete()
         }
     }
 

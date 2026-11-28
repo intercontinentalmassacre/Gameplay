@@ -19,7 +19,11 @@ public class DXVKHelper {
         ImageFs imageFs = ImageFs.find(context);
         envVars.put("DXVK_STATE_CACHE_PATH", imageFs.getRootDir().getAbsolutePath() + ImageFs.CACHE_PATH);
         envVars.put("DXVK_LOG_LEVEL", "none");
+        envVars.put("DXVK_CONFIG_FILE", imageFs.getRootDir() + ImageFs.CONFIG_PATH + "/dxvk.conf");
+        setConfiguredEnvVars(config, envVars);
+    }
 
+    public static void setConfiguredEnvVars(KeyValueSet config, EnvVars envVars) {
         String maxFeatureLevel = config.get("maxFeatureLevel");
         if (!maxFeatureLevel.isEmpty() && !maxFeatureLevel.equals("0")) {
             envVars.put("DXVK_FEATURE_LEVEL", maxFeatureLevel);
@@ -36,7 +40,6 @@ public class DXVKHelper {
         String asyncCache = config.get("asyncCache");
         if (!asyncCache.isEmpty() && !asyncCache.equals("0"))
             envVars.put("DXVK_GPLASYNCCACHE", "1");
-        envVars.put("DXVK_CONFIG_FILE", imageFs.getRootDir() + ImageFs.CONFIG_PATH + "/dxvk.conf");
         envVars.put("DXVK_CONFIG", buildInlineConfig(config));
     }
 

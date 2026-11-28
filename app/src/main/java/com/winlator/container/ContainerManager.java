@@ -406,16 +406,21 @@ public class ContainerManager {
     }
 
     private void extractCommonDlls(WineInfo wineInfo, String srcName, String dstName, File containerDir, OnExtractFileListener onExtractFileListener) throws JSONException {
+        copyInstalledWineDlls(new File(wineInfo.path), wineInfo.isArm64EC(), srcName, dstName, containerDir, onExtractFileListener);
+    }
+
+    private static void copyInstalledWineDlls(File wineDir, boolean arm64Ec, String srcName, String dstName,
+                                              File containerDir, OnExtractFileListener onExtractFileListener) {
         Log.d("Extraction", "extracting common dlls for bionic: " + srcName);
-        File srcDir = new File(wineInfo.path + "/lib/wine/" + srcName);
+        File srcDir = new File(wineDir, "lib/wine/" + srcName);
 
         File[] srcfiles = srcDir.listFiles(file -> file.isFile());
         if (srcfiles == null) return;
 
         for (File file : srcfiles) {
             String dllName = file.getName();
-            if (dllName.equals("iexplore.exe") && wineInfo.isArm64EC() && srcName.equals("aarch64-windows"))
-                file = new File(wineInfo.path + "/lib/wine/" + "i386-windows/iexplore.exe");
+            if (dllName.equals("iexplore.exe") && arm64Ec && srcName.equals("aarch64-windows"))
+                file = new File(wineDir, "lib/wine/i386-windows/iexplore.exe");
             File dstFile = new File(containerDir, ".wine/drive_c/windows/" + dstName + "/" + dllName);
             if (dstFile.exists()) continue;
             if (onExtractFileListener != null ) {
@@ -427,8 +432,46 @@ public class ContainerManager {
         }
     }
 
-    private void copyCommonDll(File source, File destination) {
+    private static void copyCommonDll(File source, File destination) {
         if (!FileUtils.copy(source, destination)) Log.e("Extraction", "Failed to copy " + source + " to " + destination);
+    }
+
+    /** Stages a fresh ARM64EC prefix from this installed Wine tree, without fetching components. */
+    public static boolean stageInstalledArm64EcPrefix(File wineDir, File destination) {
+        File pack = new File(wineDir, "prefixPack.tzst");
+        TarCompressorUtils.Type compression = TarCompressorUtils.Type.ZSTD;
+        if (!pack.isFile()) {
+            pack = new File(wineDir, "prefixPack.txz");
+            compression = TarCompressorUtils.Type.XZ;
+        }
+        if (!extractPrivatePrefixFiles(compression, pack, destination)) return false;
+        return expandInstalledArm64EcPrefix(wineDir, destination);
+    }
+
+    public static boolean extractPrivatePrefixFiles(TarCompressorUtils.Type compression, File pack, File destination) {
+        Path root = destination.toPath().toAbsolutePath().normalize();
+        Path dosdevices = root.resolve(".wine").resolve("dosdevices");
+        return TarCompressorUtils.extractWithoutLinks(compression, pack, destination, (file, size) -> {
+            Path path = file.toPath().toAbsolutePath().normalize();
+            return path.startsWith(root) && !path.startsWith(dosdevices) ? file : null;
+        });
+    }
+
+    /** Expands the matching Wine PE files into a private, already staged prefix. */
+    public static boolean expandInstalledArm64EcPrefix(File wineDir, File destination) {
+        File windows = new File(destination, ".wine/drive_c/windows");
+        try {
+            Path root = destination.getCanonicalFile().toPath();
+            if (!windows.getCanonicalFile().toPath().startsWith(root) ||
+                    !new File(windows, "system32").getCanonicalFile().toPath().startsWith(root) ||
+                    !new File(windows, "syswow64").getCanonicalFile().toPath().startsWith(root)) return false;
+        } catch (IOException e) {
+            return false;
+        }
+        copyInstalledWineDlls(wineDir, true, "aarch64-windows", "system32", destination, null);
+        copyInstalledWineDlls(wineDir, true, "i386-windows", "syswow64", destination, null);
+        return new File(windows, "system32/kernelbase.dll").isFile() &&
+                new File(windows, "syswow64/kernelbase.dll").isFile();
     }
 
     public boolean extractContainerPatternCommon(File containerDir, OnExtractFileListener onExtractFileListener) {

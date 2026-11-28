@@ -82,6 +82,47 @@ class ReplayedPipelinesTest {
         assertTrue(ReplayedPipelines.known(dir, "vortek:1").isEmpty())
     }
 
+    @Test fun onlySkipsPipelinesPresentInEveryDeviceCacheForTheDriver() {
+        val dir = temp.newFolder()
+        val otherUuid = "abcdef0123456789abcdef0123456789"
+        foz(runFile(dir, 1), entry(6, 1), entry(6, 2))
+        foz(runFile(dir, 1, otherUuid), entry(6, 2), entry(6, 3))
+        foz(File(dir, "${ReplayedPipelines.cachePath(dir, driver).name}.backup.foz"), entry(6, 4))
+
+        ReplayedPipelines.fold(dir, driver)
+
+        assertEquals(setOf(name(6, 2)), ReplayedPipelines.known(dir, driver))
+        assertEquals(setOf(name(6, 1), name(6, 2)), ReplayedPipelines.pipelineNames(baseFile(dir)))
+    }
+
+    @Test fun whitelistContainsOnlyDistinctPendingPipelineHashes() {
+        val first = foz(temp.newFile(), entry(4, 1), entry(6, 2), entry(7, 3))
+        val second = foz(temp.newFile(), entry(7, 3), entry(9, 4))
+        val whitelist = File(temp.root, "pending.foz")
+
+        val pending = ReplayedPipelines.pending(listOf(first, second), setOf(name(6, 2)))
+
+        assertTrue(ReplayedPipelines.writeWhitelist(whitelist, pending))
+        assertEquals(setOf(name(7, 3), name(9, 4)), FozArchive.names(whitelist))
+        assertEquals(16 + 2 * 56, whitelist.length().toInt())
+    }
+
+    @Test fun retriesOnceAndQuarantinesOnlyTheSamePendingSetWhenNeitherRunMakesProgress() {
+        val stall = File(temp.root, "driver.stalled")
+        val pending = ReplayedPipelines.pendingIdentity(setOf(name(6, 1), name(6, 2)))
+        val reordered = ReplayedPipelines.pendingIdentity(setOf(name(6, 2), name(6, 1)))
+        val changed = ReplayedPipelines.pendingIdentity(setOf(name(6, 2), name(6, 3)))
+
+        ReplayedPipelines.recordAttempt(stall, pending, progressed = false)
+        assertFalse(ReplayedPipelines.isStalled(stall, pending))
+        ReplayedPipelines.recordAttempt(stall, reordered, progressed = false)
+        assertTrue(ReplayedPipelines.isStalled(stall, pending))
+        assertFalse(ReplayedPipelines.isStalled(stall, changed))
+
+        ReplayedPipelines.recordAttempt(stall, changed, progressed = true)
+        assertFalse(ReplayedPipelines.isStalled(stall, pending))
+    }
+
     @Test fun writesEntriesFossilizeReadsAsEmpty() {
         val dir = temp.newFolder()
         foz(runFile(dir, 1), entry(6, 1))

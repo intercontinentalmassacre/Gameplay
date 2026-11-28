@@ -1,0 +1,9 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <activity android:name="org.buran.runtime.GameplayLaunchActivity" android:exported="false"
+            android:theme="@style/BuranStandalone" android:configChanges="keyboardHidden|orientation|screenLayout|screenSize" />
+        <activity android:name="org.buran.runtime.GamescopeActivity" android:exported="false"
+            android:theme="@style/BuranStandalone" android:process=":buran_gamescope" android:launchMode="singleTop"
+            android:configChanges="keyboardHidden|orientation|screenLayout|screenSize" />
+    </application>
+</manifest>

@@ -28,10 +28,10 @@ internal data class BatterySnapshot(
 )
 
 internal data class HudSnapshot(
-    val fpsValue: Float,
+    val fpsValue: Float?,
     val cpuValue: Float?,
     val gpuValue: Float?,
-    val fps: String,
+    val fps: String?,
     val cpu: String?,
     val gpu: String?,
     val ram: String,

@@ -10,6 +10,7 @@ import android.text.format.DateFormat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.gamenative.utils.LibrarySessionTracker
 import app.gamenative.localgames.AppImageRuntime
+import app.gamenative.localgames.BuranGameLaunch
 
 import android.content.Intent
 import android.content.res.Configuration
@@ -82,8 +83,11 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.SideEffect
@@ -537,8 +541,9 @@ internal fun graphicsDriverDisplayName(identifier: String): String = when (ident
 private fun RuntimeSummaryValue(
     label: String,
     value: String,
+    modifier: Modifier = Modifier,
 ) {
-    Column(modifier = Modifier.widthIn(min = 132.dp, max = 260.dp)) {
+    Column(modifier = modifier.widthIn(min = 132.dp, max = 260.dp)) {
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,
@@ -749,7 +754,12 @@ private data class AppScreenNetworkState(
     val downloadStatusMessage: String?,
 )
 
-private class AppScreenRuntimeState {
+internal val LocalBuranSessionAppId = compositionLocalOf<String?> { null }
+
+private class AppScreenRuntimeState(
+    val isBuranSessionActive: () -> Boolean,
+    val isRunningInBuran: () -> Boolean,
+) {
     val scrollState = androidx.compose.foundation.ScrollState(0)
     val playButtonFocusRequester = FocusRequester()
     val optionsButtonFocusRequester = FocusRequester()
@@ -773,7 +783,7 @@ private class AppScreenRuntimeState {
         network: AppScreenNetworkState,
     ): Boolean {
         val installEnabled = if (!isInstalled) downloadAllowed(network) && network.hasInternet else true
-        return if (isInstalled) installEnabled else installEnabled && isValidToDownload
+        return if (isInstalled) !isBuranSessionActive() else installEnabled && isValidToDownload
     }
 
     fun startActionEnabled(
@@ -1187,7 +1197,29 @@ private fun AppScreenBelowHeroContent(
             )
         }
 
-        if (runtimeConfig != null && usesWindowsRuntime(
+        val selectedRuntime = if (isInstalled && BuranGameLaunch.isAvailable() && !isPreview) {
+            val appId = displayInfo.appId
+            key(appId) {
+                val selection = remember(context.applicationContext) {
+                    BuranGameLaunch.observeSelection(context.applicationContext, appId)
+                }
+                val initial = remember(context.applicationContext) { BuranGameLaunch.selection(context, appId) }
+                selection.collectAsStateWithLifecycle(initialValue = initial).value
+            }
+        } else BuranGameLaunch.Runtime.WINLATOR
+        if (selectedRuntime != BuranGameLaunch.Runtime.WINLATOR) {
+            RuntimeSummaryValue(
+                label = stringResource(R.string.local_runtime_title),
+                value = when (selectedRuntime) {
+                    BuranGameLaunch.Runtime.STEAM_CLIENT -> stringResource(R.string.steam_runtime_buran_client)
+                    BuranGameLaunch.Runtime.INSTALLED_PROTON -> runtimeConfig?.wineVersion?.let {
+                        stringResource(R.string.local_runtime_buran_proton_version, it)
+                    } ?: stringResource(R.string.local_runtime_buran_proton)
+                    else -> stringResource(R.string.local_runtime_buran)
+                },
+                modifier = Modifier.padding(top = 16.dp),
+            )
+        } else if (runtimeConfig != null && usesWindowsRuntime(
                 displayInfo.appId, runtimeConfig.gameRuntime, runtimeConfig.platform, runtimeConfig.executablePath,
             )
         ) {
@@ -1597,7 +1629,8 @@ private fun AppScreenActionBar(
                 modifier = modifier,
             )
         } else {
-            val text = primaryActionLabelOverride?.invoke(isInstalled, false, false)
+            val text = if (runtime.isRunningInBuran()) stringResource(R.string.second_screen_game_running)
+            else primaryActionLabelOverride?.invoke(isInstalled, false, false)
                 ?: when {
                     isInstalled -> stringResource(R.string.run_app)
                     !network.hasInternet -> stringResource(R.string.library_need_internet)
@@ -2028,7 +2061,10 @@ internal fun AppScreenContent(
     achievementRarity: Map<String, Float> = emptyMap(),
     primaryActionLabelOverride: ((isInstalled: Boolean, isDownloading: Boolean, hasPartialDownload: Boolean) -> String?)? = null,
 ) {
-    val runtime = remember { AppScreenRuntimeState() }
+    val buranSessionAppId = LocalBuranSessionAppId.current
+    val isBuranSessionActive by rememberUpdatedState(buranSessionAppId != null)
+    val isRunningInBuran by rememberUpdatedState(buranSessionAppId == displayInfo.appId)
+    val runtime = remember { AppScreenRuntimeState({ isBuranSessionActive }, { isRunningInBuran }) }
     val favorites by PrefManager.libraryFavorites.collectAsState()
     val isFavorite = displayInfo.appId in favorites.gameIds
     val isPlayNext = displayInfo.appId == favorites.playNextGameId

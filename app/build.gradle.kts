@@ -230,6 +230,7 @@ android {
             // 'extractNativeLibs' was not enough to keep the jniLibs and
             // the libs went missing after adding on-demand feature delivery
             useLegacyPackaging = true
+            keepDebugSymbols += setOf("**/libburan*.so", "**/libbrn_*.so")
         }
     }
     testOptions {
@@ -330,6 +331,8 @@ android {
 }
 
 dependencies {
+    "modernImplementation"(project(":buran"))
+    "modernXrImplementation"(project(":buran"))
     implementation(libs.material)
 
     // Chrome Custom Tabs for GOG OAuth

@@ -2,7 +2,6 @@ package com.winlator.xenvironment.components;
 
 import android.content.Context;
 
-import com.winlator.core.AppUtils;
 import com.winlator.core.FileUtils;
 import com.winlator.core.ProcessHelper;
 import com.winlator.core.envvars.EnvVars;
@@ -11,8 +10,8 @@ import com.winlator.xenvironment.EnvironmentComponent;
 import com.winlator.xenvironment.XEnvironment;
 
 import java.io.File;
-import java.util.ArrayList;
-import java.util.List;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -63,39 +62,21 @@ public class PulseAudioComponent extends EnvironmentComponent {
         this.singleThreadExecutor = executor;
     }
 
-    private void killAllPulseAudioProcesses() {
-        List<ProcessHelper.ProcessInfo> allProcesses = ProcessHelper.listSubProcesses();
-        List<Integer> pulsePids = new ArrayList<>();
-
-        for (ProcessHelper.ProcessInfo info : allProcesses) {
-            if (info.name.contains("libpulseaudio.so")) {
-                pulsePids.add(info.pid);
-            }
-        }
-
-        if (!pulsePids.isEmpty()) {
-            Timber.tag("PulseAudioComponent").w("Found %d pulseaudio process(es), killing: %s",
-                pulsePids.size(), pulsePids.toString());
-
-            for (int pid : pulsePids) {
-                ProcessHelper.killProcess(pid);
-            }
-
-            try {
-                Thread.sleep(200);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        }
-    }
+    private java.lang.Process server;
+    private File sessionDir;
 
     @Override
     public synchronized void start() {
         if (started || stopped) return;
         singleThreadExecutor.execute(() -> {
             Timber.tag("PulseAudioComponent").d("Starting...");
-            killAllPulseAudioProcesses();
-            startPulseAudio();
+            try {
+                Context context = environment.getContext();
+                sessionDir = Files.createTempDirectory(context.getCacheDir().toPath(), "pulse-").toFile();
+                server = startServer(context, sessionDir, socketConfig.path, lowLatency, volume, performanceMode);
+            } catch (IOException e) {
+                Timber.tag("PulseAudioComponent").e(e, "Could not start PulseAudio server");
+            }
             isPaused.set(false);
         });
         started = true;
@@ -108,7 +89,8 @@ public class PulseAudioComponent extends EnvironmentComponent {
         if (started) {
             singleThreadExecutor.execute(() -> {
                 Timber.tag("PulseAudioComponent").d("Stopping...");
-                killAllPulseAudioProcesses();
+                if (server != null) server.destroyForcibly();
+                if (sessionDir != null) FileUtils.delete(sessionDir);
                 isPaused.set(false);
                 Timber.tag("PulseAudioComponent").d("Stopped PulseAudio server");
             });
@@ -166,55 +148,27 @@ public class PulseAudioComponent extends EnvironmentComponent {
         this.performanceMode = (byte) performanceMode;
     }
 
-    private void startPulseAudio() {
-        Context context = environment.getContext();
+    public static java.lang.Process startServer(Context context, File sessionDir, String socket,
+                                                boolean lowLatency, float volume, int performanceMode)
+            throws IOException {
         String nativeLibraryDir = context.getApplicationInfo().nativeLibraryDir;
-        // nativeLibraryDir = nativeLibraryDir.replace("arm64", "arm64-v8a");
-        File workingDir = new File(context.getFilesDir(), "/pulseaudio");
-        if (!workingDir.isDirectory()) {
-            workingDir.mkdirs();
-            FileUtils.chmod(workingDir, 0771);
-        }
-
-        // Clear any previous staled files, e.g. cookie
-        File configDir = new File(workingDir, "/.config");
-        if (configDir.exists()) {
-            FileUtils.delete(configDir);
-        }
-
-        File configFile = new File(workingDir, "default.pa");
-        String sinkParams = "volume=" + this.volume + " performance_mode=" + ((int) this.performanceMode);
-        if (lowLatency) {
-            sinkParams += " low_latency=true";
-        }
-        FileUtils.writeString(configFile, String.join("\n",
-                "load-module module-native-protocol-unix auth-anonymous=1 auth-cookie-enabled=false socket=\""+socketConfig.path+"\"",
+        File workingDir = new File(context.getFilesDir(), "pulseaudio");
+        File config = new File(sessionDir, "default.pa");
+        String sinkParams = "volume=" + volume + " performance_mode=" + performanceMode;
+        if (lowLatency) sinkParams += " low_latency=true";
+        Files.write(config.toPath(), String.join("\n",
+                "load-module module-native-protocol-unix auth-anonymous=1 auth-cookie-enabled=false socket=\""+socket+"\"",
                 "load-module module-aaudio-sink " + sinkParams
-        ));
+        ).getBytes(java.nio.charset.StandardCharsets.UTF_8));
 
-        String archName = AppUtils.getArchName();
-        File modulesDir = new File(workingDir, "modules");
-
-        EnvVars envVars = new EnvVars();
-        envVars.put("LD_LIBRARY_PATH", "/system/lib64:"+nativeLibraryDir+":"+modulesDir);
-        envVars.put("HOME", workingDir);
-        envVars.put("TMPDIR", XEnvironment.getTmpDir(context));
-
-
-        String command = nativeLibraryDir+"/libpulseaudio.so";
-        command += " --system=false";
-        command += " --disable-shm=true";
-        command += " --fail=false";
-        command += " -n --file=default.pa";
-        command += " --daemonize=true";
-        command += " --use-pid-file=false";
-        command += " --exit-idle-time=-1";
-
-        // Uncomment to enable verbose log in pulseaudio
-        //command += " -vvv";
-
-        String output = ProcessHelper.execWithOutput(command, envVars.toStringArray(), workingDir, true);
-        Timber.tag("PulseAudioComponent").d("Started PulseAudio server %s", output);
+        ProcessBuilder builder = new ProcessBuilder(nativeLibraryDir + "/libpulseaudio.so",
+                "--system=false", "--disable-shm=true", "--fail=false", "-n", "--file=" + config.getPath(),
+                "--daemonize=false", "--use-pid-file=false", "--exit-idle-time=-1");
+        builder.directory(workingDir);
+        builder.environment().put("LD_LIBRARY_PATH", "/system/lib64:" + nativeLibraryDir + ":" + new File(workingDir, "modules"));
+        builder.environment().put("HOME", sessionDir.getPath());
+        builder.environment().put("TMPDIR", sessionDir.getPath());
+        return builder.redirectErrorStream(true).redirectOutput(new File(sessionDir, "server.log")).start();
     }
 
     private String execPactlCommand(String command) {

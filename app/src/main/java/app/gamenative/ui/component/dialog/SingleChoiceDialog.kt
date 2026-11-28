@@ -50,6 +50,7 @@ fun SingleChoiceDialog(
     onDismiss: () -> Unit,
     itemPreview: (@Composable (Int) -> Unit)? = null,
     itemDescription: (@Composable (Int) -> String?)? = null,
+    additionalContent: (@Composable () -> Unit)? = null,
 ) {
     if (!openDialog) {
         return
@@ -121,6 +122,7 @@ fun SingleChoiceDialog(
                         }
                     }
                 }
+                additionalContent?.invoke()
             }
     }
 }

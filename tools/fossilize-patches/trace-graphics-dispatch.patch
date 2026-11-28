@@ -1,0 +1,121 @@
+diff --git a/layer/dispatch.cpp b/layer/dispatch.cpp
+--- a/layer/dispatch.cpp
++++ b/layer/dispatch.cpp
+@@ -27,6 +27,12 @@
+ #include "fossilize_errors.hpp"
+ #include <mutex>
+ #include <memory>
++#ifdef __ANDROID__
++#include <android/log.h>
++#include <cstdlib>
++#include <time.h>
++#include <unistd.h>
++#endif
+ 
+ // VALVE: do exports without .def file, see vk_layer.h for definition on non-Windows platforms
+ #ifdef _MSC_VER
+@@ -741,6 +747,75 @@
+ 	return res;
+ }
+ 
++static VkResult dispatchGraphicsPipelines(Device *layer, VkDevice device, VkPipelineCache cache,
++                                          uint32_t count, const VkGraphicsPipelineCreateInfo *infos,
++                                          const VkAllocationCallbacks *allocator, VkPipeline *pipelines)
++{
++#ifdef __ANDROID__
++	static const bool trace_graphics = []() {
++		const char *value = getenv("FOSSILIZE_TRACE_GRAPHICS");
++		return value && value[0] == '1' && value[1] == '\0';
++	}();
++	if (trace_graphics)
++	{
++		auto monotonic_ns = []() {
++			timespec sample = {};
++			clock_gettime(CLOCK_MONOTONIC, &sample);
++			return static_cast<unsigned long long>(sample.tv_sec) * 1000000000ull + sample.tv_nsec;
++		};
++		int tid = gettid();
++		auto id = monotonic_ns();
++		for (uint32_t i = 0; i < count; ++i)
++		{
++			const auto &info = infos[i];
++			auto *subset = static_cast<const VkGraphicsPipelineLibraryCreateInfoEXT *>(
++			        findpNext(info.pNext, VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_LIBRARY_CREATE_INFO_EXT));
++			auto *libraries = static_cast<const VkPipelineLibraryCreateInfoKHR *>(
++			        findpNext(info.pNext, VK_STRUCTURE_TYPE_PIPELINE_LIBRARY_CREATE_INFO_KHR));
++			auto *binaries = static_cast<const VkPipelineBinaryInfoKHR *>(
++			        findpNext(info.pNext, VK_STRUCTURE_TYPE_PIPELINE_BINARY_INFO_KHR));
++			uint32_t identifier_only = 0;
++			const bool owns_shaders = subset
++			        ? (subset->flags & (VK_GRAPHICS_PIPELINE_LIBRARY_PRE_RASTERIZATION_SHADERS_BIT_EXT |
++			                            VK_GRAPHICS_PIPELINE_LIBRARY_FRAGMENT_SHADER_BIT_EXT)) != 0
++			        : (!libraries || !libraries->libraryCount) &&
++			          !(getEffectivePipelineFlags(info) & VK_PIPELINE_CREATE_LIBRARY_BIT_KHR);
++			for (uint32_t j = 0; owns_shaders && info.pStages && j < info.stageCount; ++j)
++			{
++				const auto &stage = info.pStages[j];
++				if (stage.module != VK_NULL_HANDLE ||
++				    findpNext(stage.pNext, VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO))
++					continue;
++				auto *identifier = static_cast<const VkPipelineShaderStageModuleIdentifierCreateInfoEXT *>(
++				        findpNext(stage.pNext, VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_MODULE_IDENTIFIER_CREATE_INFO_EXT));
++				if (identifier && identifier->identifierSize)
++					identifier_only++;
++			}
++			void *links[4] = {};
++			for (uint32_t j = 0; libraries && j < libraries->libraryCount && j < 4; ++j)
++				links[j] = reinterpret_cast<void *>(libraries->pLibraries[j]);
++			__android_log_print(ANDROID_LOG_INFO, "FossilizeGplTrace",
++			                    "input id=%llu tid=%d device=%p index=%u flags=%llx stages=%u subset=%x binaries=%u id_only=%u libs=%u %p %p %p %p",
++			                    id, tid, device, i, static_cast<unsigned long long>(getEffectivePipelineFlags(info)),
++			                    info.stageCount, subset ? subset->flags : 0, binaries ? binaries->binaryCount : 0, identifier_only,
++			                    libraries ? libraries->libraryCount : 0, links[0], links[1], links[2], links[3]);
++		}
++		auto start = monotonic_ns();
++		auto result = layer->getTable()->CreateGraphicsPipelines(device, cache, count, infos, allocator, pipelines);
++		auto end = monotonic_ns();
++		__android_log_print(ANDROID_LOG_INFO, "FossilizeGplTrace",
++		                    "done id=%llu tid=%d start_ns=%llu end_ns=%llu result=%d count=%u",
++		                    id, tid, start, end, result, count);
++		if (result == VK_SUCCESS)
++			for (uint32_t i = 0; i < count; ++i)
++				__android_log_print(ANDROID_LOG_INFO, "FossilizeGplTrace", "output id=%llu tid=%d index=%u handle=%p",
++				                    id, tid, i, reinterpret_cast<void *>(pipelines[i]));
++		return result;
++	}
++#endif
++	return layer->getTable()->CreateGraphicsPipelines(device, cache, count, infos, allocator, pipelines);
++}
++
+ static VKAPI_ATTR VkResult VKAPI_CALL CreateGraphicsPipelinesNormal(Device *layer,
+                                                                     VkDevice device, VkPipelineCache pipelineCache,
+                                                                     uint32_t createInfoCount,
+@@ -755,8 +830,8 @@
+ 	{
+ 		// Explicitly ignore pipeline cache since we want to test the internal cache for hits.
+ 		const auto compileFunc = [&](const VkGraphicsPipelineCreateInfo *modifiedInfos) {
+-			return layer->getTable()->CreateGraphicsPipelines(
+-					device, VK_NULL_HANDLE, createInfoCount, modifiedInfos, pAllocator, pPipelines);
++			return dispatchGraphicsPipelines(
++					layer, device, VK_NULL_HANDLE, createInfoCount, modifiedInfos, pAllocator, pPipelines);
+ 		};
+ 
+ 		const auto recordFunc = [&](uint32_t index) {
+@@ -788,7 +863,7 @@
+ 
+ 	// Have to create all pipelines here, in case the application makes use of basePipelineIndex.
+ 	if (res == VK_PIPELINE_COMPILE_REQUIRED)
+-		res = layer->getTable()->CreateGraphicsPipelines(device, pipelineCache, createInfoCount, pCreateInfos, pAllocator, pPipelines);
++		res = dispatchGraphicsPipelines(layer, device, pipelineCache, createInfoCount, pCreateInfos, pAllocator, pPipelines);
+ 
+ 	// If pipeline compile fails due to pipeline cache control we get a null handle for pipeline, so we need to
+ 	// treat it as a failure.
+@@ -845,7 +920,7 @@
+ 		// Have to create all pipelines here, in case the application makes use of basePipelineIndex.
+ 		// Write arguments in TLS in-case we crash here.
+ 		Instance::braceForGraphicsPipelineCrash(&layer->getRecorder(), &info);
+-		auto res = layer->getTable()->CreateGraphicsPipelines(device, pipelineCache, 1, &info,
++		auto res = dispatchGraphicsPipelines(layer, device, pipelineCache, 1, &info,
+ 		                                                      pAllocator, &pPipelines[i]);
+ 		Instance::completedPipelineCompilation();
+ 

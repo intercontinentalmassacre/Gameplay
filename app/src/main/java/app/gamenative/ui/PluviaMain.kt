@@ -6,6 +6,12 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.Manifest
 import android.os.Build
+import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.os.Parcel
+import android.os.ResultReceiver
+import androidx.core.os.BundleCompat
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -25,6 +31,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.res.stringResource
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -111,6 +119,8 @@ import app.gamenative.launch.LaunchReadiness
 import app.gamenative.ui.enums.DialogType
 import app.gamenative.ui.enums.Orientation
 import app.gamenative.externaldisplay.DsHomePresentationHost
+import app.gamenative.ui.model.BuranSteamCloudSession
+import app.gamenative.data.PostSyncInfo
 import app.gamenative.ui.model.MainViewModel
 import app.gamenative.ui.screen.HomeScreen
 import app.gamenative.ui.screen.PluviaScreen
@@ -125,6 +135,19 @@ import app.gamenative.ui.util.SnackbarManager
 import app.gamenative.utils.ContainerComponentPreparation
 import app.gamenative.utils.ContainerUtils
 import app.gamenative.localgames.AppImageRuntime
+import app.gamenative.localgames.BuranCloudPaths
+import app.gamenative.localgames.BuranGameLaunch
+import app.gamenative.localgames.BuranCpuPackages
+import app.gamenative.localgames.BuranGraphicsPackages
+import app.gamenative.localgames.BuranInstalledProton
+import app.gamenative.localgames.BuranSteamClientHost
+import app.gamenative.localgames.BuranSteamDependencies
+import app.gamenative.localgames.BuranSysVShm
+import app.gamenative.localgames.BuranPulseAudio
+import app.gamenative.localgames.BuranSteamAuth
+import app.gamenative.externaldisplay.DsHomeSecondScreen
+import app.gamenative.externaldisplay.BuranCompanionControls
+import app.gamenative.externaldisplay.BuranQuickMenuSessions
 import app.gamenative.localgames.LocalContainerLaunch
 import app.gamenative.utils.PlatformAuthUtils
 import app.gamenative.utils.PlatformOAuthHandlers
@@ -150,6 +173,7 @@ import com.winlator.xenvironment.ImageFs
 import com.winlator.xenvironment.ImageFsInstaller
 import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientObjects.ECloudPendingRemoteOperation
 import java.io.File
+import java.io.Closeable
 import java.util.Locale
 import java.util.Date
 import java.util.EnumSet
@@ -158,6 +182,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -368,6 +393,97 @@ fun PluviaMain(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    var buranSessionAppId by rememberSaveable { mutableStateOf<String?>(null) }
+    var buranSessionTitle by rememberSaveable { mutableStateOf("") }
+    var explicitSteamOffline by rememberSaveable { mutableStateOf(false) }
+    var buranDashboard by remember { mutableStateOf<DsHomeSecondScreen.Model?>(null) }
+    val buranLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val appId = buranSessionAppId
+        viewModel.finishBuranLaunch(context)
+        buranSessionAppId = null
+        buranSessionTitle = ""
+        buranDashboard?.let(DsHomeSecondScreen::clearIfCurrent)
+        buranDashboard = null
+        when (result.data?.getStringExtra("outcome")) {
+            "exited", "stopped" -> appId?.let { PluviaApp.events.emit(AndroidEvent.BuranSessionFinished(it)) }
+            "failed" -> result.data?.getStringExtra("message")?.takeIf { it.isNotBlank() }?.let { SnackbarManager.show(it) }
+        }
+    }
+
+    val hasExternalDisplay = rememberHasExternalDisplay()
+    val buranHudOnLowerScreen = hasExternalDisplay && DsHomeSecondScreen.presentationActive
+    LaunchedEffect(buranHudOnLowerScreen) {
+        viewModel.setBuranHudDestination(buranHudOnLowerScreen)
+    }
+    fun publishBuranDashboard(): DsHomeSecondScreen.Model? {
+        if (!hasExternalDisplay || buranSessionAppId == null) return null
+        return buranDashboard ?: DsHomeSecondScreen.Model(
+            owner = DsHomeSecondScreen.Owner.GAME,
+            mode = DsHomeSecondScreen.Mode.GAME_DASHBOARD,
+            dashboardTitle = buranSessionTitle,
+            buranControls = viewModel.buranCompanionControls,
+            dashboardStatus = {
+                val guestReady by viewModel.buranGuestReady.collectAsState()
+                stringResource(
+                    if (guestReady) R.string.second_screen_game_running else R.string.second_screen_buran_session_active,
+                )
+            },
+        ).also { dashboard ->
+            buranDashboard = dashboard
+            DsHomeSecondScreen.publish(dashboard)
+        }
+    }
+    DisposableEffect(hasExternalDisplay, buranSessionAppId, buranSessionTitle) {
+        val dashboard = publishBuranDashboard()
+        onDispose {
+            dashboard?.let(DsHomeSecondScreen::clearIfCurrent)
+            if (buranDashboard === dashboard) buranDashboard = null
+        }
+    }
+    fun launchBuranGame(intent: Intent, cloudSession: BuranSteamCloudSession?, steamOnline: Boolean, steamHost: Closeable?) {
+        check(buranSessionAppId == null) { context.getString(R.string.second_screen_buran_session_active) }
+        val appId = checkNotNull(intent.getStringExtra("installKey"))
+        buranSessionAppId = appId
+        buranSessionTitle = intent.getStringExtra("title").orEmpty()
+        val launchId = java.util.UUID.randomUUID().toString()
+        val nativeSteamClient = intent.getBundleExtra("steamBionicRuntime")?.getBoolean("steamClient", true) == true
+        viewModel.setBuranLaunch(launchId, buranHudOnLowerScreen, appId, cloudSession, steamOnline, steamHost, nativeSteamClient)
+        try {
+            intent.putExtra("dualScreen", buranHudOnLowerScreen)
+            intent.putExtra(
+                BuranQuickMenuSessions.EXTRA_MENU,
+                BuranQuickMenuSessions.openToken(context, launchId, viewModel.buranCompanionControls),
+            )
+            intent.putExtra(
+                BuranQuickMenuSessions.EXTRA_MENU_BUTTON,
+                PrefManager.gamepadQuickMenuButton,
+            )
+            intent.putExtra("sessionStatus", buranStatusReceiver(
+                onReady = { controls -> viewModel.onBuranGuestReady(launchId, controls) },
+                onMangoHudStatus = { sessionId, available, enabled ->
+                    viewModel.onBuranMangoHudStatus(launchId, sessionId, available, enabled)
+                },
+                onHudTelemetry = { sessionId, fps, generatedFps ->
+                    viewModel.onBuranHudTelemetry(launchId, sessionId, fps, generatedFps)
+                },
+                onHudVisibility = { sessionId, enabled ->
+                    viewModel.onBuranHudVisibility(launchId, sessionId, enabled)
+                },
+                onFramegenStatus = { sessionId, requested, active, failed ->
+                    viewModel.onBuranFramegenStatus(context, launchId, sessionId, requested, active, failed)
+                },
+            ))
+            publishBuranDashboard()
+            buranLauncher.launch(intent)
+        } catch (error: Exception) {
+            buranSessionAppId = null
+            buranSessionTitle = ""
+            viewModel.finishBuranLaunch(context)
+            buranDashboard?.let(DsHomeSecondScreen::clearIfCurrent)
+            buranDashboard = null
+            throw error
+        }
+    }
 
     // Global two-axis layer model (L0 game / L1 shell / L2 quick / L3 system / L4 dialog).
     // Owned here so the system menu can overlay any screen incl. in-game.
@@ -464,7 +580,8 @@ fun PluviaMain(
 
     // shared intent-launch path. resolves isOffline at the call site because intent launches can
     // arrive pre-login (cold-boot via stored creds) and downstream cloud-sync needs a settled answer.
-    val launchIntentApp: (resolvedAppId: String, hasTemporaryOverride: Boolean) -> Unit = { resolvedAppId, hasTemporaryOverride ->
+    val launchIntentApp: (resolvedAppId: String, hasTemporaryOverride: Boolean) -> Unit = launchIntent@{ resolvedAppId, hasTemporaryOverride ->
+        if (buranSessionAppId != null) return@launchIntent
         if (PrefManager.shortcutOpensGamePage) {
             // Pinned launcher shortcut in "open game page" mode: land on the
             // library with this game selected instead of booting the container.
@@ -511,6 +628,8 @@ fun PluviaMain(
                     setMessageDialogState = setMessageDialogState,
                     onSuccess = viewModel::launchApp,
                     isOffline = isOffline,
+                    explicitSteamOffline = explicitSteamOffline,
+                    launchWithBuran = ::launchBuranGame,
                 )
             }
         }
@@ -713,7 +832,7 @@ fun PluviaMain(
                                 } else if (currentRoute == PluviaScreen.Home.route + "?offline={offline}") {
                                     val isCurrentlyOffline = navController.currentBackStackEntry
                                         ?.arguments?.getBoolean("offline") ?: false
-                                    if (isCurrentlyOffline) {
+                                    if (isCurrentlyOffline && !explicitSteamOffline) {
                                         // Do not replace the Home back-stack entry just because Steam
                                         // connected after an offline start. Replacing it destroys the
                                         // LibraryViewModel and produces a visible black flash while the
@@ -972,7 +1091,40 @@ fun PluviaMain(
     val onDismissClick: (() -> Unit)?
     val onConfirmClick: (() -> Unit)?
     var onActionClick: (() -> Unit)? = null
+    val retryBuran: ((Intent, BuranSteamCloudSession?, Boolean, Closeable?) -> Unit)? =
+        if (msgDialogState.retryWithBuran) ::launchBuranGame else null
     when (msgDialogState.type) {
+        DialogType.BURAN_STEAM_CLIENT_UNAVAILABLE -> {
+            onConfirmClick = null
+            onDismissClick = { setMessageDialogState(MessageDialogState(false)) }
+            onDismissRequest = onDismissClick
+        }
+
+        DialogType.BURAN_STEAM_LOGIN_UNAVAILABLE -> {
+            fun resumeLaunch(skipCloud: Boolean) {
+                setMessageDialogState(MessageDialogState(false))
+                if (!skipCloud) viewModel.retryConnection()
+                preLaunchApp(
+                    context = context,
+                    appId = state.launchedAppId,
+                    skipCloudSync = skipCloud,
+                    setLoadingDialogVisible = viewModel::setLoadingDialogVisible,
+                    setLoadingProgress = viewModel::setLoadingDialogProgress,
+                    setLoadingMessage = viewModel::setLoadingDialogMessage,
+                    setMessageDialogState = setMessageDialogState,
+                    onSuccess = viewModel::launchApp,
+                    isOffline = viewModel.isOffline.value,
+                    explicitSteamOffline = explicitSteamOffline,
+                    launchWithBuran = ::launchBuranGame,
+                    retrySteamLogin = !skipCloud,
+                )
+            }
+            onConfirmClick = { resumeLaunch(skipCloud = false) }
+            onActionClick = { resumeLaunch(skipCloud = true) }
+            onDismissClick = { setMessageDialogState(MessageDialogState(false)) }
+            onDismissRequest = onDismissClick
+        }
+
         DialogType.SYNC_CONFLICT -> {
             onConfirmClick = {
                 preLaunchApp(
@@ -985,6 +1137,8 @@ fun PluviaMain(
                     setMessageDialogState = setMessageDialogState,
                     onSuccess = viewModel::launchApp,
                     isOffline = viewModel.isOffline.value,
+                    explicitSteamOffline = explicitSteamOffline,
+                    launchWithBuran = retryBuran,
                 )
                 msgDialogState = MessageDialogState(false)
             }
@@ -999,6 +1153,8 @@ fun PluviaMain(
                     setMessageDialogState = setMessageDialogState,
                     onSuccess = viewModel::launchApp,
                     isOffline = viewModel.isOffline.value,
+                    explicitSteamOffline = explicitSteamOffline,
+                    launchWithBuran = retryBuran,
                 )
                 msgDialogState = MessageDialogState(false)
             }
@@ -1028,6 +1184,8 @@ fun PluviaMain(
                         setMessageDialogState = setMessageDialogState,
                         onSuccess = viewModel::launchApp,
                         isOffline = viewModel.isOffline.value,
+                        explicitSteamOffline = explicitSteamOffline,
+                        launchWithBuran = retryBuran,
                     )
                 }
             }
@@ -1076,6 +1234,8 @@ fun PluviaMain(
                     setMessageDialogState = setMessageDialogState,
                     onSuccess = viewModel::launchApp,
                     isOffline = viewModel.isOffline.value,
+                    explicitSteamOffline = explicitSteamOffline,
+                    launchWithBuran = retryBuran,
                 )
             }
             onDismissClick = {
@@ -1110,6 +1270,8 @@ fun PluviaMain(
                     onSuccess = viewModel::launchApp,
                     isOffline = viewModel.isOffline.value,
                     bootToContainer = state.bootToContainer,
+                    explicitSteamOffline = explicitSteamOffline,
+                    launchWithBuran = retryBuran,
                 )
             }
             onDismissClick = {
@@ -1133,6 +1295,8 @@ fun PluviaMain(
                     setMessageDialogState = setMessageDialogState,
                     onSuccess = viewModel::launchApp,
                     isOffline = viewModel.isOffline.value,
+                    explicitSteamOffline = explicitSteamOffline,
+                    launchWithBuran = retryBuran,
                 )
             }
             onDismissClick = {
@@ -1152,12 +1316,16 @@ fun PluviaMain(
                     preLaunchApp(
                         context = context,
                         appId = state.launchedAppId,
+                        useTemporaryOverride = IntentLaunchManager.hasTemporaryOverride(state.launchedAppId),
                         setLoadingDialogVisible = viewModel::setLoadingDialogVisible,
                         setLoadingProgress = viewModel::setLoadingDialogProgress,
                         setLoadingMessage = viewModel::setLoadingDialogMessage,
                         setMessageDialogState = setMessageDialogState,
                         onSuccess = viewModel::launchApp,
                         isOffline = viewModel.isOffline.value,
+                        bootToContainer = state.bootToContainer,
+                        explicitSteamOffline = explicitSteamOffline,
+                        launchWithBuran = retryBuran,
                     )
                 }
             }
@@ -1203,6 +1371,8 @@ fun PluviaMain(
                     onSuccess = viewModel::launchApp,
                     isOffline = viewModel.isOffline.value,
                     bootToContainer = state.bootToContainer,
+                    explicitSteamOffline = explicitSteamOffline,
+                    launchWithBuran = retryBuran,
                 )
             }
             onDismissClick = {
@@ -1440,7 +1610,6 @@ fun PluviaMain(
         }
     }
 
-    val hasExternalDisplay = rememberHasExternalDisplay()
     val systemIsOffline by viewModel.isOffline.collectAsStateWithLifecycle()
     val gogLoggedIn = GOGAuthManager.hasStoredCredentials(context)
     val epicLoggedIn = EpicAuthManager.hasStoredCredentials(context)
@@ -1616,6 +1785,7 @@ fun PluviaMain(
                         connectionState = state.connectionState,
                         onRetryConnection = viewModel::retryConnection,
                         onContinueOffline = {
+                            explicitSteamOffline = true
                             navController.navigate(PluviaScreen.Home.route + "?offline=true")
                         },
                         onPlatformSignedIn = {
@@ -1680,7 +1850,8 @@ fun PluviaMain(
                     }
 
                     HomeScreen(
-                        onClickPlay = { appId, asContainer ->
+                        onClickPlay = play@{ appId, asContainer ->
+                            if (buranSessionAppId != null || viewModel.state.value.loadingDialogVisible) return@play
                             viewModel.setLaunchedAppId(appId)
                             viewModel.setBootToContainer(asContainer)
                             viewModel.setTestGraphics(false)
@@ -1696,6 +1867,8 @@ fun PluviaMain(
                                 onSuccess = viewModel::launchApp,
                                 isOffline = isOffline,
                                 bootToContainer = asContainer,
+                                explicitSteamOffline = explicitSteamOffline,
+                                launchWithBuran = ::launchBuranGame,
                             )
                         },
                         onTestGraphics = { appId ->
@@ -1748,12 +1921,14 @@ fun PluviaMain(
                             navController.navigate(PluviaScreen.Chat.route(it))
                         },
                         onNavigateRoute = {
+                            if (it == PluviaScreen.Home.route + "?offline=true") explicitSteamOffline = true
                             navController.navigate(it)
                         },
                         onLogout = {
                             SteamService.logOut()
                         },
                         onGoOnline = {
+                            explicitSteamOffline = false
                             navController.navigate(
                                 if (!SteamService.isLoggedIn) PluviaScreen.LoginUser.route
                                 else PluviaScreen.Home.route
@@ -1763,6 +1938,7 @@ fun PluviaMain(
                         onDownloadsRequestedHandled = { requestDownloads = false },
                         isOffline = isOffline,
                         isSteamConnected = state.isSteamConnected,
+                        buranSessionAppId = buranSessionAppId,
                     )
                 }
 
@@ -1876,7 +2052,10 @@ fun PluviaMain(
                 SystemMenu(
                     isOpen = true,
                     onDismiss = { layerController.closeSystem() },
-                    onNavigateRoute = { navController.navigate(it) },
+                    onNavigateRoute = {
+                        if (it == PluviaScreen.Home.route + "?offline=true") explicitSteamOffline = true
+                        navController.navigate(it)
+                    },
                     onDownloadsClick = {
                         layerController.closeSystem()
                         navController.navigate(PluviaScreen.Home.route + "?offline=false") {
@@ -1886,6 +2065,7 @@ fun PluviaMain(
                     },
                     onLogout = { SteamService.logOut() },
                     onGoOnline = {
+                        explicitSteamOffline = false
                         navController.navigate(
                             if (!SteamService.isLoggedIn) PluviaScreen.LoginUser.route
                             else PluviaScreen.Home.route,
@@ -1926,6 +2106,7 @@ fun PluviaMain(
                         )
                     },
                     onNetworkToggle = {
+                        explicitSteamOffline = !systemIsOffline
                         viewModel.setOffline(!systemIsOffline)
                         navController.navigate(
                             PluviaScreen.Home.route + "?offline=${!systemIsOffline}",
@@ -1960,7 +2141,67 @@ fun PluviaMain(
     }
 }
 
-fun preLaunchApp(
+private fun buranStatusReceiver(
+    onReady: (BuranCompanionControls?) -> Unit,
+    onMangoHudStatus: (String, Boolean, Boolean) -> Unit,
+    onHudTelemetry: (String, Float, Int?) -> Unit,
+    onHudVisibility: (String, Boolean) -> Unit,
+    onFramegenStatus: (String, Boolean, Boolean, Boolean) -> Unit,
+): ResultReceiver {
+    val receiver = object : ResultReceiver(Handler(Looper.getMainLooper())) {
+        override fun onReceiveResult(resultCode: Int, resultData: Bundle?) {
+            if (resultCode == 1) {
+                val controls = resultData?.let { data ->
+                    BundleCompat.getParcelable(data, "companionControls", ResultReceiver::class.java)?.let { receiver ->
+                        BuranCompanionControls(
+                            receiver,
+                            data.getStringArrayList("capabilities").orEmpty().toSet(),
+                            data.getBoolean("mouseDisabled", false),
+                            data.getBoolean("touchscreen", true),
+                            data.getBoolean("outputFps", false),
+                            data.getInt("fpsLimit"),
+                            data.getString("sessionId"),
+                            data.getBoolean("mangoHud", false),
+                            data.getFloat("touchSensitivity", 1f),
+                            data.getBoolean("framegenRequested"),
+                            data.getBoolean("framegenActive"),
+                            !data.getString("framegenError").isNullOrBlank(),
+                        )
+                    }
+                }
+                onReady(controls)
+            } else if (resultCode == 2 && resultData != null) {
+                val sessionId = resultData.getString("sessionId") ?: return
+                onMangoHudStatus(
+                    sessionId,
+                    resultData.getBoolean("mangoHudAvailable", true),
+                    resultData.getBoolean("mangoHud", false),
+                )
+            } else if (resultCode == 3 && resultData?.containsKey("outputFpsSource") == true) {
+                val sessionId = resultData.getString("sessionId") ?: return
+                onHudTelemetry(sessionId, resultData.getFloat("outputFps", Float.NaN),
+                    resultData.getInt("generatedFps", -1).takeIf { it >= 0 })
+            } else if (resultCode == 4 && resultData?.containsKey("performanceHud") == true) {
+                val sessionId = resultData.getString("sessionId") ?: return
+                onHudVisibility(sessionId, resultData.getBoolean("performanceHud"))
+            } else if (resultCode == 6 && resultData != null) {
+                val sessionId = resultData.getString("sessionId") ?: return
+                onFramegenStatus(sessionId, resultData.getBoolean("framegenRequested"),
+                    resultData.getBoolean("framegenActive"), !resultData.getString("framegenError").isNullOrBlank())
+            }
+        }
+    }
+    val parcel = Parcel.obtain()
+    try {
+        receiver.writeToParcel(parcel, 0)
+        parcel.setDataPosition(0)
+        return ResultReceiver.CREATOR.createFromParcel(parcel)
+    } finally {
+        parcel.recycle()
+    }
+}
+
+private fun preLaunchApp(
     context: Context,
     appId: String,
     ignorePendingOperations: Boolean = false,
@@ -1975,6 +2216,9 @@ fun preLaunchApp(
     retryCount: Int = 0,
     isOffline: Boolean = false,
     bootToContainer: Boolean = false,
+    launchWithBuran: ((Intent, BuranSteamCloudSession?, Boolean, Closeable?) -> Unit)? = null,
+    explicitSteamOffline: Boolean = false,
+    retrySteamLogin: Boolean = false,
 ) {
     setLoadingDialogVisible(true)
     // TODO: add a way to cancel
@@ -1997,6 +2241,334 @@ fun preLaunchApp(
 
     val gameId = ContainerUtils.extractGameIdFromContainerId(appId)
     val gameSource = ContainerUtils.extractGameSourceFromContainerId(appId)
+
+    suspend fun promptForActiveSteamSession(usesBuran: Boolean = false): Boolean {
+        if (isOffline && !usesBuran) return false
+        val otherApp = try {
+            val currentPlaying = SteamService.getSelfCurrentlyPlayingAppId()
+            if (currentPlaying == null || currentPlaying == gameId) return false
+            // Synthetic IDs from remote non-Steam shortcuts cannot be stopped by Steam.
+            SteamService.getAppInfoOf(currentPlaying) ?: return false
+        } catch (_: Exception) {
+            return false
+        }
+        setLoadingDialogVisible(false)
+        setMessageDialogState(
+            MessageDialogState(
+                visible = true,
+                type = DialogType.ACCOUNT_SESSION_ACTIVE,
+                retryWithBuran = usesBuran,
+                title = context.getString(R.string.main_app_running_title),
+                message = context.getString(R.string.main_app_running_message, otherApp.name),
+                confirmBtnText = context.getString(R.string.main_play_anyway),
+                dismissBtnText = context.getString(R.string.cancel),
+            ),
+        )
+        return true
+    }
+
+    fun showBuranSteamLoginUnavailable() {
+        setLoadingDialogVisible(false)
+        setMessageDialogState(
+            MessageDialogState(
+                visible = true,
+                type = DialogType.BURAN_STEAM_LOGIN_UNAVAILABLE,
+                title = context.getString(R.string.no_connection_to_steam),
+                message = context.getString(R.string.buran_steam_login_unavailable),
+                confirmBtnText = context.getString(R.string.connection_retry),
+                actionBtnText = context.getString(R.string.main_launch_anyway),
+                dismissBtnText = context.getString(R.string.cancel),
+            ),
+        )
+    }
+
+    fun showBuranCloudSyncError(message: String) {
+        setLoadingDialogVisible(false)
+        setMessageDialogState(
+            MessageDialogState(
+                visible = true,
+                type = DialogType.SYNC_FAIL,
+                title = context.getString(R.string.sync_error_title),
+                message = message,
+                confirmBtnText = context.getString(R.string.main_launch_anyway),
+                dismissBtnText = context.getString(R.string.ok),
+                retryWithBuran = true,
+            ),
+        )
+    }
+
+    fun showBuranRuntimeError(message: String) {
+        setLoadingDialogVisible(false)
+        setMessageDialogState(
+            MessageDialogState(
+                visible = true,
+                type = DialogType.BURAN_STEAM_CLIENT_UNAVAILABLE,
+                title = context.getString(R.string.buran_launch_failed),
+                message = message,
+                dismissBtnText = context.getString(R.string.ok),
+            ),
+        )
+    }
+
+    suspend fun syncSteamAndLaunch(
+        syncScope: CoroutineScope,
+        prefixToPath: (String) -> String,
+        expectedAccountId: Long? = null,
+        launchGame: suspend (PostSyncInfo) -> Unit,
+    ) {
+        val usesBuran = expectedAccountId != null
+        fun showSyncDialog(dialog: MessageDialogState) {
+            setMessageDialogState(dialog.copy(retryWithBuran = usesBuran))
+        }
+
+        setLoadingMessage("Syncing cloud saves")
+        setLoadingProgress(-1f)
+        val postSyncInfo = SteamService.beginLaunchApp(
+            appId = gameId,
+            prefixToPath = prefixToPath,
+            ignorePendingOperations = ignorePendingOperations,
+            preferredSave = preferredSave,
+            parentScope = syncScope,
+            isOffline = isOffline && !usesBuran,
+            expectedAccountId = expectedAccountId,
+            onProgress = { message, progress ->
+                setLoadingMessage(message)
+                setLoadingProgress(if (progress < 0) -1f else progress)
+            },
+        ).await()
+
+        val syncResult = postSyncInfo.syncResult
+        if (!usesBuran || (syncResult != SyncResult.UpToDate && syncResult != SyncResult.Success)) {
+            setLoadingDialogVisible(false)
+        }
+
+        when (syncResult) {
+            SyncResult.Conflict -> {
+                val localDate = Date(postSyncInfo.localTimestamp).toString()
+                val remoteDate = Date(postSyncInfo.remoteTimestamp).toString()
+                val (conflictTitle, conflictMessage) = postSyncInfo.conflictUfsVersion
+                    ?.let { v ->
+                        val titleId = context.resources.getIdentifier(
+                            "main_save_conflict_upgrade_v${v}_title", "string", context.packageName,
+                        )
+                        val msgId = context.resources.getIdentifier(
+                            "main_save_conflict_upgrade_v${v}_message", "string", context.packageName,
+                        )
+                        if (titleId != 0 && msgId != 0) {
+                            context.getString(titleId) to context.getString(msgId, localDate, remoteDate)
+                        } else {
+                            null
+                        }
+                    }
+                    ?: run {
+                        context.getString(R.string.main_save_conflict_title) to
+                            context.getString(R.string.main_save_conflict_message, localDate, remoteDate)
+                    }
+                showSyncDialog(
+                    MessageDialogState(
+                        visible = true,
+                        type = DialogType.SYNC_CONFLICT,
+                        title = conflictTitle,
+                        message = conflictMessage,
+                        dismissBtnText = context.getString(R.string.main_keep_local),
+                        confirmBtnText = context.getString(R.string.main_keep_remote),
+                    ),
+                )
+            }
+
+            SyncResult.InProgress -> {
+                if (useTemporaryOverride && retryCount < 5) {
+                    // For intent launches, retry after a short delay (max 5 retries = ~10 seconds)
+                    Timber.i("Sync in progress for intent launch, retrying in 2 seconds... (attempt ${retryCount + 1}/5)")
+                    delay(2000)
+                    preLaunchApp(
+                        context = context,
+                        appId = appId,
+                        ignorePendingOperations = ignorePendingOperations,
+                        preferredSave = preferredSave,
+                        useTemporaryOverride = useTemporaryOverride,
+                        skipCloudSync = skipCloudSync,
+                        setLoadingDialogVisible = setLoadingDialogVisible,
+                        setLoadingProgress = setLoadingProgress,
+                        setLoadingMessage = setLoadingMessage,
+                        setMessageDialogState = setMessageDialogState,
+                        onSuccess = onSuccess,
+                        retryCount = retryCount + 1,
+                        isOffline = isOffline,
+                        bootToContainer = bootToContainer,
+                        explicitSteamOffline = explicitSteamOffline,
+                        launchWithBuran = launchWithBuran,
+                    )
+                } else {
+                    showSyncDialog(
+                        MessageDialogState(
+                            visible = true,
+                            type = DialogType.SYNC_IN_PROGRESS,
+                            title = context.getString(R.string.sync_error_title),
+                            message = context.getString(R.string.main_sync_in_progress_launch_anyway_message),
+                            confirmBtnText = context.getString(R.string.main_launch_anyway),
+                            dismissBtnText = context.getString(R.string.main_wait),
+                        ),
+                    )
+                }
+            }
+
+            SyncResult.UnknownFail,
+            SyncResult.DownloadFail,
+            SyncResult.UpdateFail,
+            -> {
+                showSyncDialog(
+                    MessageDialogState(
+                        visible = true,
+                        type = DialogType.SYNC_FAIL,
+                        title = context.getString(R.string.sync_error_title),
+                        message = context.getString(R.string.main_sync_failed, postSyncInfo.syncResult.toString()),
+                        confirmBtnText = context.getString(R.string.main_launch_anyway),
+                        dismissBtnText = context.getString(R.string.ok),
+                    ),
+                )
+            }
+
+            SyncResult.PendingOperations -> {
+                Timber.i(
+                    "Pending remote operations:${
+                        postSyncInfo.pendingRemoteOperations.joinToString("\n") { pro ->
+                            "\n\tmachineName: ${pro.machineName}" +
+                                "\n\ttimestamp: ${Date(pro.timeLastUpdated * 1000L)}" +
+                                "\n\toperation: ${pro.operation}"
+                        }
+                    }",
+                )
+                if (postSyncInfo.pendingRemoteOperations.size == 1) {
+                    val pro = postSyncInfo.pendingRemoteOperations.first()
+                    val gameName = SteamService.getAppInfoOf(ContainerUtils.extractGameIdFromContainerId(appId))?.name ?: ""
+                    val dateStr = Date(pro.timeLastUpdated * 1000L).toString()
+                    when (pro.operation) {
+                        ECloudPendingRemoteOperation.k_ECloudPendingRemoteOperationUploadInProgress -> {
+                            // maybe this should instead wait for the upload to finish and then
+                            // launch the app
+                            showSyncDialog(
+                                MessageDialogState(
+                                    visible = true,
+                                    type = DialogType.PENDING_UPLOAD_IN_PROGRESS,
+                                    title = context.getString(R.string.main_upload_in_progress_title),
+                                    message = context.getString(
+                                        R.string.main_upload_in_progress_message,
+                                        gameName,
+                                        pro.machineName,
+                                        dateStr,
+                                    ),
+                                    dismissBtnText = context.getString(R.string.ok),
+                                ),
+                            )
+                        }
+
+                        ECloudPendingRemoteOperation.k_ECloudPendingRemoteOperationUploadPending -> {
+                            showSyncDialog(
+                                MessageDialogState(
+                                    visible = true,
+                                    type = DialogType.PENDING_UPLOAD,
+                                    title = context.getString(R.string.main_pending_upload_title),
+                                    message = context.getString(
+                                        R.string.main_pending_upload_message,
+                                        gameName,
+                                        pro.machineName,
+                                        dateStr,
+                                    ),
+                                    confirmBtnText = context.getString(R.string.main_play_anyway),
+                                    dismissBtnText = context.getString(R.string.cancel),
+                                ),
+                            )
+                        }
+
+                        ECloudPendingRemoteOperation.k_ECloudPendingRemoteOperationAppSessionActive -> {
+                            showSyncDialog(
+                                MessageDialogState(
+                                    visible = true,
+                                    type = DialogType.APP_SESSION_ACTIVE,
+                                    title = context.getString(R.string.main_app_running_title),
+                                    message = context.getString(
+                                        R.string.main_app_running_other_device,
+                                        pro.machineName,
+                                        gameName,
+                                        dateStr,
+                                    ),
+                                    confirmBtnText = context.getString(R.string.main_play_anyway),
+                                    dismissBtnText = context.getString(R.string.cancel),
+                                ),
+                            )
+                        }
+
+                        ECloudPendingRemoteOperation.k_ECloudPendingRemoteOperationAppSessionSuspended -> {
+                            // I don't know what this means, yet
+                            showSyncDialog(
+                                MessageDialogState(
+                                    visible = true,
+                                    type = DialogType.APP_SESSION_SUSPENDED,
+                                    title = context.getString(R.string.sync_error_title),
+                                    message = context.getString(R.string.main_app_session_suspended),
+                                    dismissBtnText = context.getString(R.string.ok),
+                                ),
+                            )
+                        }
+
+                        ECloudPendingRemoteOperation.k_ECloudPendingRemoteOperationNone -> {
+                            // why are we here
+                            showSyncDialog(
+                                MessageDialogState(
+                                    visible = true,
+                                    type = DialogType.PENDING_OPERATION_NONE,
+                                    title = context.getString(R.string.sync_error_title),
+                                    message = context.getString(R.string.main_pending_operation_none),
+                                    dismissBtnText = context.getString(R.string.ok),
+                                ),
+                            )
+                        }
+                    }
+                } else {
+                    val uploadInProgress = postSyncInfo.pendingRemoteOperations.firstOrNull {
+                        it.operation == ECloudPendingRemoteOperation.k_ECloudPendingRemoteOperationUploadInProgress
+                    }
+                    if (uploadInProgress != null) {
+                        val gameName = SteamService.getAppInfoOf(ContainerUtils.extractGameIdFromContainerId(appId))?.name ?: ""
+                        showSyncDialog(
+                            MessageDialogState(
+                                visible = true,
+                                type = DialogType.PENDING_UPLOAD_IN_PROGRESS,
+                                title = context.getString(R.string.main_upload_in_progress_title),
+                                message = context.getString(
+                                    R.string.main_upload_in_progress_message,
+                                    gameName,
+                                    uploadInProgress.machineName,
+                                    Date(uploadInProgress.timeLastUpdated * 1000L).toString(),
+                                ),
+                                dismissBtnText = context.getString(R.string.ok),
+                            ),
+                        )
+                    } else {
+                        showSyncDialog(
+                            MessageDialogState(
+                                visible = true,
+                                type = DialogType.MULTIPLE_PENDING_OPERATIONS,
+                                title = context.getString(R.string.sync_error_title),
+                                message = context.getString(R.string.main_multiple_pending_operations_message),
+                                confirmBtnText = context.getString(R.string.main_play_anyway),
+                                dismissBtnText = context.getString(R.string.cancel),
+                            ),
+                        )
+                    }
+                }
+            }
+
+            SyncResult.UpToDate,
+            SyncResult.Success,
+            -> if (usesBuran && (!SteamService.isConnected || !SteamService.isLoggedIn)) {
+                showBuranSteamLoginUnavailable()
+            } else {
+                launchGame(postSyncInfo)
+            }
+        }
+    }
 
     CoroutineScope(Dispatchers.IO).launch {
         if (LaunchReadiness.pending) {
@@ -2037,13 +2609,154 @@ fun preLaunchApp(
         // any Wine-specific setup below. getOrCreateContainer() can extract a Wine container
         // pattern when creating a brand-new container, which a native Android launch neither
         // needs nor should be able to fail because of.
-        if (containerManager.hasContainer(appId)) {
-            val existing = containerManager.getContainerById(appId)
-            if (existing?.platform.equals(Container.PLATFORM_ANDROID, ignoreCase = true)) {
-                setLoadingDialogVisible(false)
-                onSuccess(context, appId)
-                return@launch
+        val existing = if (containerManager.hasContainer(appId)) containerManager.getContainerById(appId) else null
+        if (existing?.platform.equals(Container.PLATFORM_ANDROID, ignoreCase = true)) {
+            setLoadingDialogVisible(false)
+            onSuccess(context, appId)
+            return@launch
+        }
+
+        val supportsBuran = gameSource == GameSource.CUSTOM_GAME || gameSource == GameSource.STEAM
+        if (!bootToContainer && !useTemporaryOverride && supportsBuran &&
+            launchWithBuran != null && BuranGameLaunch.isSelected(context, appId)
+        ) {
+            try {
+                val buranRuntime = BuranGameLaunch.selection(context, appId)
+                val intent = checkNotNull(BuranGameLaunch.playIntent(context, appId, existing, buranRuntime)) {
+                    context.getString(R.string.local_runtime_buran_incompatible)
+                }
+                BuranCpuPackages.attach(context, existing, intent)
+                BuranGraphicsPackages.attach(context, existing, intent)
+                val controlsManager = PluviaApp.inputControlsManager
+                    ?: com.winlator.inputcontrols.InputControlsManager(context)
+                val controlsId = existing?.getExtra("profileId", "0")?.toIntOrNull() ?: 0
+                val touchSensitivity = (controlsManager.getProfile(controlsId) ?: controlsManager.getProfile(0))
+                    ?.cursorSpeed?.takeIf { it.isFinite() && it > 0f } ?: 1f
+                intent.putExtra("touchSensitivity", touchSensitivity)
+                val steamOnlineAllowed = gameSource == GameSource.STEAM && !explicitSteamOffline &&
+                    !(existing?.isSteamOfflineMode ?: PrefManager.steamOfflineMode)
+                val requiresSteamClient = gameSource == GameSource.STEAM &&
+                    buranRuntime == BuranGameLaunch.Runtime.STEAM_CLIENT
+                val shouldSyncCloud = steamOnlineAllowed && !skipCloudSync &&
+                    !ContainerUtils.isLocalSavesOnly(context, appId)
+                if (steamOnlineAllowed && (shouldSyncCloud || requiresSteamClient) &&
+                    (!SteamService.isLoggedIn || !SteamService.isConnected)
+                ) {
+                    val hasInternet = NetworkMonitor.hasInternet.value
+                    if (hasInternet) {
+                        setLoadingMessage(context.getString(R.string.connecting_to_steam))
+                        setLoadingProgress(-1f)
+                        SteamUtils.awaitSteamLogin()
+                    }
+                    if (!requiresSteamClient && (hasInternet || retrySteamLogin) &&
+                        (!SteamService.isLoggedIn || !SteamService.isConnected)
+                    ) {
+                        showBuranSteamLoginUnavailable()
+                        return@launch
+                    }
+                }
+                val steamOnline = steamOnlineAllowed && SteamService.isLoggedIn && SteamService.isConnected
+                if (requiresSteamClient && !steamOnline) {
+                    showBuranRuntimeError(context.getString(R.string.buran_steam_client_sign_in_required))
+                    return@launch
+                }
+                if (steamOnline && promptForActiveSteamSession(usesBuran = true)) return@launch
+                val steamAccountId = if (gameSource == GameSource.STEAM) SteamUtils.getSteam3AccountId() else null
+                val resolver = steamAccountId?.takeIf { it > 0 }?.let {
+                    BuranCloudPaths.prefixToPath(context, appId, it, intent)
+                }
+                if (steamOnline && shouldSyncCloud && steamAccountId != null &&
+                    !BuranCloudPaths.pendingExitMatches(context, appId, steamAccountId, resolver)
+                ) {
+                    showBuranCloudSyncError(context.getString(R.string.buran_steam_save_location_changed))
+                    return@launch
+                }
+                val cloudSession = if (resolver != null && steamAccountId != null && steamOnline && shouldSyncCloud
+                ) BuranSteamCloudSession(steamAccountId, resolver) else null
+                if (buranRuntime == BuranGameLaunch.Runtime.INSTALLED_PROTON) {
+                    try {
+                        BuranInstalledProton.attach(context, appId, existing, intent)
+                    } catch (error: Exception) {
+                        if (error is CancellationException) throw error
+                        showBuranRuntimeError(error.localizedMessage ?: context.getString(R.string.buran_proton_prefix_unavailable))
+                        return@launch
+                    }
+                }
+
+                suspend fun launchBuran() {
+                    var host: Closeable? = null
+                    var handedOff = false
+                    try {
+                        if (requiresSteamClient) {
+                            setLoadingMessage(context.getString(R.string.connecting_to_steam))
+                            setLoadingProgress(-1f)
+                            host = BuranSteamClientHost.start(context, intent, existing)
+                        }
+                        BuranSteamDependencies.attach(intent, existing)
+                        BuranSysVShm.start(context, intent)?.let { sharedMemory ->
+                            val steamClient = host
+                            host = Closeable {
+                                try {
+                                    steamClient?.close()
+                                } finally {
+                                    sharedMemory.close()
+                                }
+                            }
+                        }
+                        BuranPulseAudio.start(context, intent, existing)?.let { audio ->
+                            val guestHost = host
+                            host = Closeable {
+                                try {
+                                    guestHost?.close()
+                                } finally {
+                                    audio.close()
+                                }
+                            }
+                        }
+                        withContext(Dispatchers.Main) {
+                            launchWithBuran(intent, cloudSession, steamOnline, host)
+                            handedOff = true
+                            setLoadingDialogVisible(false)
+                        }
+                    } catch (error: Exception) {
+                        if (error is CancellationException || !requiresSteamClient) throw error
+                        if (error is BuranSteamAuth.Cancelled) {
+                            withContext(Dispatchers.Main) { setLoadingDialogVisible(false) }
+                            return
+                        }
+                        Timber.w("Buran Steam client could not start: %s at %s", error.javaClass.simpleName, error.stackTrace.firstOrNull { it.className.startsWith("app.gamenative") })
+                        showBuranRuntimeError(error.localizedMessage ?: context.getString(R.string.buran_steam_client_unavailable))
+                    } finally {
+                        if (!handedOff) host?.close()
+                    }
+                }
+
+                if (cloudSession != null) {
+                    try {
+                        coroutineScope {
+                            syncSteamAndLaunch(this, cloudSession.prefixToPath, expectedAccountId = cloudSession.accountId) { sync ->
+                                if ((!sync.uploadsRequired || sync.uploadsCompleted) &&
+                                    SteamService.userSteamId?.accountID == cloudSession.accountId
+                                ) {
+                                    BuranCloudPaths.clearPendingExit(context, appId, cloudSession.accountId, cloudSession.prefixToPath)
+                                }
+                                launchBuran()
+                            }
+                        }
+                    } catch (error: Exception) {
+                        if (error is CancellationException) throw error
+                        Timber.tag("preLaunchApp").e(error, "Could not prepare Steam Cloud for %s", appId)
+                        showBuranCloudSyncError(context.getString(R.string.main_sync_failed, error.localizedMessage.orEmpty()))
+                    }
+                } else {
+                    launchBuran()
+                }
+            } catch (error: Exception) {
+                if (error is CancellationException) throw error
+                Timber.w(error, "Could not prepare Buran runtime for %s", appId)
+                showBuranRuntimeError(error.localizedMessage ?: context.getString(R.string.install_failed_message))
             }
+            return@launch
         }
 
         val container = try {
@@ -2308,32 +3021,7 @@ fun preLaunchApp(
         // must activate container before downloading save files
         containerManager.activateContainer(container)
 
-        // If another Steam game is running on this account elsewhere, prompt the user.
-        // Skip the prompt for apps we don't recognise — non-Steam shortcuts on the remote
-        // device report synthetic IDs that aren't kickable.
-        val isSteamGame = gameSource == GameSource.STEAM
-        if (isSteamGame) {
-            try {
-                val currentPlaying = SteamService.getSelfCurrentlyPlayingAppId()
-                if (!isOffline && currentPlaying != null && currentPlaying != gameId) {
-                    val otherApp = SteamService.getAppInfoOf(currentPlaying)
-                    if (otherApp != null) {
-                        setLoadingDialogVisible(false)
-                        setMessageDialogState(
-                            MessageDialogState(
-                                visible = true,
-                                type = DialogType.ACCOUNT_SESSION_ACTIVE,
-                                title = context.getString(R.string.main_app_running_title),
-                                message = context.getString(R.string.main_app_running_message, otherApp.name),
-                                confirmBtnText = context.getString(R.string.main_play_anyway),
-                                dismissBtnText = context.getString(R.string.cancel),
-                            ),
-                        )
-                        return@launch
-                    }
-                }
-            } catch (_: Exception) { /* ignore persona read errors */ }
-        }
+        if (gameSource == GameSource.STEAM && promptForActiveSteamSession()) return@launch
 
         // For Custom Games, bypass Steam Cloud operations entirely and proceed to launch
         if (isCustomGame) {
@@ -2624,242 +3312,6 @@ fun preLaunchApp(
             }
         }
 
-        setLoadingMessage("Syncing cloud saves")
-        setLoadingProgress(-1f)
-        val postSyncInfo = SteamService.beginLaunchApp(
-            appId = gameId,
-            prefixToPath = prefixToPath,
-            ignorePendingOperations = ignorePendingOperations,
-            preferredSave = preferredSave,
-            parentScope = this,
-            isOffline = isOffline,
-            onProgress = { message, progress ->
-                setLoadingMessage(message)
-                setLoadingProgress(if (progress < 0) -1f else progress)
-            },
-        ).await()
-
-        setLoadingDialogVisible(false)
-
-        when (postSyncInfo.syncResult) {
-            SyncResult.Conflict -> {
-                val localDate = Date(postSyncInfo.localTimestamp).toString()
-                val remoteDate = Date(postSyncInfo.remoteTimestamp).toString()
-                val (conflictTitle, conflictMessage) = postSyncInfo.conflictUfsVersion
-                    ?.let { v ->
-                        val titleId = context.resources.getIdentifier(
-                            "main_save_conflict_upgrade_v${v}_title", "string", context.packageName,
-                        )
-                        val msgId = context.resources.getIdentifier(
-                            "main_save_conflict_upgrade_v${v}_message", "string", context.packageName,
-                        )
-                        if (titleId != 0 && msgId != 0) {
-                            context.getString(titleId) to context.getString(msgId, localDate, remoteDate)
-                        } else {
-                            null
-                        }
-                    }
-                    ?: run {
-                        context.getString(R.string.main_save_conflict_title) to
-                            context.getString(R.string.main_save_conflict_message, localDate, remoteDate)
-                    }
-                setMessageDialogState(
-                    MessageDialogState(
-                        visible = true,
-                        type = DialogType.SYNC_CONFLICT,
-                        title = conflictTitle,
-                        message = conflictMessage,
-                        dismissBtnText = context.getString(R.string.main_keep_local),
-                        confirmBtnText = context.getString(R.string.main_keep_remote),
-                    ),
-                )
-            }
-
-            SyncResult.InProgress -> {
-                if (useTemporaryOverride && retryCount < 5) {
-                    // For intent launches, retry after a short delay (max 5 retries = ~10 seconds)
-                    Timber.i("Sync in progress for intent launch, retrying in 2 seconds... (attempt ${retryCount + 1}/5)")
-                    delay(2000)
-                    preLaunchApp(
-                        context = context,
-                        appId = appId,
-                        ignorePendingOperations = ignorePendingOperations,
-                        preferredSave = preferredSave,
-                        useTemporaryOverride = useTemporaryOverride,
-                        skipCloudSync = skipCloudSync,
-                        setLoadingDialogVisible = setLoadingDialogVisible,
-                        setLoadingProgress = setLoadingProgress,
-                        setLoadingMessage = setLoadingMessage,
-                        setMessageDialogState = setMessageDialogState,
-                        onSuccess = onSuccess,
-                        retryCount = retryCount + 1,
-                        isOffline = isOffline,
-                        bootToContainer = bootToContainer,
-                    )
-                } else {
-                    setMessageDialogState(
-                        MessageDialogState(
-                            visible = true,
-                            type = DialogType.SYNC_IN_PROGRESS,
-                            title = context.getString(R.string.sync_error_title),
-                            message = context.getString(R.string.main_sync_in_progress_launch_anyway_message),
-                            confirmBtnText = context.getString(R.string.main_launch_anyway),
-                            dismissBtnText = context.getString(R.string.main_wait),
-                        ),
-                    )
-                }
-            }
-
-            SyncResult.UnknownFail,
-            SyncResult.DownloadFail,
-            SyncResult.UpdateFail,
-            -> {
-                setMessageDialogState(
-                    MessageDialogState(
-                        visible = true,
-                        type = DialogType.SYNC_FAIL,
-                        title = context.getString(R.string.sync_error_title),
-                        message = context.getString(R.string.main_sync_failed, postSyncInfo.syncResult.toString()),
-                        confirmBtnText = context.getString(R.string.main_launch_anyway),
-                        dismissBtnText = context.getString(R.string.ok),
-                    ),
-                )
-            }
-
-            SyncResult.PendingOperations -> {
-                Timber.i(
-                    "Pending remote operations:${
-                        postSyncInfo.pendingRemoteOperations.joinToString("\n") { pro ->
-                            "\n\tmachineName: ${pro.machineName}" +
-                                "\n\ttimestamp: ${Date(pro.timeLastUpdated * 1000L)}" +
-                                "\n\toperation: ${pro.operation}"
-                        }
-                    }",
-                )
-                if (postSyncInfo.pendingRemoteOperations.size == 1) {
-                    val pro = postSyncInfo.pendingRemoteOperations.first()
-                    val gameName = SteamService.getAppInfoOf(ContainerUtils.extractGameIdFromContainerId(appId))?.name ?: ""
-                    val dateStr = Date(pro.timeLastUpdated * 1000L).toString()
-                    when (pro.operation) {
-                        ECloudPendingRemoteOperation.k_ECloudPendingRemoteOperationUploadInProgress -> {
-                            // maybe this should instead wait for the upload to finish and then
-                            // launch the app
-                            setMessageDialogState(
-                                MessageDialogState(
-                                    visible = true,
-                                    type = DialogType.PENDING_UPLOAD_IN_PROGRESS,
-                                    title = context.getString(R.string.main_upload_in_progress_title),
-                                    message = context.getString(
-                                        R.string.main_upload_in_progress_message,
-                                        gameName,
-                                        pro.machineName,
-                                        dateStr,
-                                    ),
-                                    dismissBtnText = context.getString(R.string.ok),
-                                ),
-                            )
-                        }
-
-                        ECloudPendingRemoteOperation.k_ECloudPendingRemoteOperationUploadPending -> {
-                            setMessageDialogState(
-                                MessageDialogState(
-                                    visible = true,
-                                    type = DialogType.PENDING_UPLOAD,
-                                    title = context.getString(R.string.main_pending_upload_title),
-                                    message = context.getString(
-                                        R.string.main_pending_upload_message,
-                                        gameName,
-                                        pro.machineName,
-                                        dateStr,
-                                    ),
-                                    confirmBtnText = context.getString(R.string.main_play_anyway),
-                                    dismissBtnText = context.getString(R.string.cancel),
-                                ),
-                            )
-                        }
-
-                        ECloudPendingRemoteOperation.k_ECloudPendingRemoteOperationAppSessionActive -> {
-                            setMessageDialogState(
-                                MessageDialogState(
-                                    visible = true,
-                                    type = DialogType.APP_SESSION_ACTIVE,
-                                    title = context.getString(R.string.main_app_running_title),
-                                    message = context.getString(
-                                        R.string.main_app_running_other_device,
-                                        pro.machineName,
-                                        gameName,
-                                        dateStr,
-                                    ),
-                                    confirmBtnText = context.getString(R.string.main_play_anyway),
-                                    dismissBtnText = context.getString(R.string.cancel),
-                                ),
-                            )
-                        }
-
-                        ECloudPendingRemoteOperation.k_ECloudPendingRemoteOperationAppSessionSuspended -> {
-                            // I don't know what this means, yet
-                            setMessageDialogState(
-                                MessageDialogState(
-                                    visible = true,
-                                    type = DialogType.APP_SESSION_SUSPENDED,
-                                    title = context.getString(R.string.sync_error_title),
-                                    message = context.getString(R.string.main_app_session_suspended),
-                                    dismissBtnText = context.getString(R.string.ok),
-                                ),
-                            )
-                        }
-
-                        ECloudPendingRemoteOperation.k_ECloudPendingRemoteOperationNone -> {
-                            // why are we here
-                            setMessageDialogState(
-                                MessageDialogState(
-                                    visible = true,
-                                    type = DialogType.PENDING_OPERATION_NONE,
-                                    title = context.getString(R.string.sync_error_title),
-                                    message = context.getString(R.string.main_pending_operation_none),
-                                    dismissBtnText = context.getString(R.string.ok),
-                                ),
-                            )
-                        }
-                    }
-                } else {
-                    val uploadInProgress = postSyncInfo.pendingRemoteOperations.firstOrNull {
-                        it.operation == ECloudPendingRemoteOperation.k_ECloudPendingRemoteOperationUploadInProgress
-                    }
-                    if (uploadInProgress != null) {
-                        val gameName = SteamService.getAppInfoOf(ContainerUtils.extractGameIdFromContainerId(appId))?.name ?: ""
-                        setMessageDialogState(
-                            MessageDialogState(
-                                visible = true,
-                                type = DialogType.PENDING_UPLOAD_IN_PROGRESS,
-                                title = context.getString(R.string.main_upload_in_progress_title),
-                                message = context.getString(
-                                    R.string.main_upload_in_progress_message,
-                                    gameName,
-                                    uploadInProgress.machineName,
-                                    Date(uploadInProgress.timeLastUpdated * 1000L).toString(),
-                                ),
-                                dismissBtnText = context.getString(R.string.ok),
-                            ),
-                        )
-                    } else {
-                        setMessageDialogState(
-                            MessageDialogState(
-                                visible = true,
-                                type = DialogType.MULTIPLE_PENDING_OPERATIONS,
-                                title = context.getString(R.string.sync_error_title),
-                                message = context.getString(R.string.main_multiple_pending_operations_message),
-                                confirmBtnText = context.getString(R.string.main_play_anyway),
-                                dismissBtnText = context.getString(R.string.cancel),
-                            ),
-                        )
-                    }
-                }
-            }
-
-            SyncResult.UpToDate,
-            SyncResult.Success,
-            -> onSuccess(context, appId)
-        }
+        syncSteamAndLaunch(this, prefixToPath) { onSuccess(context, appId) }
     }
 }

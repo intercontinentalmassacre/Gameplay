@@ -50,6 +50,7 @@ class PluviaApp : Application() {
     override fun onCreate() {
         super.onCreate()
         instance = this
+        if (android.os.Build.VERSION.SDK_INT >= 29 && android.app.Application.getProcessName() == "$packageName:buran_gamescope") return
 
         // Must be set before any class triggers System.loadLibrary("evshim"):
         // its constructor resolves the gamepad shm dir from EVSHIM_BASE_PATH at

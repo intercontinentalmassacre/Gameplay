@@ -1,0 +1,4 @@
+<resources>
+    <string name="buran_cancel_dependency_install">Cancel setup</string>
+    <string name="buran_shader_prewarm">Preparing saved shaders…</string>
+</resources>

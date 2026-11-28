@@ -1,0 +1,16 @@
+<resources>
+    <color name="buran_icon_surface">#212629</color>
+    <style name="BuranStandalone" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">#181B1D</item>
+        <item name="android:colorBackground">#181B1D</item>
+        <item name="android:colorAccent">#B4DDF5</item>
+        <item name="android:colorForeground">#F2F2EC</item>
+        <item name="android:textColorPrimary">#F2F2EC</item>
+        <item name="android:textColorSecondary">#AFBABD</item>
+        <item name="android:navigationBarColor">#181B1D</item>
+        <item name="android:statusBarColor">#181B1D</item>
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:fontFamily">sans</item>
+    </style>
+</resources>

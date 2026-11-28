@@ -22,3 +22,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "gameplay"
 include(":app")
+include(":buran")

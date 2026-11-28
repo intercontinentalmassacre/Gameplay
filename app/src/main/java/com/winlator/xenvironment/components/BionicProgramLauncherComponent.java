@@ -446,8 +446,9 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
         if (enablePebLogs) {
             launchEnv.put("WINE_LOG_PEB_DATA", "1");
         }
-        if (gamescopeMode) {
-            applyGamescopeEnv(context, launchEnv, rootDir, container, gamescopeDisplay, gamescopeRuntime(), gamescopeIcd);
+        File gamescopePayload = gamescopeMode ? gamescopeRuntime() : null;
+        if (gamescopePayload != null) {
+            applyGamescopeEnv(context, launchEnv, rootDir, container, gamescopeDisplay, gamescopePayload, gamescopeIcd);
         }
 
         // Experimental FEX translation cache: preparation/load is per game and only applied
@@ -501,7 +502,10 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
         if (guestWrapperIcd) launchEnv.put(VKSHIM_SYSTEM_DRIVER, "1");
         if (container != null && fossilizeCancellation != null) {
             launchEnv.remove("FOSSILIZE");
-            if (FossilizeManager.prepare(context, container, launchEnv, fossilizeCancellation)) {
+            // Gamescope's EGL shadows Android's EGL, which the native replayer needs through libgui.
+            File replayLibraryExclusion = gamescopePayload != null && GamescopePayload.isExperimentalDirectory(gamescopePayload)
+                    ? new File(gamescopePayload, "lib/gl") : null;
+            if (FossilizeManager.prepare(context, container, launchEnv, fossilizeCancellation, replayLibraryExclusion)) {
                 command = "/system/bin/env FOSSILIZE=1 " + command;
             }
             if (fossilizeCancellation.getAsBoolean()) {

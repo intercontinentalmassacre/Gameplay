@@ -1,0 +1,174 @@
+diff --git a/fossilize.cpp b/fossilize.cpp
+--- a/fossilize.cpp
++++ b/fossilize.cpp
+@@ -410,6 +410,7 @@
+ 	uint64_t handle;
+ 	void *create_info;
+ 	Hash custom_hash;
++	bool unregister = false;
+ };
+ 
+ struct StateRecorder::Impl
+@@ -7331,7 +7332,7 @@
+ template <typename T>
+ void StateRecorder::Impl::push_unregister_locked(VkStructureType sType, T obj)
+ {
+-	record_queue.push({sType, api_object_cast<uint64_t>(obj), nullptr, 0});
++	record_queue.push({sType, api_object_cast<uint64_t>(obj), nullptr, 0, true});
+ 	record_cv.notify_one();
+ }
+ 
+@@ -7442,7 +7443,12 @@
+ 	// Hopefully applications are well-behaved ...
+ 	auto *binaries = find_pnext<VkPipelineBinaryInfoKHR>(VK_STRUCTURE_TYPE_PIPELINE_BINARY_INFO_KHR, create_info.pNext);
+ 	if (binaries && binaries->binaryCount)
++	{
++		std::lock_guard<std::mutex> lock(impl->record_lock);
++		if (pipeline != VK_NULL_HANDLE)
++			impl->push_unregister_locked(VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO, pipeline);
+ 		return true;
++	}
+ 
+ 	// Ignore pipelines that cannot result in meaningful replay.
+ 	// We are not allowed to look at pStages unless we're emitting pre-raster / fragment shader interface.
+@@ -7499,7 +7505,12 @@
+ 	// Hopefully applications are well-behaved ...
+ 	auto *binaries = find_pnext<VkPipelineBinaryInfoKHR>(VK_STRUCTURE_TYPE_PIPELINE_BINARY_INFO_KHR, create_info.pNext);
+ 	if (binaries && binaries->binaryCount)
++	{
++		std::lock_guard<std::mutex> lock(impl->record_lock);
++		if (pipeline != VK_NULL_HANDLE)
++			impl->push_unregister_locked(VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, pipeline);
+ 		return true;
++	}
+ 
+ 	// Ignore pipelines that cannot result in meaningful replay.
+ 	// If we are using module identifier data + on use, we need to push it for record.
+@@ -7549,7 +7560,12 @@
+ 	// Hopefully applications are well-behaved ...
+ 	auto *binaries = find_pnext<VkPipelineBinaryInfoKHR>(VK_STRUCTURE_TYPE_PIPELINE_BINARY_INFO_KHR, create_info.pNext);
+ 	if (binaries && binaries->binaryCount)
++	{
++		std::lock_guard<std::mutex> lock(impl->record_lock);
++		if (pipeline != VK_NULL_HANDLE)
++			impl->push_unregister_locked(VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_CREATE_INFO_KHR, pipeline);
+ 		return true;
++	}
+ 
+ 	// Ignore pipelines that cannot result in meaningful replay.
+ 	// If we are using module identifier data + on use, we need to push it for record.
+@@ -9494,6 +9510,12 @@
+ 			auto vk_object = api_object_cast<VkPipeline>(record_item.handle);
+ 			tag = RESOURCE_RAYTRACING_PIPELINE;
+ 
++			if (record_item.unregister)
++			{
++				raytracing_pipeline_to_hash.erase(vk_object);
++				continue;
++			}
++
+ 			if (hash == 0)
+ 			{
+ 				if (!create_info)
+@@ -9562,6 +9584,12 @@
+ 			auto vk_object = api_object_cast<VkPipeline>(record_item.handle);
+ 			tag = RESOURCE_GRAPHICS_PIPELINE;
+ 
++			if (record_item.unregister)
++			{
++				graphics_pipeline_to_hash.erase(vk_object);
++				continue;
++			}
++
+ 			if (hash == 0)
+ 			{
+ 				if (!create_info)
+@@ -9628,6 +9656,12 @@
+ 			hash = record_item.custom_hash;
+ 			auto vk_object = api_object_cast<VkPipeline>(record_item.handle);
+ 			tag = RESOURCE_COMPUTE_PIPELINE;
++
++			if (record_item.unregister)
++			{
++				compute_pipeline_to_hash.erase(vk_object);
++				continue;
++			}
+ 
+ 			if (hash == 0)
+ 			{
+diff --git a/test/fossilize_test.cpp b/test/fossilize_test.cpp
+--- a/test/fossilize_test.cpp
++++ b/test/fossilize_test.cpp
+@@ -4775,6 +4775,62 @@
+ 	return true;
+ }
+ 
++static bool test_reused_graphics_library_handle(bool binary)
++{
++	StateRecorder recorder;
++	auto library_handle = fake_handle<VkPipeline>(1);
++	auto linked_handle = fake_handle<VkPipeline>(2);
++	VkGraphicsPipelineLibraryCreateInfoEXT subset = { VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_LIBRARY_CREATE_INFO_EXT };
++	subset.flags = VK_GRAPHICS_PIPELINE_LIBRARY_VERTEX_INPUT_INTERFACE_BIT_EXT;
++	VkGraphicsPipelineCreateInfo library = { VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO, &subset };
++	library.flags = VK_PIPELINE_CREATE_LIBRARY_BIT_KHR;
++	Hash library_hash, linked_hash;
++	if (!recorder.record_graphics_pipeline(library_handle, library, nullptr, 0) ||
++	    !recorder.get_hash_for_graphics_pipeline_handle(library_handle, &library_hash))
++		return false;
++
++	// Binding an existing pipeline must not discard the recorded handle.
++	Hash used_hash;
++	if (!recorder.record_pipeline_use(library_handle, VK_PIPELINE_BIND_POINT_GRAPHICS) ||
++	    !recorder.get_hash_for_graphics_pipeline_handle(library_handle, &used_hash) ||
++	    used_hash != library_hash)
++		return false;
++
++	VkPipelineLibraryCreateInfoKHR links = { VK_STRUCTURE_TYPE_PIPELINE_LIBRARY_CREATE_INFO_KHR };
++	links.libraryCount = 1;
++	links.pLibraries = &library_handle;
++	VkGraphicsPipelineCreateInfo linked = { VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO, &links };
++	if (!Hashing::compute_hash_graphics_pipeline(recorder, linked, &linked_hash))
++		return false;
++
++	// Next, the same handle is recycled for a shader library that cannot be captured.
++	uint8_t id = 0;
++	VkPipelineShaderStageModuleIdentifierCreateInfoEXT identifier = {
++		VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_MODULE_IDENTIFIER_CREATE_INFO_EXT
++	};
++	identifier.identifierSize = 1;
++	identifier.pIdentifier = &id;
++	VkPipelineShaderStageCreateInfo stage = { VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, &identifier };
++	stage.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
++	stage.pName = "main";
++	subset.flags = VK_GRAPHICS_PIPELINE_LIBRARY_FRAGMENT_SHADER_BIT_EXT;
++	library.stageCount = 1;
++	library.pStages = &stage;
++	VkPipelineBinaryInfoKHR binary_info = { VK_STRUCTURE_TYPE_PIPELINE_BINARY_INFO_KHR, &subset };
++	auto binary_handle = fake_handle<VkPipelineBinaryKHR>(1);
++	binary_info.binaryCount = 1;
++	binary_info.pPipelineBinaries = &binary_handle;
++	if (binary)
++		library.pNext = &binary_info;
++	if (!recorder.record_graphics_pipeline(library_handle, library, nullptr, 0) ||
++	    !recorder.record_graphics_pipeline(linked_handle, linked, nullptr, 0))
++		return false;
++
++	// Reusing the handle must invalidate the previous library and the dependent link.
++	return !recorder.get_hash_for_graphics_pipeline_handle(library_handle, &library_hash) &&
++	       !recorder.get_hash_for_graphics_pipeline_handle(linked_handle, &linked_hash);
++}
++
+ int main()
+ {
+ 	if (!test_concurrent_database_extra_paths())
+@@ -4806,6 +4862,9 @@
+ 	if (!test_reused_handles())
+ 		return EXIT_FAILURE;
+ 
++	if (!test_reused_graphics_library_handle(false) || !test_reused_graphics_library_handle(true))
++		return EXIT_FAILURE;
++
+ 	if (!test_module_identifiers())
+ 		return EXIT_FAILURE;
+ 

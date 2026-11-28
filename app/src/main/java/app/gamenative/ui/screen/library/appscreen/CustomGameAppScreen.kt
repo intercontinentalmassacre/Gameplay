@@ -346,6 +346,8 @@ class CustomGameAppScreen : BaseAppScreen() {
     ): List<AppMenuOption> {
         val options = mutableListOf<AppMenuOption>()
 
+        if (isInstalled) gameRuntimeOption(context, libraryItem.appId)?.let(options::add)
+
         // Fetch images from SteamGridDB for Custom Games
         options.add(getFetchImagesOption(context, libraryItem))
 

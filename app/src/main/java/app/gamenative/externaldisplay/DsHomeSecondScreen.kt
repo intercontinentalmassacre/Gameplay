@@ -69,6 +69,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -128,6 +129,7 @@ import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import app.gamenative.PrefManager
+import app.gamenative.R
 import app.gamenative.data.GameCompatibilityStatus
 import app.gamenative.data.LibraryItem
 import androidx.compose.runtime.State
@@ -161,9 +163,11 @@ import app.gamenative.ui.widget.PerformanceHudView
 import app.gamenative.utils.rememberExternalDisplay
 import com.skydoves.landscapist.ImageOptions
 import com.skydoves.landscapist.coil.CoilImage
+import com.winlator.widget.TouchpadView
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -264,6 +268,8 @@ object DsHomeSecondScreen {
         val onShowGameInput: () -> Unit = {},
         val dashboardTitle: String = "",
         val dashboardSubtitle: String = "",
+        val dashboardStatus: (@Composable () -> String)? = null,
+        val buranControls: StateFlow<BuranCompanionControls?>? = null,
         val dashboardImageUrl: String = "",
         val dashboardLogoUrl: String = "",
         val onOpenGameMenu: (() -> Unit)? = null,
@@ -2209,9 +2215,48 @@ private fun SecondScreenGamePanel(
     model: DsHomeSecondScreen.Model,
     showMenu: Boolean,
 ) {
+    val controls = model.buranControls?.collectAsState()?.value
+    var companionMode by remember(controls) { mutableStateOf(DsHomeSecondScreen.Mode.GAME_DASHBOARD) }
+    val mode = if (controls != null) companionMode else model.mode
+    val menuSelected = if (controls != null) mode == DsHomeSecondScreen.Mode.QUICK_MENU_PASSIVE else showMenu
+    val showDashboard = { companionMode = DsHomeSecondScreen.Mode.GAME_DASHBOARD }
+    val menuContent = model.menuContent ?: controls?.let { channel ->
+        @Composable {
+            BuranSessionQuickMenu(
+                channel = channel,
+                onDismiss = showDashboard,
+                onKeyboard = {
+                    channel.keyboardOpen = true
+                    companionMode = DsHomeSecondScreen.Mode.GAME_INPUT
+                },
+            )
+        }
+    }
+    val inputContent = model.gameInputContent ?: controls?.let { channel ->
+        @Composable {
+            AndroidView(
+                modifier = Modifier.fillMaxSize(),
+                factory = { context ->
+                    channel.reset()
+                    if ("keyboard" in channel.capabilities) {
+                        HybridInputLayout(context, channel)
+                    } else {
+                        CompanionTouchpadLayout(context, TouchpadView(context, channel))
+                    }
+                },
+                update = { layout -> (layout as? HybridInputLayout)?.updateCompanionControls(channel) },
+            )
+        }
+    }
+    if (mode == DsHomeSecondScreen.Mode.GAME_DASHBOARD && menuContent == null &&
+        model.onOpenGameMenu == null && inputContent == null
+    ) {
+        SecondScreenGameDashboard(model)
+        return
+    }
     val compact = PluviaTheme.tokens.densityCompact
     val activateMenu by rememberUpdatedState(
-        model.onShowMenu.takeIf { model.mode == DsHomeSecondScreen.Mode.QUICK_MENU_PASSIVE },
+        model.onShowMenu.takeIf { controls == null && mode == DsHomeSecondScreen.Mode.QUICK_MENU_PASSIVE },
     )
     Column(modifier = Modifier.fillMaxSize()) {
         Row(
@@ -2225,22 +2270,30 @@ private fun SecondScreenGamePanel(
         ) {
             InGamePanelTab(
                 text = stringResource(app.gamenative.R.string.second_screen_tab_game),
-                selected = model.mode == DsHomeSecondScreen.Mode.GAME_DASHBOARD,
-                onClick = model.onShowDashboard,
+                selected = mode == DsHomeSecondScreen.Mode.GAME_DASHBOARD,
+                onClick = if (controls != null) showDashboard else model.onShowDashboard,
             )
-            if (model.menuContent != null || model.onOpenGameMenu != null) InGamePanelTab(
+            if (menuContent != null || model.onOpenGameMenu != null) InGamePanelTab(
                 text = stringResource(app.gamenative.R.string.quick_menu_title),
-                selected = showMenu,
-                onClick = model.onOpenGameMenu ?: model.onShowMenu,
+                selected = menuSelected,
+                onClick = if (controls != null) {
+                    { companionMode = DsHomeSecondScreen.Mode.QUICK_MENU_PASSIVE }
+                } else model.onOpenGameMenu ?: model.onShowMenu,
             )
-            if (model.gameInputContent != null) {
+            if (inputContent != null) {
                 InGamePanelTab(
-                    text = stringResource(app.gamenative.R.string.live_input_tab),
-                    selected = model.mode == DsHomeSecondScreen.Mode.GAME_INPUT,
-                    onClick = model.onShowGameInput,
+                    text = stringResource(
+                        if (controls != null && "keyboard" !in controls.capabilities) {
+                            R.string.second_screen_tab_touchpad
+                        } else R.string.live_input_tab,
+                    ),
+                    selected = mode == DsHomeSecondScreen.Mode.GAME_INPUT,
+                    onClick = if (controls != null) {
+                        { companionMode = DsHomeSecondScreen.Mode.GAME_INPUT }
+                    } else model.onShowGameInput,
                 )
             }
-            if (model.mode == DsHomeSecondScreen.Mode.QUICK_MENU) {
+            if (mode == DsHomeSecondScreen.Mode.QUICK_MENU) {
                 InGamePanelTab(
                     text = stringResource(app.gamenative.R.string.resume_game),
                     selected = false,
@@ -2262,10 +2315,10 @@ private fun SecondScreenGamePanel(
                     }
                 },
         ) {
-            if (model.mode == DsHomeSecondScreen.Mode.GAME_INPUT) {
-                model.gameInputContent?.invoke()
-            } else if (showMenu) {
-                model.menuContent?.invoke()
+            if (mode == DsHomeSecondScreen.Mode.GAME_INPUT) {
+                inputContent?.invoke()
+            } else if (menuSelected) {
+                menuContent?.invoke()
             } else {
                 SecondScreenGameDashboard(model)
             }
@@ -2318,6 +2371,11 @@ private fun RowScope.InGamePanelTab(
 @Composable
 private fun SecondScreenGameDashboard(model: DsHomeSecondScreen.Model) {
     val compact = PluviaTheme.tokens.densityCompact
+    val controls = model.buranControls?.collectAsState()?.value
+    val hudConfig = controls?.performanceHudConfig ?: model.performanceHudConfig
+    val showHud = if (controls != null) {
+        controls.hudOnLowerScreen && controls.supportsPerformanceHud && controls.performanceHudEnabled
+    } else model.performanceHudEnabled
     Surface(
         modifier = Modifier
             .fillMaxSize()
@@ -2375,26 +2433,29 @@ private fun SecondScreenGameDashboard(model: DsHomeSecondScreen.Model) {
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
-                if (model.dashboardSubtitle.isNotBlank()) {
+                val subtitle = model.dashboardStatus?.invoke() ?: model.dashboardSubtitle
+                if (subtitle.isNotBlank()) {
                     Text(
-                        text = model.dashboardSubtitle,
+                        text = subtitle,
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = if (compact) 4.dp else 8.dp),
                     )
                 }
-                if (model.performanceHudEnabled) {
-                    key(model.performanceHudKey) {
+                if (showHud) {
+                    key(controls ?: model.performanceHudKey) {
                         AndroidView(
                             factory = { context ->
                                 PerformanceHudView(
                                     context = context,
-                                    fpsProvider = model.performanceHudFpsProvider,
-                                    initialConfig = model.performanceHudConfig,
+                                    fpsProvider = controls?.let { it::frameRateForHud } ?: model.performanceHudFpsProvider,
+                                    initialConfig = hudConfig,
                                     initialCompactMode = true,
+                                    hideUnavailableFps = controls != null,
+                                    generatedFpsProvider = controls?.let { it::generatedFrameRateForHud },
                                 )
                             },
-                            update = { hud -> hud.setConfig(model.performanceHudConfig) },
+                            update = { hud -> hud.setConfig(hudConfig) },
                             modifier = Modifier
                                 .padding(top = if (compact) 8.dp else 12.dp)
                                 .wrapContentSize(Alignment.CenterStart),

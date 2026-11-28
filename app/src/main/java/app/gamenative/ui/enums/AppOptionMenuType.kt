@@ -15,6 +15,7 @@ enum class AppOptionMenuType(@StringRes val title: Int) {
     UnpinPlayNext(R.string.game_unpin_play_next),
     RunContainer(R.string.option_open_container),
     ControllerLayouts(R.string.controller_layouts),
+    GameRuntime(R.string.local_runtime_title),
     EditContainer(R.string.option_edit_container),
     ResetToDefaults(R.string.option_reset_to_defaults),
     GetSupport(R.string.option_get_support),
