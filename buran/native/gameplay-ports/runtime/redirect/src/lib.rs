@@ -1,4 +1,4 @@
-//! Rust port of `libredirect.so` — full FFP implementation.
+//! Rust port of `libredirect.so` â€” full FFP implementation.
 //!
 //! The original is a glibc/AArch64 `LD_PRELOAD` shim for the original
 //! Wine/Proton environment.  This port keeps the path rewriting, the FFP
@@ -9,11 +9,11 @@
 //! fixed mode argument in the same register as the C variadic argument.
 
 #![allow(clippy::missing_safety_doc)]
-#![allow(invalid_runtime_symbol_definitions)]
 
 use libc::{c_char, c_int, c_void, size_t, ssize_t};
 use std::collections::HashMap;
 use std::ffi::{CStr, CString};
+use std::sync::atomic::{AtomicPtr, Ordering};
 use std::sync::{Mutex, MutexGuard, OnceLock};
 use std::time::{Duration, Instant};
 
@@ -390,25 +390,33 @@ fn split_path(path: &str) -> Option<(String, String)> {
     Some((path[..slash].to_string(), name.to_string()))
 }
 
-static STATE: OnceLock<Mutex<FfpState>> = OnceLock::new();
+static STATE: AtomicPtr<Mutex<FfpState>> = AtomicPtr::new(std::ptr::null_mut());
+static REGISTER_ATFORK: std::sync::Once = std::sync::Once::new();
 
 extern "C" fn atfork_child() {
-    if let Some(lock) = STATE.get() {
-        let ptr = lock as *const Mutex<FfpState> as *mut Mutex<FfpState>;
-        unsafe {
-            std::ptr::write(ptr, Mutex::new(FfpState::new()));
-        }
-    }
+    // Another parent thread may have held the old mutex during fork. Leave its
+    // copy alone and initialize a fresh cache on the first lookup in the child.
+    STATE.store(std::ptr::null_mut(), Ordering::Release);
 }
 
 fn state() -> MutexGuard<'static, FfpState> {
-    let lock = STATE.get_or_init(|| {
-        unsafe {
-            libc::pthread_atfork(None, None, Some(atfork_child));
-        }
-        Mutex::new(FfpState::new())
+    REGISTER_ATFORK.call_once(|| unsafe {
+        libc::pthread_atfork(None, None, Some(atfork_child));
     });
-    lock.lock().unwrap_or_else(|e| e.into_inner())
+    let mut ptr = STATE.load(Ordering::Acquire);
+    if ptr.is_null() {
+        let fresh = Box::into_raw(Box::new(Mutex::new(FfpState::new())));
+        ptr = match STATE.compare_exchange(ptr, fresh, Ordering::AcqRel, Ordering::Acquire) {
+            Ok(_) => fresh,
+            Err(existing) => {
+                // Only the winning initializer publishes its allocation.
+                unsafe { drop(Box::from_raw(fresh)) };
+                existing
+            }
+        };
+    }
+    // Published caches live until process exit, including across a fork.
+    unsafe { &*ptr }.lock().unwrap_or_else(|e| e.into_inner())
 }
 
 /* ------------------------------------------------------------------ */
