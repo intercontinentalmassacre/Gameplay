@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="game_startup_preparing">Preparing game environment…</string>
+    <string name="game_startup_starting">Starting game environment…</string>
+    <string name="game_startup_taking_longer">Startup is taking longer than usual.</string>
+    <string name="game_startup_show_screen">Show game screen</string>
+    <string name="game_startup_preparation_failed">Couldn’t prepare the game environment. %1$s</string>
+    <string name="game_startup_wine_failed">Couldn’t start Wine. %1$s</string>
+    <string name="game_startup_launching">Launching game…</string>
+    <string name="game_startup_prerequisites">Installing prerequisites…</string>
+    <string name="game_startup_mono">Installing Mono…</string>
+    <string name="game_startup_drm">Preparing executable…</string>
+    <string name="game_startup_drm_progress">Preparing executable (%1$d/%2$d)</string>
+</resources>

@@ -35,8 +35,8 @@ object Constants {
 
     object Misc {
         const val GITHUB_LINK = "https://github.com/intercontinentalmassacre/Gameplay"
+        const val GITHUB_ISSUES_LINK = "$GITHUB_LINK/issues"
         const val PRIVACY_LINK = "https://github.com/intercontinentalmassacre/Gameplay/tree/master/PrivacyPolicy"
-        const val DISCORD_LINK = "https://discord.gg/KPzU4Dhwq"
         const val BOOSTY_DONATION_LINK = "https://boosty.to/annenskei/donate"
         const val DONATIONALERTS_DONATION_LINK = "https://dalink.to/annenskei"
         const val CRASH_REPORT_EMAIL = "annenskei@gmail.com"

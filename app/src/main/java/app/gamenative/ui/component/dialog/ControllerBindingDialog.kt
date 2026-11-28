@@ -85,7 +85,7 @@ fun ControllerBindingDialog(
             // Search mode - filter all or specific category
             val searchResults = allBindings.filter {
                 it.binding.toString().contains(searchQuery, ignoreCase = true)
-            }
+            }.sortedBy { !it.binding.toString().equals(searchQuery, ignoreCase = true) }
 
             // If a category is selected, filter to only that category
             if (selectedCategory != null) {
@@ -119,6 +119,12 @@ fun ControllerBindingDialog(
         embedded = embedded,
     ) {
             val searchFocusRequester = remember { FocusRequester() }
+            val fieldFocusRequester = remember { FocusRequester() }
+            val bindingsScrollState = rememberScrollState()
+            LaunchedEffect(isSearchExpanded) {
+                if (isSearchExpanded) fieldFocusRequester.requestFocus()
+            }
+            LaunchedEffect(searchQuery, selectedCategory) { bindingsScrollState.scrollTo(0) }
             if (embedded) {
                 LaunchedEffect(Unit) {
                     repeat(8) {
@@ -214,6 +220,7 @@ fun ControllerBindingDialog(
                                 },
                                 modifier = Modifier
                                     .fillMaxWidth()
+                                    .focusRequester(fieldFocusRequester)
                                     .height(44.dp), // Even more compact when expanded
                                 singleLine = true,
                                 textStyle = MaterialTheme.typography.bodySmall,
@@ -354,7 +361,7 @@ fun ControllerBindingDialog(
                         modifier = Modifier
                             .weight(0.6f)
                             .fillMaxHeight()
-                            .verticalScroll(rememberScrollState())
+                            .verticalScroll(bindingsScrollState)
                             .padding(vertical = 8.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {

@@ -7,14 +7,19 @@ import app.gamenative.service.SteamService
 import com.winlator.contents.AdrenotoolsManager
 import com.winlator.contents.ContentProfile
 import com.winlator.contents.ContentsManager
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import timber.log.Timber
 import java.io.File
 import java.io.IOException
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.security.MessageDigest
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import kotlin.coroutines.coroutineContext
 
 data class ManifestInstallResult(
     val success: Boolean,
@@ -29,24 +34,27 @@ object ManifestInstaller {
         return (urls + urls.filter { it.startsWith(cdn) }.map { mirror + it.removePrefix(cdn) }).distinct()
     }
 
-    internal fun validateDownloadedArtifact(file: File, entry: ManifestEntry) {
-        check(file.isFile && file.length() > 0L) { "downloaded artifact is empty" }
+    internal fun artifactDigest(entry: ManifestEntry): MessageDigest? =
+        entry.sha256?.takeIf(String::isNotBlank)?.let { MessageDigest.getInstance("SHA-256") }
+
+    internal fun validateDownloadedArtifact(file: File, entry: ManifestEntry, digest: MessageDigest? = null) {
+        val size = file.length()
+        check(file.isFile && size > 0L) { "downloaded artifact is empty" }
         entry.sizeBytes?.let { expected ->
-            check(file.length() == expected) {
-                "artifact size mismatch: expected $expected, got ${file.length()}"
-            }
+            check(size == expected) { "artifact size mismatch: expected $expected, got $size" }
         }
         entry.sha256?.takeIf(String::isNotBlank)?.let { expected ->
-            val digest = MessageDigest.getInstance("SHA-256")
-            val actual = file.inputStream().buffered().use { input ->
-                val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-                while (true) {
-                    val read = input.read(buffer)
-                    if (read < 0) break
-                    digest.update(buffer, 0, read)
+            val checksum = digest ?: MessageDigest.getInstance("SHA-256").also { cachedDigest ->
+                file.inputStream().use { input ->
+                    val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                    while (true) {
+                        val read = input.read(buffer)
+                        if (read < 0) break
+                        cachedDigest.update(buffer, 0, read)
+                    }
                 }
-                digest.digest().joinToString("") { byte -> "%02x".format(byte) }
             }
+            val actual = checksum.digest().joinToString("") { byte -> "%02x".format(byte) }
             check(actual.equals(expected, ignoreCase = true)) { "artifact SHA-256 mismatch" }
         }
     }
@@ -63,25 +71,23 @@ object ManifestInstaller {
             onProgress(1f)
             return
         }
-        val partial = File(destination.parentFile, "${destination.name}.partial")
         var lastError: Exception? = null
         for (url in downloadUrls(entry)) {
-            partial.delete()
+            val partial = File.createTempFile("component-", ".partial", destination.parentFile)
             try {
-                SteamService.fetchFile(url, partial, onProgress)
-                validateDownloadedArtifact(partial, entry)
-                if (destination.exists() && !destination.delete()) {
-                    error("cannot replace cached artifact")
-                }
-                if (!partial.renameTo(destination)) {
-                    partial.copyTo(destination, overwrite = true)
-                    partial.delete()
-                }
+                val digest = artifactDigest(entry)
+                SteamService.fetchFile(url, partial, digest, onProgress)
+                validateDownloadedArtifact(partial, entry, digest)
+                coroutineContext.ensureActive()
+                Files.move(partial.toPath(), destination.toPath(), StandardCopyOption.ATOMIC_MOVE)
                 return
+            } catch (cancelled: CancellationException) {
+                throw cancelled
             } catch (error: Exception) {
                 lastError = error
-                partial.delete()
                 Timber.w(error, "ManifestInstaller: mirror failed for %s", url)
+            } finally {
+                partial.delete()
             }
         }
         throw IOException("All component download URLs failed for ${entry.id}", lastError)

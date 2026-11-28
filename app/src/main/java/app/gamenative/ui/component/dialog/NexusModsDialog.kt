@@ -519,16 +519,6 @@ private fun StorageCleanupSection(
     NexusSectionCard {
         NexusSectionHeader(stringResource(R.string.nexus_storage_cleanup_title), loading, stringResource(R.string.nexus_scan), onScan)
         Text(
-            stringResource(R.string.nexus_storage_cleanup_description),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Text(
-            stringResource(R.string.nexus_storage_cleanup_cache_backups_description),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Text(
             stringResource(R.string.nexus_storage_cleanup_actions_description),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,

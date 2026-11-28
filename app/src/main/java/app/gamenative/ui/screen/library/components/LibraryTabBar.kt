@@ -32,7 +32,6 @@ import androidx.compose.material.icons.filled.PhotoAlbum
 import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.PhotoSizeSelectActual
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.ViewCarousel
 import androidx.compose.material.icons.automirrored.filled.List
@@ -85,8 +84,6 @@ fun LibraryTabBar(
     onTabSelected: (LibraryTab) -> Unit,
     onOptionsClick: () -> Unit,
     onSearchClick: () -> Unit,
-    onRefresh: () -> Unit = {},
-    isRefreshing: Boolean = false,
     onAddGameClick: () -> Unit,
     onMenuClick: () -> Unit,
     onNavigateDownToGrid: () -> Unit,
@@ -106,8 +103,6 @@ fun LibraryTabBar(
             onTabSelected = onTabSelected,
             onOptionsClick = onOptionsClick,
             onSearchClick = onSearchClick,
-            onRefresh = onRefresh,
-            isRefreshing = isRefreshing,
             onAddGameClick = onAddGameClick,
             onMenuClick = onMenuClick,
             onNavigateDownToGrid = onNavigateDownToGrid,
@@ -125,8 +120,6 @@ fun LibraryTabBar(
             onTabSelected = onTabSelected,
             onOptionsClick = onOptionsClick,
             onSearchClick = onSearchClick,
-            onRefresh = onRefresh,
-            isRefreshing = isRefreshing,
             onAddGameClick = onAddGameClick,
             onMenuClick = onMenuClick,
             onNavigateDownToGrid = onNavigateDownToGrid,
@@ -151,8 +144,6 @@ private fun CompactLibraryTabBar(
     onTabSelected: (LibraryTab) -> Unit,
     onOptionsClick: () -> Unit,
     onSearchClick: () -> Unit,
-    onRefresh: () -> Unit,
-    isRefreshing: Boolean,
     onAddGameClick: () -> Unit,
     onMenuClick: () -> Unit,
     onNavigateDownToGrid: () -> Unit,
@@ -298,11 +289,6 @@ private fun CompactLibraryTabBar(
                 onClick = { onViewChanged(currentView.nextLibraryView(isDualScreen = isDualScreenDevice)) },
             )
             CompactIconButton(
-                icon = Icons.Default.Refresh,
-                contentDescription = stringResource(R.string.action_refresh),
-                onClick = { if (!isRefreshing) onRefresh() },
-            )
-            CompactIconButton(
                 icon = Icons.Default.Search,
                 contentDescription = stringResource(R.string.search),
                 onClick = onSearchClick,
@@ -397,8 +383,6 @@ private fun ExpandedLibraryTabBar(
     onTabSelected: (LibraryTab) -> Unit,
     onOptionsClick: () -> Unit,
     onSearchClick: () -> Unit,
-    onRefresh: () -> Unit,
-    isRefreshing: Boolean,
     onAddGameClick: () -> Unit,
     onMenuClick: () -> Unit,
     onNavigateDownToGrid: () -> Unit,
@@ -522,12 +506,6 @@ private fun ExpandedLibraryTabBar(
                 icon = currentView.libraryViewIcon(),
                 contentDescription = stringResource(R.string.library_layout_title),
                 onClick = { onViewChanged(currentView.nextLibraryView(isDualScreen = isDualScreenDevice)) },
-            )
-
-            IconActionButton(
-                icon = Icons.Default.Refresh,
-                contentDescription = stringResource(R.string.action_refresh),
-                onClick = { if (!isRefreshing) onRefresh() },
             )
 
             IconActionButton(

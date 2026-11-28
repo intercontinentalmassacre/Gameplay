@@ -1,7 +1,6 @@
 package app.gamenative.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.EaseInOutCubic
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.tween
@@ -12,21 +11,17 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -41,7 +36,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
@@ -49,64 +43,23 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import app.gamenative.R
+import app.gamenative.ui.data.MainState
 import app.gamenative.ui.theme.PluviaTheme
 import app.gamenative.ui.theme.isReduceMotionEnabled
-import app.gamenative.ui.theme.motionSpec
 import com.skydoves.landscapist.ImageOptions
 import com.skydoves.landscapist.coil.CoilImage
-import kotlin.random.Random
-import kotlinx.coroutines.delay
 
 /** Full-screen console launch surface shown while a game or container is prepared. */
 @Composable
 fun BootingSplash(
-    visible: Boolean = true,
-    text: String = "Initializing...",
+    state: MainState,
+    onShowGameScreen: () -> Unit,
     progress: Float = -1f,
-    heroImageUrl: String = "",
 ) {
-    val context = LocalContext.current
-    val tips = remember(context) {
-        listOf(
-            context.getString(R.string.game_launch_tip_1),
-            context.getString(R.string.game_launch_tip_2, context.getString(R.string.option_open_container)),
-            context.getString(R.string.game_launch_tip_3),
-            context.getString(R.string.game_launch_tip_4),
-            context.getString(R.string.game_launch_tip_5, context.getString(R.string.option_test_graphics)),
-            context.getString(R.string.game_launch_tip_6),
-            context.getString(R.string.game_launch_tip_7),
-            context.getString(R.string.game_launch_tip_8),
-            context.getString(R.string.game_launch_tip_9, context.getString(R.string.option_open_container)),
-            context.getString(R.string.game_launch_tip_11),
-            context.getString(R.string.game_launch_tip_12),
-            context.getString(R.string.game_launch_tip_13),
-            context.getString(R.string.game_launch_tip_14),
-            context.getString(R.string.game_launch_tip_15),
-            context.getString(R.string.game_launch_tip_16),
-            context.getString(R.string.game_launch_tip_17),
-            context.getString(R.string.game_launch_tip_18),
-            context.getString(R.string.game_launch_tip_19),
-            context.getString(R.string.game_launch_tip_20),
-            context.getString(R.string.game_launch_tip_21),
-            context.getString(R.string.game_launch_tip_22),
-            context.getString(R.string.game_launch_tip_23),
-            context.getString(R.string.game_launch_tip_24, context.getString(R.string.option_test_graphics)),
-            context.getString(R.string.game_launch_tip_25),
-        )
-    }
-    var tipIndex by remember { mutableStateOf(if (tips.isEmpty()) 0 else Random.nextInt(tips.size)) }
-
-    LaunchedEffect(visible, tips) {
-        while (visible && tips.isNotEmpty()) {
-            delay(8_000)
-            tipIndex = (tipIndex + 1) % tips.size
-        }
-    }
-
+    val heroImageUrl = state.bootingSplashHeroImageUrl
     AnimatedVisibility(
-        visible = visible,
+        visible = state.showBootingSplash,
         enter = fadeIn(tween(220)),
         exit = fadeOut(tween(180)),
     ) {
@@ -164,99 +117,48 @@ fun BootingSplash(
 
             Column(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 40.dp, vertical = 30.dp),
+                    .align(Alignment.BottomStart)
+                    .padding(horizontal = 40.dp, vertical = 30.dp)
+                    .widthIn(max = 620.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
+                Text(
+                    text = state.bootingSplashText,
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    Box(
+                    LaunchProgressBar(
+                        progress = progress,
                         modifier = Modifier
-                            .size(8.dp)
-                            .clip(RoundedCornerShape(50))
-                            .background(MaterialTheme.colorScheme.primary),
+                            .weight(1f)
+                            .height(2.dp),
                     )
-                    Text(
-                        text = stringResource(R.string.app_name).uppercase(),
-                        style = MaterialTheme.typography.labelMedium,
-                        fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 2.sp,
-                        color = MaterialTheme.colorScheme.onBackground,
-                    )
-                    Text(
-                        text = "// LAUNCH",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontFamily = FontFamily.Monospace,
-                        letterSpacing = 1.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-
-                Spacer(modifier = Modifier.weight(1f))
-
-                Column(
-                    modifier = Modifier.widthIn(max = 620.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    Text(
-                        text = "> $text",
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onBackground,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        LaunchProgressBar(
-                            progress = progress,
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(2.dp),
+                    if (progress >= 0f) {
+                        Text(
+                            text = "${(progress.coerceIn(0f, 1f) * 100).toInt()}%",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontFamily = FontFamily.Monospace,
+                            color = MaterialTheme.colorScheme.primary,
                         )
-                        if (progress >= 0f) {
-                            Text(
-                                text = "${(progress.coerceIn(0f, 1f) * 100).toInt()}%",
-                                style = MaterialTheme.typography.labelMedium,
-                                fontFamily = FontFamily.Monospace,
-                                color = MaterialTheme.colorScheme.primary,
-                            )
-                        }
                     }
                 }
-
-                Spacer(modifier = Modifier.height(28.dp))
-
-                if (tips.isNotEmpty()) {
-                    Row(
-                        modifier = Modifier
-                            .widthIn(max = 760.dp)
-                            .height(IntrinsicSize.Min),
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .width(3.dp)
-                                .fillMaxHeight()
-                                .background(MaterialTheme.colorScheme.primary),
-                        )
-                        Crossfade(
-                            targetState = tipIndex,
-                            animationSpec = motionSpec(tween(260, easing = EaseInOutCubic)),
-                            label = "launchTip",
-                        ) { index ->
-                            Text(
-                                text = tips[index],
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.padding(start = 14.dp, top = 2.dp),
-                            )
+                if (state.bootingSplashTakingLonger) {
+                    Text(
+                        text = stringResource(R.string.game_startup_taking_longer),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onBackground,
+                    )
+                    if (state.canRevealGameScreen) {
+                        TextButton(onClick = onShowGameScreen) {
+                            Text(stringResource(R.string.game_startup_show_screen))
                         }
                     }
                 }
@@ -319,6 +221,9 @@ private fun LaunchProgressBar(
 @Composable
 private fun BootingSplashLandscapePreview() {
     PluviaTheme {
-        BootingSplash(text = "Preparing game environment")
+        BootingSplash(
+            state = MainState(showBootingSplash = true, bootingSplashText = "Preparing game environment"),
+            onShowGameScreen = {},
+        )
     }
 }

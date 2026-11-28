@@ -1,0 +1,489 @@
+<!doctype html>
+<html lang="en" data-mode="import">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Gameplay · Send a game folder</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --background: #041918;
+      --surface: #0b2927;
+      --raised: #16403c;
+      --text: #e7fffa;
+      --muted: #abd5cc;
+      --border: #47736b;
+      --accent: #53e0c1;
+      --on-accent: #00201a;
+      --error: #ff928e;
+      --success: #7bdd8b;
+      font: 100%/1.5 system-ui, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    ::selection { background: var(--accent); color: var(--on-accent); }
+    body {
+      min-height: 100vh;
+      margin: 0;
+      padding: clamp(1.25rem, 5vw, 4rem);
+      background: var(--background);
+      color: var(--text);
+    }
+
+    main { max-width: 37rem; margin: clamp(1rem, 8vh, 6rem) auto 0; }
+    h1 {
+      margin: 0;
+      font-size: clamp(2rem, 6vw, 3.5rem);
+      line-height: 1.08;
+      letter-spacing: -.035em;
+      text-wrap: balance;
+    }
+
+    p { margin: 0; }
+    #intro { margin: .9rem 0 1.8rem; color: var(--muted); max-width: 46ch; }
+    #transfer {
+      display: grid;
+      gap: 1.15rem;
+      padding: clamp(1rem, 4vw, 1.65rem);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+    }
+
+    #selection {
+      padding: 0 0 1rem;
+      border-bottom: 1px solid var(--border);
+      overflow-wrap: anywhere;
+    }
+
+    #folder-name { display: block; font-size: 1.15rem; }
+    #folder-info { display: block; margin-top: .25rem; color: var(--muted); }
+    label { display: grid; gap: .35rem; font-weight: 650; }
+    #code {
+      width: min(100%, 12rem);
+      min-height: 2.75rem;
+      padding: .5rem .7rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--background);
+      color: var(--text);
+      font: inherit;
+      letter-spacing: .2em;
+      font-variant-numeric: tabular-nums;
+    }
+
+    #code-hint { color: var(--muted); font-weight: normal; }
+    #actions { display: flex; flex-wrap: wrap; gap: .65rem; align-items: center; }
+    button {
+      min-height: 2.75rem;
+      padding: .55rem 1rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: transparent;
+      color: var(--text);
+      font: inherit;
+      font-weight: 650;
+      cursor: pointer;
+    }
+
+    button:hover:not(:disabled) { background: var(--raised); }
+    :is(button, #code):focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+    button:disabled { opacity: .55; cursor: default; }
+    #send, #actions:has(#send[hidden]) #choose {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: var(--on-accent);
+    }
+    #send:hover:not(:disabled), #actions:has(#send[hidden]) #choose:hover:not(:disabled) { background: #8af0d9; }
+    #status { color: var(--muted); overflow-wrap: anywhere; }
+    #status:empty { position: absolute; }
+    #status[data-state="error"] { color: var(--error); }
+    #status[data-state="success"] { color: var(--success); }
+    #progress-row { display: grid; grid-template-columns: 1fr 4ch; align-items: center; gap: .8rem; }
+    #progress { display: block; inline-size: 100%; accent-color: var(--accent); }
+    #percent { text-align: end; font-variant-numeric: tabular-nums; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1 id="title">Send a game folder</h1>
+    <p id="intro">Choose a folder on this computer to send its files to Gameplay over your local network.</p>
+    <section id="transfer" aria-labelledby="title">
+      <label id="code-field">
+        <span id="code-label">Transfer code</span>
+        <input id="code" type="text" inputmode="numeric" autocomplete="off" maxlength="6"
+          aria-describedby="code-hint">
+        <span id="code-hint">Enter the 6-digit code shown in Gameplay.</span>
+      </label>
+      <input id="folder" type="file" webkitdirectory multiple hidden>
+      <div id="selection" hidden>
+        <strong id="folder-name" dir="auto"></strong>
+        <span id="folder-info"></span>
+      </div>
+      <div id="actions">
+        <button id="choose" type="button" disabled>Choose folder</button>
+        <button id="send" type="button" hidden disabled>Send folder</button>
+        <button id="cancel" type="button" hidden>Cancel transfer</button>
+      </div>
+      <div id="progress-row" hidden>
+        <progress id="progress" max="100" value="0" aria-label="Upload progress"></progress>
+        <span id="percent" aria-hidden="true">0%</span>
+      </div>
+      <p id="status" role="status" aria-atomic="true"></p>
+      <noscript>Enable JavaScript to send a folder to Gameplay.</noscript>
+    </section>
+  </main>
+  <script>
+    const russian = navigator.language.toLowerCase().startsWith('ru');
+    const copy = (en, ru) => russian ? ru : en;
+    const element = id => document.getElementById(id);
+    const folder = element('folder');
+    const choose = element('choose');
+    const send = element('send');
+    const cancel = element('cancel');
+    const code = element('code');
+    const status = element('status');
+    const progress = element('progress');
+    const updating = document.documentElement.dataset.mode === 'update';
+    const files = () => Array.from(folder.files);
+    const validCode = () => /^[0-9]{6}$/.test(code.value);
+    let active = null;
+
+    document.documentElement.lang = copy('en', 'ru');
+    const title = updating ? copy('Update a game folder', 'Обновление папки с игрой') :
+      copy('Send a game folder', 'Передача папки с игрой');
+    document.title = 'Gameplay · ' + title;
+    element('title').textContent = title;
+    element('intro').textContent = updating ? copy(
+      'Choose the updated folder for the game shown in Gameplay. Only new and changed files are sent.',
+      'Выберите обновлённую папку игры, указанной в Gameplay. Будут отправлены только новые и изменённые файлы.'
+    ) : copy(
+      'Choose a folder on this computer to send its files to Gameplay over your local network.',
+      'Выберите папку на этом компьютере, чтобы отправить её файлы в Gameplay по локальной сети.'
+    );
+    choose.textContent = copy('Choose folder', 'Выбрать папку');
+    const sendLabel = updating ? copy('Send update', 'Отправить обновление') : copy('Send folder', 'Отправить папку');
+    send.textContent = sendLabel;
+    cancel.textContent = copy('Cancel transfer', 'Отменить передачу');
+    element('code-label').textContent = copy('Transfer code', 'Код передачи');
+    element('code-hint').textContent = copy('Enter the 6-digit code shown in Gameplay.',
+      'Введите шестизначный код из Gameplay.');
+    progress.setAttribute('aria-label', copy('Upload progress', 'Ход передачи'));
+
+    function setStatus(message, state = '') {
+      status.textContent = message;
+      status.dataset.state = state;
+    }
+
+    function setProgress(fraction) {
+      const percent = Math.min(100, Math.floor(fraction * 100));
+      progress.value = percent;
+      element('percent').textContent = percent + '%';
+    }
+
+    function sizeLabel(bytes) {
+      const units = copy(['B', 'KiB', 'MiB', 'GiB', 'TiB'], ['Б', 'КиБ', 'МиБ', 'ГиБ', 'ТиБ']);
+      const index = bytes ? Math.min(units.length - 1, Math.floor(Math.log2(bytes) / 10)) : 0;
+      return new Intl.NumberFormat(document.documentElement.lang, {
+        maximumFractionDigits: index ? 1 : 0
+      }).format(bytes / 1024 ** index) + ' ' + units[index];
+    }
+
+    function request(method, route, body = null, onProgress) {
+      return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open(method, route);
+        xhr.setRequestHeader('X-Transfer-Key', code.value);
+        xhr.setRequestHeader('X-Transfer-Id', active.id);
+        if (route.startsWith('/start?')) {
+          if (active.updateRoot) xhr.setRequestHeader('X-Folder-Files', String(folder.files.length));
+          else xhr.setRequestHeader('X-Folder-Bytes', String(active.totalBytes));
+        }
+        if (route.startsWith('/check?')) {
+          xhr.setRequestHeader('X-File-SHA256', body.digest);
+          xhr.setRequestHeader('X-File-Bytes', String(body.size));
+          body = null;
+        }
+        if (onProgress) xhr.upload.onprogress = event => onProgress(event.loaded);
+        xhr.onload = () => {
+          if (xhr.status === 200 || xhr.status === 204) {
+            resolve(xhr.status === 200 ? xhr.responseText : null);
+            return;
+          }
+          const fallback = copy('Request failed', 'Ошибка запроса') + ' (HTTP ' + xhr.status + ')';
+          const error = new Error(xhr.responseText.trim() || fallback);
+          error.status = xhr.status;
+          reject(error);
+        };
+        xhr.onerror = () => {
+          const error = new Error(copy(
+            'Connection lost. Check whether Gameplay is still waiting for a transfer.',
+            'Связь прервана. Проверьте, ожидает ли Gameplay передачу файлов.'
+          ));
+          error.network = true;
+          reject(error);
+        };
+        xhr.send(body);
+      });
+    }
+
+    if (!('webkitdirectory' in folder)) {
+      setStatus(copy('Folder selection is unavailable in this browser. Open the link in a current desktop browser.',
+        'В этом браузере нельзя выбрать папку. Откройте ссылку в актуальном настольном браузере.'), 'error');
+    } else {
+      choose.disabled = false;
+    }
+
+    code.addEventListener('input', () => {
+      code.value = code.value.replace(/[^0-9]/g, '');
+      send.disabled = send.hidden || !validCode();
+    });
+    choose.addEventListener('click', () => folder.click());
+    folder.addEventListener('change', () => {
+      const selected = files();
+      const name = selected[0]?.webkitRelativePath.split('/')[0];
+      const valid = Boolean(name && selected.every(file => file.webkitRelativePath.startsWith(name + '/')));
+      element('selection').hidden = !valid;
+      element('progress-row').hidden = true;
+      send.hidden = !valid;
+      send.disabled = !valid || !validCode();
+      choose.textContent = valid ? copy('Change folder', 'Выбрать другую папку') :
+        copy('Choose folder', 'Выбрать папку');
+      setStatus(valid ? '' : copy('Choose a folder that contains files.', 'Выберите папку, в которой есть файлы.'),
+        valid ? '' : 'error');
+      if (!valid) return;
+      element('folder-name').textContent = name;
+      const count = selected.length.toLocaleString(document.documentElement.lang);
+      const plural = new Intl.PluralRules(document.documentElement.lang).select(selected.length);
+      const unit = russian ? { one: 'файл', few: 'файла', many: 'файлов' }[plural] : plural === 'one' ? 'file' : 'files';
+      element('folder-info').textContent = count + ' ' + unit + ' · ' +
+        sizeLabel(selected.reduce((total, file) => total + file.size, 0));
+    });
+
+    let transferring = false;
+    function keepPageOpen(event) {
+      event.preventDefault();
+      event.returnValue = '';
+    }
+
+    function updateControls() {
+      code.disabled = transferring || Boolean(active);
+      choose.disabled = transferring || Boolean(active);
+      send.disabled = transferring || !validCode();
+      cancel.hidden = !active || transferring;
+      send.textContent = active ? copy('Resume transfer', 'Продолжить передачу') : sendLabel;
+      if (active) window.addEventListener('beforeunload', keepPageOpen);
+      else window.removeEventListener('beforeunload', keepPageOpen);
+    }
+
+    // LAN HTTP has no SubtleCrypto. Hash bounded chunks so large game files fit in memory.
+    const sha256Constants = [
+      0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+      0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+      0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+      0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+      0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+      0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+      0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+      0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
+    ];
+
+    async function digestFile(file) {
+      const hash = new Uint32Array([
+        0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19
+      ]);
+      const words = new Uint32Array(64);
+      const rotateRight = (word, bits) => (word >>> bits) | (word << (32 - bits));
+      function processBlocks(buffer) {
+        const view = new DataView(buffer);
+        for (let offset = 0; offset < view.byteLength; offset += 64) {
+          for (let i = 0; i < 16; i++) words[i] = view.getUint32(offset + i * 4);
+          for (let i = 16; i < 64; i++) {
+            const x = words[i - 15], y = words[i - 2];
+            const s0 = rotateRight(x, 7) ^ rotateRight(x, 18) ^ (x >>> 3);
+            const s1 = rotateRight(y, 17) ^ rotateRight(y, 19) ^ (y >>> 10);
+            words[i] = words[i - 16] + s0 + words[i - 7] + s1;
+          }
+          let [a, b, c, d, e, f, g, h] = hash;
+          for (let i = 0; i < 64; i++) {
+            const sum1 = rotateRight(e, 6) ^ rotateRight(e, 11) ^ rotateRight(e, 25);
+            const choose = (e & f) ^ (~e & g);
+            const first = (h + sum1 + choose + sha256Constants[i] + words[i]) | 0;
+            const sum0 = rotateRight(a, 2) ^ rotateRight(a, 13) ^ rotateRight(a, 22);
+            const majority = (a & b) ^ (a & c) ^ (b & c);
+            h = g;
+            g = f;
+            f = e;
+            e = (d + first) | 0;
+            d = c;
+            c = b;
+            b = a;
+            a = (first + sum0 + majority) | 0;
+          }
+          hash[0] += a;
+          hash[1] += b;
+          hash[2] += c;
+          hash[3] += d;
+          hash[4] += e;
+          hash[5] += f;
+          hash[6] += g;
+          hash[7] += h;
+        }
+      }
+
+      const blockEnd = file.size - file.size % 64;
+      const chunkSize = 1024 * 1024;
+      for (let offset = 0; offset < blockEnd; offset += chunkSize) {
+        processBlocks(await file.slice(offset, Math.min(blockEnd, offset + chunkSize)).arrayBuffer());
+      }
+      const remainder = new Uint8Array(await file.slice(blockEnd).arrayBuffer());
+      const padded = new Uint8Array(remainder.length < 56 ? 64 : 128);
+      padded.set(remainder);
+      padded[remainder.length] = 0x80;
+      new DataView(padded.buffer).setBigUint64(padded.length - 8, BigInt(file.size) * 8n);
+      processBlocks(padded.buffer);
+      return Array.from(hash, word => word.toString(16).padStart(8, '0')).join('');
+    }
+
+    async function sendFile(transfer, file) {
+      const path = file.webkitRelativePath.slice(transfer.root.length + 1);
+      if (transfer.updateRoot) {
+        setStatus(copy('Checking files…', 'Проверка файлов…'));
+        transfer.digest ??= await digestFile(file);
+        const result = await request('POST', '/check?path=' + encodeURIComponent(path),
+          { digest: transfer.digest, size: file.size });
+        if (result === null) return;
+        if (result !== 'upload') throw new Error(copy('Unexpected receiver response.', 'Неожиданный ответ устройства.'));
+      }
+      setStatus(copy('Sending files…', 'Передача файлов…'));
+      const upload = () => request('PUT', '/file?path=' + encodeURIComponent(path), file, loaded => {
+        if (!transfer.updateRoot && transfer.totalBytes) {
+          setProgress((transfer.bytesSent + loaded) / transfer.totalBytes);
+        }
+      });
+      try {
+        await upload();
+      } catch (error) {
+        if (!error.network) throw error;
+        setStatus(copy('Reconnecting…', 'Восстановление связи…'));
+        await new Promise(resolve => setTimeout(resolve, 800));
+        await upload();
+        setStatus(copy('Sending files…', 'Передача файлов…'));
+      }
+    }
+
+    send.addEventListener('click', async () => {
+      const selected = files();
+      const root = selected[0]?.webkitRelativePath.split('/')[0];
+      if (!root || transferring || !validCode()) return;
+
+      active ??= {
+        id: Array.from(crypto.getRandomValues(new Uint8Array(16)), byte => byte.toString(16).padStart(2, '0')).join(''),
+        root,
+        totalBytes: selected.reduce((total, file) => total + file.size, 0),
+        bytesSent: 0,
+        filesSent: 0,
+        started: false
+      };
+      transferring = true;
+      updateControls();
+      element('progress-row').hidden = false;
+      const updateProgress = () => setProgress(!active.updateRoot && active.totalBytes ?
+        active.bytesSent / active.totalBytes : active.filesSent / selected.length);
+      updateProgress();
+
+      try {
+        if (!active.started) {
+          setStatus(copy('Starting transfer…', 'Подготовка к передаче…'));
+          if (updating) {
+            active.updateRoot = await request('GET', '/mode');
+            if (!active.updateRoot) throw new Error(copy('Reopen the update link in Gameplay.',
+              'Откройте ссылку для обновления в Gameplay ещё раз.'));
+            if (active.updateRoot !== root) {
+              throw new Error(copy('Choose the updated game folder named ', 'Выберите обновлённую папку игры с именем ') +
+                '“' + active.updateRoot + '”.');
+            }
+          }
+          await request('POST', '/start?name=' + encodeURIComponent(root));
+          active.started = true;
+        }
+        setStatus(copy('Sending files…', 'Передача файлов…'));
+        while (active.filesSent < selected.length) {
+          const file = selected[active.filesSent];
+          await sendFile(active, file);
+          active.digest = null;
+          active.bytesSent += file.size;
+          active.filesSent += 1;
+          updateProgress();
+        }
+        setStatus(copy('Finishing transfer…', 'Сохранение папки…'));
+        await request('POST', '/finish');
+        const updated = Boolean(active.updateRoot);
+        active = null;
+        element('actions').hidden = true;
+        element('code-field').hidden = true;
+        setStatus(updated ? copy('Update complete. Return to Gameplay.',
+          'Игра обновлена. Вернитесь в Gameplay.') : copy('Folder received. Return to Gameplay to continue.',
+          'Папка получена. Вернитесь в Gameplay, чтобы продолжить.'), 'success');
+      } catch (error) {
+        let message = copy('Transfer failed. ', 'Не удалось передать папку. ') + error.message;
+        if (error.status === 403) {
+          active = null;
+          message = copy('Check the transfer code shown in Gameplay.',
+            'Проверьте код передачи, указанный в Gameplay.');
+        } else if (active.updateRoot && active.started && error.status === 409) {
+          message = copy('The update conflicts with the installed files. Check the selected game folder.',
+            'Обновление конфликтует с установленными файлами. Проверьте выбранную папку игры.');
+          try {
+            await request('POST', '/cancel');
+            active = null;
+          } catch {
+            message += ' ' + copy('Cancel the transfer in Gameplay if the connection is lost.',
+              'Если связь прервана, отмените передачу в Gameplay.');
+          }
+        } else if (!active.started && !error.network) {
+          active = null;
+          if (error.status === 507) {
+            message = copy('Not enough space on the device for this folder.', 'На устройстве недостаточно места для этой папки.');
+          } else if (error.status === 409) {
+            message = copy('Another transfer is active. Restart the receiver in Gameplay to send this folder.',
+              'Уже идёт другая передача. Перезапустите приём в Gameplay, чтобы отправить эту папку.');
+          }
+        } else if (active.filesSent === selected.length && error.network) {
+          message = copy('The connection closed while saving. Check Gameplay to see whether your folder arrived.',
+            'Связь прервалась при сохранении. Проверьте в Gameplay, получена ли папка.');
+        }
+        if (!active) element('progress-row').hidden = true;
+        else updateProgress();
+        setStatus(message, 'error');
+      } finally {
+        transferring = false;
+        updateControls();
+        if (!element('actions').hidden) (code.disabled ? send : code).focus();
+      }
+    });
+
+    cancel.addEventListener('click', async () => {
+      if (!active || transferring) return;
+      transferring = true;
+      updateControls();
+      try {
+        await request('POST', '/cancel');
+        active = null;
+        element('progress-row').hidden = true;
+        setStatus(copy('Transfer canceled. You can choose a folder to send.',
+          'Передача отменена. Можно выбрать папку для отправки.'));
+      } catch (error) {
+        setStatus(copy('Could not cancel. Check the transfer in Gameplay.',
+          'Не удалось отменить передачу. Проверьте её состояние в Gameplay.'), 'error');
+      } finally {
+        transferring = false;
+        updateControls();
+        (active ? cancel : choose).focus();
+      }
+    });
+  </script>
+</body>
+</html>

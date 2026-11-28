@@ -1,7 +1,6 @@
 package app.gamenative.ui.screen.library.components
 
 import android.content.res.Configuration
-import app.gamenative.Constants
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
@@ -72,7 +71,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalUriHandler
+import app.gamenative.utils.CommunityFeedbackLinks
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -173,7 +172,6 @@ private fun SystemMenuItem(
 @Composable
 private fun SystemToggleRow(
     text: String,
-    subtitle: String,
     icon: ImageVector,
     enabled: Boolean,
     onClick: () -> Unit,
@@ -217,26 +215,17 @@ private fun SystemToggleRow(
             },
             modifier = Modifier.size(24.dp),
         )
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = text,
-                style = MaterialTheme.typography.titleMedium,
-                color = if (isFocused) {
-                    MaterialTheme.colorScheme.onPrimaryContainer
-                } else {
-                    MaterialTheme.colorScheme.onSurface
-                },
-                fontWeight = if (isFocused) FontWeight.SemiBold else FontWeight.Normal,
-                maxLines = 1,
-            )
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
+        Text(
+            text = text,
+            style = MaterialTheme.typography.titleMedium,
+            color = if (isFocused) {
+                MaterialTheme.colorScheme.onPrimaryContainer
+            } else {
+                MaterialTheme.colorScheme.onSurface
+            },
+            fontWeight = if (isFocused) FontWeight.SemiBold else FontWeight.Normal,
+            modifier = Modifier.weight(1f),
+        )
         Box(
             modifier = Modifier
                 .width(40.dp)
@@ -360,11 +349,11 @@ fun SystemMenu(
     val contextForItch = LocalContext.current
     val itchLoggedIn = rememberItchConnection()
     val scope = rememberCoroutineScope()
-    val uriHandler = LocalUriHandler.current
 
     var persona by remember { mutableStateOf<SteamFriend?>(null) }
     var selectedStatus by remember(persona) { mutableStateOf(persona?.state ?: EPersonaState.Online) }
     var showStatusPicker by remember { mutableStateOf(false) }
+    var connectionsExpanded by remember(isOpen) { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         persona = SteamService.instance?.localPersona?.value
@@ -610,7 +599,7 @@ fun SystemMenu(
                             text = stringResource(R.string.help_and_support),
                             icon = Icons.AutoMirrored.Filled.Help,
                             onClick = {
-                                uriHandler.openUri(Constants.Misc.DISCORD_LINK)
+                                CommunityFeedbackLinks.open(contextForItch)
                             },
                         )
 
@@ -636,10 +625,6 @@ fun SystemMenu(
                                 if (isOffline) R.string.system_menu_network_offline
                                 else R.string.system_menu_network_online,
                             ),
-                            subtitle = stringResource(
-                                if (isOffline) R.string.steam_go_online
-                                else R.string.steam_go_offline,
-                            ),
                             icon = if (isOffline) Icons.Default.CloudOff else Icons.Default.CloudUpload,
                             enabled = !isOffline,
                             onClick = {
@@ -650,7 +635,6 @@ fun SystemMenu(
 
                         SystemToggleRow(
                             text = stringResource(R.string.system_menu_notifications),
-                            subtitle = stringResource(R.string.system_menu_notifications_description),
                             icon = Icons.Default.Notifications,
                             enabled = notificationsEnabled,
                             onClick = {
@@ -661,7 +645,6 @@ fun SystemMenu(
 
                         SystemToggleRow(
                             text = stringResource(R.string.system_menu_audio),
-                            subtitle = stringResource(R.string.system_menu_audio_description),
                             icon = if (audioEnabled) Icons.AutoMirrored.Filled.VolumeUp else Icons.AutoMirrored.Filled.VolumeOff,
                             enabled = audioEnabled,
                             onClick = {
@@ -669,6 +652,111 @@ fun SystemMenu(
                                 onDismiss()
                             },
                         )
+
+                        SystemMenuItem(
+                            text = stringResource(R.string.system_hub_connections_section),
+                            icon = if (connectionsExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                            onClick = { connectionsExpanded = !connectionsExpanded },
+                        )
+                        if (connectionsExpanded) {
+                            if (isOffline || !SteamService.isLoggedIn) {
+                                val goOnlineLabelRes = if (!SteamService.isLoggedIn) {
+                                    R.string.steam_sign_in
+                                } else {
+                                    R.string.steam_go_online
+                                }
+                                SystemMenuItem(
+                                    text = stringResource(goOnlineLabelRes),
+                                    icon = Icons.AutoMirrored.Filled.Login,
+                                    onClick = {
+                                        onGoOnline()
+                                        onDismiss()
+                                    },
+                                )
+                            } else {
+                                SystemMenuItem(
+                                    text = stringResource(R.string.steam_go_offline),
+                                    icon = Icons.AutoMirrored.Filled.AirplaneTicket,
+                                    onClick = {
+                                        onNavigateRoute(PluviaScreen.Home.route + "?offline=true") // TODO: test this
+                                        onDismiss()
+                                    },
+                                )
+
+                                SystemMenuItem(
+                                    text = stringResource(R.string.steam_sign_out),
+                                    icon = Icons.AutoMirrored.Filled.Logout,
+                                    onClick = {
+                                        onLogout()
+                                        onDismiss()
+                                    },
+                                    isDestructive = true,
+                                )
+                            }
+
+                            // GOG
+                            SystemMenuItem(
+                                text = stringResource(
+                                    if (gogLoggedIn) R.string.gog_settings_logout_title
+                                    else R.string.gog_settings_login_title,
+                                ),
+                                icon = if (gogLoggedIn) {
+                                    Icons.AutoMirrored.Filled.Logout
+                                } else {
+                                    Icons.AutoMirrored.Filled.Login
+                                },
+                                onClick = {
+                                    if (gogLoggedIn) onGogLogoutClick() else onGogLoginClick()
+                                    onDismiss()
+                                },
+                                isDestructive = gogLoggedIn,
+                            )
+
+                            // Epic
+                            SystemMenuItem(
+                                text = stringResource(
+                                    if (epicLoggedIn) R.string.epic_settings_logout_title
+                                    else R.string.epic_settings_login_title,
+                                ),
+                                icon = if (epicLoggedIn) {
+                                    Icons.AutoMirrored.Filled.Logout
+                                } else {
+                                    Icons.AutoMirrored.Filled.Login
+                                },
+                                onClick = {
+                                    if (epicLoggedIn) onEpicLogoutClick() else onEpicLoginClick()
+                                    onDismiss()
+                                },
+                                isDestructive = epicLoggedIn,
+                            )
+
+                            // Amazon
+                            SystemMenuItem(
+                                text = stringResource(
+                                    if (amazonLoggedIn) R.string.amazon_settings_logout_title
+                                    else R.string.amazon_settings_login_title,
+                                ),
+                                icon = if (amazonLoggedIn) {
+                                    Icons.AutoMirrored.Filled.Logout
+                                } else {
+                                    Icons.AutoMirrored.Filled.Login
+                                },
+                                onClick = {
+                                    if (amazonLoggedIn) onAmazonLogoutClick() else onAmazonLoginClick()
+                                    onDismiss()
+                                },
+                                isDestructive = amazonLoggedIn,
+                            )
+                            SystemMenuItem(
+                                text = stringResource(if (itchLoggedIn) R.string.itch_sign_out else R.string.itch_settings_login_title),
+                                icon = if (itchLoggedIn) Icons.AutoMirrored.Filled.Logout else Icons.AutoMirrored.Filled.Login,
+                                onClick = {
+                                    changeItchConnection(contextForItch, itchLoggedIn)
+                                    onDismiss()
+                                },
+                                isDestructive = itchLoggedIn,
+                            )
+                        }
 
                         Spacer(modifier = Modifier.height(12.dp))
 
@@ -708,112 +796,6 @@ fun SystemMenu(
                             },
                             isDestructive = true,
                         )
-
-                        if (isOffline || !SteamService.isLoggedIn) {
-                            val goOnlineLabelRes = if (!SteamService.isLoggedIn) {
-                                R.string.steam_sign_in
-                            } else {
-                                R.string.steam_go_online
-                            }
-                            SystemMenuItem(
-                                text = stringResource(goOnlineLabelRes),
-                                icon = Icons.AutoMirrored.Filled.Login,
-                                onClick = {
-                                    onGoOnline()
-                                    onDismiss()
-                                },
-                            )
-                        } else {
-                            SystemMenuItem(
-                                text = stringResource(R.string.steam_go_offline),
-                                icon = Icons.AutoMirrored.Filled.AirplaneTicket,
-                                onClick = {
-                                    onNavigateRoute(PluviaScreen.Home.route + "?offline=true") // TODO: test this
-                                    onDismiss()
-                                },
-                            )
-
-                            SystemMenuItem(
-                                text = stringResource(R.string.steam_sign_out),
-                                icon = Icons.AutoMirrored.Filled.Logout,
-                                onClick = {
-                                    onLogout()
-                                    onDismiss()
-                                },
-                                isDestructive = true,
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        HorizontalDivider(
-                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
-                        )
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        // GOG
-                        SystemMenuItem(
-                            text = stringResource(
-                                if (gogLoggedIn) R.string.gog_settings_logout_title
-                                else R.string.gog_settings_login_title,
-                            ),
-                            icon = if (gogLoggedIn) {
-                                Icons.AutoMirrored.Filled.Logout
-                            } else {
-                                Icons.AutoMirrored.Filled.Login
-                            },
-                            onClick = {
-                                if (gogLoggedIn) onGogLogoutClick() else onGogLoginClick()
-                                onDismiss()
-                            },
-                            isDestructive = gogLoggedIn,
-                        )
-
-                        // Epic
-                        SystemMenuItem(
-                            text = stringResource(
-                                if (epicLoggedIn) R.string.epic_settings_logout_title
-                                else R.string.epic_settings_login_title,
-                            ),
-                            icon = if (epicLoggedIn) {
-                                Icons.AutoMirrored.Filled.Logout
-                            } else {
-                                Icons.AutoMirrored.Filled.Login
-                            },
-                            onClick = {
-                                if (epicLoggedIn) onEpicLogoutClick() else onEpicLoginClick()
-                                onDismiss()
-                            },
-                            isDestructive = epicLoggedIn,
-                        )
-
-                        // Amazon
-                        SystemMenuItem(
-                            text = stringResource(
-                                if (amazonLoggedIn) R.string.amazon_settings_logout_title
-                                else R.string.amazon_settings_login_title,
-                            ),
-                            icon = if (amazonLoggedIn) {
-                                Icons.AutoMirrored.Filled.Logout
-                            } else {
-                                Icons.AutoMirrored.Filled.Login
-                            },
-                            onClick = {
-                                if (amazonLoggedIn) onAmazonLogoutClick() else onAmazonLoginClick()
-                                onDismiss()
-                            },
-                            isDestructive = amazonLoggedIn,
-                        )
-                        SystemMenuItem(
-                            text = stringResource(if (itchLoggedIn) R.string.itch_sign_out else R.string.itch_settings_login_title),
-                            icon = if (itchLoggedIn) Icons.AutoMirrored.Filled.Logout else Icons.AutoMirrored.Filled.Login,
-                            onClick = {
-                                changeItchConnection(contextForItch, itchLoggedIn)
-                                onDismiss()
-                            },
-                            isDestructive = itchLoggedIn,
-                        )
                     }
 
                     // Gamepad hint at bottom (only on expanded screens)
@@ -835,9 +817,7 @@ fun SystemMenu(
 }
 
 /**
- * Touch-first, full-screen system center used by the lower display. It keeps
- * account connections and global destinations visible without borrowing the
- * gamepad focus or the narrow single-screen side-panel layout.
+ * Full-screen system menu for the lower display.
  */
 @Composable
 fun DualSystemMenu(
@@ -860,10 +840,10 @@ fun DualSystemMenu(
 ) {
     val context = LocalContext.current
     val itchLoggedIn = rememberItchConnection()
-    val uriHandler = LocalUriHandler.current
     var persona by remember { mutableStateOf<SteamFriend?>(null) }
     var gogAccountName by remember { mutableStateOf<String?>(null) }
     var epicAccountName by remember { mutableStateOf<String?>(null) }
+    var connectionsExpanded by remember { mutableStateOf(false) }
     val initialFocusRequester = remember { FocusRequester() }
     val windowInfo = LocalWindowInfo.current
     val compactDensity = PluviaTheme.tokens.densityCompact
@@ -924,126 +904,6 @@ fun DualSystemMenu(
                 .focusGroup(),
             verticalArrangement = Arrangement.spacedBy(if (compactDensity) 6.dp else 14.dp),
         ) {
-            Text(
-                text = stringResource(R.string.system_hub_profile_section),
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-
-            GcdsCard(
-                shape = RoundedCornerShape(PluviaTheme.tokens.cornerMd),
-                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(
-                            horizontal = if (compactDensity) 12.dp else 16.dp,
-                            vertical = if (compactDensity) 8.dp else 16.dp,
-                        ),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(if (compactDensity) 10.dp else 14.dp),
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(avatarSize)
-                            .clip(RoundedCornerShape(PluviaTheme.tokens.cornerMd))
-                            .background(MaterialTheme.colorScheme.surfaceVariant),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        if (persona?.avatarHash?.isNotEmpty() == true) {
-                            SteamIconImage(
-                                size = avatarSize,
-                                image = { persona?.avatarHash?.getAvatarURL() },
-                            )
-                        } else {
-                            Icon(
-                                imageVector = Icons.Default.Person,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(28.dp),
-                            )
-                        }
-                    }
-
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = persona?.name ?: PrefManager.username.ifBlank {
-                                stringResource(R.string.default_user_name)
-                            },
-                            style = if (compactDensity) {
-                                MaterialTheme.typography.titleMedium
-                            } else {
-                                MaterialTheme.typography.titleLarge
-                            },
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        Text(
-                            text = when {
-                                !SteamService.isLoggedIn -> stringResource(R.string.system_hub_not_connected)
-                                isOffline -> stringResource(R.string.system_hub_offline)
-                                else -> stringResource(R.string.system_hub_connected)
-                            },
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = when {
-                                !SteamService.isLoggedIn -> MaterialTheme.colorScheme.onSurfaceVariant
-                                isOffline -> PluviaTheme.colors.statusAway
-                                else -> PluviaTheme.colors.statusInstalled
-                            },
-                        )
-                    }
-                }
-            }
-
-            GcdsCard(
-                shape = RoundedCornerShape(PluviaTheme.tokens.cornerMd),
-                containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-            ) {
-                Column {
-                    if (isOffline || !SteamService.isLoggedIn) {
-                        SystemHubRow(
-                            title = stringResource(
-                                if (!SteamService.isLoggedIn) R.string.steam_sign_in else R.string.steam_go_online,
-                            ),
-                            subtitle = stringResource(R.string.system_hub_steam_action_description),
-                            icon = Icons.AutoMirrored.Filled.Login,
-                            focusRequester = initialFocusRequester,
-                            onClick = onGoOnline,
-                        )
-                    } else {
-                        SystemHubRow(
-                            title = stringResource(R.string.steam_go_offline),
-                            subtitle = stringResource(R.string.system_hub_steam_offline_description),
-                            icon = Icons.AutoMirrored.Filled.AirplaneTicket,
-                            focusRequester = initialFocusRequester,
-                            onClick = {
-                                onNavigateRoute(PluviaScreen.Home.route + "?offline=true")
-                                onDismiss()
-                            },
-                        )
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.28f))
-                        SystemHubRow(
-                            title = stringResource(R.string.steam_sign_out),
-                            subtitle = stringResource(R.string.system_hub_steam_sign_out_description),
-                            icon = Icons.AutoMirrored.Filled.Logout,
-                            onClick = {
-                                onLogout()
-                                onDismiss()
-                            },
-                            destructive = true,
-                        )
-                    }
-                }
-            }
-
-            Text(
-                text = stringResource(R.string.system_hub_destinations_section),
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
             GcdsCard(
                 shape = RoundedCornerShape(PluviaTheme.tokens.cornerMd),
                 containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
@@ -1051,7 +911,7 @@ fun DualSystemMenu(
                 Column {
                     SystemHubRow(
                         title = stringResource(R.string.itch_free_store),
-                        subtitle = stringResource(R.string.itch_free_store_subtitle),
+                        focusRequester = initialFocusRequester,
                         icon = Icons.Default.Download,
                         onClick = {
                             app.gamenative.itch.ItchStoreActivity.open(context)
@@ -1061,7 +921,6 @@ fun DualSystemMenu(
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.28f))
                     SystemHubRow(
                         title = stringResource(R.string.app_downloads),
-                        subtitle = stringResource(R.string.system_hub_downloads_description),
                         icon = Icons.Default.Download,
                         onClick = {
                             onDownloadsClick()
@@ -1071,7 +930,6 @@ fun DualSystemMenu(
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.28f))
                     SystemHubRow(
                         title = stringResource(R.string.settings_text),
-                        subtitle = stringResource(R.string.system_hub_settings_description),
                         icon = Icons.Default.Settings,
                         onClick = {
                             onNavigateRoute(PluviaScreen.Settings.route)
@@ -1081,48 +939,147 @@ fun DualSystemMenu(
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.28f))
                     SystemHubRow(
                         title = stringResource(R.string.help_and_support),
-                        subtitle = stringResource(R.string.system_hub_support_description),
                         icon = Icons.AutoMirrored.Filled.Help,
-                        onClick = { uriHandler.openUri(Constants.Misc.DISCORD_LINK) },
+                        onClick = { CommunityFeedbackLinks.open(context) },
                     )
                 }
             }
 
-            Text(
-                text = stringResource(R.string.system_hub_connections_section),
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            SystemHubRow(
+                title = stringResource(R.string.system_hub_connections_section),
+                icon = Icons.Default.Person,
+                trailingIcon = if (connectionsExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                onClick = { connectionsExpanded = !connectionsExpanded },
             )
-            GcdsCard(
-                shape = RoundedCornerShape(PluviaTheme.tokens.cornerMd),
-                containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-            ) {
-                Column {
-                    SystemHubServiceRow(
-                        serviceName = "GOG",
-                        connected = gogLoggedIn,
-                        accountName = gogAccountName,
-                        onClick = if (gogLoggedIn) onGogLogoutClick else onGogLoginClick,
-                    )
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.28f))
-                    SystemHubServiceRow(
-                        serviceName = "Epic Games",
-                        connected = epicLoggedIn,
-                        accountName = epicAccountName,
-                        onClick = if (epicLoggedIn) onEpicLogoutClick else onEpicLoginClick,
-                    )
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.28f))
-                    SystemHubServiceRow(
-                        serviceName = "Amazon Games",
-                        connected = amazonLoggedIn,
-                        onClick = if (amazonLoggedIn) onAmazonLogoutClick else onAmazonLoginClick,
-                    )
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.28f))
-                    SystemHubServiceRow(
-                        serviceName = stringResource(R.string.tab_itch),
-                        connected = itchLoggedIn,
-                        onClick = { changeItchConnection(context, itchLoggedIn) },
-                    )
+            if (connectionsExpanded) {
+                GcdsCard(
+                    shape = RoundedCornerShape(PluviaTheme.tokens.cornerMd),
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(
+                                horizontal = if (compactDensity) 12.dp else 16.dp,
+                                vertical = if (compactDensity) 8.dp else 16.dp,
+                            ),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(if (compactDensity) 10.dp else 14.dp),
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(avatarSize)
+                                .clip(RoundedCornerShape(PluviaTheme.tokens.cornerMd))
+                                .background(MaterialTheme.colorScheme.surfaceVariant),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            if (persona?.avatarHash?.isNotEmpty() == true) {
+                                SteamIconImage(
+                                    size = avatarSize,
+                                    image = { persona?.avatarHash?.getAvatarURL() },
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.Person,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(28.dp),
+                                )
+                            }
+                        }
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = persona?.name ?: PrefManager.username.ifBlank {
+                                    stringResource(R.string.default_user_name)
+                                },
+                                style = if (compactDensity) {
+                                    MaterialTheme.typography.titleMedium
+                                } else {
+                                    MaterialTheme.typography.titleLarge
+                                },
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                text = when {
+                                    !SteamService.isLoggedIn -> stringResource(R.string.system_hub_not_connected)
+                                    isOffline -> stringResource(R.string.system_hub_offline)
+                                    else -> stringResource(R.string.system_hub_connected)
+                                },
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = when {
+                                    !SteamService.isLoggedIn -> MaterialTheme.colorScheme.onSurfaceVariant
+                                    isOffline -> PluviaTheme.colors.statusAway
+                                    else -> PluviaTheme.colors.statusInstalled
+                                },
+                            )
+                        }
+                    }
+                }
+
+                GcdsCard(
+                    shape = RoundedCornerShape(PluviaTheme.tokens.cornerMd),
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                ) {
+                    Column {
+                        if (isOffline || !SteamService.isLoggedIn) {
+                            SystemHubRow(
+                                title = stringResource(
+                                    if (!SteamService.isLoggedIn) R.string.steam_sign_in else R.string.steam_go_online,
+                                ),
+                                icon = Icons.AutoMirrored.Filled.Login,
+                                onClick = onGoOnline,
+                            )
+                        } else {
+                            SystemHubRow(
+                                title = stringResource(R.string.steam_go_offline),
+                                icon = Icons.AutoMirrored.Filled.AirplaneTicket,
+                                onClick = {
+                                    onNavigateRoute(PluviaScreen.Home.route + "?offline=true")
+                                    onDismiss()
+                                },
+                            )
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.28f))
+                            SystemHubRow(
+                                title = stringResource(R.string.steam_sign_out),
+                                icon = Icons.AutoMirrored.Filled.Logout,
+                                onClick = {
+                                    onLogout()
+                                    onDismiss()
+                                },
+                                destructive = true,
+                            )
+                        }
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.28f))
+                        SystemHubServiceRow(
+                            serviceName = "GOG",
+                            connected = gogLoggedIn,
+                            accountName = gogAccountName,
+                            onClick = if (gogLoggedIn) onGogLogoutClick else onGogLoginClick,
+                        )
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.28f))
+                        SystemHubServiceRow(
+                            serviceName = "Epic Games",
+                            connected = epicLoggedIn,
+                            accountName = epicAccountName,
+                            onClick = if (epicLoggedIn) onEpicLogoutClick else onEpicLoginClick,
+                        )
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.28f))
+                        SystemHubServiceRow(
+                            serviceName = "Amazon Games",
+                            connected = amazonLoggedIn,
+                            onClick = if (amazonLoggedIn) onAmazonLogoutClick else onAmazonLoginClick,
+                        )
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.28f))
+                        SystemHubServiceRow(
+                            serviceName = stringResource(R.string.tab_itch),
+                            connected = itchLoggedIn,
+                            onClick = { changeItchConnection(context, itchLoggedIn) },
+                        )
+                    }
                 }
             }
         }
@@ -1172,12 +1129,13 @@ private fun SystemHubServiceRow(
 @Composable
 private fun SystemHubRow(
     title: String,
-    subtitle: String,
+    subtitle: String? = null,
     icon: ImageVector,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     focusRequester: FocusRequester? = null,
     destructive: Boolean = false,
+    trailingIcon: ImageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val focused by interactionSource.collectIsFocusedAsState()
@@ -1243,18 +1201,20 @@ private fun SystemHubRow(
                 fontWeight = FontWeight.Medium,
                 color = contentColor,
             )
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = if (destructive) {
-                    MaterialTheme.colorScheme.error.copy(alpha = 0.76f)
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                },
-            )
+            if (subtitle != null) {
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (destructive) {
+                        MaterialTheme.colorScheme.error.copy(alpha = 0.76f)
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                )
+            }
         }
         Icon(
-            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            imageVector = trailingIcon,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
             modifier = Modifier.size(20.dp),

@@ -31,7 +31,6 @@ fun GameFeedbackDialog(
     state: GameFeedbackDialogState,
     onStateChange: (GameFeedbackDialogState) -> Unit,
     onDismiss: () -> Unit,
-    onDiscordSupport: () -> Unit,
     onOpenGithubIssue: (GameFeedbackDialogState) -> Unit,
 ) {
     SecondScreenRoutedDialog(
@@ -156,13 +155,6 @@ fun GameFeedbackDialog(
                             modifier = Modifier.fillMaxWidth(),
                         ) {
                             Text(stringResource(R.string.game_feedback_github_issue))
-                        }
-
-                        OutlinedButton(
-                            onClick = onDiscordSupport,
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Text(stringResource(R.string.get_support_on_discord))
                         }
 
                         TextButton(onClick = onDismiss) {

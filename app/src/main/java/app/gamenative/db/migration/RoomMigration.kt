@@ -32,6 +32,13 @@ internal val ROOM_MIGRATION_V24_to_V25 = object : Migration(24, 25) {
     }
 }
 
+internal val ROOM_MIGRATION_V27_to_V28 = object : Migration(27, 28) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL("ALTER TABLE library_play_history ADD COLUMN last_session_ms INTEGER NOT NULL DEFAULT 0")
+        connection.execSQL("ALTER TABLE library_play_history ADD COLUMN total_play_ms INTEGER NOT NULL DEFAULT 0")
+    }
+}
+
 internal val ROOM_MIGRATION_V26_to_V27 = object : Migration(26, 27) {
     override fun migrate(connection: SQLiteConnection) {
         connection.execSQL("ALTER TABLE itch_games ADD COLUMN is_game INTEGER NOT NULL DEFAULT 1")

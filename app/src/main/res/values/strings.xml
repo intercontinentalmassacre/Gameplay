@@ -102,6 +102,22 @@
     <string name="not_enough_space">Not Enough Space</string>
     <string name="proceed">Proceed</string>
     <string name="cancel">Cancel</string>
+    <string name="wifi_game_receive">Receive over Wi-Fi</string>
+    <string name="wifi_game_starting">Starting the receiver…</string>
+    <string name="wifi_game_instructions">On your PC, open this address in a browser on the same network. Enter the code and choose the game or installer folder. Keep this screen open during the transfer.</string>
+    <string name="wifi_game_pairing_code">Pairing code %1$s</string>
+    <string name="wifi_game_waiting">Waiting for your PC…</string>
+    <string name="wifi_game_progress_total">%1$s of %2$s received</string>
+    <string name="wifi_game_progress">%1$s received</string>
+    <string name="wifi_game_checking">Looking for game executables…</string>
+    <string name="wifi_game_choose_executable">Choose the game or installer to run.</string>
+    <string name="wifi_game_preparing">Adding the game to your library…</string>
+    <string name="wifi_game_ready">%1$s was added to your library.</string>
+    <string name="wifi_game_play">Play</string>
+    <string name="wifi_game_no_network">Connect this device to Wi-Fi, then try again.</string>
+    <string name="wifi_game_installer_failed">Could not prepare the installer.</string>
+    <string name="wifi_game_no_executable">No supported Windows EXE or MSI found in this folder.</string>
+    <string name="wifi_game_receive_failed">Gameplay could not receive the game. Check your Wi-Fi connection and free storage, then try again.</string>
     <string name="delete">Delete</string>
     <string name="untitled">Untitled</string>
     <string name="confirm_delete">Confirm Deletion</string>
@@ -435,11 +451,8 @@
     <string name="appearance">Appearance</string>
     <string name="size_subtitle">%.2fx</string>
     <string name="label_text">Label Text</string>
-    <string name="label_text_subtitle">Custom text for this button</string>
     <string name="element_type">Element Type</string>
-    <string name="element_type_subtitle">Change the type of this control</string>
     <string name="shape">Shape</string>
-    <string name="shape_subtitle">Visual appearance</string>
     <string name="shape_restricted">%1$s is restricted to %2$s shape</string>
     <string name="bindings">Bindings</string>
     <string name="bindings_auto_generated">Bindings (Auto-generated)</string>
@@ -448,7 +461,6 @@
     <string name="range_type">Key Range</string>
     <string name="range_type_subtitle">Which set of keys to cycle through</string>
     <string name="range_orientation">Orientation</string>
-    <string name="range_orientation_subtitle">Layout direction of the range button</string>
     <string name="range_orientation_horizontal">Horizontal</string>
     <string name="range_orientation_vertical">Vertical</string>
     <string name="range_visible_segments">Visible Segments</string>
@@ -470,7 +482,6 @@
     <string name="button_opacity_value">%1$d%%</string>
     <string name="button_opacity_inherited">%1$d%% (global default)</string>
     <string name="control_stroke_width">Line Thickness</string>
-    <string name="control_stroke_width_subtitle">Adjust control outline and divider thickness</string>
     <string name="control_stroke_width_thin">Thin</string>
     <string name="control_stroke_width_default">Default</string>
     <string name="control_stroke_width_thick">Thick</string>
@@ -527,7 +538,6 @@
     <string name="movement_type">Movement Type</string>
     <string name="movement_type_subtitle">Joystick output for left side movement</string>
     <string name="look_sensitivity">Look Sensitivity</string>
-    <string name="look_sensitivity_subtitle">Mouse look sensitivity multiplier</string>
     <string name="look_sensitivity_x">Horizontal Sensitivity</string>
     <string name="look_sensitivity_x_subtitle">Multiplier for right-side horizontal mouse look</string>
     <string name="look_sensitivity_y">Vertical Sensitivity</string>
@@ -545,7 +555,6 @@
     <string name="mouse_acceleration_max">Max Acceleration</string>
     <string name="mouse_acceleration_max_subtitle">Upper multiplier applied during fast mouse-look drags</string>
     <string name="joystick_size">Joystick Size</string>
-    <string name="joystick_size_subtitle">Dynamic joystick size multiplier</string>
     <string name="joystick_opacity">Joystick Opacity</string>
     <string name="joystick_opacity_subtitle">Opacity for dynamic joystick rings and thumbs</string>
     <string name="show_shooter_runtime_toggle">Show In-Game Toggle</string>
@@ -766,19 +775,11 @@
     <string name="system_menu_title">System</string>
     <string name="system_hub_title">Gameplay center</string>
     <string name="system_hub_stage_description">Accounts, downloads and global settings in one place.</string>
-    <string name="system_hub_profile_section">Steam account</string>
-    <string name="system_hub_destinations_section">Library and system</string>
     <string name="system_hub_connections_section">Connected services</string>
     <string name="system_hub_connected">Connected</string>
     <string name="system_hub_connected_as">Connected as %1$s</string>
     <string name="system_hub_not_connected">Not connected</string>
     <string name="system_hub_offline">Offline</string>
-    <string name="system_hub_steam_action_description">Connect Steam and refresh your library.</string>
-    <string name="system_hub_steam_offline_description">Keep the local library available without a network connection.</string>
-    <string name="system_hub_steam_sign_out_description">Remove the active Steam session from Gameplay.</string>
-    <string name="system_hub_downloads_description">Track transfers and manage installed game storage.</string>
-    <string name="system_hub_settings_description">Appearance, controls, runtime and application options.</string>
-    <string name="system_hub_support_description">Open help, support and the Gameplay community.</string>
     <string name="system_hub_open">Open Gameplay center</string>
     <string name="size">Size</string>
     <string name="location">Location</string>
@@ -800,7 +801,6 @@
     <string name="add_custom_game_install">Install a game</string>
     <string name="add_custom_game_import_exe">Import EXE or AppImage</string>
     <string name="add_custom_game_choose_folder">Choose existing folder</string>
-    <string name="add_custom_game_dont_show_again">Don\'t show this dialog again</string>
     <string name="custom_game_importing">Importing game…</string>
     <string name="custom_game_import_success">Game imported</string>
     <string name="custom_game_import_failed">Import failed</string>
@@ -856,7 +856,7 @@
 
 
     <!-- Profile & Menu -->
-    <string name="help_and_support">Help &amp; Support</string>
+    <string name="help_and_support">GitHub Issues</string>
     <string name="hall_of_fame">Hall of Fame</string>
     <string name="go_online">Go Online</string>
     <string name="go_offline">Go Offline</string>
@@ -871,6 +871,12 @@
 
     <!-- Container Configuration: General -->
     <string name="new_environment_variable">New Environment Variable</string>
+    <string name="container_env_add_variable">Add variable</string>
+    <string name="container_env_delete_variable">Delete %1$s</string>
+    <string name="container_env_known_variables">Browse known variables</string>
+    <string name="container_env_value_presets">Browse preset values</string>
+    <string name="container_env_invalid_name">Enter a name without an equals sign or null character.</string>
+    <string name="container_env_duplicate_name">This variable already exists. Edit it in the list.</string>
     <string name="name">Name</string>
     <string name="value">Value</string>
     <string name="no_more_known_variables">No more known variables</string>
@@ -997,6 +1003,7 @@
     <string name="enable_directinput_api">Enable DirectInput API</string>
     <string name="directinput_mapper_type">DirectInput Mapper Type</string>
     <string name="show_controller_debug_menu">Show Controller Debug Menu</string>
+    <string name="controller_input_compatibility_and_diagnostics">Input compatibility and diagnostics</string>
     <string name="show_controller_debug_menu_subtitle">Show the live P1-P4 controller slot panel in the in-game quick menu</string>
     <string name="disable_mouse_input">Disable Mouse Input</string>
     <string name="direct_game_touch_summary">Tap the game screen to click at that position. Turn off to use it as a trackpad.</string>
@@ -1111,6 +1118,9 @@
     <string name="drive_letter">Drive letter</string>
     <string name="no_available_drive_letters">No available drive letters</string>
     <string name="startup_selection">Startup Selection</string>
+    <string name="container_config_startup_services">Startup services</string>
+    <string name="container_config_affinity_default">Default CPU cores</string>
+    <string name="container_config_affinity_32bit">32-bit app override</string>
     <string name="suspend_behavior">Suspend Behavior</string>
     <string name="suspend_behavior_auto">Suspend and auto-resume</string>
     <string name="suspend_behavior_never">Never suspend</string>
@@ -1124,7 +1134,6 @@
     <string name="select_wine_debug_channels">Select Wine Debug Channels</string>
     <string name="cpu_label">CPU%d</string>
     <string name="describe_what_happened">Describe what happened</string>
-    <string name="get_support_on_discord">Get support on Discord</string>
 
     <!-- Driver Manager -->
     <string name="driver_manager">Driver Manager</string>
@@ -1152,15 +1161,15 @@
     <string name="remove_content_confirmation">Are you sure you want to remove %1$s (%2$s)?</string>
     <!-- Media management strings -->
     <string name="media_logo_title">Logo</string>
-    <string name="media_logo_hint">Recommended: up to 600×200 PNG with transparency. Will be scaled to fit.</string>
+    <string name="media_logo_hint">Transparent PNG, up to 600×200</string>
     <string name="media_icon_title">Icon (List view)</string>
-    <string name="media_icon_hint">Recommended: Square PNG with transparency. Will be center-cropped to fit.</string>
+    <string name="media_icon_hint">Square transparent PNG</string>
     <string name="media_header_title">Header Image</string>
-    <string name="media_header_hint">Recommended: 920×430 JPG/PNG. Will be center-cropped to fit.</string>
+    <string name="media_header_hint">920×430 · JPG / PNG</string>
     <string name="media_grid_capsule_title">Capsule (Grid view)</string>
-    <string name="media_grid_capsule_hint">Recommended: 600×900 JPG/PNG. Will be center-cropped to fit.</string>
+    <string name="media_grid_capsule_hint">600×900 · JPG / PNG</string>
     <string name="media_grid_hero_title">Hero (Grid view)</string>
-    <string name="media_grid_hero_hint">Recommended: 460×215 JPG/PNG. Will be center-cropped to fit.</string>
+    <string name="media_grid_hero_hint">460×215 · JPG / PNG</string>
     <string name="media_no_logo">No logo available</string>
     <string name="media_no_icon">No icon available</string>
     <string name="media_no_header">No header image available</string>
@@ -1206,6 +1215,12 @@
     <!-- Settings: Debug Group -->
     <string name="settings_debug_title">Debug</string>
     <string name="settings_debug_wine_channels_title">Select Wine Debug Channels</string>
+    <string name="settings_runtime_game_defaults_group">Game defaults</string>
+    <string name="settings_runtime_components_group">Runtime components</string>
+    <string name="settings_runtime_container_storage_group">Container storage</string>
+    <string name="settings_debug_capture_group">Log capture</string>
+    <string name="settings_debug_maintenance_group">Maintenance</string>
+    <string name="settings_debug_channel_count">%1$d selected</string>
     <string name="settings_debug_wine_logs_title">Enable Wine Debug Logs</string>
     <string name="settings_debug_wine_logs_subtitle">Write Wine debug output to file</string>
     <string name="settings_debug_box_logs_title">Enable Box86/64 Logs</string>
@@ -1244,11 +1259,7 @@
     <string name="settings_library_title">Library</string>
     <string name="settings_system_title">System</string>
     <string name="settings_stage_interface_description">Theme, layout, language and second-screen behavior.</string>
-    <string name="settings_stage_controls_description">Gamepad, touch controls and input feedback.</string>
-    <string name="settings_stage_runtime_description">Wine, graphics drivers and game compatibility.</string>
     <string name="settings_stage_library_description">Sources, presentation and how your collection is organized.</string>
-    <string name="settings_stage_downloads_description">Network, storage and installation preferences.</string>
-    <string name="settings_stage_system_description">Diagnostics, application information and debugging tools.</string>
     <string name="settings_stage_navigation_hint">Select a section on the lower screen</string>
     <string name="downloads_stage_description">Transfers, installation progress and storage management.</string>
     <string name="downloads_stage_navigation_hint">Manage downloads on the lower screen</string>
@@ -1497,10 +1508,7 @@
     <string name="crash_report_send_title">Send crash report</string>
     <string name="main_thank_you_title">Thank you for using Gameplay!</string>
     <string name="main_share">Share</string>
-    <string name="main_share_text">Check out Gameplay - play your PC Steam games on Android, with full support for cloud saves!\nhttps://github.com/intercontinentalmassacre/Gameplay\nJoin the community: https://discord.gg/KPzU4Dhwq</string>
-    <string name="main_discord_support_title">Did the game work?</string>
-    <string name="main_discord_support_message">Join the Discord to get support to fix your game or improve performance.</string>
-    <string name="main_open_discord">Open Discord</string>
+    <string name="main_share_text">Check out Gameplay - play your PC Steam games on Android, with full support for cloud saves!\nhttps://github.com/intercontinentalmassacre/Gameplay</string>
 
     <!-- PluviaMain: Game Launch -->
     <string name="main_downloading_entry">Downloading %s</string>
@@ -1692,7 +1700,7 @@
     <string name="steam_save_import_failed">Failed to import saves: %s</string>
 
     <!-- Save backups (local snapshots taken before a cloud sync replaces saves) -->
-    <string name="save_backup_menu_title">Restore save backup</string>
+    <string name="save_backup_menu_title">Save backups</string>
     <string name="save_backup_dialog_title">Save backups</string>
     <string name="save_backup_loading">Loading backups…</string>
     <string name="save_backup_empty">No save backups yet.</string>
@@ -1708,7 +1716,15 @@
     <string name="save_backup_restore_failed">Could not restore saves. The backup was left in place.</string>
     <string name="save_backup_delete_success">Backup deleted</string>
     <string name="save_backup_delete_failed">Could not delete the backup.</string>
-    <string name="save_backup_game_running">Close the game before restoring or deleting a backup.</string>
+    <string name="save_backup_game_running">Close the game before changing saves or backups.</string>
+    <string name="save_backup_custom_path_help">Enter the folder that contains this game’s saves, such as Saves inside the game folder or C:/users/xuser/Saved Games/Game inside the Windows container. Restoring replaces the files in that folder.</string>
+    <string name="save_backup_custom_path">Save folder</string>
+    <string name="save_backup_custom_create">Create backup</string>
+    <string name="save_backup_custom_success">Save backup created</string>
+    <string name="save_backup_custom_invalid_path">Enter an existing save folder inside the game folder or the Windows C: drive.</string>
+    <string name="save_backup_custom_no_copy">No backup created. The folder may be empty, unchanged, or too large.</string>
+    <string name="save_backup_export_success">Save ZIP exported</string>
+    <string name="save_backup_export_failed">Could not export the save ZIP.</string>
     <string name="save_backup_keep_title">Save backups to keep</string>
     <string name="save_backup_keep_subtitle">Backups kept for each game. Older ones are deleted when the limit is reached.</string>
     <string name="save_backup_keep_off">Off</string>
@@ -2067,7 +2083,7 @@
     <string name="option_open_container">Open container</string>
     <string name="option_edit_container">Edit container</string>
     <string name="option_reset_to_defaults">Reset container</string>
-    <string name="option_get_support">Get support</string>
+    <string name="option_get_support">GitHub Issues</string>
     <string name="option_submit_feedback">Submit feedback</string>
     <string name="option_reset_drm">Reset DRM</string>
     <string name="option_use_known_config">Use known config</string>
@@ -2318,9 +2334,7 @@
     <string name="nexus_summary_bar">%1$d mods | %2$d enabled | %3$s | %4$s</string>
     <string name="nexus_storage_cleanup_title">Storage cleanup</string>
     <string name="nexus_scan">Scan</string>
-    <string name="nexus_storage_cleanup_description">Shows storage used by Nexus mod downloads, extracted cache, and backups for this game.</string>
-    <string name="nexus_storage_cleanup_cache_backups_description">Extracted cache and rollback backups are kept so mods can be reapplied, disabled, or restored safely.</string>
-    <string name="nexus_storage_cleanup_actions_description">Clean temp removes abandoned files. Delete failed archives removes failed downloads, so retry will download again. Clean redundant backups removes backups that are no longer needed.</string>
+    <string name="nexus_storage_cleanup_actions_description">Deleted downloads must be downloaded again to retry.</string>
     <string name="nexus_temp_orphaned_files">Temp/orphaned files</string>
     <string name="nexus_failed_download_archives">Failed download archives</string>
     <string name="nexus_extracted_mod_cache">Extracted mod cache</string>
@@ -2552,7 +2566,6 @@
     <string name="game_launch_tip_14">Tip: You can bring up the keyboard with your device\'s back key.</string>
     <string name="game_launch_tip_15">Tip: You can tap with two fingers inside the container to right click.</string>
     <string name="game_launch_tip_16">Tip: If you are using the onscreen controller, you can disable the mouse to prevent accidental touches.</string>
-    <string name="game_launch_tip_17">Tip: Report issues on Discord so we can fix them.</string>
     <string name="game_launch_tip_18">Tip: Use the Turnip Gen8 V25/V30 or MrPurple T26 driver if you are on an 8 Elite device.</string>
     <string name="game_launch_tip_19">Tip: Lower resolution and use FSR from the quick menu in-game to boost performance.</string>
     <string name="game_launch_tip_20">Tip: If the entire app is crashing after loading a game, your device is running out of RAM.</string>
@@ -2562,8 +2575,7 @@
     <string name="game_launch_tip_24">Tip: Getting a blank screen? Try using the \"%s\" option in the menu to check if your drivers are working correctly.</string>
     <string name="game_launch_tip_25">Tip: Use Proton x86-64 if you can\'t click the mouse in games.</string>
     <string name="local_mod_title">Import mod from device</string>
-    <string name="local_mod_description">Import an archive, a folder, or one or more loose files. Local imports use the same profiles, placement, conflicts, FOMOD, and plugin management as Nexus downloads.</string>
-    <string name="local_mod_supported">Archives: ZIP, 7Z, RAR, and placeable EXE. Loose files may use any extension, including INI, DLL, ESP, ESM, ESL, PAK, JSON, CFG, and TOML.</string>
+    <string name="local_mod_supported">ZIP, 7Z, RAR, EXE or loose files</string>
     <string name="local_mod_choose_archive">Choose archive</string>
     <string name="local_mod_choose_files">Choose files</string>
     <string name="local_mod_choose_folder">Choose folder</string>
@@ -2634,27 +2646,19 @@
     <string name="settings_interface_reduce_motion_title">Reduce motion</string>
     <string name="settings_interface_reduce_motion_subtitle">Minimize interface animations, transitions, and ambient effects. The system animator-duration setting is honored as well.</string>
     <string name="container_config_tab_presets">Presets</string>
-    <string name="compat_presets_subtitle">Proven combinations of settings for common situations. Applying a preset edits the current configuration — nothing is saved until you tap Save, and every value can still be fine-tuned in the other tabs.</string>
-    <string name="compat_presets_choose_title">Choose a starting point</string>
     <string name="compat_presets_selected">Selected</string>
-    <string name="compat_presets_ready_title">Ready to apply: %1$s</string>
-    <string name="compat_presets_apply_hint">Review the changes above, then apply. You can still adjust individual settings before saving.</string>
+    <string name="compat_presets_ready_title">%1$s</string>
     <string name="compat_presets_apply">Apply preset</string>
     <string name="compat_preset_applied">Applied</string>
     <string name="compat_preset_performance_name">Best performance</string>
-    <string name="compat_preset_performance_desc">Favor frame rate over caution: asynchronous shader compilation, performance-oriented CPU translation, the latest Turnip driver, and a larger GPU memory budget.</string>
     <string name="compat_preset_performance_changes">Changes: DXVK 3.0 (async) · Wrapper + Turnip driver · Box64 Performance preset · 4 GB device memory · mailbox present mode</string>
     <string name="compat_preset_stability_name">Maximum compatibility</string>
-    <string name="compat_preset_stability_desc">Conservative settings for games that crash, stutter, or render incorrectly: a proven DXVK release without async tricks, the stable Turnip driver, compatibility CPU translation, and strict shader math.</string>
     <string name="compat_preset_stability_changes">Changes: DXVK 2.7.1 · Wrapper + Turnip driver · Box64 Compatibility preset · strict shader math · fifo present mode</string>
     <string name="compat_preset_old_games_name">Old games (DirectDraw / DX8 era)</string>
-    <string name="compat_preset_old_games_desc">For late-90s and early-2000s titles: the cnc-ddraw renderer for legacy DirectDraw/Direct3D, a 4:3 resolution, and a small reported video memory that old engines expect.</string>
     <string name="compat_preset_old_games_changes">Changes: cnc-ddraw renderer · 1280x960 resolution · 256 MB video memory</string>
     <string name="compat_preset_dx12_name">DirectX 12 games</string>
-    <string name="compat_preset_dx12_desc">Route DirectX 12 through VKD3D with a recent version and feature level. Only needed for DX12 titles; DX11 and older stay on DXVK.</string>
     <string name="compat_preset_dx12_changes">Changes: VKD3D 3.0.1 · feature level 12_1</string>
     <string name="compat_preset_low_memory_name">Low-memory devices</string>
-    <string name="compat_preset_low_memory_desc">Reduce memory pressure on devices with limited RAM: smaller reported video memory, smaller GPU device memory, aggressive startup trimming, and the light Steam runtime.</string>
     <string name="compat_preset_low_memory_changes">Changes: 1 GB video memory · 1 GB device memory · aggressive startup · light Steam</string>
     <string name="radial_menu_slot_count_subtitle">%1$d slots enabled</string>
     <string name="radial_menu_decrease_slots">Decrease slots</string>
@@ -2748,11 +2752,6 @@
     <string name="manage_no_drivers_action">Get one from the store</string>
     <string name="manage_action_add_driver">Add driver</string>
     <string name="game_options_title_for_game">Settings · %1$s</string>
-    <string name="game_options_quick_actions_description">Start the container or create a launcher shortcut.</string>
-    <string name="game_options_game_management_description">Installed files, add-ons, branches, Workshop items and mods.</string>
-    <string name="game_options_container_description">Compatibility, runtime, graphics and transferable container configuration.</string>
-    <string name="game_options_cloud_saves_description">Synchronize saves and resolve local or remote conflicts.</string>
-    <string name="game_options_help_info_description">Diagnostics, support, artwork and store information.</string>
     <string name="hint_previous_category">Previous category</string>
     <string name="hint_next_category">Next category</string>
     <string name="settings_support_boosty_title">Support Gameplay on Boosty</string>
@@ -2885,10 +2884,10 @@
     <string name="itch_uninstall_title">Uninstall game?</string>
     <string name="itch_uninstall_message">Remove the installed files of %1$s from this device. Saves kept next to the executable are removed with them.</string>
     <string name="itch_installer_update_title">Update with the game installer</string>
-    <string name="itch_installer_update_message">This game is installed with its own Windows installer, which writes directly into the Wine prefix. Gameplay cannot swap it safely in the background, so the new installer will run instead. Your container settings and game files stay in place, but the installer decides how its saves are handled.</string>
+    <string name="itch_installer_update_message">The new Windows installer will run in your existing Wine prefix. Container settings and game files stay in place. Save handling depends on the installer.</string>
     <string name="itch_installer_update_confirm">Download installer</string>
     <string name="itch_version_unknown_title">Version can’t be verified</string>
-    <string name="itch_version_unknown_message">The author uploaded this file by hand, so itch.io does not report a build id. Gameplay can’t tell whether your copy is current. You can download the same upload again and reinstall over it; saves next to the executable are kept by the ZIP updater.</string>
+    <string name="itch_version_unknown_message">itch.io has no build ID for this upload. You can download it again and reinstall. The ZIP updater keeps saves stored beside the executable.</string>
     <string name="itch_reinstall">Download again</string>
     <string name="itch_version_label">Version %1$s</string>
     <string name="itch_role_game">Game build</string>
@@ -2901,7 +2900,6 @@
     <string name="option_play_html5">Launch in HTML5 player</string>
     <string name="html5_entry_missing">The HTML5 game entry index.html is missing.</string>
     <string name="itch_free_store">itch.io Store</string>
-    <string name="itch_free_store_subtitle">Free games</string>
     <string name="itch_no_store_build">No installable build is available for this game.</string>
     <string name="itch_store_build">Choose a build</string>
     <string name="itch_store_search">Search free games</string>
@@ -2914,4 +2912,15 @@
     <string name="itch_owned_badge">In your library</string>
     <string name="itch_owned_empty">No games from this account yet</string>
     <string name="itch_owned_search">Search my games</string>
+    <string name="container_store_compatibility">Store compatibility</string>
+    <string name="container_keep_editing">Keep editing</string>
+    <string name="container_discard_changes">Discard changes</string>
+    <string name="working_config_bookmark">Bookmark saved settings</string>
+    <string name="working_config_bookmark_summary">Keep one copy of this game’s saved graphics, display, audio, and performance settings.</string>
+    <string name="working_config_bookmarked">Working settings bookmarked</string>
+    <string name="working_config_bookmark_failed">Could not bookmark the settings.</string>
+    <string name="working_config_restore">Restore bookmarked settings</string>
+    <string name="working_config_restore_summary">Apply the bookmarked settings and close this editor.</string>
+    <string name="working_config_restore_unsaved">Save your changes or reopen the editor before restoring.</string>
+    <string name="working_config_restore_runtime">Switch back to the Wine variant and version used by this bookmark first.</string>
 </resources>

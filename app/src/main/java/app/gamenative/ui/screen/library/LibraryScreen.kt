@@ -139,6 +139,7 @@ import app.gamenative.ui.screen.auth.GOGOAuthActivity
 import app.gamenative.ui.screen.library.components.DualSystemMenu
 import app.gamenative.ui.screen.library.components.ConsoleImportPanel
 import app.gamenative.ui.screen.library.components.LibraryQuickActionsPanel
+import app.gamenative.ui.screen.library.components.WifiGameReceiveDialog
 import app.gamenative.ui.theme.PluviaTheme
 import app.gamenative.ui.util.PlatformAuthUiHelpers
 import app.gamenative.ui.util.PlatformLogoutCallbacks
@@ -221,6 +222,7 @@ fun HomeLibraryScreen(
         onSourceToggle = viewModel::onSourceToggle,
         onAddCustomGameFolder = viewModel::addCustomGameFolder,
         onImportPortableExecutable = viewModel::importPortableExecutable,
+        onReceivedGameAdded = viewModel::refreshAfterReceivedGame,
         onImportInstaller = viewModel::importInstaller,
         onMarkInstallerLaunching = viewModel::markInstallerLaunching,
         resolveCrossStoreSibling = viewModel::resolveCrossStoreSibling,
@@ -262,6 +264,7 @@ private fun LibraryScreenContent(
     onSourceToggle: (GameSource) -> Unit,
     onAddCustomGameFolder: (String) -> Unit,
     onImportPortableExecutable: (Uri, (LocalGameImporter.ImportResult) -> Unit) -> Unit,
+    onReceivedGameAdded: () -> Unit = {},
     onImportInstaller: (Uri, (LocalInstallerImporter.ImportResult) -> Unit) -> Unit,
     onMarkInstallerLaunching: (String, (String) -> Unit, (String) -> Unit) -> Unit,
     resolveCrossStoreSibling: (String, GameSource) -> LibraryItem?,
@@ -415,6 +418,7 @@ private fun LibraryScreenContent(
     }
 
     val carouselListState = rememberLazyListState()
+    val compactRowListState = rememberLazyListState()
     val isViewWide = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     var currentPaneType by remember { mutableStateOf(PrefManager.libraryLayout) }
     val visibleTabs = LibraryTab.visibleEntries(context, itchLoggedIn)
@@ -437,8 +441,8 @@ private fun LibraryScreenContent(
     val gridFirstItemFocusRequester = remember { FocusRequester() }
     val carouselFocusRequester = remember { FocusRequester() }
     val clearSearchFocusRequester = remember { FocusRequester() }
-    var gridFocusTargetListIndex by remember { mutableIntStateOf(0) }
-    var carouselFocusTargetListIndex by remember { mutableIntStateOf(0) }
+    var gridFocusTargetListIndex by remember(state.contentTab) { mutableIntStateOf(0) }
+    var carouselFocusTargetListIndex by remember(state.contentTab) { mutableIntStateOf(0) }
     var pendingGridFocusRequest by remember { mutableStateOf(false) }
     var pendingCarouselFocusRequest by remember { mutableStateOf(false) }
 
@@ -473,6 +477,7 @@ private fun LibraryScreenContent(
 
     // Dialog state for add custom game prompt
     var showAddCustomGameDialog by remember { mutableStateOf(false) }
+    var showWifiGameReceiveDialog by remember { mutableStateOf(false) }
     var previousAppCount by remember { mutableIntStateOf(state.appInfoList.size) }
     var wasCompanionAttached by remember { mutableStateOf(hasExternalDisplay) }
     var controllerBootstrapNeeded by remember { mutableStateOf(true) }
@@ -657,10 +662,9 @@ private fun LibraryScreenContent(
         }
     }
 
-    // Handle opening folder picker (with dialog check). Modern keeps the import panel
-    // (installer/ISO/executable options); its folder branch routes to the SAF import flow
+    val useAddGameMenu = BuildConfig.MODERN_ANDROID || PrefManager.showAddCustomGameDialog
     val onAddCustomGameClick = {
-        if (BuildConfig.MODERN_ANDROID || PrefManager.showAddCustomGameDialog) {
+        if (useAddGameMenu) {
             showAddCustomGameDialog = true
         } else {
             folderPicker.launchPicker()
@@ -754,14 +758,17 @@ private fun LibraryScreenContent(
         Modifier
     }
 
-    // Restore focus after tab change - handles both empty and populated tabs
-    LaunchedEffect(state.currentTab) {
-        if (hasExternalDisplay) {
-            gridFocusTargetListIndex = 0
-            carouselFocusTargetListIndex = 0
-            return@LaunchedEffect
+    // Reset scroll against the committed tab data, after the asynchronous filter pass.
+    var lastContentTab by remember { mutableStateOf(state.contentTab) }
+    LaunchedEffect(state.contentTab) {
+        if (lastContentTab != state.contentTab) {
+            lastContentTab = state.contentTab
+            listState.requestScrollToItem(0)
+            carouselListState.requestScrollToItem(0)
+            compactRowListState.requestScrollToItem(0)
         }
-        // Brief delay to let list populate after tab change
+        if (hasExternalDisplay) return@LaunchedEffect
+        // Let the selected pane attach its focus targets.
         kotlinx.coroutines.delay(150)
 
         // The user may have moved focus up into the tab bar during the delay; don't yank it back.
@@ -1232,12 +1239,11 @@ private fun LibraryScreenContent(
                             installProgressByAppId = state.installProgress,
                             libraryLayout = currentPaneType,
                             currentTab = state.currentTab,
+                            contentTab = state.contentTab,
                             isLoading = state.isLoading,
                             isSearching = state.isSearching,
                             searchQuery = state.searchQuery,
                             totalItemCount = state.totalAppsInFilter,
-                            currentPage = state.currentPaginationPage,
-                            lastPage = state.lastPaginationPage,
                             tabCounts = state.libraryTabCounts(),
                             onSearchQuery = onSearchQuery,
                             onSearchToggle = {
@@ -1250,9 +1256,9 @@ private fun LibraryScreenContent(
                             },
                             onPreviousTab = onPreviousTab,
                             onNextTab = onNextTab,
+                            onTabSelected = onTabChanged,
                             onOptions = { onOptionsPanelToggle(true) },
                             onSystemMenu = { layerController?.openSystem() },
-                            onOpenSettings = { onNavigateRoute(PluviaScreen.Settings.route) },
                             onAddGame = onAddCustomGameClick,
                             onQuickActions = { isQuickActionsOpen = true },
                             onLayoutCycle = {
@@ -1352,21 +1358,22 @@ private fun LibraryScreenContent(
                         modifier = Modifier.fillMaxSize(),
                     )
                 } else if (showNoResultsSplash) {
+                    val isHistoryTab = state.currentTab == LibraryTab.RECENT || state.currentTab == LibraryTab.FAVORITES
                     LibraryStateSplash(
                         messageResId = if (state.isSearching) {
                             R.string.library_search_no_results
                         } else {
-                            R.string.library_no_results
+                            state.currentTab.emptyMessageResId
                         },
-                        actionResId = if (state.isSearching) {
-                            R.string.library_clear_search
-                        } else {
-                            R.string.connection_retry
+                        actionResId = when {
+                            state.isSearching -> R.string.library_clear_search
+                            isHistoryTab -> R.string.library_browse_all_games
+                            else -> R.string.connection_retry
                         },
-                        onAction = if (state.isSearching) {
-                            { onSearchQuery("") }
-                        } else {
-                            onRefresh
+                        onAction = when {
+                            state.isSearching -> { { onSearchQuery("") } }
+                            isHistoryTab -> { { onTabChanged(LibraryTab.ALL) } }
+                            else -> onRefresh
                         },
                         modifier = Modifier.fillMaxSize(),
                         actionModifier = Modifier.focusRequester(clearSearchFocusRequester),
@@ -1375,9 +1382,7 @@ private fun LibraryScreenContent(
                     if (isSystemMenuOpen) {
                         DualScreenAmbientStage(
                             icon = Icons.Default.AccountCircle,
-                            label = stringResource(R.string.app_name),
                             title = stringResource(R.string.system_hub_title),
-                            description = stringResource(R.string.system_hub_stage_description),
                             accent = PluviaTheme.colors.accentCyan,
                             ambientArtUrls = remember(state.appInfoList) {
                                 state.appInfoList.asSequence()
@@ -1431,7 +1436,9 @@ private fun LibraryScreenContent(
                     } else if (currentPaneType == PaneType.INSTALLED_COMPACT) {
                         LibraryCompactRowPane(
                             state = state,
-                            isInstalledTab = state.currentTab == LibraryTab.INSTALLED,
+                            isInstalledTab = state.contentTab == LibraryTab.INSTALLED,
+                            listState = compactRowListState,
+                            gridState = listState,
                             firstItemFocusRequester = gridFirstItemFocusRequester,
                             focusTargetListIndex = gridFocusTargetListIndex,
                             onFocusedIndexChanged = { gridFocusTargetListIndex = it },
@@ -1507,8 +1514,6 @@ private fun LibraryScreenContent(
                         onTabSelected = onTabChanged,
                         onOptionsClick = { onOptionsPanelToggle(true) },
                         onSearchClick = { onIsSearching(true) },
-                        onRefresh = onRefresh,
-                        isRefreshing = state.isRefreshing,
                         onAddGameClick = onAddCustomGameClick,
                         onMenuClick = { layerController?.openSystem() },
                         onNavigateDownToGrid = {
@@ -1614,7 +1619,7 @@ private fun LibraryScreenContent(
                 onDismiss = { onOptionsPanelToggle(false) },
                 selectedFilters = state.appInfoSortType,
                 onFilterChanged = onFilterChanged,
-                currentSortOption = state.currentSortOption,
+                currentSortOption = state.currentSortOption.takeUnless { state.currentTab.fixedSortOption != null },
                 onSortOptionChanged = onSortOptionChanged,
                 steamCollections = state.steamCollections,
                 selectedSteamCollectionIds = state.selectedSteamCollectionIds,
@@ -1624,6 +1629,18 @@ private fun LibraryScreenContent(
                 isOffline = isOffline,
                 onSteamCollectionToggle = onSteamCollectionToggle,
                 onClearSteamCollections = onClearSteamCollections,
+                onRefresh = {
+                    if (!state.isRefreshing) {
+                        onOptionsPanelToggle(false)
+                        onRefresh()
+                    }
+                },
+                onReceiveWifi = if (useAddGameMenu) null else {
+                    {
+                        onOptionsPanelToggle(false)
+                        showWifiGameReceiveDialog = true
+                    }
+                },
             )
 
             LibraryQuickActionsPanel(
@@ -1713,6 +1730,7 @@ private fun LibraryScreenContent(
             ContainerConfigDialog(
                 title = context.getString(R.string.library_config_title, item.name),
                 initialConfig = containerData,
+                enableWorkingConfig = true,
                 appId = item.appId,
                 onDismissRequest = { quickContainerEdit = null },
                 onSave = { newData ->
@@ -1843,6 +1861,10 @@ private fun LibraryScreenContent(
         ConsoleImportPanel(
             isOpen = showAddCustomGameDialog,
             onDismiss = { showAddCustomGameDialog = false },
+            onReceiveWifi = {
+                showAddCustomGameDialog = false
+                showWifiGameReceiveDialog = true
+            },
             onInstall = {
                 showAddCustomGameDialog = false
                 installerPicker.launch(arrayOf("*/*"))
@@ -1860,6 +1882,21 @@ private fun LibraryScreenContent(
                 }
             },
         )
+
+        if (showWifiGameReceiveDialog) {
+            WifiGameReceiveDialog(
+                onDismiss = { showWifiGameReceiveDialog = false },
+                onGameAdded = onReceivedGameAdded,
+                onInstall = { sessionId ->
+                    showWifiGameReceiveDialog = false
+                    onMarkInstallerLaunching(sessionId, { appId -> onClickPlay(appId, false) }, SnackbarManager::show)
+                },
+                onPlay = { appId ->
+                    showWifiGameReceiveDialog = false
+                    onClickPlay(appId, false)
+                },
+            )
+        }
 
         // On a dual-screen device this composable is the upper display. Keep the
         // passive system chrome in its conventional top-right corner there; the

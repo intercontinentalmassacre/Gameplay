@@ -1,41 +1,61 @@
 package app.gamenative.html5.host
 
-import app.gamenative.externaldisplay.DsHomeSecondScreen
-import app.gamenative.itch.ItchGameCache
-import app.gamenative.utils.CustomGameScanner
-import android.app.Activity
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.hardware.input.InputManager
-import com.winlator.inputcontrols.ExternalController
+import android.net.Uri
 import android.os.Bundle
+import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
-import app.gamenative.html5.input.Html5GamepadBridge
-import app.gamenative.html5.input.Html5InputBridge
-import app.gamenative.html5.input.Html5InputSynthesizer
-import app.gamenative.ui.screen.xserver.PhysicalControllerHandler
-import com.winlator.container.ContainerManager
-import com.winlator.inputcontrols.Binding
-import com.winlator.inputcontrols.ControlsProfile
-import com.winlator.inputcontrols.GamepadState
-import com.winlator.inputcontrols.InputControlsManager
 import android.view.WindowManager
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
+import android.webkit.WebViewClient
+import androidx.activity.ComponentActivity
+import androidx.activity.addCallback
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.lifecycle.lifecycleScope
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
-import android.webkit.WebViewClient
+import app.gamenative.PrefManager
+import app.gamenative.externaldisplay.DsHomeSecondScreen
+import app.gamenative.html5.input.Html5GamepadBridge
+import app.gamenative.html5.input.Html5InputBridge
+import app.gamenative.html5.input.Html5InputSynthesizer
+import app.gamenative.input.GamepadQuickMenuShortcut
+import app.gamenative.itch.ItchGameCache
+import app.gamenative.ui.screen.xserver.PhysicalControllerHandler
+import app.gamenative.utils.CustomGameScanner
+import com.winlator.container.ContainerManager
+import com.winlator.inputcontrols.Binding
+import com.winlator.inputcontrols.ControlsProfile
+import com.winlator.inputcontrols.ExternalController
+import com.winlator.inputcontrols.GamepadState
+import com.winlator.inputcontrols.InputControlsManager
 import java.io.File
 import java.io.IOException
 import java.security.MessageDigest
 
-class Html5GameActivity : Activity() {
+class Html5GameActivity : ComponentActivity() {
+    private var playSession: app.gamenative.utils.LibrarySessionTracker.Session? = null
+    private var playedAppId: String? = null
+    private var isGameResumed = false
+    private var isGameVisible = false
+
+    private fun resumePlaySession() {
+        if (!isGameResumed || !isGameVisible || quickMenu?.isOpen == true || isFinishing) return
+        val appId = playedAppId ?: return
+        val session = playSession
+        if (session == null) {
+            playSession = app.gamenative.utils.LibrarySessionTracker.from(this).start(appId)
+        } else {
+            session.resume()
+        }
+    }
     companion object {
         private const val ROOT = "gameRoot"
         private const val CLOSE_CART_PATH = "/.gameplay/close-cart"
@@ -83,12 +103,19 @@ class Html5GameActivity : Activity() {
     private val inputEvents = Html5InputBridge()
     private val synthesizer = Html5InputSynthesizer(inputEvents)
     private val heldBindings = mutableSetOf<Binding>()
+    private val webKeys = mutableMapOf<Pair<Int, Int>, KeyEvent>()
+    private val menuKeys = mutableSetOf<Pair<Int, Int>>()
+    private val menuShortcut by lazy { GamepadQuickMenuShortcut(lifecycleScope) }
+    private var quickMenu: Html5QuickMenu? = null
     private val inputManager by lazy { getSystemService(InputManager::class.java) }
     private val deviceListener = object : InputManager.InputDeviceListener {
         override fun onInputDeviceAdded(deviceId: Int) = refreshDevices()
         override fun onInputDeviceChanged(deviceId: Int) = refreshDevices()
         override fun onInputDeviceRemoved(deviceId: Int) {
+            menuShortcut.removeDevice(deviceId)
             releaseController()
+            releaseWebKeys(deviceId)
+            menuKeys.removeAll { it.first == deviceId }
             refreshDevices()
         }
     }
@@ -100,12 +127,19 @@ class Html5GameActivity : Activity() {
     }
 
     private fun releaseController() {
-        heldBindings.forEach { synthesizer.onBindingPress(it, false) }
+        heldBindings.forEach(synthesizer::cancelBinding)
         heldBindings.clear()
+        inputHandler?.cleanup()
         profile?.gamepadState?.let { state ->
             state.copy(GamepadState())
             gamepad.updateState(state)
         }
+    }
+
+    private fun interruptGameInput() {
+        menuShortcut.cancel()
+        releaseWebKeys()
+        releaseController()
     }
 
     private fun attachController(view: WebView) {
@@ -136,6 +170,38 @@ class Html5GameActivity : Activity() {
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (event.keyCode == KeyEvent.KEYCODE_BACK) return super.dispatchKeyEvent(event)
+        val menu = quickMenu ?: return super.dispatchKeyEvent(event)
+        val controller = ExternalController.isGameController(event.device)
+        val key = event.deviceId to event.keyCode
+        if (controller && menuShortcut.handle(
+                event,
+                PrefManager.gamepadQuickMenuButton,
+                canUse = { !menu.isOpen && isGameResumed && hasWindowFocus() },
+                openMenu = ::openQuickMenu,
+                forwardTap = { dispatchGameKey(it) },
+            )) return true
+
+        if (key in menuKeys) {
+            if (event.action == KeyEvent.ACTION_UP) {
+                menuKeys.remove(key)
+                return true
+            }
+            if (event.repeatCount > 0 && !menu.isOpen) return true
+            if (event.repeatCount == 0) menuKeys.remove(key)
+        }
+        if (menu.isOpen) {
+            if (controller) {
+                if (event.action == KeyEvent.ACTION_DOWN) menuKeys.add(key)
+                menu.handleKey(event)
+                return true
+            }
+            return super.dispatchKeyEvent(event)
+        }
+        return dispatchGameKey(event)
+    }
+
+    private fun dispatchGameKey(event: KeyEvent): Boolean {
         if (inputHandler?.onKeyEvent(event) == true) {
             profile?.gamepadState?.let(gamepad::updateState)
             // Browsers dispatch arrow keys for a physical d-pad. Keep that path for
@@ -149,14 +215,39 @@ class Html5GameActivity : Activity() {
             }
             if (sameDirection != null && profile?.getController(event.deviceId)
                     ?.getControllerBinding(event.keyCode)?.binding == sameDirection) {
-                return super.dispatchKeyEvent(event)
+                return dispatchWebKey(event)
             }
             return true
         }
-        return super.dispatchKeyEvent(event)
+        return dispatchWebKey(event)
+    }
+
+    private fun dispatchWebKey(event: KeyEvent): Boolean {
+        val key = event.deviceId to event.keyCode
+        if (event.action == KeyEvent.ACTION_UP) webKeys.remove(key)
+        val handled = super.dispatchKeyEvent(event)
+        if (handled && event.action == KeyEvent.ACTION_DOWN && gameView?.hasFocus() == true) {
+            webKeys[key] = KeyEvent(event)
+        }
+        return handled
+    }
+
+    private fun releaseWebKeys(deviceId: Int? = null) {
+        val iterator = webKeys.iterator()
+        while (iterator.hasNext()) {
+            val (key, down) = iterator.next()
+            if (deviceId != null && key.first != deviceId) continue
+            menuKeys.add(key)
+            gameView?.dispatchKeyEvent(KeyEvent.changeAction(down, KeyEvent.ACTION_UP))
+            iterator.remove()
+        }
     }
 
     override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
+        quickMenu?.takeIf { it.isOpen }?.let { menu ->
+            if (event.isFromSource(InputDevice.SOURCE_JOYSTICK)) return menu.handleMotion(event)
+            return super.dispatchGenericMotionEvent(event)
+        }
         if (inputHandler?.onGenericMotionEvent(event) == true) {
             profile?.gamepadState?.let(gamepad::updateState)
             return true
@@ -164,6 +255,11 @@ class Html5GameActivity : Activity() {
         return super.dispatchGenericMotionEvent(event)
     }
 
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        // A temporary window can receive the matching key-up without pausing this activity.
+        if (!hasFocus) interruptGameInput()
+        super.onWindowFocusChanged(hasFocus)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -172,6 +268,7 @@ class Html5GameActivity : Activity() {
             finish()
             return
         }
+        playedAppId = intent.getStringExtra("appId")?.takeIf(String::isNotBlank)
         val digest = MessageDigest.getInstance("SHA-256").digest(root.path.toByteArray())
         val host = digest.take(16).joinToString("") { "%02x".format(it) } + ".invalid"
         window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN or WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -192,10 +289,19 @@ class Html5GameActivity : Activity() {
         view.webViewClient = object : WebViewClient() {
             fun local(uri: Uri) = uri.scheme == "https" && uri.authority == host
 
+            override fun onPageCommitVisible(view: WebView, url: String) {
+                val uri = Uri.parse(url)
+                if (local(uri) && uri.path == "/index.html") {
+                    isGameVisible = true
+                    resumePlaySession()
+                }
+            }
+
             override fun onPageFinished(view: WebView, url: String) {
                 if (local(Uri.parse(url))) {
                     view.evaluateJavascript(FIT_PLAY_SURFACE_JS, null)
                     view.evaluateJavascript(PICO8_CLOSE_SCRIPT, null)
+                    if (quickMenu?.isOpen == true) pauseGameView()
                 }
             }
 
@@ -242,8 +348,43 @@ class Html5GameActivity : Activity() {
             WebViewCompat.addDocumentStartJavaScript(view, source, setOf("https://$host"))
             timber.log.Timber.tag("Html5Runtime").d("Document-start shims: %s", scripts)
         }
-        setContentView(view)
+        val menu = Html5QuickMenu(this, view, ::openQuickMenu, ::closeQuickMenu, ::finish)
+        quickMenu = menu
+        setContentView(menu.view)
+        onBackPressedDispatcher.addCallback(this) {
+            if (quickMenu?.isOpen == true) closeQuickMenu() else openQuickMenu()
+        }
+        view.requestFocus()
         view.loadUrl("https://$host/index.html")
+    }
+
+    private fun openQuickMenu() {
+        val menu = quickMenu ?: return
+        if (!isGameResumed || isFinishing || menu.isOpen) return
+        interruptGameInput()
+        menu.show()
+        playSession?.pause()
+        pauseGameView()
+    }
+
+    private fun closeQuickMenu() {
+        val menu = quickMenu ?: return
+        if (!menu.isOpen) return
+        menu.hide()
+        if (isGameResumed) {
+            resumeGameView()
+            resumePlaySession()
+        }
+    }
+
+    private fun pauseGameView() {
+        gameView?.evaluateJavascript(PAUSE_MEDIA_JS, null)
+        gameView?.onPause()
+    }
+
+    private fun resumeGameView() {
+        gameView?.onResume()
+        gameView?.evaluateJavascript(RESUME_MEDIA_JS, null)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -268,6 +409,7 @@ class Html5GameActivity : Activity() {
             mode = DsHomeSecondScreen.Mode.GAME_DASHBOARD,
             dashboardTitle = title,
             dashboardImageUrl = game?.coverUrl.orEmpty(),
+            onOpenGameMenu = ::openQuickMenu,
         ).also(DsHomeSecondScreen::publish)
     }
 
@@ -278,22 +420,25 @@ class Html5GameActivity : Activity() {
     }
 
     override fun onPause() {
+        isGameResumed = false
+        playSession?.pause()
         inputManager.unregisterInputDeviceListener(deviceListener)
-        releaseController()
-        gameView?.evaluateJavascript(PAUSE_MEDIA_JS, null)
-        gameView?.onPause()
+        interruptGameInput()
+        pauseGameView()
         super.onPause()
     }
 
     override fun onResume() {
         super.onResume()
+        isGameResumed = true
+        resumePlaySession()
         inputManager.registerInputDeviceListener(deviceListener, null)
         refreshDevices()
-        gameView?.onResume()
-        gameView?.evaluateJavascript(RESUME_MEDIA_JS, null)
+        if (quickMenu?.isOpen == true) pauseGameView() else resumeGameView()
     }
 
     override fun onDestroy() {
+        playSession?.finish()
         inputHandler?.cleanup()
         gameView?.let {
             (it.parent as? android.view.ViewGroup)?.removeView(it)

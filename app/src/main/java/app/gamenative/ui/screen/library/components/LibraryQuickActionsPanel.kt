@@ -1,7 +1,6 @@
 package app.gamenative.ui.screen.library.components
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AddToHomeScreen
@@ -12,14 +11,10 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Tune
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import app.gamenative.R
 import app.gamenative.data.GameSource
 import app.gamenative.data.LibraryItem
@@ -47,18 +42,10 @@ fun LibraryQuickActionsPanel(
         verticalArrangement = Arrangement.spacedBy(PluviaTheme.tokens.menuItemGap),
     ) { firstItemFocusRequester ->
         ConsolePanelHeader(
-            title = stringResource(R.string.quick_menu_title),
+            title = focusedItem?.name ?: stringResource(R.string.quick_menu_title),
             onBack = onDismiss,
         )
         focusedItem?.let { item ->
-            Text(
-                text = item.name,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(bottom = 8.dp),
-            )
             if (!item.isRecommended) {
                 val canRunImmediately = item.isInstalled || item.gameSource == GameSource.CUSTOM_GAME
                 ConsoleMenuActionItem(

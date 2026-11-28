@@ -35,7 +35,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -67,7 +66,6 @@ import androidx.compose.animation.fadeOut
 import app.gamenative.ui.theme.LocalReduceMotion
 import app.gamenative.ui.theme.motionSpec
 import app.gamenative.BuildConfig
-import app.gamenative.Constants
 import app.gamenative.CrashHandler
 import app.gamenative.MainActivity
 import app.gamenative.NetworkMonitor
@@ -369,7 +367,6 @@ fun PluviaMain(
     lifecycleOwner: LifecycleOwner = LocalLifecycleOwner.current,
 ) {
     val context = LocalContext.current
-    val uriHandler = LocalUriHandler.current
     val scope = rememberCoroutineScope()
 
     // Global two-axis layer model (L0 game / L1 shell / L2 quick / L3 system / L4 dialog).
@@ -763,17 +760,6 @@ fun PluviaMain(
                     }
                 }
 
-                MainViewModel.MainUiEvent.ShowDiscordSupportDialog -> {
-                    msgDialogState = MessageDialogState(
-                        visible = true,
-                        type = DialogType.DISCORD,
-                        title = context.getString(R.string.main_discord_support_title),
-                        message = context.getString(R.string.main_discord_support_message),
-                        confirmBtnText = context.getString(R.string.main_open_discord),
-                        dismissBtnText = context.getString(R.string.close),
-                    )
-                }
-
                 is MainViewModel.MainUiEvent.ShowGameFeedbackDialog -> {
                     gameFeedbackState = GameFeedbackDialogState(
                         visible = true,
@@ -824,6 +810,7 @@ fun PluviaMain(
                         setLoadingMessage = viewModel::setLoadingDialogMessage,
                         setMessageDialogState = setMessageDialogState,
                         onSuccess = viewModel::launchApp,
+                        isOffline = viewModel.isOffline.value,
                     )
                 }
             }
@@ -986,19 +973,6 @@ fun PluviaMain(
     val onConfirmClick: (() -> Unit)?
     var onActionClick: (() -> Unit)? = null
     when (msgDialogState.type) {
-        DialogType.DISCORD -> {
-            onConfirmClick = {
-                setMessageDialogState(MessageDialogState(false))
-                uriHandler.openUri(Constants.Misc.DISCORD_LINK)
-            }
-            onDismissClick = {
-                setMessageDialogState(MessageDialogState(false))
-            }
-            onDismissRequest = {
-                setMessageDialogState(MessageDialogState(false))
-            }
-        }
-
         DialogType.SYNC_CONFLICT -> {
             onConfirmClick = {
                 preLaunchApp(
@@ -1010,6 +984,7 @@ fun PluviaMain(
                     setLoadingMessage = viewModel::setLoadingDialogMessage,
                     setMessageDialogState = setMessageDialogState,
                     onSuccess = viewModel::launchApp,
+                    isOffline = viewModel.isOffline.value,
                 )
                 msgDialogState = MessageDialogState(false)
             }
@@ -1023,6 +998,7 @@ fun PluviaMain(
                     setLoadingMessage = viewModel::setLoadingDialogMessage,
                     setMessageDialogState = setMessageDialogState,
                     onSuccess = viewModel::launchApp,
+                    isOffline = viewModel.isOffline.value,
                 )
                 msgDialogState = MessageDialogState(false)
             }
@@ -1156,6 +1132,7 @@ fun PluviaMain(
                     setLoadingMessage = viewModel::setLoadingDialogMessage,
                     setMessageDialogState = setMessageDialogState,
                     onSuccess = viewModel::launchApp,
+                    isOffline = viewModel.isOffline.value,
                 )
             }
             onDismissClick = {
@@ -1535,11 +1512,8 @@ fun PluviaMain(
                 onDismiss = {
                     gameFeedbackState = GameFeedbackDialogState(visible = false)
                 },
-                onDiscordSupport = {
-                    uriHandler.openUri(CommunityFeedbackLinks.DISCORD_INVITE_URL)
-                },
                 onOpenGithubIssue = { feedbackState ->
-                    uriHandler.openUri(CommunityFeedbackLinks.githubIssueUrl(feedbackState))
+                    CommunityFeedbackLinks.open(context, CommunityFeedbackLinks.githubIssueUrl(feedbackState))
                 },
             )
 
@@ -1561,9 +1535,8 @@ fun PluviaMain(
 
             Box(modifier = Modifier.zIndex(10f)) {
                 BootingSplash(
-                    visible = state.showBootingSplash,
-                    text = state.bootingSplashText,
-                    heroImageUrl = state.bootingSplashHeroImageUrl,
+                    state = state,
+                    onShowGameScreen = viewModel::showGameScreenDuringStartup,
                 )
             }
 
@@ -2035,6 +2008,18 @@ fun preLaunchApp(
         // Avoid scanning or writing saves while the previous session is still syncing.
         app.gamenative.service.ExitCloudSyncQueue.process.await(appId)
 
+        if (gameSource == GameSource.CUSTOM_GAME) {
+            val folder = CustomGameScanner.getFolderPathFromAppId(appId)?.let(::File)
+            if (folder != null && CustomGameScanner.isReceivedGameFolder(folder)) {
+                try {
+                    app.gamenative.service.LanGameReceiver.recoverUpdates(File(CustomGameScanner.receivedGameRootPath))
+                } catch (error: Exception) {
+                    showSetupError(error)
+                    return@launch
+                }
+            }
+        }
+
         if (gameSource == GameSource.AMAZON) {
             try {
                 AmazonService.prepareLaunch(context, gameId)
@@ -2243,7 +2228,8 @@ fun preLaunchApp(
                 ).await()
             }
 
-            if (!container.isUseLegacyDRM && !container.isLaunchRealSteam &&
+            if (gameSource == GameSource.STEAM && !container.isUseLegacyDRM &&
+                !container.isLaunchRealSteam && !container.isLaunchBionicSteam &&
                 !SteamService.isFileInstallable(context, STEAM_EMULATOR_ARCHIVE)
             ) {
                 setLoadingMessage("Downloading extras")
@@ -2360,8 +2346,8 @@ fun preLaunchApp(
         // For GOG Games, sync cloud saves before launch (executable already verified above via GOGService.getLaunchExecutable)
         val isGOGGame = gameSource == GameSource.GOG
         if (isGOGGame) {
-            if (isLocalSavesOnly) {
-                Timber.tag("GOG").i("[Cloud Saves] Local saves only enabled for $appId — skipping pre-game cloud sync")
+            if (isLocalSavesOnly || skipCloudSync) {
+                Timber.tag("GOG").i("[Cloud Saves] Skipping pre-game cloud sync for $appId")
             } else {
                 Timber.tag("GOG").i("[Cloud Saves] GOG Game detected for $appId — syncing cloud saves before launch")
 
@@ -2429,8 +2415,8 @@ fun preLaunchApp(
         // For Epic Games, sync cloud saves before launch (executable already verified above via EpicService.getLaunchExecutable)
         val isEpicGame = gameSource == GameSource.EPIC
         if (isEpicGame) {
-            if (isLocalSavesOnly) {
-                Timber.tag("Epic").i("[Cloud Saves] Local saves only enabled for $appId — skipping pre-game cloud sync")
+            if (isLocalSavesOnly || skipCloudSync) {
+                Timber.tag("Epic").i("[Cloud Saves] Skipping pre-game cloud sync for $appId")
             } else {
                 // Handle Cloud Saves
                 Timber.tag("Epic").i("[Cloud Saves] Epic Game detected for $appId — syncing cloud saves before launch")
@@ -2700,12 +2686,14 @@ fun preLaunchApp(
                         ignorePendingOperations = ignorePendingOperations,
                         preferredSave = preferredSave,
                         useTemporaryOverride = useTemporaryOverride,
+                        skipCloudSync = skipCloudSync,
                         setLoadingDialogVisible = setLoadingDialogVisible,
                         setLoadingProgress = setLoadingProgress,
                         setLoadingMessage = setLoadingMessage,
                         setMessageDialogState = setMessageDialogState,
                         onSuccess = onSuccess,
                         retryCount = retryCount + 1,
+                        isOffline = isOffline,
                         bootToContainer = bootToContainer,
                     )
                 } else {

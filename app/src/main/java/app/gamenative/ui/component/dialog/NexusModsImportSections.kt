@@ -75,11 +75,6 @@ internal fun LocalModImportSection(
                 )
             }
             Text(
-                stringResource(R.string.local_mod_description),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
                 stringResource(R.string.local_mod_supported),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,

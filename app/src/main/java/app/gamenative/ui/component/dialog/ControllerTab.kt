@@ -35,41 +35,6 @@ fun ControllerTabContent(state: ContainerConfigState, default: Boolean) {
     }
 
     SettingsGroup() {
-        if (!default) {
-            SettingsSwitch(
-                colors = settingsTileColorsAlt(),
-                title = { Text(text = stringResource(R.string.use_sdl_api)) },
-                state = config.sdlControllerAPI,
-                onCheckedChange = { state.config.value = config.copy(sdlControllerAPI = it) },
-            )
-        }
-        SettingsSwitch(
-            colors = settingsTileColorsAlt(),
-            title = { Text(text = stringResource(R.string.use_steam_input)) },
-            state = config.useSteamInput,
-            onCheckedChange = { state.config.value = config.copy(useSteamInput = it) },
-        )
-        SettingsSwitch(
-            colors = settingsTileColorsAlt(),
-            title = { Text(text = stringResource(R.string.enable_xinput_api)) },
-            state = config.enableXInput,
-            onCheckedChange = { state.config.value = config.copy(enableXInput = it) },
-        )
-        SettingsSwitch(
-            colors = settingsTileColorsAlt(),
-            title = { Text(text = stringResource(R.string.enable_directinput_api)) },
-            state = config.enableDInput,
-            onCheckedChange = { state.config.value = config.copy(enableDInput = it) },
-        )
-        SettingsListDropdown(
-            colors = settingsTileColors(),
-            title = { Text(text = stringResource(R.string.directinput_mapper_type)) },
-            value = if (config.dinputMapperType == 1.toByte()) 0 else 1,
-            items = listOf("Standard", "XInput Mapper"),
-            onItemSelected = { index ->
-                state.config.value = config.copy(dinputMapperType = if (index == 0) 1 else 2)
-            },
-        )
         val vibrationModes = listOf(
             stringResource(R.string.vibration_mode_option_off),
             stringResource(R.string.vibration_mode_option_controller),
@@ -104,20 +69,9 @@ fun ControllerTabContent(state: ContainerConfigState, default: Boolean) {
                 Text(text = "$intensitySlider%")
             }
         }
-        SettingsSwitch(
-            colors = settingsTileColorsAlt(),
-            title = { Text(text = stringResource(R.string.show_controller_debug_menu)) },
-            subtitle = { Text(text = stringResource(R.string.show_controller_debug_menu_subtitle)) },
-            state = showControllerDebugMenu,
-            onCheckedChange = {
-                showControllerDebugMenu = it
-                PrefManager.showControllerDebugMenu = it
-            },
-        )
         SettingsListDropdown(
             colors = settingsTileColors(),
             title = { Text(text = stringResource(R.string.external_display_input)) },
-            subtitle = { Text(text = stringResource(R.string.external_display_input_subtitle)) },
             value = state.externalDisplayModeIndex.value,
             items = state.externalDisplayModes,
             onItemSelected = { index ->
@@ -139,5 +93,56 @@ fun ControllerTabContent(state: ContainerConfigState, default: Boolean) {
             state = config.externalDisplaySwap,
             onCheckedChange = { state.config.value = config.copy(externalDisplaySwap = it) },
         )
+
+        ContainerAdvancedSettings(
+            disclose = state.isPerContainer,
+            titleRes = R.string.controller_input_compatibility_and_diagnostics,
+        ) {
+            if (!default) {
+                SettingsSwitch(
+                    colors = settingsTileColorsAlt(),
+                    title = { Text(text = stringResource(R.string.use_sdl_api)) },
+                    state = config.sdlControllerAPI,
+                    onCheckedChange = { state.config.value = config.copy(sdlControllerAPI = it) },
+                )
+            }
+            SettingsSwitch(
+                colors = settingsTileColorsAlt(),
+                title = { Text(text = stringResource(R.string.use_steam_input)) },
+                state = config.useSteamInput,
+                onCheckedChange = { state.config.value = config.copy(useSteamInput = it) },
+            )
+            SettingsSwitch(
+                colors = settingsTileColorsAlt(),
+                title = { Text(text = stringResource(R.string.enable_xinput_api)) },
+                state = config.enableXInput,
+                onCheckedChange = { state.config.value = config.copy(enableXInput = it) },
+            )
+            SettingsSwitch(
+                colors = settingsTileColorsAlt(),
+                title = { Text(text = stringResource(R.string.enable_directinput_api)) },
+                state = config.enableDInput,
+                onCheckedChange = { state.config.value = config.copy(enableDInput = it) },
+            )
+            SettingsListDropdown(
+                colors = settingsTileColors(),
+                title = { Text(text = stringResource(R.string.directinput_mapper_type)) },
+                value = if (config.dinputMapperType == 1.toByte()) 0 else 1,
+                items = listOf("Standard", "XInput Mapper"),
+                onItemSelected = { index ->
+                    state.config.value = config.copy(dinputMapperType = if (index == 0) 1 else 2)
+                },
+            )
+            SettingsSwitch(
+                colors = settingsTileColorsAlt(),
+                title = { Text(text = stringResource(R.string.show_controller_debug_menu)) },
+                subtitle = { Text(text = stringResource(R.string.show_controller_debug_menu_subtitle)) },
+                state = showControllerDebugMenu,
+                onCheckedChange = {
+                    showControllerDebugMenu = it
+                    PrefManager.showControllerDebugMenu = it
+                },
+            )
+        }
     }
 }

@@ -1,6 +1,7 @@
 package app.gamenative.ui.data
 
 import app.gamenative.ui.enums.LibraryTab
+import app.gamenative.ui.enums.SortOption
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -35,6 +36,26 @@ class LibraryContentStateTest {
 
         assertEquals(7, counts[LibraryTab.INSTALLED])
         assertEquals(42, counts[LibraryTab.ALL])
+    }
+
+    @Test
+    fun `Recent uses the recently played sort while Favorites uses the library sort`() {
+        assertEquals(SortOption.RECENTLY_PLAYED, LibraryTab.RECENT.fixedSortOption ?: SortOption.NAME_ASC)
+        assertEquals(SortOption.NAME_ASC, LibraryTab.FAVORITES.fixedSortOption ?: SortOption.NAME_ASC)
+    }
+
+    @Test
+    fun `history tabs keep editions of the same game distinct`() {
+        val steamEdition = "STEAM_123"
+        val gogEdition = "GOG_456"
+        val favorites = setOf(gogEdition)
+
+        assertEquals(listOf(gogEdition), listOf(steamEdition, gogEdition).filter {
+            LibraryTab.FAVORITES.matchesEntry(it, lastPlayed = 0L, favoriteGameIds = favorites)
+        })
+        assertEquals(listOf(gogEdition), listOf(steamEdition, gogEdition).filter {
+            LibraryTab.RECENT.matchesEntry(it, lastPlayed = if (it == gogEdition) 1000L else 0L, favoriteGameIds = emptySet())
+        })
     }
 
     @Test

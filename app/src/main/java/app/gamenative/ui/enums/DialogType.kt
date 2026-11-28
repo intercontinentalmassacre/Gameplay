@@ -8,7 +8,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 
 enum class DialogType(val icon: ImageVector? = null) {
     CRASH,
-    DISCORD,
     SYNC_CONFLICT,
     SYNC_FAIL,
     SYNC_IN_PROGRESS,

@@ -15,6 +15,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Gamepad
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.*
@@ -154,14 +155,10 @@ internal fun PhysicalControllerConfigSection(
         onSave(target)
     }
 
-    if (layoutsOnly) {
-        if (embedded) BackHandler(onBack = onDismiss)
-        PhysicalControllerLayoutPicker(gameName, steamAppId, embedded, workingBindings, defaultBindings, ::saveBindings, onDismiss)
-        return
-    }
-
     var selectedCategory by remember { mutableStateOf(0) } // 0 = Face, 1 = Shoulder, 2 = Menu, 3 = Thumbstick, 4 = Left Stick, 5 = Right Stick, 6 = D-Pad
     var showBindingDialog by remember { mutableStateOf<Pair<Int, String>?>(null) }
+    var showInitialLayouts by remember { mutableStateOf(layoutsOnly) }
+    var showDraftLayouts by remember { mutableStateOf(false) }
     val rowFocusRequesters = remember { mutableMapOf<Int, FocusRequester>() }
     val editorScrollState = rememberScrollState()
     var bindingRowFocus by remember { mutableStateOf<FocusRequester?>(null) }
@@ -244,6 +241,30 @@ internal fun PhysicalControllerConfigSection(
     }
 
     val renderInline = embedded || alreadyOnSecondScreen
+    if (showInitialLayouts || showDraftLayouts) {
+        val dismissLayouts = { if (showDraftLayouts) showDraftLayouts = false else onDismiss() }
+        if (renderInline) BackHandler(onBack = dismissLayouts)
+        PhysicalControllerLayoutPicker(
+            gameName = gameName,
+            steamAppId = steamAppId,
+            embedded = renderInline,
+            current = workingBindings,
+            defaults = defaultBindings,
+            onApply = { bindings ->
+                if (showDraftLayouts) {
+                    workingBindings.clear()
+                    workingBindings.putAll(bindings)
+                    showDraftLayouts = false
+                } else {
+                    saveBindings(bindings)
+                }
+            },
+            onDismiss = dismissLayouts,
+            onEditBindings = if (showInitialLayouts) ({ showInitialLayouts = false }) else null,
+        )
+        return
+    }
+
     val dismissPicker = { showBindingDialog = null }
     if (renderInline) {
         BackHandler {
@@ -286,6 +307,11 @@ internal fun PhysicalControllerConfigSection(
                         )
                     },
                     actions = {
+                        ConsoleIconButton(
+                            icon = Icons.Default.Gamepad,
+                            contentDescription = stringResource(R.string.controller_layouts),
+                            onClick = { showDraftLayouts = true },
+                        )
                         // Reset button
                         ConsoleIconButton(
                             icon = Icons.Default.Refresh,
@@ -300,9 +326,7 @@ internal fun PhysicalControllerConfigSection(
                         ConsoleIconButton(
                             icon = Icons.Default.Save,
                             contentDescription = stringResource(R.string.save),
-                            onClick = {
-                                saveBindings(workingBindings)
-                            },
+                            onClick = { saveBindings(workingBindings) },
                         )
                     }
                 )

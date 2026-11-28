@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="game_add_favorite">В избранное</string>
+    <string name="game_remove_favorite">Убрать из избранного</string>
+    <string name="game_pin_play_next">Играть следующей</string>
+    <string name="game_unpin_play_next">Открепить из очереди</string>
+</resources>

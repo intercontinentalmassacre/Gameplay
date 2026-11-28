@@ -1,6 +1,6 @@
 package app.gamenative.html5.host
 
-// WebView.onPause() stops JS timers and compositing but leaves <audio>/<video> and AudioContexts playing.
+// WebView.onPause() is best-effort. Track and suspend <audio>/<video> and AudioContexts explicitly.
 // paused state is recorded on window so resume restores exactly what WE paused, not what the game paused.
 internal const val PAUSE_MEDIA_JS = """
 (function () {

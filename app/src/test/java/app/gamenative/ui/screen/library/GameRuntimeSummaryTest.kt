@@ -1,9 +1,20 @@
 package app.gamenative.ui.screen.library
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class GameRuntimeSummaryTest {
+
+    @Test
+    fun windowsSummaryFollowsConfiguredRuntime() {
+        assertFalse(usesWindowsRuntime("ITCH_42", "html5", "windows", "game.exe"))
+        assertFalse(usesWindowsRuntime("STEAM_42", "auto", "Android", ""))
+        assertFalse(usesWindowsRuntime("CUSTOM_GAME_42", "auto", "windows", "Game.APPIMAGE"))
+        assertTrue(usesWindowsRuntime("CUSTOM_GAME_42", "auto", "windows", "game.exe"))
+        assertTrue(usesWindowsRuntime("ITCH_42", "auto", "windows", "game.AppImage"))
+    }
 
     @Test
     fun directXSummaryUsesTheActiveWrapperVersion() {
@@ -27,7 +38,7 @@ class GameRuntimeSummaryTest {
         )
 
         assertEquals(
-            "Wrapper Gameplay · turnip26.0.0_R8",
+            "Wrapper (GameNative) · turnip26.0.0_R8",
             graphicsDriverSummary("wrapper-gamenative", selectedVersion),
         )
     }

@@ -4,18 +4,13 @@ import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import kotlinx.coroutines.delay
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.displayCutoutPadding
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -49,12 +44,9 @@ import com.skydoves.landscapist.coil.CoilImage
 @Composable
 fun DualScreenAmbientStage(
     icon: ImageVector,
-    label: String,
     title: String,
-    description: String,
     accent: Color,
     modifier: Modifier = Modifier,
-    hint: String? = null,
     ambientArtUrls: List<String> = emptyList(),
 ) {
     val background = MaterialTheme.colorScheme.background
@@ -149,73 +141,26 @@ fun DualScreenAmbientStage(
             )
         }
 
-        Row(
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(horizontal = 48.dp, vertical = 36.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = accent,
-                modifier = Modifier.size(24.dp),
-            )
-            Text(
-                text = label,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Medium,
-                color = onBackground.copy(alpha = 0.78f),
-            )
-        }
-
-        Column(
+        Text(
+            text = title,
+            style = MaterialTheme.typography.displaySmall,
+            fontWeight = FontWeight.SemiBold,
+            color = onBackground,
             modifier = Modifier
                 .align(Alignment.CenterStart)
-                .padding(start = 48.dp, end = 520.dp)
+                .padding(start = 32.dp, end = 140.dp)
                 .widthIn(max = 680.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            Box(
-                modifier = Modifier
-                    .width(52.dp)
-                    .height(3.dp)
-                    .background(accent),
-            )
-            Text(
-                text = title,
-                style = MaterialTheme.typography.displaySmall,
-                fontWeight = FontWeight.SemiBold,
-                color = onBackground,
-            )
-            Text(
-                text = description,
-                style = MaterialTheme.typography.titleMedium,
-                color = onBackground.copy(alpha = 0.74f),
-                modifier = Modifier.widthIn(max = 600.dp),
-            )
-        }
+        )
 
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = accent.copy(alpha = 0.72f),
+            tint = accent.copy(alpha = 0.32f),
             modifier = Modifier
                 .align(Alignment.CenterEnd)
-                .padding(end = 112.dp)
-                .size(152.dp),
+                .padding(end = 32.dp)
+                .size(112.dp),
         )
 
-        if (!hint.isNullOrBlank()) {
-            Text(
-                text = hint,
-                style = MaterialTheme.typography.bodySmall,
-                color = onBackground.copy(alpha = 0.52f),
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(horizontal = 48.dp, vertical = 34.dp),
-            )
-        }
     }
 }

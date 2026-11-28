@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="wifi_game_update_close_game">Закройте запущенную игру перед обновлением файлов.</string>
+    <string name="wifi_game_update">Обновить по Wi-Fi</string>
+    <string name="wifi_game_update_instructions">Обновление игры «%1$s». Откройте этот адрес на компьютере и выберите обновлённую папку «%2$s».</string>
+    <string name="wifi_game_update_ready">Игра «%1$s» обновлена.</string>
+</resources>

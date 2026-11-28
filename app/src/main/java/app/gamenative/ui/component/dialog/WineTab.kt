@@ -32,26 +32,6 @@ fun WineTabContent(state: ContainerConfigState) {
                 )
             },
         )
-        SettingsListDropdownSearchable(
-            colors = settingsTileColors(),
-            title = { Text(text = stringResource(R.string.gpu_name)) },
-            value = state.gpuNameIndex.value,
-            items = state.gpuCards.values.map { it.name },
-            onItemSelected = {
-                state.gpuNameIndex.value = it
-                state.config.value = config.copy(videoPciDeviceID = gpuCardsValues[it].deviceId)
-            },
-        )
-        SettingsListDropdown(
-            colors = settingsTileColors(),
-            title = { Text(text = stringResource(R.string.offscreen_rendering_mode)) },
-            value = state.renderingModeIndex.value,
-            items = state.renderingModes,
-            onItemSelected = {
-                state.renderingModeIndex.value = it
-                state.config.value = config.copy(offScreenRenderingMode = state.renderingModes[it].lowercase())
-            },
-        )
         SettingsListDropdown(
             colors = settingsTileColors(),
             title = { Text(text = stringResource(R.string.video_memory_size)) },
@@ -62,27 +42,49 @@ fun WineTabContent(state: ContainerConfigState) {
                 state.config.value = config.copy(videoMemorySize = StringUtils.parseNumber(state.videoMemSizes[it]))
             },
         )
-        SettingsSwitch(
-            colors = settingsTileColorsAlt(),
-            title = { Text(text = stringResource(R.string.enable_csmt)) },
-            state = config.csmt,
-            onCheckedChange = { state.config.value = config.copy(csmt = it) },
-        )
-        SettingsSwitch(
-            colors = settingsTileColorsAlt(),
-            title = { Text(text = stringResource(R.string.enable_strict_shader_math)) },
-            state = config.strictShaderMath,
-            onCheckedChange = { state.config.value = config.copy(strictShaderMath = it) },
-        )
-        SettingsListDropdown(
-            colors = settingsTileColors(),
-            title = { Text(text = stringResource(R.string.mouse_warp_override)) },
-            value = state.mouseWarpIndex.value,
-            items = state.mouseWarps,
-            onItemSelected = {
-                state.mouseWarpIndex.value = it
-                state.config.value = config.copy(mouseWarpOverride = state.mouseWarps[it].lowercase())
-            },
-        )
+        ContainerAdvancedSettings(disclose = state.isPerContainer) {
+            SettingsListDropdownSearchable(
+                colors = settingsTileColors(),
+                title = { Text(text = stringResource(R.string.gpu_name)) },
+                value = state.gpuNameIndex.value,
+                items = state.gpuCards.values.map { it.name },
+                onItemSelected = {
+                    state.gpuNameIndex.value = it
+                    state.config.value = config.copy(videoPciDeviceID = gpuCardsValues[it].deviceId)
+                },
+            )
+            SettingsListDropdown(
+                colors = settingsTileColors(),
+                title = { Text(text = stringResource(R.string.offscreen_rendering_mode)) },
+                value = state.renderingModeIndex.value,
+                items = state.renderingModes,
+                onItemSelected = {
+                    state.renderingModeIndex.value = it
+                    state.config.value = config.copy(offScreenRenderingMode = state.renderingModes[it].lowercase())
+                },
+            )
+            SettingsSwitch(
+                colors = settingsTileColorsAlt(),
+                title = { Text(text = stringResource(R.string.enable_csmt)) },
+                state = config.csmt,
+                onCheckedChange = { state.config.value = config.copy(csmt = it) },
+            )
+            SettingsSwitch(
+                colors = settingsTileColorsAlt(),
+                title = { Text(text = stringResource(R.string.enable_strict_shader_math)) },
+                state = config.strictShaderMath,
+                onCheckedChange = { state.config.value = config.copy(strictShaderMath = it) },
+            )
+            SettingsListDropdown(
+                colors = settingsTileColors(),
+                title = { Text(text = stringResource(R.string.mouse_warp_override)) },
+                value = state.mouseWarpIndex.value,
+                items = state.mouseWarps,
+                onItemSelected = {
+                    state.mouseWarpIndex.value = it
+                    state.config.value = config.copy(mouseWarpOverride = state.mouseWarps[it].lowercase())
+                },
+            )
+        }
     }
 }

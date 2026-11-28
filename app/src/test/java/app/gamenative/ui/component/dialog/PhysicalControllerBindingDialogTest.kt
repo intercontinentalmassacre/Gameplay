@@ -1,6 +1,7 @@
 package app.gamenative.ui.component.dialog
 
 import android.view.KeyEvent
+import android.view.MotionEvent
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.hasClickAction
@@ -109,7 +110,7 @@ class PhysicalControllerBindingDialogTest {
     }
 
     @Test
-    fun savingWritesOnlyTheResolvedProfile() {
+    fun savingWritesButtonAndStickDirectionsOnlyToTheResolvedProfile() {
         val source = profileWithEnterBinding(1_892)
         val target = ControlsProfile(compose.activity, 1_893).apply { name = "Test target" }
         val buttonLabel = compose.activity.getString(R.string.button_a)
@@ -124,12 +125,25 @@ class PhysicalControllerBindingDialogTest {
                     resolveSaveProfile = { target },
                     onSave = { savedProfile = it },
                     embedded = true,
+                    layoutsOnly = true,
                 )
             }
         }
 
+        compose.onNodeWithText(compose.activity.getString(R.string.controller_profile_edit_bindings)).performClick()
         compose.onNode(hasClickAction() and hasText(buttonLabel)).performClick()
         compose.onNode(hasClickAction() and hasText(Binding.KEY_SPACE.toString())).performScrollTo().performClick()
+        compose.onNode(hasClickAction() and hasText(compose.activity.getString(R.string.left_stick))).performClick()
+        val stickBindings = listOf(
+            Triple(R.string.left_stick_up, MotionEvent.AXIS_Y to -1, Binding.KEY_I),
+            Triple(R.string.left_stick_left, MotionEvent.AXIS_X to -1, Binding.KEY_J),
+            Triple(R.string.left_stick_down, MotionEvent.AXIS_Y to 1, Binding.KEY_K),
+            Triple(R.string.left_stick_right, MotionEvent.AXIS_X to 1, Binding.KEY_L),
+        )
+        for ((label, _, binding) in stickBindings) {
+            compose.onNode(hasClickAction() and hasText(compose.activity.getString(label))).performScrollTo().performClick()
+            compose.onNode(hasClickAction() and hasText(binding.toString())).performScrollTo().performClick()
+        }
         compose.onNode(hasClickAction() and hasContentDescription(saveLabel)).performClick()
 
         compose.runOnIdle {
@@ -138,6 +152,11 @@ class PhysicalControllerBindingDialogTest {
             assertFalse(ControlsProfile.getProfileFile(compose.activity, source.id).exists())
             val reloadedTarget = ControlsProfile(compose.activity, target.id)
             assertEquals(Binding.KEY_SPACE, reloadedTarget.buttonABinding())
+            for ((_, direction, expected) in stickBindings) {
+                val (axis, sign) = direction
+                val axisKeyCode = ExternalControllerBinding.getKeyCodeForAxis(axis, sign.toByte())
+                assertEquals(expected, reloadedTarget.bindingFor(axisKeyCode))
+            }
         }
     }
 
@@ -149,8 +168,10 @@ class PhysicalControllerBindingDialogTest {
             })
         }
 
-    private fun ControlsProfile.buttonABinding(): Binding? =
+    private fun ControlsProfile.buttonABinding(): Binding? = bindingFor(KeyEvent.KEYCODE_BUTTON_A)
+
+    private fun ControlsProfile.bindingFor(keyCode: Int): Binding? =
         getController("*")?.controllerBindings
-            ?.singleOrNull { it.getKeyCodeForAxis() == KeyEvent.KEYCODE_BUTTON_A }
+            ?.singleOrNull { it.getKeyCodeForAxis() == keyCode }
             ?.getBinding()
 }

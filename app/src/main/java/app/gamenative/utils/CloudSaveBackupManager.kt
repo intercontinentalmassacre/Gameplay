@@ -4,6 +4,7 @@ import android.content.Context
 import app.gamenative.PrefManager
 import java.io.File
 import java.io.IOException
+import java.io.OutputStream
 import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.FileVisitResult
 import java.nio.file.Files
@@ -41,13 +42,14 @@ import timber.log.Timber
  *   matching `.json` sidecar next to it. The archive holds `files/<rootId>/<relative path>` entries only,
  *   so it is self-contained: restoring needs no container, no transfer UI and no network.
  * - **Sidecar schema version is [SIDECAR_VERSION] (1).** The sidecar is a versioned JSON document with
- *   `version`, `provider`, `gameId`, `createdAt`, `kind` (`PRE_SYNC`/`PRE_RESTORE`), `fingerprint`,
+ *   `version`, `provider`, `gameId`, `createdAt`, `kind`, `fingerprint`,
  *   `sizeBytes`, `fileCount` and `roots` (`id`, absolute `absolutePath`, `wholeDir`). Sidecars with any
  *   other version are ignored by [listBackups]/[restore], so a schema change must bump the version.
  * - **Retention.** `PRE_SYNC` snapshots keep [backupsToKeep] (`PrefManager.saveBackupsToKeep`, default 3)
  *   per game. The `PRE_RESTORE` safety snapshot that [restore] writes is stored in the same folder but
  *   pruned with a limit of 1, i.e. it does not consume the user's `PRE_SYNC` budget. Setting the
  *   preference to 0 disables `PRE_SYNC` snapshots only: [restore] still snapshots first and stays undoable.
+ *   `MANUAL` snapshots are retained until the player deletes them.
  * - **"Skipped" means no snapshot exists.** [backup] and [BackupSession.ensure] return `false` when there
  *   is nothing to save, when the file set exceeds [MAX_TOTAL_BYTES] (512 MB), when free space is below
  *   twice the snapshot size, when the fingerprint matches the last snapshot of the same kind, or when
@@ -55,7 +57,7 @@ import timber.log.Timber
  * - **Ordering.** Call [backup]/[BackupSession.ensure] *before* downloading, overwriting or deleting local
  *   files, never after. [restore] is the exception: it snapshots the current state itself first.
  *
- * Providers: STEAM, GOG and EPIC only. Upstream also wires EA and Rockstar; this fork has no EA,
+ * Cloud providers: STEAM, GOG and EPIC. Upstream also wires EA and Rockstar; this fork has no EA,
  * Rockstar or Amazon cloud-save sync, so those provider constants are deliberately absent rather than
  * left behind as dead entries. A store that grows cloud saves later only needs to add its constant and a
  * call site; the archive format does not care which provider wrote it.
@@ -64,8 +66,9 @@ object CloudSaveBackupManager {
     const val PROVIDER_STEAM = "steam"
     const val PROVIDER_GOG = "gog"
     const val PROVIDER_EPIC = "epic"
+    const val PROVIDER_CUSTOM = "custom"
 
-    enum class Kind { PRE_SYNC, PRE_RESTORE }
+    enum class Kind { PRE_SYNC, PRE_RESTORE, MANUAL }
 
     /** [files] == null means every regular file under [dir] (recursive). */
     data class BackupRoot(val id: String, val dir: File, val files: List<File>? = null)
@@ -78,6 +81,7 @@ object CloudSaveBackupManager {
         val sizeBytes: Long,
         val fileCount: Int,
         val kind: Kind,
+        val folder: String? = null,
     )
 
     class BackupSession internal constructor(
@@ -136,6 +140,7 @@ object CloudSaveBackupManager {
     private const val SIDECAR_VERSION = 1
     private const val DIR_NAME = "save_backups"
     private const val FILES_PREFIX = "files/"
+    private const val CUSTOM_ROOT_ID = "saves"
     private const val ZIP_EXT = ".zip"
     private const val JSON_EXT = ".json"
     private const val PART_EXT = ".part"
@@ -192,6 +197,56 @@ object CloudSaveBackupManager {
         Timber.tag(TAG).w(e, "Listing save backups failed for $provider/$gameId")
         emptyList()
     }
+
+    /** Writes save files relative to the selected folder, without local backup metadata. */
+    internal suspend fun exportCustomBackup(
+        context: Context,
+        gameId: String,
+        fileName: String,
+        openOutput: () -> OutputStream?,
+    ): Boolean = lock.withLock {
+        withContext(Dispatchers.IO) {
+            try {
+                val backup = listBackups(context, PROVIDER_CUSTOM, gameId)
+                    .firstOrNull { it.file.name == fileName } ?: return@withContext false
+                val prefix = "${FILES_PREFIX}${CUSTOM_ROOT_ID}/"
+                ZipFile(backup.file).use { zip ->
+                    val entries = zip.entries().toList()
+                    require(entries.isNotEmpty() && entries.all { entry ->
+                        !entry.isDirectory && entry.name.startsWith(prefix) &&
+                            validCustomSavePath(entry.name.removePrefix(prefix))
+                    })
+                    val output = openOutput() ?: return@withContext false
+                    ZipOutputStream(output.buffered()).use { out ->
+                        for (entry in entries) {
+                            out.putNextEntry(ZipEntry(entry.name.removePrefix(prefix)).apply { time = entry.time })
+                            zip.getInputStream(entry).use { it.copyTo(out) }
+                            out.closeEntry()
+                        }
+                    }
+                }
+                true
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Timber.tag(TAG).w(e, "Could not export custom save backup")
+                false
+            }
+        }
+    }
+
+    internal fun customSaveRoot(base: File, relative: String): BackupRoot? {
+        if (!validCustomSavePath(relative)) return null
+        val canonicalBase = base.canonicalFile
+        val folder = File(canonicalBase, relative)
+        return if (folder.isDirectory && folder.canonicalFile == folder) BackupRoot(CUSTOM_ROOT_ID, folder)
+        else null
+    }
+
+    private fun validCustomSavePath(relative: String): Boolean =
+        relative.split('/').none { part ->
+            part.isBlank() || part == "." || part == ".." || part.any { it == ':' || it == '\\' || it.isISOControl() }
+        }
 
     /** Takes a PRE_RESTORE backup of the current state first, then replaces the current save set with the backup's contents. */
     suspend fun restore(context: Context, backup: SaveBackup): Boolean = lock.withLock {
@@ -303,6 +358,7 @@ object CloudSaveBackupManager {
     }
 
     private fun prune(dir: File, provider: String, gameId: String, kind: Kind, restoreSource: File?, newest: File? = null) {
+        if (kind == Kind.MANUAL) return
         val keep = if (kind == Kind.PRE_SYNC) backupsToKeep() else 1
         // The active undo snapshot must survive even if the system clock has moved backwards.
         readBackups(dir, provider, gameId)
@@ -361,7 +417,7 @@ object CloudSaveBackupManager {
             restoreEntries(backup.file, plan.roots, plan.entries, changedPaths)
             for ((id, root) in plan.roots) {
                 if (plan.wholeDir[id] != true || !Files.isDirectory(root, LinkOption.NOFOLLOW_LINKS)) continue
-                for (extra in walkRegularFiles(root)) {
+                for (extra in walkRegularFiles(root) { file, _ -> file }) {
                     if (extra in plan.entries) continue
                     if (extra !in originals) throw IOException("No rollback copy for $extra")
                     if (Files.deleteIfExists(extra)) changedPaths.add(extra)
@@ -491,7 +547,7 @@ object CloudSaveBackupManager {
         val explicit = root.files
         if (explicit == null) {
             val files = if (Files.isDirectory(canonical)) {
-                walkRegularFiles(canonical).mapNotNull { collect(root.id, canonical, it) }
+                walkRegularFiles(canonical) { file, attrs -> collect(root.id, canonical, file, attrs) }
             } else {
                 emptyList()
             }
@@ -531,17 +587,21 @@ object CloudSaveBackupManager {
             return null
         }
         if (!attrs.isRegularFile) return null
+        return collect(rootId, root, path, attrs)
+    }
+
+    private fun collect(rootId: String, root: Path, path: Path, attrs: BasicFileAttributes): Collected {
         val relPath = root.relativize(path).joinToString("/") { it.toString() }
         return Collected(rootId, relPath, path, attrs.size(), attrs.lastModifiedTime().toMillis())
     }
 
-    private fun walkRegularFiles(root: Path): List<Path> {
-        val out = ArrayList<Path>()
+    private fun <T> walkRegularFiles(root: Path, transform: (Path, BasicFileAttributes) -> T): List<T> {
+        val out = ArrayList<T>()
         Files.walkFileTree(
             root,
             object : SimpleFileVisitor<Path>() {
                 override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
-                    if (attrs.isRegularFile) out.add(file)
+                    if (attrs.isRegularFile) out.add(transform(file, attrs))
                     return FileVisitResult.CONTINUE
                 }
 
@@ -576,7 +636,8 @@ object CloudSaveBackupManager {
             }
             val kind = Kind.entries.firstOrNull { it.name == meta.kind } ?: return@mapNotNull null
             if (meta.version != SIDECAR_VERSION || meta.provider != provider || meta.gameId != gameId) return@mapNotNull null
-            SaveBackup(provider, gameId, zip, meta.createdAt, meta.sizeBytes, meta.fileCount, kind) to meta
+            val folder = meta.roots.singleOrNull()?.absolutePath?.takeIf { provider == PROVIDER_CUSTOM }
+            SaveBackup(provider, gameId, zip, meta.createdAt, meta.sizeBytes, meta.fileCount, kind, folder) to meta
         }.sortedWith(compareByDescending<Pair<SaveBackup, Sidecar>> { it.first.createdAt }.thenByDescending { it.first.file.name })
     }
 

@@ -366,11 +366,8 @@
     <string name="appearance">外観</string>
     <string name="size_subtitle">%.2fx</string>
     <string name="label_text">ラベルのテキスト</string>
-    <string name="label_text_subtitle">このボタンのカスタムテキスト</string>
     <string name="element_type">要素の種類</string>
-    <string name="element_type_subtitle">このコントロールのタイプを変更します</string>
     <string name="shape">形</string>
-    <string name="shape_subtitle">外観</string>
     <string name="shape_restricted">%1$s は %2$s 形状に限定されます</string>
     <string name="bindings">バインディング</string>
     <string name="bindings_auto_generated">バインディング (自動生成)</string>
@@ -379,7 +376,6 @@
     <string name="range_type">キーレンジ</string>
     <string name="range_type_subtitle">どのキーのセットを循環させるか</string>
     <string name="range_orientation">向き</string>
-    <string name="range_orientation_subtitle">レンジボタンの配置方向</string>
     <string name="range_orientation_horizontal">水平</string>
     <string name="range_orientation_vertical">垂直</string>
     <string name="range_visible_segments">可視セグメント</string>
@@ -426,9 +422,7 @@
     <string name="movement_type">移動タイプ</string>
     <string name="movement_type_subtitle">左側移動用のジョイスティック出力</string>
     <string name="look_sensitivity">見た目の感度</string>
-    <string name="look_sensitivity_subtitle">マウスの見た目の感度乗数</string>
     <string name="joystick_size">ジョイスティックのサイズ</string>
-    <string name="joystick_size_subtitle">動的ジョイスティック サイズ乗数</string>
     <string name="movement_wasd">WASD</string>
     <string name="movement_arrow_keys">矢印キー</string>
     <string name="movement_gamepad_left_stick">ゲームパッドの左スティック</string>
@@ -604,7 +598,6 @@
     <string name="custom_game_import_failed">インポートに失敗しました</string>
     <string name="custom_game_import_dialog_message">ゲームが含まれるフォルダーを選択してください。ストレージ権限なしで実行できるように、Gameplay のストレージにインポートされます。大きなゲームは数分かかる場合があります。</string>
     <string name="custom_game_import_remove_original">インポート後に元のファイルを削除</string>
-    <string name="add_custom_game_dont_show_again">\'このダイアログを再度表示しないでください</string>
     <string name="base_app_shortcut_created">ショートカットが作成されました</string>
     <string name="base_app_shortcut_failed">ショートカットの作成に失敗しました: %s</string>
     <string name="base_app_images_fetched">画像が正常に取得されました</string>
@@ -644,7 +637,7 @@
 
 
     <!-- Profile & Menu -->
-    <string name="help_and_support">ヘルプ &amp; サポート</string>
+    <string name="help_and_support">GitHub Issues</string>
     <string name="hall_of_fame">殿堂</string>
     <string name="go_online">オンラインにする</string>
     <string name="go_offline">オフラインにする</string>
@@ -875,7 +868,6 @@
     <string name="select_wine_debug_channels">Wine デバッグ チャネルの選択</string>
     <string name="cpu_label">CPU%d</string>
     <string name="describe_what_happened">何が起こったのか説明してください</string>
-    <string name="get_support_on_discord">Discord でサポートを受ける</string>
 
     <!-- Driver Manager -->
     <string name="driver_manager">ドライバーマネージャー</string>
@@ -1121,10 +1113,7 @@
     <string name="main_recent_crash_message">申し訳ありません!\n\' が抱えていた最近の問題について知っていただければ幸いです。\nアプリ\'s の設定で最新のクラッシュ ログを表示およびエクスポートし、プロジェクト ZESC4ZZs リポジトリの Github の問題として添付できます。\nGithub リポジトリへのリンクも設定にあります。</string>
     <string name="main_thank_you_title">Gameplay をご利用いただきありがとうございます。</string>
     <string name="main_share">共有</string>
-    <string name="main_share_text">Gameplay をチェックしてください - クラウド セーブを完全にサポートし、Android で PC Steam ゲームをプレイしましょう!\nhttps://github.com/intercontinentalmassacre/Gameplay\nコミュニティに参加してください: https://discord.gg/KPzU4Dhwq</string>
-    <string name="main_discord_support_title">ゲームはうまくいきましたか？</string>
-    <string name="main_discord_support_message">Discord に参加して、ゲームを修正したりパフォーマンスを向上させるためのサポートを受けてください。</string>
-    <string name="main_open_discord">Discordを開く</string>
+    <string name="main_share_text">Gameplay をチェックしてください - クラウド セーブを完全にサポートし、Android で PC Steam ゲームをプレイしましょう!\nhttps://github.com/intercontinentalmassacre/Gameplay</string>
 
     <!-- PluviaMain: Game Launch -->
     <string name="main_downloading_entry">%sをダウンロード中</string>
@@ -1551,7 +1540,7 @@
     <string name="option_open_container">オープンコンテナ</string>
     <string name="option_edit_container">コンテナの編集</string>
     <string name="option_reset_to_defaults">コンテナをリセットする</string>
-    <string name="option_get_support">サポートを受ける</string>
+    <string name="option_get_support">GitHub Issues</string>
     <string name="option_submit_feedback">フィードバックを送信する</string>
     <string name="option_reset_drm">DRMをリセットする</string>
     <string name="option_use_known_config">既知の構成を使用する</string>
@@ -1616,7 +1605,6 @@
     <string name="game_launch_tip_14">ヒント: device\' の戻るキーを使用してキーボードを呼び出すことができます。</string>
     <string name="game_launch_tip_15">ヒント: コンテナ内を 2 本の指でタップして右クリックできます。</string>
     <string name="game_launch_tip_16">ヒント: オンスクリーン コントローラーを使用している場合は、マウスを無効にして誤ってタッチすることを防ぐことができます。</string>
-    <string name="game_launch_tip_17">ヒント: Discord で問題を報告してください。問題を解決できるようになります。</string>
     <string name="game_launch_tip_18">ヒント: 8 Elite デバイスをお使いの場合は、Turnip Gen8 V25/V30 または MrPurple T26 ドライバーを使用してください。</string>
     <string name="game_launch_tip_19">ヒント: 解像度を下げ、ゲーム内のクイック メニューから FSR を使用してパフォーマンスを向上させましょう。</string>
     <string name="game_launch_tip_20">ヒント: ゲームの読み込み後にアプリ全体がクラッシュする場合は、デバイスの RAM が不足しています。</string>
@@ -1869,8 +1857,6 @@
     <string name="nexus_summary_bar">%1$d 改造 | %2$d 有効 | %3$s | %4$s</string>
     <string name="nexus_storage_cleanup_title">ストレージのクリーンアップ</string>
     <string name="nexus_scan">スキャン</string>
-    <string name="nexus_storage_cleanup_description">このゲームの Nexus mod ダウンロード、抽出されたキャッシュ、およびバックアップによって使用されるストレージを示します。</string>
-    <string name="nexus_storage_cleanup_cache_backups_description">抽出されたキャッシュとロールバックのバックアップは保持されるため、MOD を安全に再適用、無効化、または復元できます。</string>
     <string name="nexus_storage_cleanup_actions_description">一時ファイルのクリーンアップは、残されたファイルを削除します。失敗したアーカイブの削除は、失敗したダウンロードを削除するため、再試行時に再度ダウンロードされます。不要なバックアップのクリーンアップは、不要になったバックアップを削除します。</string>
     <string name="nexus_temp_orphaned_files">一時ファイル/孤立ファイル</string>
     <string name="nexus_failed_download_archives">アーカイブのダウンロードに失敗しました</string>
@@ -2064,7 +2050,6 @@
     <string name="button_opacity_value">%1$d%%</string>
     <string name="button_opacity_inherited">%1$d%%（グローバル既定値）</string>
     <string name="control_stroke_width">線の太さ</string>
-    <string name="control_stroke_width_subtitle">コントロールの枠線と区切り線の太さを調整</string>
     <string name="control_stroke_width_thin">細い</string>
     <string name="control_stroke_width_default">既定</string>
     <string name="control_stroke_width_thick">太い</string>
@@ -2110,7 +2095,6 @@
     <string name="steam_collections_clear">クリア</string>
     <string name="steam_collections_smart_unsupported">標準コレクションのみ表示されます。スマートコレクションはまだ対応していません。</string>
     <string name="local_mod_title">端末から Mod をインポート</string>
-    <string name="local_mod_description">アーカイブ、フォルダー、または 1 つ以上の個別ファイルをインポートします。ローカルインポートでも、Nexus ダウンロードと同じプロファイル、配置、競合、FOMOD、プラグイン管理を使用します。</string>
     <string name="local_mod_supported">アーカイブ: ZIP、7Z、RAR、配置可能な EXE。個別ファイルは INI、DLL、ESP、ESM、ESL、PAK、JSON、CFG、TOML など、任意の拡張子を使用できます。</string>
     <string name="local_mod_choose_archive">アーカイブを選択</string>
     <string name="local_mod_choose_files">ファイルを選択</string>
@@ -2202,21 +2186,15 @@
     <string name="base_app_images_fetching">画像を取得しています...</string>
     <string name="compat_preset_applied">適用済み</string>
     <string name="compat_preset_dx12_changes">変更点: VKD3D 3.0.1 · フィーチャーレベル 12_1</string>
-    <string name="compat_preset_dx12_desc">DirectX 12 を最新バージョンと機能レベルで VKD3D 経由にルーティングします。DX12 タイトルにのみ必要で、DX11 以前は DXVK のままです。</string>
     <string name="compat_preset_dx12_name">DirectX 12 ゲーム</string>
     <string name="compat_preset_low_memory_changes">変更点: 1 GB ビデオメモリ · 1 GB デバイスメモリ · 積極的な起動 · 軽量 Steam</string>
-    <string name="compat_preset_low_memory_desc">RAM が限られたデバイスのメモリ負荷を軽減: 小さい報告済みビデオメモリ、小さい GPU デバイスメモリ、積極的な起動時トリミング、軽量 Steam ランタイム。</string>
     <string name="compat_preset_low_memory_name">低メモリデバイス</string>
     <string name="compat_preset_old_games_changes">変更点: cnc-ddraw レンダラー · 1280x960 解像度 · 256 MB ビデオメモリ</string>
-    <string name="compat_preset_old_games_desc">90 年代後半から 2000 年代前半のタイトル向け: レガシー DirectDraw/Direct3D 用の cnc-ddraw レンダラー、4:3 解像度、古いエンジンが想定する小さい報告済みビデオメモリ。</string>
     <string name="compat_preset_old_games_name">古いゲーム (DirectDraw / DX8 世代)</string>
     <string name="compat_preset_performance_changes">変更点: DXVK 3.0 (async) · Box64 パフォーマンスプリセット · 4 GB デバイスメモリ · mailbox プレゼントモード</string>
-    <string name="compat_preset_performance_desc">慎重さよりもフレームレートを優先: 非同期シェーダーコンパイル、パフォーマンス重視の CPU 変換、より大きな GPU メモリ予算。</string>
     <string name="compat_preset_performance_name">最高のパフォーマンス</string>
     <string name="compat_preset_stability_changes">変更点: DXVK 2.7.1 · Box64 互換性プリセット · 厳密なシェーダー演算 · fifo プレゼントモード</string>
-    <string name="compat_preset_stability_desc">クラッシュ、カクつき、描画不具合のあるゲーム向けの控えめな設定: 実績のある DXVK リリース (async の小細工なし)、互換性重視の CPU 変換、厳密なシェーダー演算。</string>
     <string name="compat_preset_stability_name">最大互換性</string>
-    <string name="compat_presets_subtitle">一般的な状況向けの実績のある設定の組み合わせです。プリセットを適用すると現在の設定が編集され、保存をタップするまで何も保存されず、他のタブで各値を微調整できます。</string>
     <string name="connection_auth_required">Steam 認証が必要です</string>
     <string name="console_back_hint">B  戻る</string>
     <string name="console_hint_select_back">A  選択   ·   B  戻る</string>
@@ -2397,29 +2375,17 @@
     <string name="settings_shortcut_opens_page_subtitle">オフ: ホーム画面に固定したショートカットはゲームを直接起動します。</string>
     <string name="settings_shortcut_opens_page_title">ショートカットでゲームページを開く</string>
     <string name="settings_shortcuts_group_title">ランチャーショートカット</string>
-    <string name="settings_stage_controls_description">ゲームパッド、タッチコントロール、入力フィードバック。</string>
-    <string name="settings_stage_downloads_description">ネットワーク、ストレージ、インストールの設定。</string>
     <string name="settings_stage_interface_description">テーマ、レイアウト、言語、セカンドスクリーンの動作。</string>
     <string name="settings_stage_library_description">ソース、表示方法、コレクションの整理方法。</string>
     <string name="settings_stage_navigation_hint">下の画面でセクションを選択</string>
-    <string name="settings_stage_runtime_description">Wine、グラフィックドライバー、ゲームの互換性。</string>
-    <string name="settings_stage_system_description">診断、アプリケーション情報、デバッグツール。</string>
     <string name="settings_system_title">システム</string>
     <string name="steam_2fa_use_guard_totp">または2要素認証コードを使用</string>
     <string name="system_hub_connected">接続済み</string>
     <string name="system_hub_connections_section">接続済みサービス</string>
-    <string name="system_hub_destinations_section">ライブラリとシステム</string>
-    <string name="system_hub_downloads_description">転送を追跡し、インストール済みゲームのストレージを管理します。</string>
     <string name="system_hub_not_connected">未接続</string>
     <string name="system_hub_offline">オフライン</string>
     <string name="system_hub_open">Gameplay センターを開く</string>
-    <string name="system_hub_profile_section">Steam アカウント</string>
-    <string name="system_hub_settings_description">外観、コントロール、ランタイム、アプリケーションのオプション。</string>
     <string name="system_hub_stage_description">アカウント、ダウンロード、グローバル設定を 1 か所に。</string>
-    <string name="system_hub_steam_action_description">Steam に接続してライブラリを更新します。</string>
-    <string name="system_hub_steam_offline_description">ネットワーク接続なしでもローカルライブラリを利用できます。</string>
-    <string name="system_hub_steam_sign_out_description">Gameplay からアクティブな Steam セッションを削除します。</string>
-    <string name="system_hub_support_description">ヘルプ、サポート、Gameplay コミュニティを開きます。</string>
     <string name="system_hub_title">Gameplay センター</string>
     <string name="theme_editor_general_description">このテーマに名前を付けます。保存すると、アクティブなカスタムテーマが作成または置き換えられます。</string>
     <string name="theme_editor_hex_error">#RRGGBB を使用</string>

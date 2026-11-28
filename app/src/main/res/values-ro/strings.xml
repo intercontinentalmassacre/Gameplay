@@ -376,11 +376,8 @@
     <string name="appearance">Aspect</string>
     <string name="size_subtitle">%.2fx</string>
     <string name="label_text">Text etichetă</string>
-    <string name="label_text_subtitle">Text personalizat pentru acest buton</string>
     <string name="element_type">Tip element</string>
-    <string name="element_type_subtitle">Schimbă tipul acestui control</string>
     <string name="shape">Formă</string>
-    <string name="shape_subtitle">Aspect vizual</string>
     <string name="shape_restricted">%1$s este limitat la forma %2$s</string>
     <string name="bindings">Asocieri</string>
     <string name="bindings_auto_generated">Asocieri (generate automat)</string>
@@ -595,7 +592,6 @@
     <string name="custom_game_import_failed">Importul a eșuat</string>
     <string name="custom_game_import_dialog_message">Selectează folderul care conține jocul. Va fi importat în stocarea Gameplay pentru a putea rula fără nicio permisiune de stocare. Jocurile mari pot dura câteva minute.</string>
     <string name="custom_game_import_remove_original">Șterge originalul după import</string>
-    <string name="add_custom_game_dont_show_again">Nu mai arăta acest dialog</string>
     <string name="base_app_shortcut_created">Shortcut creat</string>
     <string name="base_app_shortcut_failed">Nu s-a putut crea shortcut-ul: %s</string>
     <string name="base_app_images_fetched">Imaginile au fost preluate cu succes</string>
@@ -634,7 +630,7 @@
 
 
     <!-- Profile & Menu -->
-	<string name="help_and_support">Ajutor &amp; Suport</string>
+	<string name="help_and_support">GitHub Issues</string>
 	<string name="hall_of_fame">Hall of Fame</string>
 	<string name="go_online">Mergi online</string>
 	<string name="go_offline">Mergi offline</string>
@@ -904,7 +900,6 @@
 	<string name="select_wine_debug_channels">Selectează canalele de debug Wine</string>
 	<string name="cpu_label">CPU%d</string>
 	<string name="describe_what_happened">Descrie ce s-a întâmplat</string>
-	<string name="get_support_on_discord">Obține suport pe Discord</string>
 
 	<!-- Driver Manager -->
 	<string name="driver_manager">Manager drivere</string>
@@ -1092,10 +1087,7 @@
 	<string name="main_recent_crash_message">Ne pare rău!\nAr fi util să știm ce problemă ai întâmpinat.\nPoți vizualiza și exporta cel mai recent crash log din setările aplicației și îl poți atașa ca issue pe Github în repository-ul proiectului.\nLinkul către repo este tot în setări!</string>
 	<string name="main_thank_you_title">Mulțumim că folosești Gameplay!</string>
 	<string name="main_share">Distribuie</string>
-    <string name="main_share_text">Descoperă Gameplay - joacă jocurile tale Steam pe PC pe Android, cu suport complet pentru salvări în cloud!\nhttps://github.com/intercontinentalmassacre/Gameplay\nAlătură-te comunității: https://discord.gg/KPzU4Dhwq</string>
-	<string name="main_discord_support_title">A funcționat jocul?</string>
-	<string name="main_discord_support_message">Alătură-te serverului de Discord pentru suport și optimizare.</string>
-	<string name="main_open_discord">Deschide Discord</string>
+    <string name="main_share_text">Descoperă Gameplay - joacă jocurile tale Steam pe PC pe Android, cu suport complet pentru salvări în cloud!\nhttps://github.com/intercontinentalmassacre/Gameplay</string>
 	<string name="main_downloading_entry">Se descarcă %s</string>
 
 	<!-- PluviaMain: Game Launch -->
@@ -1529,7 +1521,7 @@
     <string name="option_open_container">Deschide containerul</string>
     <string name="option_edit_container">Editează containerul</string>
     <string name="option_reset_to_defaults">Resetează containerul</string>
-    <string name="option_get_support">Obține suport</string>
+    <string name="option_get_support">GitHub Issues</string>
     <string name="option_submit_feedback">Trimite feedback</string>
     <string name="option_reset_drm">Resetează DRM</string>
     <string name="option_use_known_config">Folosește configurația cunoscută</string>
@@ -1608,7 +1600,6 @@
 	<string name="game_launch_tip_14">Sfat: Puteți afișa tastatura cu tasta de revenire a dispozitivului dvs.</string>
 	<string name="game_launch_tip_15">Sfat: Puteți atinge cu două degete în interiorul containerului pentru a face clic dreapta.</string>
 	<string name="game_launch_tip_16">Sfat: Dacă utilizați controllerul pe ecran, puteți dezactiva mouse-ul pentru a preveni atingerile accidentale.</string>
-	<string name="game_launch_tip_17">Sfat: Raportați problemele pe Discord pentru a le putea remedia.</string>
 	<string name="game_launch_tip_18">Sfat: Utilizați driverul Turnip Gen8 V25/V30 sau MrPurple T26 dacă aveți un dispozitiv 8 Elite.</string>
 	<string name="game_launch_tip_19">Sfat: Reduceți rezoluția și utilizați FSR din meniul rapid în joc pentru a crește performanța.</string>
 	<string name="game_launch_tip_20">Sfat: Dacă întreaga aplicație se blochează după încărcarea unui joc, dispozitivul dvs. rămâne fără RAM.</string>
@@ -1913,8 +1904,6 @@
     <string name="nexus_summary_bar">%1$d mods | %2$d activat | %3$s | %4$s</string>
     <string name="nexus_storage_cleanup_title">Curăţare depozitare</string>
     <string name="nexus_scan">Scanare</string>
-    <string name="nexus_storage_cleanup_description">Afișează spațiul de stocare folosit de descărcări de mod Nexus, cache extras și copii de rezervă pentru acest joc.</string>
-    <string name="nexus_storage_cleanup_cache_backups_description">Cache-ul extras și copiile de rezervă sunt păstrate astfel încât modificările să poată fi reaplicate, dezactivate sau restaurate în siguranță.</string>
     <string name="nexus_storage_cleanup_actions_description">Curățarea fișierelor temporare elimină fișierele abandonate. Ștergerea arhivelor eșuate elimină descărcările eșuate, astfel încât o nouă încercare le va descărca din nou. Curățarea copiilor de rezervă redundante elimină copiile care nu mai sunt necesare.</string>
     <string name="nexus_temp_orphaned_files">Fișiere temporare/orfane</string>
     <string name="nexus_failed_download_archives">Descărcare eșuată a arhivelor</string>
@@ -2108,7 +2097,6 @@
     <string name="button_opacity_value">%1$d%%</string>
     <string name="button_opacity_inherited">%1$d%% (implicit global)</string>
     <string name="control_stroke_width">Grosime linie</string>
-    <string name="control_stroke_width_subtitle">Ajustează grosimea conturului și separatorilor controlului</string>
     <string name="control_stroke_width_thin">Subțire</string>
     <string name="control_stroke_width_default">Implicit</string>
     <string name="control_stroke_width_thick">Gros</string>
@@ -2154,7 +2142,6 @@
     <string name="steam_collections_clear">Șterge</string>
     <string name="steam_collections_smart_unsupported">Sunt afișate doar colecțiile standard. Colecțiile inteligente nu sunt încă acceptate.</string>
     <string name="local_mod_title">Importă mod de pe dispozitiv</string>
-    <string name="local_mod_description">Importă o arhivă, un folder sau unul ori mai multe fișiere separate. Importurile locale folosesc aceleași profiluri, amplasări, conflicte și aceeași gestionare FOMOD și a pluginurilor ca descărcările Nexus.</string>
     <string name="local_mod_supported">Arhive: ZIP, 7Z, RAR și EXE care poate fi amplasat. Fișierele separate pot avea orice extensie, inclusiv INI, DLL, ESP, ESM, ESL, PAK, JSON, CFG și TOML.</string>
     <string name="local_mod_choose_archive">Alege arhiva</string>
     <string name="local_mod_choose_files">Alege fișierele</string>
@@ -2250,21 +2237,15 @@
     <string name="base_app_images_fetching">Se preiau imaginile...</string>
     <string name="compat_preset_applied">Aplicat</string>
     <string name="compat_preset_dx12_changes">Modificări: VKD3D 3.0.1 · nivel de caracteristici 12_1</string>
-    <string name="compat_preset_dx12_desc">Rutează DirectX 12 prin VKD3D cu o versiune recentă și un nivel de caracteristici. Necesar doar pentru titlurile DX12; DX11 și versiunile mai vechi rămân pe DXVK.</string>
     <string name="compat_preset_dx12_name">Jocuri DirectX 12</string>
     <string name="compat_preset_low_memory_changes">Modificări: 1 GB memorie video · 1 GB memorie de dispozitiv · pornire agresivă · Steam ușor</string>
-    <string name="compat_preset_low_memory_desc">Reduce presiunea asupra memoriei pe dispozitivele cu RAM limitată: memorie video raportată mai mică, memorie GPU mai mică, tăiere agresivă la pornire și runtime Steam ușor.</string>
     <string name="compat_preset_low_memory_name">Dispozitive cu memorie mică</string>
     <string name="compat_preset_old_games_changes">Modificări: renderer cnc-ddraw · rezoluție 1280x960 · 256 MB memorie video</string>
-    <string name="compat_preset_old_games_desc">Pentru titlurile de la sfârșitul anilor \'90 și începutul anilor 2000: rendererul cnc-ddraw pentru DirectDraw/Direct3D legacy, o rezoluție 4:3 și o memorie video raportată mică pe care motoarele vechi o așteaptă.</string>
     <string name="compat_preset_old_games_name">Jocuri vechi (era DirectDraw / DX8)</string>
     <string name="compat_preset_performance_changes">Modificări: DXVK 3.0 (async) · preset Box64 Performance · 4 GB memorie de dispozitiv · mod de prezentare mailbox</string>
-    <string name="compat_preset_performance_desc">Preferă rata de cadre în detrimentul precauției: compilare asincronă a shader-elor, traducere CPU orientată spre performanță și un buget mai mare de memorie GPU.</string>
     <string name="compat_preset_performance_name">Performanță maximă</string>
     <string name="compat_preset_stability_changes">Modificări: DXVK 2.7.1 · preset Box64 Compatibility · matematică shader strictă · mod de prezentare fifo</string>
-    <string name="compat_preset_stability_desc">Setări conservatoare pentru jocurile care se blochează, se balbuiesc sau randează incorect: o versiune DXVK dovedită fără trucuri async, traducere CPU de compatibilitate și matematică shader strictă.</string>
     <string name="compat_preset_stability_name">Compatibilitate maximă</string>
-    <string name="compat_presets_subtitle">Combinații dovedite de setări pentru situații comune. Aplicarea unui preset editează configurația curentă — nu se salvează nimic până nu apeși Salvare, iar fiecare valoare poate fi în continuare reglată fin în celelalte file.</string>
     <string name="connection_auth_required">Este necesară autentificarea Steam</string>
     <string name="console_back_hint">B  Înapoi</string>
     <string name="console_hint_select_back">A  Selectează   ·   B  Înapoi</string>
@@ -2420,28 +2401,16 @@
     <string name="settings_shortcut_opens_page_subtitle">Off: comenzile rapide fixate de pe ecranul de pornire lansează jocul direct.</string>
     <string name="settings_shortcut_opens_page_title">Comenzile rapide deschid pagina jocului</string>
     <string name="settings_shortcuts_group_title">Comenzi rapide ale lansatorului</string>
-    <string name="settings_stage_controls_description">Gamepad, controale tactile și feedback de input.</string>
-    <string name="settings_stage_downloads_description">Preferințe de rețea, stocare și instalare.</string>
     <string name="settings_stage_interface_description">Temă, aspect, limbă și comportamentul celui de-al doilea ecran.</string>
     <string name="settings_stage_library_description">Surse, prezentare și organizarea colecției tale.</string>
     <string name="settings_stage_navigation_hint">Selectează o secțiune pe ecranul inferior</string>
-    <string name="settings_stage_runtime_description">Wine, drivere grafice și compatibilitatea jocurilor.</string>
-    <string name="settings_stage_system_description">Diagnosticare, informații despre aplicație și instrumente de depanare.</string>
     <string name="settings_system_title">Sistem</string>
     <string name="system_hub_connected">Conectat</string>
     <string name="system_hub_connections_section">Servicii conectate</string>
-    <string name="system_hub_destinations_section">Bibliotecă și sistem</string>
-    <string name="system_hub_downloads_description">Urmărește transferurile și gestionează stocarea jocurilor instalate.</string>
     <string name="system_hub_not_connected">Neconectat</string>
     <string name="system_hub_offline">Offline</string>
     <string name="system_hub_open">Deschide centrul Gameplay</string>
-    <string name="system_hub_profile_section">Cont Steam</string>
-    <string name="system_hub_settings_description">Aspect, controale, runtime și opțiuni ale aplicației.</string>
     <string name="system_hub_stage_description">Conturi, descărcări și setări globale într-un singur loc.</string>
-    <string name="system_hub_steam_action_description">Conectează Steam și actualizează-ți biblioteca.</string>
-    <string name="system_hub_steam_offline_description">Păstrează biblioteca locală disponibilă fără conexiune la rețea.</string>
-    <string name="system_hub_steam_sign_out_description">Elimină sesiunea Steam activă din Gameplay.</string>
-    <string name="system_hub_support_description">Deschide ajutorul, suportul și comunitatea Gameplay.</string>
     <string name="system_hub_title">Centrul Gameplay</string>
     <string name="theme_editor_general_description">Dă un nume acestei teme. Salvare createază sau înlocuiește tema personalizată activă.</string>
     <string name="theme_editor_hex_error">Folosește #RRGGBB</string>

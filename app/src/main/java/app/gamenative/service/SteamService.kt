@@ -142,6 +142,8 @@ import java.io.OutputStream
 import java.lang.NullPointerException
 import java.nio.file.Files
 import java.nio.file.Paths
+import java.security.DigestOutputStream
+import java.security.MessageDigest
 import java.util.EnumSet
 import java.util.Locale
 import java.util.concurrent.CancellationException
@@ -1563,6 +1565,7 @@ class SteamService : Service(), IChallengeUrlChanged {
         suspend fun fetchFile(
             url: String,
             dest: File,
+            digest: MessageDigest? = null,
             onProgress: (Float) -> Unit,
         ) = withContext(Dispatchers.IO) {
             val tmp = File(dest.absolutePath + ".part")
@@ -1573,7 +1576,8 @@ class SteamService : Service(), IChallengeUrlChanged {
                     val body = rsp.body ?: error("empty body")
                     val total = body.contentLength()
                     tmp.outputStream().use { out ->
-                        body.byteStream().copyTo(out, 8 * 1024) { read ->
+                        val output = digest?.let { DigestOutputStream(out, it) } ?: out
+                        body.byteStream().copyTo(output, 8 * 1024) { read ->
                             onProgress(read.toFloat() / total)
                         }
                     }
@@ -1601,11 +1605,11 @@ class SteamService : Service(), IChallengeUrlChanged {
             val primaryUrl = "https://downloads.gamenative.app/$fileName"
             val fallbackUrl = "https://pub-9fcd5294bd0d4b85a9d73615bf98f3b5.r2.dev/$fileName"
             try {
-                fetchFile(primaryUrl, dest, onProgress)
+                fetchFile(primaryUrl, dest, onProgress = onProgress)
             } catch (e: Exception) {
                 Timber.w(e, "Primary download failed; retrying with fallback URL")
                 try {
-                    fetchFile(fallbackUrl, dest, onProgress)
+                    fetchFile(fallbackUrl, dest, onProgress = onProgress)
                 } catch (e2: Exception) {
                     dest.delete()
                     throw IOException(

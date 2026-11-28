@@ -6,13 +6,13 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.gamenative.CrashContext
+import app.gamenative.diagnostics.LaunchStage
+import app.gamenative.diagnostics.LaunchTrace
 import app.gamenative.PluviaApp
 import app.gamenative.PrefManager
 import app.gamenative.R
 import app.gamenative.data.GameProcessInfo
 import app.gamenative.data.GameSource
-import app.gamenative.data.LibraryPlayHistory
-import app.gamenative.db.dao.LibraryPlayHistoryDao
 import app.gamenative.di.IAppTheme
 import app.gamenative.enums.AppTheme
 import app.gamenative.enums.LoginResult
@@ -40,6 +40,7 @@ import app.gamenative.utils.AndroidGameLauncher
 import app.gamenative.utils.ContainerUtils
 import app.gamenative.utils.CustomGameScanner
 import app.gamenative.utils.IntentLaunchManager
+import app.gamenative.utils.LibrarySessionTracker
 import app.gamenative.utils.SteamUtils
 import app.gamenative.utils.UpdateInfo
 import app.gamenative.utils.WineProcessSnapshotHelper
@@ -55,7 +56,6 @@ import kotlin.io.path.name
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -71,7 +71,7 @@ import timber.log.Timber
 class MainViewModel @Inject constructor(
     private val savedStateHandle: SavedStateHandle,
     private val appTheme: IAppTheme,
-    private val libraryPlayHistoryDao: LibraryPlayHistoryDao,
+    private val librarySessions: LibrarySessionTracker,
     private val itchLibraryRepository: app.gamenative.itch.ItchLibraryRepository,
     private val itchInstallCoordinator: app.gamenative.itch.ItchInstallCoordinator,
 ) : ViewModel() {
@@ -87,7 +87,6 @@ class MainViewModel @Inject constructor(
         data class ExternalGameLaunch(val appId: String) : MainUiEvent()
         data class OnLogonEnded(val result: LoginResult) : MainUiEvent()
         data class SteamDisconnected(val isTerminal: Boolean) : MainUiEvent()
-        data object ShowDiscordSupportDialog : MainUiEvent()
         data class ShowGameFeedbackDialog(val appId: String) : MainUiEvent()
         data class SelectInstallerExecutable(
             val sessionId: String,
@@ -242,22 +241,20 @@ class MainViewModel @Inject constructor(
     }
 
     private val onSetBootingSplashText: (AndroidEvent.SetBootingSplashText) -> Unit = {
-        if (!gamescopeFirstFramePresented) {
-            setBootingSplashText(it.text)
-            setShowBootingSplash(true)
-        }
+        setBootingSplashText(it.text)
     }
 
     private val onClearBootingSplash: (AndroidEvent.ClearBootingSplash) -> Unit = {
-        gamescopeFirstFramePresented = true
-        bootingSplashTimeoutJob?.cancel()
-        bootingSplashTimeoutJob = null
-        setShowBootingSplash(false)
+        viewModelScope.launch {
+            hideBootingSplash()
+            startPlaySession(_state.value.launchedAppId)
+        }
     }
 
-    @Volatile
-    private var gamescopeFirstFramePresented = false
+    private var pendingPlaySessionAppId: String? = null
+    private var playSession: LibrarySessionTracker.Session? = null
     private var bootingSplashTimeoutJob: Job? = null
+    private var bootingSplashArtworkJob: Job? = null
     private var connectionTimeoutJob: Job? = null
 
     init {
@@ -327,6 +324,7 @@ class MainViewModel @Inject constructor(
     }
 
     override fun onCleared() {
+        playSession?.finish()
         PluviaApp.events.off<AndroidEvent.BackPressed, Unit>(onBackPressed)
         PluviaApp.events.off<AndroidEvent.ExternalGameLaunch, Unit>(onExternalGameLaunch)
         PluviaApp.events.off<AndroidEvent.SetBootingSplashText, Unit>(onSetBootingSplashText)
@@ -381,16 +379,34 @@ class MainViewModel @Inject constructor(
         _state.update { it.copy(hasLaunched = value) }
     }
 
-    fun setShowBootingSplash(value: Boolean) {
-        _state.update { it.copy(showBootingSplash = value) }
+    private fun showBootingSplash(text: String) {
+        bootingSplashTimeoutJob?.cancel()
+        bootingSplashTimeoutJob = null
+        bootingSplashArtworkJob?.cancel()
+        _state.update {
+            it.copy(
+                showBootingSplash = true,
+                bootingSplashText = text,
+                bootingSplashHeroImageUrl = "",
+                bootingSplashTakingLonger = false,
+            )
+        }
     }
 
-    fun setBootingSplashText(value: String) {
-        _state.update { it.copy(bootingSplashText = value) }
+    private fun hideBootingSplash() {
+        bootingSplashTimeoutJob?.cancel()
+        bootingSplashTimeoutJob = null
+        bootingSplashArtworkJob?.cancel()
+        bootingSplashArtworkJob = null
+        _state.update { it.copy(showBootingSplash = false, bootingSplashTakingLonger = false) }
     }
 
-    fun setBootingSplashHeroImageUrl(url: String) {
-        _state.update { it.copy(bootingSplashHeroImageUrl = url) }
+    fun showGameScreenDuringStartup() {
+        if (_state.value.canRevealGameScreen) hideBootingSplash()
+    }
+
+    private fun setBootingSplashText(value: String) {
+        _state.update { it.withBootingSplashText(value) }
     }
 
     // Connection state management
@@ -467,6 +483,18 @@ class MainViewModel @Inject constructor(
     fun setCurrentScreen(value: PluviaScreen) {
         _state.update { it.copy(currentScreen = value) }
         savedStateHandle[KEY_CURRENT_SCREEN_ROUTE] = value.route
+        if (value == PluviaScreen.XServer && _state.value.showBootingSplash && bootingSplashTimeoutJob == null) {
+            bootingSplashTimeoutJob = viewModelScope.launch {
+                delay(30_000)
+                _state.update {
+                    if (it.showBootingSplash && it.currentScreen == PluviaScreen.XServer) {
+                        it.copy(bootingSplashTakingLonger = true)
+                    } else {
+                        it
+                    }
+                }
+            }
+        }
     }
 
     /**
@@ -563,21 +591,9 @@ class MainViewModel @Inject constructor(
     }
 
     fun launchApp(context: Context, appId: String) {
-        gamescopeFirstFramePresented = false
-        // Show booting splash before launching the app
-        CrashContext.setStage("preparing_launch")
-        app.gamenative.diagnostics.LaunchTrace.stage(app.gamenative.diagnostics.LaunchStage.DEVICE_PROBED)
+        pendingPlaySessionAppId = null
         viewModelScope.launch {
-            viewModelScope.launch(Dispatchers.IO) {
-                libraryPlayHistoryDao.upsert(
-                    LibraryPlayHistory(
-                        appId = appId,
-                        lastPlayed = System.currentTimeMillis(),
-                    ),
-                )
-            }
-
-// getOrCreateContainerWithOverride also picks up a temporary per-launch config
+            // getOrCreateContainerWithOverride also picks up a temporary per-launch config
             // (e.g. from an external Intent launch) — falls back to the persisted container
             // untouched when there's no override, so this is safe unconditionally.
             val container = try {
@@ -601,118 +617,151 @@ class MainViewModel @Inject constructor(
                         SnackbarManager.show(context.getString(R.string.android_game_install_started))
                     AndroidGameLauncher.Result.Failed ->
                         SnackbarManager.show(context.getString(R.string.android_game_launch_failed))
-                    AndroidGameLauncher.Result.Launched -> Unit
+                    AndroidGameLauncher.Result.Launched -> librarySessions.recordPlayed(appId)
                 }
                 return@launch
             }
 
             setLaunchedAppId(appId)
-            setShowBootingSplash(true)
+            CrashContext.setStage("preparing_launch")
+            showBootingSplash(context.getString(R.string.game_startup_preparing))
             PluviaApp.events.emit(AndroidEvent.SetAllowedOrientation(PrefManager.allowedOrientation))
 
-            val heroUrl = withContext(Dispatchers.IO) {
-                val gameSource = ContainerUtils.extractGameSourceFromContainerId(appId)
-                val gameId = ContainerUtils.extractGameIdFromContainerId(appId)
-                when (gameSource) {
-                    GameSource.STEAM -> {
-                        val steamApp = SteamService.getAppInfoOf(gameId)
-                        steamApp?.getHeroUrl()?.ifEmpty { steamApp.headerUrl } ?: ""
-                    }
-                    GameSource.GOG -> {
-                        val game = GOGService.getGOGGameOf(gameId.toString())
-                        game?.backgroundUrl?.ifEmpty { game.imageUrl } ?: ""
-                    }
-                    GameSource.EPIC -> {
-                        val game = EpicService.getEpicGameOf(gameId)
-                        game?.artPortrait?.ifEmpty { game.artCover.ifEmpty { game.artSquare } } ?: ""
-                    }
-                    GameSource.AMAZON -> {
-                        val game = AmazonService.getAmazonGameByAppId(gameId)
-                        game?.heroUrl?.ifEmpty { game.artUrl } ?: ""
-                    }
-                    GameSource.CUSTOM_GAME -> {
-                        val folderPath = CustomGameScanner.getFolderPathFromAppId(appId) ?: return@withContext ""
-                        val folder = java.io.File(folderPath)
-                        val heroFile = folder.listFiles()?.firstOrNull { file ->
-                            file.isFile &&
-                                file.name.startsWith("steamgriddb_hero", ignoreCase = true) &&
-                                !file.name.contains("grid_", ignoreCase = true) &&
-                                (file.name.endsWith(".png", ignoreCase = true) ||
-                                    file.name.endsWith(".jpg", ignoreCase = true) ||
-                                    file.name.endsWith(".webp", ignoreCase = true))
-                        }
-                        heroFile?.let { android.net.Uri.fromFile(it).toString() } ?: ""
-                    }
-                    GameSource.ITCH -> {
-                        itchLibraryRepository.getGame(gameId.toLong())?.coverUrl.orEmpty()
-                    }
-                    else -> ""
+            bootingSplashArtworkJob = viewModelScope.launch artwork@{
+                val heroUrl = try {
+                    resolveLaunchArtwork(appId)
+                } catch (e: Exception) {
+                    if (e is CancellationException) throw e
+                    Timber.w(e, "Could not load launch artwork")
+                    return@artwork
                 }
+                _state.update { it.copy(bootingSplashHeroImageUrl = heroUrl) }
             }
-            setBootingSplashHeroImageUrl(heroUrl)
 
-            val apiJob = viewModelScope.async(Dispatchers.IO) {
-                val container = ContainerUtils.getOrCreateContainer(context, appId)
-                CrashContext.update(
-                    gameName = runCatching { ContainerUtils.resolveGameName(appId) }.getOrNull(),
-                    containerId = container.id,
-                    runtime = buildString {
-                        append("Wine/Proton=")
-                        append(container.getWineVersion())
-                        append("; graphics=")
-                        append(container.getGraphicsDriver())
-                        append(" ")
-                        append(container.getGraphicsDriverVersion())
-                        append("; DXVK/VKD3D=")
-                        append(container.getDXWrapper())
-                    },
-                    gpu = runCatching { GPUInformation.getRenderer(context) }.getOrNull(),
-                    launchStage = "preparing_runtime",
+            try {
+                withContext(Dispatchers.IO) {
+                    prepareGameEnvironment(context, appId)
+                }
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                val message = context.getString(
+                    R.string.game_startup_preparation_failed,
+                    e.localizedMessage ?: e.javaClass.simpleName,
                 )
-                val gameSource = ContainerUtils.extractGameSourceFromContainerId(appId)
-                if (gameSource == GameSource.STEAM) {
-                    if (container.isLaunchRealSteam() || container.isLaunchBionicSteam()) {
-                        SteamUtils.restoreSteamApi(context, appId)
-                    } else {
-                        val offline = _offline.value
-                        if (container.isUseLegacyDRM) {
-                            SteamUtils.replaceSteamApi(context, appId, offline)
-                        } else {
-                            SteamUtils.replaceSteamclientDll(context, appId, offline)
-                        }
-                    }
-                }
+                onGameLaunchError(message)
+                setLoadingDialogVisible(false)
+                SnackbarManager.show(message)
+                return@launch
             }
+            LaunchTrace.stage(LaunchStage.PRELAUNCH_SETUP, "success")
+            CrashContext.update(launchStage = "launching_game")
 
-            // Small delay to ensure the splash screen is visible before proceeding
-            delay(100)
-
-            apiJob.await()
-            CrashContext.setStage("launching_game")
-            app.gamenative.diagnostics.LaunchTrace.stage(app.gamenative.diagnostics.LaunchStage.PRELAUNCH_SETUP, "success")
-
-            // Installer sessions get an explicit stage label on the boot splash.
-            runCatching {
-                val container = ContainerUtils.getContainer(context, appId)
-                val mode = container.getExtra(LocalContainerLaunch.EXTRA_MODE)
-                if (mode == LocalContainerLaunch.MODE_INSTALLER_EXE_A ||
-                    mode == LocalContainerLaunch.MODE_INSTALLER_MSI_A
-                ) {
-                    setBootingSplashText(context.getString(R.string.installer_running_splash))
-                }
+            val mode = container.getExtra(LocalContainerLaunch.EXTRA_MODE)
+            val isInstaller = mode == LocalContainerLaunch.MODE_INSTALLER_EXE_A ||
+                mode == LocalContainerLaunch.MODE_INSTALLER_MSI_A
+            setBootingSplashText(
+                context.getString(
+                    if (isInstaller) R.string.installer_running_splash else R.string.game_startup_starting,
+                ),
+            )
+            if (!_state.value.bootToContainer && !_state.value.testGraphics && !isInstaller) {
+                pendingPlaySessionAppId = appId
             }
-
             _uiEvent.send(MainUiEvent.LaunchApp)
         }
     }
 
+    private suspend fun resolveLaunchArtwork(appId: String): String =
+        withContext(Dispatchers.IO) {
+            val gameSource = ContainerUtils.extractGameSourceFromContainerId(appId)
+            val gameId = ContainerUtils.extractGameIdFromContainerId(appId)
+            when (gameSource) {
+                GameSource.STEAM -> {
+                    val steamApp = SteamService.getAppInfoOf(gameId)
+                    steamApp?.getHeroUrl()?.ifEmpty { steamApp.headerUrl } ?: ""
+                }
+                GameSource.GOG -> {
+                    val game = GOGService.getGOGGameOf(gameId.toString())
+                    game?.backgroundUrl?.ifEmpty { game.imageUrl } ?: ""
+                }
+                GameSource.EPIC -> {
+                    val game = EpicService.getEpicGameOf(gameId)
+                    game?.artPortrait?.ifEmpty { game.artCover.ifEmpty { game.artSquare } } ?: ""
+                }
+                GameSource.AMAZON -> {
+                    val game = AmazonService.getAmazonGameByAppId(gameId)
+                    game?.heroUrl?.ifEmpty { game.artUrl } ?: ""
+                }
+                GameSource.CUSTOM_GAME -> {
+                    val folderPath = CustomGameScanner.getFolderPathFromAppId(appId) ?: return@withContext ""
+                    val folder = java.io.File(folderPath)
+                    val heroFile = folder.listFiles()?.firstOrNull { file ->
+                        file.isFile &&
+                            file.name.startsWith("steamgriddb_hero", ignoreCase = true) &&
+                            !file.name.contains("grid_", ignoreCase = true) &&
+                            (file.name.endsWith(".png", ignoreCase = true) ||
+                                file.name.endsWith(".jpg", ignoreCase = true) ||
+                                file.name.endsWith(".webp", ignoreCase = true))
+                    }
+                    heroFile?.let { android.net.Uri.fromFile(it).toString() } ?: ""
+                }
+                GameSource.ITCH -> {
+                    itchLibraryRepository.getGame(gameId.toLong())?.coverUrl.orEmpty()
+                }
+                else -> ""
+            }
+        }
+
+    private suspend fun prepareGameEnvironment(context: Context, appId: String) {
+        val container = ContainerUtils.getOrCreateContainer(context, appId)
+        CrashContext.update(
+            gameName = runCatching { ContainerUtils.resolveGameName(appId) }.getOrNull(),
+            containerId = container.id,
+            runtime = buildString {
+                append("Wine/Proton=")
+                append(container.getWineVersion())
+                append("; graphics=")
+                append(container.getGraphicsDriver())
+                append(" ")
+                append(container.getGraphicsDriverVersion())
+                append("; DXVK/VKD3D=")
+                append(container.getDXWrapper())
+            },
+            gpu = runCatching { GPUInformation.getRenderer(context) }.getOrNull(),
+            launchStage = "preparing_runtime",
+        )
+        val gameSource = ContainerUtils.extractGameSourceFromContainerId(appId)
+        if (gameSource == GameSource.STEAM) {
+            if (container.isLaunchRealSteam() || container.isLaunchBionicSteam()) {
+                SteamUtils.restoreSteamApi(context, appId)
+            } else {
+                val offline = _offline.value
+                if (container.isUseLegacyDRM) {
+                    SteamUtils.replaceSteamApi(context, appId, offline)
+                } else {
+                    SteamUtils.replaceSteamclientDll(context, appId, offline)
+                }
+            }
+        }
+    }
+
+    private fun startPlaySession(appId: String) {
+        if (appId != pendingPlaySessionAppId) return
+        pendingPlaySessionAppId = null
+        playSession?.finish()
+        playSession = librarySessions.start(appId)
+    }
+
     fun exitSteamApp(context: Context, appId: String, onComplete: (() -> Unit)? = null) {
         viewModelScope.launch {
+            if (pendingPlaySessionAppId == appId) pendingPlaySessionAppId = null
+            if (playSession?.appId == appId) {
+                playSession?.finish()
+                playSession = null
+            }
             try {
                 Timber.tag("Exit").i("Exiting appId: $appId")
-                bootingSplashTimeoutJob?.cancel()
-                bootingSplashTimeoutJob = null
-                setShowBootingSplash(false)
+                hideBootingSplash()
                 // Check if we have a temporary override before doing anything
                 val hadTemporaryOverride = IntentLaunchManager.hasTemporaryOverride(appId)
 
@@ -1001,29 +1050,30 @@ class MainViewModel @Inject constructor(
     fun onWindowMapped(context: Context, window: Window, appId: String) {
         viewModelScope.launch {
             // Hide the booting splash when a window is mapped
-            bootingSplashTimeoutJob?.cancel()
-            bootingSplashTimeoutJob = null
-            setShowBootingSplash(false)
+            hideBootingSplash()
 
             val gameId = ContainerUtils.extractGameIdFromContainerId(appId)
+            val isApplicationWindow = window.isApplicationWindow() &&
+                !WineProcessSnapshotHelper.isSystemProcessName(window.className)
 
             if (ContainerUtils.extractGameSourceFromContainerId(appId) != GameSource.STEAM) {
+                if (isApplicationWindow) startPlaySession(appId)
                 return@launch
             }
 
-            SteamService.getAppInfoOf(gameId)?.let { appInfo ->
-                if (ActiveGameRegistry.get()?.appId == gameId) {
-                    return@launch
-                }
+            val isAlreadyRunning = ActiveGameRegistry.get()?.appId == gameId
+            if (isAlreadyRunning && pendingPlaySessionAppId != appId) return@launch
+            val matchesLaunchConfig = SteamService.getWindowsLaunchInfos(gameId).any {
+                val gameExe = Paths.get(it.executable.replace('\\', '/')).name.lowercase()
+                val windowExe = window.className.lowercase()
+                gameExe == windowExe
+            }
+            val isGameWindow = matchesLaunchConfig || isApplicationWindow
+            if (isGameWindow) startPlaySession(appId)
 
-                val matchesLaunchConfig = SteamService.getWindowsLaunchInfos(gameId).any {
-                    val gameExe = Paths.get(it.executable.replace('\\', '/')).name.lowercase()
-                    val windowExe = window.className.lowercase()
-                    gameExe == windowExe
-                }
-                val isGameWindow = matchesLaunchConfig ||
-                    (window.isApplicationWindow() && !WineProcessSnapshotHelper.isSystemProcessName(window.className))
+            if (isAlreadyRunning) return@launch
 
+            SteamService.getAppInfoOf(gameId)?.let {
                 if (isGameWindow) {
                     val steamProcessId = Process.myPid()
                     val processes = mutableListOf<AppProcessInfo>()
@@ -1071,12 +1121,10 @@ class MainViewModel @Inject constructor(
 
     fun onGameLaunchError(error: String) {
         viewModelScope.launch {
+            pendingPlaySessionAppId = null
             // Hide the splash screen if it's still showing
-            bootingSplashTimeoutJob?.cancel()
-            bootingSplashTimeoutJob = null
-            setShowBootingSplash(false)
-
-            // You could also show an error dialog here if needed
+            hideBootingSplash()
+            LaunchTrace.finish("failed")
             Timber.tag("MainViewModel").e("Game launch error: $error")
         }
     }

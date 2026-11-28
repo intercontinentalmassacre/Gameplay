@@ -6,6 +6,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -24,6 +25,7 @@ fun ConsoleImportPanel(
     onInstall: () -> Unit,
     onImportExecutable: () -> Unit,
     onChooseFolder: () -> Unit,
+    onReceiveWifi: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     ConsoleSidePanel(
@@ -57,6 +59,11 @@ fun ConsoleImportPanel(
             icon = Icons.Default.Folder,
             label = stringResource(R.string.add_custom_game_choose_folder),
             onClick = onChooseFolder,
+        )
+        ConsoleMenuActionItem(
+            icon = Icons.Default.Wifi,
+            label = stringResource(R.string.wifi_game_receive),
+            onClick = onReceiveWifi,
         )
         ConsolePanelBackHint()
     }
