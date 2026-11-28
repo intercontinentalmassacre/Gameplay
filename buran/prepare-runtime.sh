@@ -27,7 +27,6 @@ export AR_aarch64_linux_android="$bin/llvm-ar"
 export CARGO_TARGET_AARCH64_LINUX_ANDROID_RUSTFLAGS='-C link-arg=-Wl,-z,max-page-size=16384'
 cargo build --locked --release --manifest-path native/Cargo.toml \
     --target-dir build/cargo --target aarch64-linux-android
-bash native/gameplay-ports/stage.sh "$output" "${GAMEPLAY_NATIVE_PORTS_SOURCE-native/gameplay-ports/runtime}"
 cp build/cargo/aarch64-linux-android/release/buran "$abi/libburan.so"
 for component in gamepad guest_pause; do
     "$clang" -shared -fPIC -O3 -Wall -Wextra -Werror -Wl,-z,max-page-size=16384 \

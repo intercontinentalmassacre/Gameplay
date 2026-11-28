@@ -7,7 +7,7 @@ Gameplay includes Buran in the modern ARM64 variants. The module contains its ow
 Use Linux x86-64, JDK 17, Android SDK 36, NDK 27.3.13750724 and Rustup. The toolchain file selects Rust 1.89.0 and the Android ARM64 target. Install the archive tools on Debian or Ubuntu before the first build.
 
 ```sh
-sudo apt-get install binutils curl dpkg python3 unzip xz-utils zstd gcc-aarch64-linux-gnu libc6-dev-arm64-cross
+sudo apt-get install binutils curl dpkg python3 unzip xz-utils zstd
 sdkmanager --install 'platforms;android-36' 'ndk;27.3.13750724'
 ./gradlew :app:assembleModernDebug
 ```
@@ -16,13 +16,18 @@ The signed modern release uses the same runtime preparation. Its signing setup i
 
 The Gradle task `:buran:prepareRuntime` builds the native runner and JNI libraries and prepares the pinned guest assets in `buran/build/runtime`. Source download caches live under `${XDG_CACHE_HOME:-$HOME/.cache}` by default. The first build needs network access for the Android toolchain, Rust dependencies and pinned runtime packages.
 
-## Gameplay Rust ports
+## Prebuilt Gameplay ports
 
-The modern build compiles the four crates in `native/gameplay-ports/runtime`. They implement the Android Steam bootstrap, the Android and glibc redirect shims, and the KGSL shim. Each build type gets libraries targeting its own Android application ID. The guest libraries are checked for compatibility with glibc 2.36. To test a different source workspace, set `GAMEPLAY_NATIVE_PORTS_SOURCE` to its absolute path.
+The modern variants package the Steam bootstrap, redirect shims and KGSL shim from
+`prebuilt/gameplay-ports`. Each build type uses binaries targeting its own Android
+application ID. The guest binaries target Debian 12 (glibc 2.36). To update the
+ports, import the matching `gameplay-ports` output from the native component build.
+
+The public Gameplay build leaves out Framegen Free.
 
 ## Using an existing runtime
 
-For Windows or macOS, or for a local build without the source download caches, prepare the runtime on a Linux x86-64 host from the same checkout and copy the result to `buran/.runtime`. Use the entire directory, including `assets`, `jniLibs` and `gameplay-ports` for all four build types.
+For Windows or macOS, or for a local build without the source download caches, prepare the runtime on a Linux x86-64 host from the same checkout and copy the result to `buran/.runtime`. Use the entire directory, including `assets` and `jniLibs`.
 
 ```sh
 ./gradlew :buran:prepareRuntime
