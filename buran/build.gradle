@@ -1,0 +1,261 @@
+import java.security.MessageDigest
+import java.util.zip.ZipFile
+
+plugins {
+    id 'com.android.library'
+    id 'org.jetbrains.kotlin.android'
+}
+
+def cached = file('.runtime')
+def runtime = cached.isDirectory() ? cached : layout.buildDirectory.dir('runtime').get().asFile
+def runtimeManifest = file('runtime-files.txt')
+def vendorSteam = providers.environmentVariable('GAMEPLAY_ANDROID_STEAM_RUNTIME').orNull
+def vendorSteamAssets = layout.buildDirectory.dir('vendor-steam-assets')
+def dri3Sources = file('native/gameplay-ports/dri3-bridge')
+def dri3Target = layout.buildDirectory.dir('dri3-bridge/cargo')
+def dri3Jni = layout.buildDirectory.dir('dri3-bridge/jniLibs')
+def framegenSdkPath = providers.environmentVariable('BURAN_FRAMEGEN_SDK').orNull
+def framegenSdk = framegenSdkPath == null ? file('native/framegen/FramegenFree-arm64-v8a.zip') : rootProject.file(framegenSdkPath)
+def framegenStage = layout.buildDirectory.dir('framegen-sdk')
+def framegenHelperStage = layout.buildDirectory.dir('framegen-renderer')
+if (framegenSdkPath != null && (framegenSdkPath.isBlank() || !framegenSdk.isFile())) {
+    throw new GradleException('BURAN_FRAMEGEN_SDK must point to FramegenFree-arm64-v8a.zip')
+}
+if (vendorSteam != null && (vendorSteam.isBlank() || !rootProject.file(vendorSteam).isFile())) {
+    throw new GradleException('GAMEPLAY_ANDROID_STEAM_RUNTIME must point to steam-androidarm64-20260709.tzst')
+}
+def configuredPorts = providers.environmentVariable('GAMEPLAY_NATIVE_PORTS_SOURCE').orNull
+def portsSource = rootProject.file(configuredPorts ?: 'dist/nonfree/rea/rust')
+def portsManifest = new File(portsSource, 'Cargo.toml')
+def portsLockfile = new File(portsSource, 'Cargo.lock')
+if (configuredPorts != null && (configuredPorts.isBlank() || !portsManifest.isFile() || !portsLockfile.isFile())) {
+    throw new GradleException("GAMEPLAY_NATIVE_PORTS_SOURCE must point to the private Rust ports workspace: ${portsSource}")
+}
+def hasPorts = portsManifest.isFile() ||
+    (cached.isDirectory() && new File(cached, 'gameplay-ports').isDirectory())
+def buildTypesWithPorts = hasPorts ? ['debug', 'release', 'release-signed', 'release-gold'] : []
+def requiredPaths = runtimeManifest.readLines('UTF-8').findAll { !it.isBlank() }
+buildTypesWithPorts.each { variant ->
+    requiredPaths += [
+        "gameplay-ports/${variant}/assets/gameplay-ports/libkgslshim.so",
+        "gameplay-ports/${variant}/assets/gameplay-ports/libredirect.so",
+        "gameplay-ports/${variant}/jniLibs/arm64-v8a/libburan_kgslshim.so",
+        "gameplay-ports/${variant}/jniLibs/arm64-v8a/libburan_redirect_bionic.so",
+        "gameplay-ports/${variant}/jniLibs/arm64-v8a/libburan_steambootstrap.so",
+    ]
+}
+def required = requiredPaths.collect { new File(runtime, it) }
+def helpers = ['buran-desktop-exit.exe', 'buran-desktop-exit-x86.exe'].collect { file("src/main/assets/${it}") }
+android {
+    namespace 'org.buran.runtime'
+    compileSdk 36
+    ndkVersion '27.3.13750724'
+    defaultConfig {
+        minSdk 29
+        consumerProguardFiles 'consumer-rules.pro'
+    }
+    buildTypes {
+        create('release-signed') { initWith release }
+        create('release-gold') { initWith release }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    kotlinOptions { jvmTarget = '17' }
+    sourceSets.main.assets.srcDir(new File(runtime, 'assets'))
+    sourceSets.main.jniLibs.srcDir(new File(runtime, 'jniLibs'))
+    sourceSets.main.jniLibs.srcDir(dri3Jni)
+    if (framegenSdk != null) {
+        sourceSets.main.assets.srcDir(framegenStage.map { it.dir('assets') })
+        sourceSets.main.jniLibs.srcDir(framegenStage.map { it.dir('jniLibs') })
+        sourceSets.main.jniLibs.srcDir(framegenHelperStage)
+    }
+    if (vendorSteam != null) sourceSets.debug.assets.srcDir(vendorSteamAssets)
+    buildTypesWithPorts.each { variant ->
+        def ports = new File(runtime, "gameplay-ports/${variant}")
+        sourceSets.getByName(variant).assets.srcDir(new File(ports, 'assets'))
+        sourceSets.getByName(variant).jniLibs.srcDir(new File(ports, 'jniLibs'))
+    }
+}
+
+def sdk = androidComponents.sdkComponents.sdkDirectory
+def explicitDri3Ndk = providers.environmentVariable('BURAN_DRI3_NDK')
+def dri3Clang = providers.provider {
+    def windows = System.getProperty('os.name').toLowerCase(Locale.ROOT).contains('windows')
+    def clangName = 'bin/clang' + (windows ? '.exe' : '')
+    def ndkRoot = new File(sdk.get().asFile, 'ndk')
+    def installed = ndkRoot.listFiles()?.findAll { it.isDirectory() }?.sort { it.name.padLeft(18, '0') }?.reverse() ?: []
+    def ndks = explicitDri3Ndk.isPresent()
+        ? [rootProject.file(explicitDri3Ndk.get())]
+        : [new File(ndkRoot, android.ndkVersion)] + installed
+    for (def ndk : ndks.unique()) {
+        def prebuilt = new File(ndk, 'toolchains/llvm/prebuilt')
+        def toolchain = prebuilt.listFiles()?.find { it.isDirectory() && new File(it, clangName).isFile() }
+        if (toolchain != null) return new File(toolchain, clangName)
+    }
+    throw new GradleException("Android NDK clang is missing. Install an Android NDK or set BURAN_DRI3_NDK.")
+}
+def buildDri3Bridge = tasks.register('buildDri3Bridge', Exec) {
+    inputs.files(fileTree(dri3Sources) { exclude 'target/**' }, 'rust-toolchain.toml')
+    inputs.property('ndkClang', dri3Clang.map { it.absolutePath })
+    def relativeLibrary = 'aarch64-linux-android/release/libburan_dri3bridge.so'
+    def output = dri3Jni.map { it.file('arm64-v8a/libburan_dri3bridge.so') }
+    outputs.file(output)
+    workingDir rootProject.projectDir
+    doFirst {
+        environment 'CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER', dri3Clang.get().absolutePath
+        environment 'CARGO_TARGET_AARCH64_LINUX_ANDROID_RUSTFLAGS',
+            '-C link-arg=--target=aarch64-linux-android29 -C link-arg=-Wl,-z,max-page-size=16384'
+        commandLine 'cargo', 'build', '--locked', '--offline', '--release', '--target', 'aarch64-linux-android',
+            '--target-dir', dri3Target.get().asFile.absolutePath,
+            '--manifest-path', new File(dri3Sources, 'Cargo.toml').absolutePath
+    }
+    doLast {
+        def library = output.get().asFile
+        library.parentFile.mkdirs()
+        java.nio.file.Files.copy(dri3Target.get().file(relativeLibrary).asFile.toPath(), library.toPath(),
+            java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+    }
+}
+
+if (framegenSdk != null) {
+    def shaders = ['flow_confidence', 'flow_init', 'flow_refine', 'luma_downsample',
+        'motion_to_flow', 'ui_mask', 'warp_blend_rgba16f', 'warp_blend_rgba8']
+    def entries = ['lib/libframegen.so': 'jniLibs/arm64-v8a/libframegen.so',
+        'include/framegen/framegen.h': 'include/framegen/framegen.h',
+        'LICENSE': 'assets/vkfg/notices/LICENSE', 'COPYING': 'assets/vkfg/notices/COPYING',
+        'FramegenFree-native-source.zip': 'assets/vkfg/notices/FramegenFree-native-source.zip']
+    shaders.each { name -> entries["share/framegen/shaders/${name}.spv".toString()] = "assets/vkfg/shaders/${name}.spv" }
+    def stageFramegen = tasks.register('stageFramegenSdk') {
+        inputs.file(framegenSdk)
+        inputs.property('entries', entries)
+        outputs.dir(framegenStage)
+        doLast {
+            def output = framegenStage.get().asFile
+            new ZipFile(framegenSdk).withCloseable { zip ->
+                entries.keySet().each { name ->
+                    def entry = zip.getEntry(name)
+                    if (entry == null || entry.isDirectory() || entry.size <= 0) {
+                        throw new GradleException("Missing or empty Framegen Free SDK member: ${name}")
+                    }
+                }
+                entries.each { name, destination ->
+                    def target = new File(output, destination)
+                    target.parentFile.mkdirs()
+                    zip.getInputStream(zip.getEntry(name)).withCloseable { input ->
+                        java.nio.file.Files.copy(input, target.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+                    }
+                }
+            }
+        }
+    }
+    def framegenHelper = tasks.register('buildFramegenRenderer', Exec) {
+        dependsOn stageFramegen
+        def source = file('native/framegen/renderer.cpp')
+        def output = framegenHelperStage.map { it.file('arm64-v8a/libburan_framegen.so') }
+        inputs.file(source)
+        inputs.file(framegenSdk)
+        inputs.property('ndkClang', dri3Clang.map { it.absolutePath })
+        outputs.file(output)
+        doFirst {
+            def clang = dri3Clang.get()
+            def cxx = new File(clang.parentFile, clang.name.replace('clang', 'clang++'))
+            def dst = output.get().asFile
+            def stage = framegenStage.get().asFile
+            dst.parentFile.mkdirs()
+            commandLine cxx, '--target=aarch64-linux-android29', '-std=c++17', '-O2',
+                '-fPIC', '-shared', '-fvisibility=hidden', '-static-libstdc++',
+                '-Wl,-z,max-page-size=16384', '-Wl,--no-undefined',
+                "-I${new File(stage, 'include')}", source,
+                "-L${new File(stage, 'jniLibs/arm64-v8a')}", '-lframegen', '-landroid', '-lvulkan', '-llog',
+                '-o', dst
+        }
+    }
+    tasks.named('preBuild').configure { dependsOn framegenHelper }
+}
+
+if (vendorSteam != null) {
+    def archive = rootProject.file(vendorSteam)
+    def bridge = new File(archive.parentFile, 'lsteamclient-arm64ec-proton10.tzst')
+    def stageSteamArchive = { String taskName, File input, String expected, String subdir, List<String> options ->
+        def outputDir = vendorSteamAssets.map { it.dir("vendor-steam/${subdir}") }
+        tasks.register(taskName, Exec) {
+            inputs.file(input)
+            inputs.property('sha256', expected)
+            inputs.property('tarOptions', options)
+            outputs.dir(outputDir)
+            doFirst {
+                def digest = MessageDigest.getInstance('SHA-256').digest(input.bytes).encodeHex().toString()
+                if (digest != expected) {
+                    throw new GradleException("Unexpected SHA-256 for private Steam archive ${input}")
+                }
+                def output = outputDir.get().asFile
+                project.delete(output)
+                output.mkdirs()
+                commandLine(['tar', '-xf', input.absolutePath, '-C', output.absolutePath] + options)
+            }
+        }
+    }
+    def androidFiles = ['libsteamclient.so', 'libsteamnetworkingsockets.so', 'libtier0_s.so', 'libvstdlib_s.so', 'steamservice.so']
+    def stageVendorSteam = stageSteamArchive('stageVendorSteam', archive,
+        '791f676ffa0fbe49d3ed3095399a9ad7bdba9374b2212f427c92091acb2fc3d6', 'android',
+        ['--strip-components=2'] + androidFiles.collect { "usr/lib/${it}".toString() })
+    def stageVendorSteamBridge = stageSteamArchive('stageVendorSteamBridge', bridge,
+        '69fb6ee7fc62cb5932880c52e326cf818f704a4cd8596022c329a13da3dc7cc9', 'proton10',
+        ['./aarch64-unix/lsteamclient.so', './aarch64-windows/lsteamclient.dll', './i386-windows/lsteamclient.dll'])
+    tasks.matching { it.name == 'preDebugBuild' }.configureEach { dependsOn stageVendorSteam, stageVendorSteamBridge }
+}
+
+def verifyRuntime = tasks.register('verifyRuntime') {
+    inputs.files(runtimeManifest, required, helpers)
+    def stamp = layout.buildDirectory.file('runtime-verified.txt')
+    outputs.file(stamp)
+    doLast {
+        def missing = (required + helpers).findAll { !it.isFile() || it.length() == 0L }
+        if (!missing.isEmpty()) {
+            throw new GradleException("Incomplete Buran runtime at ${runtime}:\n" +
+                missing.collect { "  ${it}" }.join('\n') +
+                '\nSupply a complete buran/.runtime, or remove it and prepare the runtime on Linux x86-64.')
+        }
+        def archive = new File(runtime, 'assets/gamescope-runtime/rootfs.tar.zst')
+        def expected = new File("${archive}.sha256").getText('US-ASCII').trim()
+        def digest = MessageDigest.getInstance('SHA-256')
+        archive.withInputStream { input ->
+            byte[] bytes = new byte[1024 * 1024]
+            int length
+            while ((length = input.read(bytes)) != -1) digest.update(bytes, 0, length)
+        }
+        if (digest.digest().encodeHex().toString() != expected) {
+            throw new GradleException("Buran Gamescope archive SHA-256 does not match ${archive}.sha256")
+        }
+        def stampFile = stamp.get().asFile
+        stampFile.parentFile.mkdirs()
+        stampFile.text = "${expected}\n"
+    }
+}
+
+if (!cached.isDirectory()) {
+    def ndk = androidComponents.sdkComponents.ndkDirectory
+    def prepare = tasks.register('prepareRuntime', Exec) {
+        inputs.files(fileTree('native') { exclude 'target/**' }, fileTree('box'), fileTree('gamescope'),
+            fileTree('dxvk'), 'src/main/assets/buran-box-session.sh',
+            'prepare-runtime.sh', 'runtime-files.txt', 'rust-toolchain.toml')
+        if (hasPorts) inputs.files(fileTree(portsSource) { exclude 'target/**' })
+        inputs.property('hasGameplayPorts', hasPorts)
+        inputs.property('ndkVersion', android.ndkVersion)
+        outputs.dir(runtime)
+        doFirst {
+            if (hasPorts) environment 'GAMEPLAY_NATIVE_PORTS_SOURCE', portsSource.absolutePath
+            commandLine 'bash', 'prepare-runtime.sh', runtime, ndk.get().asFile
+        }
+    }
+    verifyRuntime.configure { dependsOn prepare }
+}
+tasks.named('preBuild').configure { dependsOn verifyRuntime, buildDri3Bridge }
+dependencies {
+    implementation libs.apache.compress
+    implementation libs.xz
+    implementation(libs.zstd.jni) { artifact { type = 'aar' } }
+    testImplementation libs.junit
+}

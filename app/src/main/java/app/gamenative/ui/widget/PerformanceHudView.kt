@@ -97,6 +97,8 @@ class PerformanceHudView(
     private val fpsProvider: () -> Float,
     initialConfig: PerformanceHudConfig = PerformanceHudConfig(),
     initialCompactMode: Boolean = false,
+    private val hideUnavailableFps: Boolean = false,
+    private val generatedFpsProvider: (() -> Int?)? = null,
 ) : FrameLayout(context) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var updateJob: Job? = null
@@ -289,7 +291,11 @@ class PerformanceHudView(
         updateJob = scope.launch {
             while (isActive) {
                 val rawFps = fpsProvider()
-                val currentFps = if (rawFps.isFinite()) rawFps.coerceAtLeast(0f) else 0f
+                val currentFps = when {
+                    rawFps.isFinite() -> rawFps.coerceAtLeast(0f)
+                    hideUnavailableFps -> null
+                    else -> 0f
+                }
                 val snapshot = withContext(Dispatchers.IO) {
                     collectSnapshot(currentFps)
                 }
@@ -386,7 +392,7 @@ class PerformanceHudView(
         }
     }
 
-    private fun collectSnapshot(currentFps: Float): HudSnapshot {
+    private fun collectSnapshot(currentFps: Float?): HudSnapshot {
         val cpuPercent = readCpuUsagePercent()
         val gpuPercent = readGpuUsagePercent()
         val batterySnapshot = collectBatterySnapshot()
@@ -394,7 +400,10 @@ class PerformanceHudView(
             fpsValue = currentFps,
             cpuValue = cpuPercent?.toFloat(),
             gpuValue = gpuPercent?.toFloat(),
-            fps = String.format(Locale.US, "FPS %.1f", currentFps),
+            fps = currentFps?.let { String.format(Locale.US, "FPS %.1f", it) }.let { base ->
+                val generated = generatedFpsProvider?.invoke() ?: return@let base
+                if (base == null) "FG +$generated" else "$base  FG +$generated"
+            },
             cpu = cpuPercent?.let { "CPU $it%" },
             gpu = gpuPercent?.let { "GPU $it%" },
             ram = "RAM ${readUsedRamText()}",

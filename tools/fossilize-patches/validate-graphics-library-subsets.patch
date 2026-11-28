@@ -1,0 +1,119 @@
+diff --git a/cli/fossilize_replay.cpp b/cli/fossilize_replay.cpp
+index 211b66a..43b1535 100644
+--- a/cli/fossilize_replay.cpp
++++ b/cli/fossilize_replay.cpp
+@@ -56,6 +56,10 @@
+ #include <map>
+ #include <assert.h>
+ 
++#ifdef __ANDROID__
++#include <unistd.h>
++#endif
++
+ #ifdef FOSSILIZE_REPLAYER_SPIRV_VAL
+ #include "spirv-tools/libspirv.hpp"
+ #endif
+@@ -275,6 +279,7 @@ struct PipelineWorkItem
+ 	unsigned memory_context_index = 0;
+ 	bool parse_only = false;
+ 	bool force_outside_range = false;
++	VkGraphicsPipelineLibraryFlagsEXT graphics_library_flags = 0;
+ 
+ 	union
+ 	{
+@@ -1240,8 +1245,42 @@ struct ThreadedReplayer : StateCreatorInterface
+ 		}
+ 	}
+ 
++	bool collect_graphics_library_flags(PipelineWorkItem &work_item)
++	{
++		const auto *info = work_item.create_info.graphics_create_info;
++		if (!info)
++			return true;
++		const auto *own = find_pnext<VkGraphicsPipelineLibraryCreateInfoEXT>(
++				VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_LIBRARY_CREATE_INFO_EXT, info->pNext);
++		const auto *linked = find_pnext<VkPipelineLibraryCreateInfoKHR>(
++				VK_STRUCTURE_TYPE_PIPELINE_LIBRARY_CREATE_INFO_KHR, info->pNext);
++		auto &flags = work_item.graphics_library_flags;
++		flags = own ? own->flags : 0;
++		if (!linked)
++			return true;
++
++		// Each graphics state subset may come from only one source (VUID 06611).
++		lock_guard<mutex> lock(internal_enqueue_mutex);
++		for (uint32_t i = 0; i < linked->libraryCount; i++)
++		{
++			auto itr = graphics_library_flags.find(linked->pLibraries[i]);
++			if (itr == end(graphics_library_flags))
++				continue;
++			if (flags & itr->second)
++			{
++				LOGW("Graphics pipeline %016" PRIx64 " links overlapping library subsets, skipping.\n", work_item.hash);
++				return false;
++			}
++			flags |= itr->second;
++		}
++		return true;
++	}
++
+ 	bool run_creation_work_item_setup_graphics(PipelineResolver &resolver, PipelineWorkItem &work_item)
+ 	{
++		if (!collect_graphics_library_flags(work_item))
++			return false;
++
+ 		if (device->get_feature_filter().supports_maintenance4() && work_item.create_info.graphics_create_info)
+ 		{
+ 			// If we crash during resolve, it should count as a dirty crash. Don't try to recover.
+@@ -1440,11 +1479,18 @@ struct ThreadedReplayer : StateCreatorInterface
+ 		return cache;
+ 	}
+ 
+-	void reset_work_item(const PipelineWorkItem &work_item) const
++	void reset_work_item(const PipelineWorkItem &work_item)
+ 	{
+ 		// Avoid leak.
+ 		if (*work_item.hash_map_entry.pipeline != VK_NULL_HANDLE)
++		{
++			if (work_item.tag == RESOURCE_GRAPHICS_PIPELINE)
++			{
++				lock_guard<mutex> lock(internal_enqueue_mutex);
++				graphics_library_flags.erase(*work_item.hash_map_entry.pipeline);
++			}
+ 			vkDestroyPipeline(device->get_device(), *work_item.hash_map_entry.pipeline, nullptr);
++		}
+ 		*work_item.hash_map_entry.pipeline = VK_NULL_HANDLE;
+ 	}
+ 
+@@ -1461,10 +1507,15 @@ struct ThreadedReplayer : StateCreatorInterface
+ 		}
+ 	}
+ 
+-	void complete_work_item(const PipelineWorkItem &work_item) const
++	void complete_work_item(const PipelineWorkItem &work_item)
+ 	{
+ 		if (work_item_is_dependency(work_item))
+ 		{
++			if (work_item.tag == RESOURCE_GRAPHICS_PIPELINE)
++			{
++				lock_guard<mutex> lock(internal_enqueue_mutex);
++				graphics_library_flags[*work_item.output.pipeline] = work_item.graphics_library_flags;
++			}
+ 			*work_item.hash_map_entry.pipeline = *work_item.output.pipeline;
+ 		}
+ 		else
+@@ -1945,6 +1996,7 @@ struct ThreadedReplayer : StateCreatorInterface
+ 
+ 		compute_pipelines.clear();
+ 		graphics_pipelines.clear();
++		graphics_library_flags.clear();
+ 		raytracing_pipelines.clear();
+ 	}
+ 
+@@ -3535,6 +3587,7 @@ struct ThreadedReplayer : StateCreatorInterface
+ 	std::vector<PerThreadData> per_thread_data;
+ 	std::mutex pipeline_work_queue_mutex;
+ 	std::mutex internal_enqueue_mutex;
++	std::unordered_map<VkPipeline, VkGraphicsPipelineLibraryFlagsEXT> graphics_library_flags;
+ 	std::queue<PipelineWorkItem> pipeline_work_queue;
+ 
+ 	std::mutex pipeline_stats_queue_mutex;

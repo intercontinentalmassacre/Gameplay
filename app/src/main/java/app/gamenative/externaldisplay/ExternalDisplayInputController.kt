@@ -221,33 +221,61 @@ private class ExternalInputPresentation(
     }
 }
 
-internal class HybridInputLayout(
-    context: Context,
-    xServer: XServer,
-    touchpadViewProvider: () -> TouchpadView?,
-    keyboardInitiallyOpen: Boolean = false,
-) : FrameLayout(context) {
-
-    private val touchpad = TouchpadView(context, xServer, false).apply {
-        setClickHapticsEnabled(true)
-        setMotionHapticsEnabled { PrefManager.touchpadMotionHaptics }
-        layoutParams = LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.MATCH_PARENT,
-        )
-        setBackgroundColor(ContextCompat.getColor(context, R.color.external_display_surface_background))
-        touchpadViewProvider()?.let { primary ->
-            setSimTouchScreen(primary.isSimTouchScreen)
-        }
+internal open class CompanionTouchpadLayout(context: Context, touchpad: TouchpadView) : FrameLayout(context) {
+    init {
+        touchpad.setClickHapticsEnabled(true)
+        touchpad.setMotionHapticsEnabled { PrefManager.touchpadMotionHaptics }
+        touchpad.setBackgroundColor(ContextCompat.getColor(context, R.color.external_display_surface_background))
+        touchpad.contentDescription = context.getString(R.string.live_touchpad_hint)
+        addView(touchpad, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+        addView(android.widget.TextView(context).apply {
+            text = touchpad.contentDescription
+            gravity = Gravity.CENTER
+            setTextColor(ContextCompat.getColor(context, R.color.external_display_key_color))
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        }, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT, Gravity.CENTER))
     }
-    private val keyboardView = ExternalOnScreenKeyboardView(context, xServer).apply {
-        layoutParams = LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-        ).apply {
-            gravity = Gravity.BOTTOM
+}
+
+internal class HybridInputLayout private constructor(
+    context: Context,
+    private val touchpad: TouchpadView,
+    private val keyboardView: ExternalOnScreenKeyboardView,
+    keyboardInitiallyOpen: Boolean,
+    private val onKeyboardToggle: ((Boolean) -> Unit)? = null,
+) : CompanionTouchpadLayout(context, touchpad) {
+    constructor(
+        context: Context,
+        xServer: XServer,
+        touchpadViewProvider: () -> TouchpadView?,
+        keyboardInitiallyOpen: Boolean = false,
+    ) : this(
+        context,
+        TouchpadView(context, xServer, false).apply {
+            touchpadViewProvider()?.let { setSimTouchScreen(it.isSimTouchScreen) }
+        },
+        ExternalOnScreenKeyboardView(context, xServer),
+        keyboardInitiallyOpen,
+    )
+
+    constructor(context: Context, controls: BuranCompanionControls) : this(
+        context,
+        TouchpadView(context, controls).apply { setSensitivity(controls.touchSensitivity) },
+        ExternalOnScreenKeyboardView(context, controls::key),
+        controls.keyboardOpen,
+        { controls.keyboardOpen = it },
+    )
+
+    init {
+        keyboardView.apply {
+            layoutParams = LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+            ).apply {
+                gravity = Gravity.BOTTOM
+            }
+            visibility = if (keyboardInitiallyOpen) View.VISIBLE else View.GONE
         }
-        visibility = if (keyboardInitiallyOpen) View.VISIBLE else View.GONE
     }
 
     private val keyboardToggleButton = ImageButton(context).apply {
@@ -271,14 +299,6 @@ internal class HybridInputLayout(
     }
 
     init {
-        addView(touchpad)
-        addView(android.widget.TextView(context).apply {
-            text = context.getString(R.string.live_touchpad_hint)
-            gravity = Gravity.CENTER
-            setTextColor(ContextCompat.getColor(context, R.color.external_display_key_color))
-            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-        }, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT, Gravity.CENTER))
-        touchpad.contentDescription = context.getString(R.string.live_touchpad_hint)
         addView(keyboardView)
         addView(keyboardToggleButton)
 
@@ -293,12 +313,24 @@ internal class HybridInputLayout(
 
     private fun toggleKeyboard() {
         val shouldShow = keyboardView.visibility != View.VISIBLE
-        keyboardView.visibility = if (shouldShow) View.VISIBLE else View.GONE
+        onKeyboardToggle?.invoke(shouldShow)
+        setKeyboardOpen(shouldShow)
+        if (onKeyboardToggle != null) return
         if (shouldShow) {
             keyboardView.post { keyboardView.requestControllerFocus() }
         } else {
             keyboardToggleButton.requestFocus()
         }
+    }
+
+    fun updateCompanionControls(controls: BuranCompanionControls) {
+        touchpad.isEnabled = !controls.mouseDisabled
+        setKeyboardOpen(controls.keyboardOpen)
+    }
+
+    private fun setKeyboardOpen(shouldShow: Boolean) {
+        if (!shouldShow && keyboardView.visibility == View.VISIBLE) keyboardView.releaseHeldKeys()
+        keyboardView.visibility = if (shouldShow) View.VISIBLE else View.GONE
         post { updateToggleButtonPosition() }
     }
     private fun updateToggleButtonPosition() {

@@ -6,6 +6,7 @@ import java.io.File
 import timber.log.Timber
 
 object InstallScriptParser {
+    private val runProcessField = Regex("(Process|Command)\\s*(\\d*)", RegexOption.IGNORE_CASE)
 
     fun parse(file: File, installDir: String, language: String = "english"): InstallScript {
         return try {
@@ -158,8 +159,8 @@ object InstallScriptParser {
         val actions = mutableListOf<RunProcessAction>()
         for (entryNode in runProcessNode.children) {
             val name = entryNode.name ?: continue
-            var process = ""
-            var command = ""
+            val processes = linkedMapOf<Int, String>()
+            val commands = mutableMapOf<Int, String>()
             var hasRunKey: String? = null
             var noCleanUp = false
             var minimumHasRunValue = 0
@@ -168,13 +169,15 @@ object InstallScriptParser {
 
             for (child in entryNode.children) {
                 val childName = child.name ?: continue
+                val field = runProcessField.matchEntire(childName.trim())
+                if (field != null) {
+                    val (kind, number) = field.destructured
+                    val index = number.ifEmpty { "1" }.toIntOrNull() ?: continue
+                    val values = if (kind.equals("Process", ignoreCase = true)) processes else commands
+                    values[index] = expandEnvVars(child.value ?: "", envVars)
+                    continue
+                }
                 when {
-                    childName.startsWith("Process", ignoreCase = true) -> {
-                        process = expandEnvVars(child.value ?: "", envVars)
-                    }
-                    childName.startsWith("Command", ignoreCase = true) -> {
-                        command = expandEnvVars(child.value ?: "", envVars)
-                    }
                     childName.equals("HasRunKey", ignoreCase = true) -> {
                         hasRunKey = expandEnvVars(child.value ?: "", envVars)
                     }
@@ -200,12 +203,12 @@ object InstallScriptParser {
                 }
             }
 
-            if (process.isNotEmpty()) {
+            processes.entries.filter { it.value.isNotEmpty() }.forEachIndexed { position, (index, process) ->
                 actions.add(
                     RunProcessAction(
-                        name = name,
+                        name = if (position == 0) name else "$name ($index)",
                         process = process,
-                        command = command,
+                        command = commands[index].orEmpty(),
                         hasRunKey = hasRunKey,
                         noCleanUp = noCleanUp,
                         minimumHasRunValue = minimumHasRunValue,

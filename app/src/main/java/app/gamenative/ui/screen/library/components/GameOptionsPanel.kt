@@ -442,6 +442,7 @@ private fun getIconForOption(type: AppOptionMenuType): ImageVector {
         AppOptionMenuType.ExportFrontend -> Icons.Default.Share
         AppOptionMenuType.RunContainer -> Icons.Default.PlayArrow
         AppOptionMenuType.ControllerLayouts -> Icons.Default.Gamepad
+        AppOptionMenuType.GameRuntime -> Icons.Default.Build
         AppOptionMenuType.EditContainer -> Icons.Default.Settings
         AppOptionMenuType.ResetToDefaults -> Icons.Default.RestartAlt
         AppOptionMenuType.GetSupport -> Icons.AutoMirrored.Filled.Help
@@ -523,6 +524,7 @@ private fun groupOptions(options: List<AppMenuOption>): Map<OptionCategory, List
 
             // Container Settings
             AppOptionMenuType.ControllerLayouts,
+            AppOptionMenuType.GameRuntime,
             AppOptionMenuType.EditContainer,
             AppOptionMenuType.ResetToDefaults,
             AppOptionMenuType.ResetDrm,

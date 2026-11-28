@@ -1,0 +1,77 @@
+// Adapted for Buran from Gameplay, app/src/main/java/app/gamenative/ui/widget/PerformanceHudModels.kt.
+// https://github.com/intercontinentalmassacre/Gameplay/blob/08386c0/app/src/main/java/app/gamenative/ui/widget/PerformanceHudModels.kt
+// Distributed under the GNU General Public License version 3.
+// See assets/notices/gameplay-performance-hud-gpl-3.0.txt.
+
+package org.buran.runtime.hud
+
+internal enum class MetricId {
+    FPS,
+    CPU,
+    GPU,
+    RAM,
+    BATTERY,
+    POWER,
+    RUNTIME,
+    BATTERY_TEMP,
+    CLOCK,
+    CPU_TEMP,
+    GPU_TEMP,
+    THERMAL_THROTTLING,
+}
+
+internal enum class GraphScaleMode {
+    FPS_DYNAMIC,
+    PERCENT_100,
+}
+
+internal data class BatterySnapshot(
+    val percent: Int? = null,
+    val powerWatts: Double? = null,
+    val runtimeText: String? = null,
+    val temperatureC: Int? = null,
+)
+
+internal data class HudSnapshot(
+    val fpsValue: Float?,
+    val cpuValue: Float?,
+    val gpuValue: Float?,
+    val fps: String?,
+    val cpu: String?,
+    val gpu: String?,
+    val ram: String,
+    val battery: String?,
+    val batteryPercent: Int?,
+    val power: String?,
+    val runtime: String?,
+    val batteryTemp: String?,
+    val batteryTemperatureC: Int?,
+    val clock: String,
+    val cpuTemp: String?,
+    val gpuTemp: String?,
+    val thermalThrottling: Boolean,
+)
+
+internal data class HudAppearance(
+    val textSizeSp: Float,
+    val containerHorizontalPaddingDp: Int,
+    val containerVerticalPaddingDp: Int,
+    val rowVerticalPaddingDp: Int,
+    val rowSpacingDp: Int,
+    val columnSpacingDp: Int,
+    val cornerRadiusDp: Int,
+    val strokeWidthDp: Int,
+    val stackedGraphWidthDp: Int,
+    val stackedGraphHeightDp: Int,
+    val compactGraphWidthDp: Int,
+    val compactGraphHeightDp: Int,
+    val stackedGraphTopMarginDp: Int,
+    val stackedGraphBottomMarginDp: Int,
+    val compactGraphStartMarginDp: Int,
+)
+
+internal data class MetricSignature(
+    val id: MetricId,
+    val showText: Boolean,
+    val showGraph: Boolean,
+)

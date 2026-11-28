@@ -1,0 +1,22 @@
+Buran packages files from Bannerlator's LinuxFS r9 for its Gamescope guest.
+Runtime source https://github.com/The412Banner/Bannerlator/tree/8e18588f5c9c950be7a09415091deab2fac6f8cd/tools/linuxfs
+LinuxFS release https://github.com/The412Banner/winlator-contents/releases/tag/linuxfs-r9
+This guest retains the selected runtime packages' license files in /usr/share/licenses.
+
+Gamescope is Valve's micro-compositor (BSD-2-Clause), release 3.16.29 with DroidDeck p4 patches.
+Binary release https://github.com/The412Banner/winlator-contents/releases/tag/gamescope-3.16.29-p4
+Source https://github.com/ValveSoftware/gamescope/tree/3.16.29
+Patches https://github.com/Droid-Deck/DroidDeck/tree/5a61d37c5d93e4fd493fef9368ae3d1d9559cec5/tools/gamescope/patches
+
+The guest bundles PulseAudio 17.0+r134+g77d25a1e6-2 and its supporting libraries from Arch Linux ARM.
+PulseAudio source (LGPL-2.1-or-later) https://gitlab.freedesktop.org/pulseaudio/pulseaudio/-/tree/77d25a1e6
+Package build https://archlinuxarm.org/packages/aarch64/pulseaudio
+The additional runtime libraries are libltdl (GNU Libtool), tdb (Samba), libsoxr and SpeexDSP.
+
+The guest includes MangoHud 0.8.4 with spdlog 1.17.0 and fmt 12.2.1 from Debian ARM64.
+MangoHud source https://github.com/flightlessmango/MangoHud/tree/v0.8.4
+The Debian copyright notices are included under /usr/share/doc in the guest.
+
+The Android PRoot executables are from Bannerlator's prebuilt toolchain.
+Source and build context https://github.com/The412Banner/Bannerlator/tree/8e18588f5c9c950be7a09415091deab2fac6f8cd/tools/linuxfs/prebuilt/proot
+Upstream PRoot (GPL-2.0) https://github.com/proot-me/proot

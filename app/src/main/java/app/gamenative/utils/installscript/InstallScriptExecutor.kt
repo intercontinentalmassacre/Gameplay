@@ -3,7 +3,9 @@ package app.gamenative.utils.installscript
 import app.gamenative.data.AppInfo
 import app.gamenative.data.SteamApp
 import app.gamenative.service.SteamService
+import app.gamenative.utils.FileUtils
 import com.winlator.container.Container
+import com.winlator.core.ProcessHelper
 import com.winlator.core.WineRegistryEditor
 import `in`.dragonbra.javasteam.enums.EDepotFileFlag
 import `in`.dragonbra.javasteam.types.DepotManifest
@@ -17,11 +19,95 @@ object InstallScriptExecutor {
     private const val EXIT_CODE_FILE = "installscript_exit"
     private const val STELLAR_BLADE_APP_ID = 3489700
     private const val PSPC_INSTALLER = "SB/Binaries/Win64/install_pspc_sdk_runtime.bat"
+    private const val STEAMWORKS_SHARED = "C:/Program Files (x86)/Steam/steamapps/common/Steamworks Shared"
 
     data class RunProcessCommand(
         val executable: String,
         val hasRunKey: String?,
     )
+
+    data class LocalDependency(
+        val executable: File,
+        val arguments: List<String>,
+        val marker: String,
+        val markerValue: Int,
+    )
+
+    data class LocalRegistryValue(val key: String, val name: String, val type: String, val value: String)
+
+    fun localRegistry(scripts: List<InstallScript>, language: String): List<LocalRegistryValue> =
+        scripts.flatMap { script ->
+            script.registryActions.flatMap { action ->
+                val hive = if (isHkcuKey(action.keyPath)) "HKCU" else "HKLM"
+                val key = "$hive\\${stripHivePrefix(action.keyPath)}"
+                val values = mergeWithLanguage(action, language)
+                values.strings.map { (name, value) -> LocalRegistryValue(key, name, "REG_SZ", value) } +
+                    values.dwords.map { (name, value) -> LocalRegistryValue(key, name, "REG_DWORD", value.toString()) }
+            }
+        }.distinctBy { it.key.lowercase() to it.name.lowercase() }
+
+    /** Resolves local installers without the Winlator desktop wrapper or any download step. */
+    fun localDependencies(
+        scripts: List<InstallScript>,
+        gameDir: File,
+        sharedDir: File?,
+        is64Bit: Boolean,
+    ): List<LocalDependency> = scripts.flatMap { script ->
+        script.runProcessActions.mapNotNull { action ->
+            if (!matchesOS(action.requirementOS, is64Bit)) return@mapNotNull null
+            val process = action.process.trim().removeSurrounding("\"").replace('\\', '/')
+            val sharedPrefix = "$STEAMWORKS_SHARED/"
+            val (root, relative) = when {
+                process.startsWith("A:/", ignoreCase = true) -> gameDir to process.drop(3)
+                process.startsWith(sharedPrefix, ignoreCase = true) -> {
+                    val relative = process.drop(sharedPrefix.length)
+                    if (sharedDir == null) {
+                        Timber.tag("InstallScript").w("Required local Steamworks Shared installer is missing: %s", relative)
+                        return@mapNotNull null
+                    }
+                    sharedDir to relative
+                }
+                ':' !in process && !process.startsWith('/') -> gameDir to process.removePrefix("./")
+                else -> return@mapNotNull null
+            }
+            if (':' in relative || relative.split('/').any {
+                    it.isEmpty() || it == "." || it == ".." || it.any(Char::isISOControl)
+                }
+            ) {
+                return@mapNotNull null
+            }
+            val arguments = ProcessHelper.splitCommand(action.command).toList()
+            if (uninstallName.containsMatchIn(action.name) || uninstallName.containsMatchIn(relative.substringAfterLast('/')) ||
+                arguments.any { it.isUninstallArgument() || it.contains("://") || it.any(Char::isISOControl) }
+            ) return@mapNotNull null
+            val executable = FileUtils.findFileCaseInsensitive(root, relative)?.canonicalFile ?: run {
+                Timber.tag("InstallScript").w("Required local installer is missing: %s", relative)
+                return@mapNotNull null
+            }
+            val extension = executable.extension.lowercase()
+            if (!executable.isFile || !executable.toPath().startsWith(root.canonicalFile.toPath()) ||
+                (extension !in setOf("exe", "msi") && !(extension == "bat" && isPspcInstaller(action)))
+            ) return@mapNotNull null
+            val marker = action.hasRunKey?.takeIf {
+                '\\' in it && it.none(Char::isISOControl) && action.name.isNotBlank() &&
+                    '\\' !in action.name && action.name.none(Char::isISOControl)
+            }
+                ?.let {
+                    val hive = if (isHkcuKey(it)) "HKCU" else "HKLM"
+                    "$hive\\${stripHivePrefix(it).trimEnd('\\')}\\${action.name}"
+                }
+                ?: "HKLM\\Software\\GameNative\\InstallScript\\${File(script.sourcePath).name.hashCode()}\\${action.name.hashCode()}"
+            LocalDependency(executable, arguments, marker, maxOf(1, action.minimumHasRunValue))
+        }
+    }.distinctBy { it.marker }
+
+    private val uninstallName = Regex("uninstall|^unins[0-9]", RegexOption.IGNORE_CASE)
+
+    private fun String.isUninstallArgument(): Boolean {
+        if (!startsWith('/') && !startsWith('-')) return false
+        val option = trimStart('/', '-').substringBefore('=').lowercase()
+        return option in setOf("u", "x", "uninstall", "remove", "revoke") || option.startsWith("x{")
+    }
 
     fun collectScripts(
         steamApp: SteamApp,
@@ -30,6 +116,7 @@ object InstallScriptExecutor {
         installDir: String,
         language: String,
         appId: Int,
+        sharedDir: File? = null,
     ): List<InstallScript> {
         val appDirPath = SteamService.getAppDirPath(appId)
         val downloadedDepotIds = appInfo.downloadedDepots.toSet()
@@ -62,13 +149,21 @@ object InstallScriptExecutor {
             }
         }
 
+        val root = gameDir.canonicalFile.toPath()
         val scripts = scriptPaths.mapNotNull { relativePath ->
-            val scriptFile = File(gameDir, relativePath)
-            if (!scriptFile.exists()) {
-                Timber.tag("InstallScript").w("InstallScript file not found: ${scriptFile.absolutePath}")
-                return@mapNotNull null
+            val scriptFile = File(gameDir, relativePath).canonicalFile
+            if (scriptFile.isFile && scriptFile.toPath().startsWith(root)) {
+                return@mapNotNull InstallScriptParser.parse(scriptFile, installDir, language)
             }
-            InstallScriptParser.parse(scriptFile, installDir, language)
+            if (sharedDir != null && relativePath.startsWith("_CommonRedist/", ignoreCase = true)) {
+                val sharedRoot = sharedDir.canonicalFile.toPath()
+                val sharedScript = FileUtils.findFileCaseInsensitive(sharedDir, relativePath)?.canonicalFile
+                if (sharedScript != null && sharedScript.isFile && sharedScript.toPath().startsWith(sharedRoot)) {
+                    return@mapNotNull InstallScriptParser.parse(sharedScript, STEAMWORKS_SHARED, language)
+                }
+            }
+            Timber.tag("InstallScript").w("InstallScript file not found: %s", relativePath)
+            null
         }
         if (appId != STELLAR_BLADE_APP_ID || scripts.any { script -> script.runProcessActions.any(::isPspcInstaller) }) {
             return scripts

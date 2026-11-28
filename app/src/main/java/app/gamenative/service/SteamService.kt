@@ -2538,7 +2538,10 @@ class SteamService : Service(), IChallengeUrlChanged {
             prefixToPath: (String) -> String,
             isOffline: Boolean = false,
             onProgress: ((message: String, progress: Float) -> Unit)? = null,
+            expectedAccountId: Long? = null,
         ): Deferred<PostSyncInfo> = parentScope.async {
+            fun isExpectedAccount() = expectedAccountId == null || userSteamId?.accountID == expectedAccountId
+            if (!isExpectedAccount()) return@async PostSyncInfo(SyncResult.UnknownFail)
             if (isOffline || !isConnected) {
                 return@async PostSyncInfo(SyncResult.UpToDate)
             }
@@ -2550,7 +2553,7 @@ class SteamService : Service(), IChallengeUrlChanged {
             try {
                 val context = instance?.applicationContext ?: return@async PostSyncInfo(SyncResult.UnknownFail)
                 // Migrate GSE Saves to Steam userdata
-                SteamUtils.migrateGSESavesToSteamUserdata(context, appId)
+                if (expectedAccountId == null) SteamUtils.migrateGSESavesToSteamUserdata(context, appId)
 
                 var syncResult = PostSyncInfo(SyncResult.UnknownFail)
 
@@ -2570,12 +2573,14 @@ class SteamService : Service(), IChallengeUrlChanged {
                                             parentScope = parentScope,
                                             prefixToPath = prefixToPath,
                                             onProgress = onProgress,
+                                            expectedAccountId = expectedAccountId,
                                         ).await()
 
                                         postSyncInfo?.let { info ->
                                             syncResult = info
 
                                             if (info.syncResult == SyncResult.Success || info.syncResult == SyncResult.UpToDate) {
+                                                if (!isExpectedAccount()) return@async PostSyncInfo(SyncResult.UnknownFail)
                                                 Timber.i(
                                                     "Signaling app launch:\n\tappId: %d\n\tclientId: %s\n\tosType: %s",
                                                     appId,
@@ -2590,6 +2595,7 @@ class SteamService : Service(), IChallengeUrlChanged {
                                                     ignorePendingOperations = ignorePendingOperations,
                                                     osType = EOSType.WinUnknown,
                                                 ).await()
+                                                if (!isExpectedAccount()) return@async PostSyncInfo(SyncResult.UnknownFail)
 
                                                 if (pendingRemoteOperations.isNotEmpty() && !ignorePendingOperations) {
                                                     syncResult = PostSyncInfo(
@@ -2689,21 +2695,33 @@ class SteamService : Service(), IChallengeUrlChanged {
             }
         }
 
-        suspend fun closeApp(context: Context, appId: Int, isOffline: Boolean, prefixToPath: (String) -> String) = withContext(Dispatchers.IO) {
+        suspend fun closeApp(
+            context: Context,
+            appId: Int,
+            isOffline: Boolean,
+            expectedAccountId: Long? = null,
+            prefixToPath: (String) -> String,
+        ) = withContext(Dispatchers.IO) {
             async {
+                fun isExpectedAccount() = expectedAccountId == null ||
+                    (isConnected && isLoggedIn && userSteamId?.accountID == expectedAccountId)
+
+                if (!isExpectedAccount()) return@async false
                 if (isOffline || !isConnected) {
-                    instance?.addPendingSyncApp(appId)
-                    return@async
+                    if (expectedAccountId == null) instance?.addPendingSyncApp(appId)
+                    return@async false
                 }
 
                 if (!tryAcquireSync(appId)) {
                     Timber.w("Cannot close app when sync already in progress for appId=$appId")
-                    return@async
+                    return@async false
                 }
 
+                var synced = false
                 try {
                     val maxAttempts = 3
                     for (attempt in 1..maxAttempts) {
+                        if (!isExpectedAccount()) return@async false
                         try {
                             PrefManager.clientId?.let { clientId ->
                                 instance?.let { steamInstance ->
@@ -2716,8 +2734,10 @@ class SteamService : Service(), IChallengeUrlChanged {
                                                 steamCloud = steamCloud,
                                                 parentScope = this,
                                                 prefixToPath = prefixToPath,
+                                                expectedAccountId = expectedAccountId,
                                             ).await()
 
+                                            if (!isExpectedAccount()) return@async false
                                             steamCloud.signalAppExitSyncDone(
                                                 appId = appId,
                                                 clientId = clientId,
@@ -2727,6 +2747,10 @@ class SteamService : Service(), IChallengeUrlChanged {
                                                 } == true,
                                                 uploadsRequired = postSyncInfo?.uploadsRequired == true,
                                             )
+                                            synced = postSyncInfo?.let {
+                                                (it.syncResult == SyncResult.Success || it.syncResult == SyncResult.UpToDate) &&
+                                                    (!it.uploadsRequired || it.uploadsCompleted)
+                                            } == true
                                         }
                                     }
                                 }
@@ -2741,17 +2765,20 @@ class SteamService : Service(), IChallengeUrlChanged {
                             }
                         }
                     }
-                    try {
-                        syncAchievementsFromGoldberg(context, appId)
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        Timber.e(e, "Achievement sync failed for appId=$appId")
+                    if (expectedAccountId == null) {
+                        try {
+                            syncAchievementsFromGoldberg(context, appId)
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            Timber.e(e, "Achievement sync failed for appId=$appId")
+                        }
                     }
                 } finally {
                     releaseSync(appId)
-                    instance?.removePendingSyncApp(appId)
+                    if (expectedAccountId == null) instance?.removePendingSyncApp(appId)
                 }
+                synced
             }
         }
 
@@ -3123,10 +3150,20 @@ class SteamService : Service(), IChallengeUrlChanged {
             }
         }
 
-        // Add helper to detect if any downloads or cloud sync are in progress
+        // Buran runs outside the XServer lifecycle. Its Play and exit sync still keep Steam live.
+        private val buranOperations = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+
+        internal fun beginBuranOperation(launchId: String) {
+            buranOperations.add(launchId)
+        }
+
+        internal fun endBuranOperation(launchId: String) {
+            buranOperations.remove(launchId)
+        }
+
         fun hasActiveOperations(): Boolean {
             val anySyncInProgress = syncInProgressApps.values.any { it.get() }
-            return anySyncInProgress || downloadJobs.values.any { it.getProgress() < 1f }
+            return buranOperations.isNotEmpty() || anySyncInProgress || downloadJobs.values.any { it.getProgress() < 1f }
         }
 
         // Should service auto-stop when idle (backgrounded)?

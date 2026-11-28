@@ -2,6 +2,7 @@ package app.gamenative.service
 
 import android.net.LocalSocket
 import android.net.LocalSocketAddress
+import app.gamenative.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import timber.log.Timber
@@ -18,7 +19,7 @@ import java.io.InputStreamReader
  */
 object SteamOverlayClient {
 
-    private const val SOCKET_NAME = "gamenative-steam-overlay"
+    internal val socketName = BuildConfig.APPLICATION_ID + "-steam-overlay"
     private const val TIMEOUT_MS = 4000
 
     data class Friend(
@@ -138,7 +139,8 @@ object SteamOverlayClient {
         val operation = command.substringBefore(' ').ifBlank { "unknown" }
         try {
             LocalSocket().use { socket ->
-                socket.connect(LocalSocketAddress(SOCKET_NAME, LocalSocketAddress.Namespace.ABSTRACT))
+                socket.connect(LocalSocketAddress(socketName, LocalSocketAddress.Namespace.ABSTRACT))
+                if (socket.peerCredentials.uid != android.os.Process.myUid()) return@withContext null
                 socket.soTimeout = TIMEOUT_MS
 
                 socket.outputStream.write("$command\n".toByteArray())

@@ -6,6 +6,7 @@ import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.StateListDrawable
 import android.view.Gravity
+import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.ViewGroup
 import android.widget.Button
@@ -16,10 +17,21 @@ import com.winlator.xserver.XKeycode
 import com.winlator.xserver.XServer
 import kotlin.math.roundToInt
 
-class ExternalOnScreenKeyboardView(
+class ExternalOnScreenKeyboardView private constructor(
     context: Context,
-    private val xServer: XServer,
+    private val sendKey: (XKeycode, Boolean) -> Unit,
+    private val shiftHeld: () -> Boolean,
+    private val controllerActivation: Boolean,
 ) : LinearLayout(context) {
+    constructor(context: Context, xServer: XServer) : this(
+        context,
+        { key, down -> if (down) xServer.injectKeyPress(key) else xServer.injectKeyRelease(key) },
+        { xServer.keyboard.modifiersMask.isSet(1) },
+        false,
+    )
+
+    internal constructor(context: Context, sendKey: (XKeycode, Boolean) -> Unit) :
+        this(context, sendKey, { false }, true)
 
     private enum class ShiftState { OFF, ON, CAPS }
 
@@ -174,6 +186,18 @@ class ExternalOnScreenKeyboardView(
                     handleKeyTouch(spec, event)
                     false
                 }
+                if (controllerActivation) setOnKeyListener { _, code, event ->
+                    when (code) {
+                        KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_BUTTON_A -> {
+                            when (event.action) {
+                                KeyEvent.ACTION_DOWN -> if (event.repeatCount == 0) onKeyDown(spec)
+                                KeyEvent.ACTION_UP -> onKeyUp(spec, cancel = event.isCanceled)
+                            }
+                            true
+                        }
+                        else -> false
+                    }
+                }
             }
             keyButtons += KeyButton(spec, button)
             row.addView(button)
@@ -278,24 +302,28 @@ class ExternalOnScreenKeyboardView(
 
     private fun pressKey(key: XKeycode, withShift: Boolean = false) {
         if (!downKeys.add(key)) return
-        val shiftWasDown = xServer.keyboard.modifiersMask.isSet(1)
-        if (withShift && !shiftWasDown) xServer.injectKeyPress(XKeycode.KEY_SHIFT_L)
-        xServer.injectKeyPress(key)
-        if (withShift && !shiftWasDown) xServer.injectKeyRelease(XKeycode.KEY_SHIFT_L)
+        val shiftWasDown = shiftHeld()
+        if (withShift && !shiftWasDown) sendKey(XKeycode.KEY_SHIFT_L, true)
+        sendKey(key, true)
+        if (withShift && !shiftWasDown) sendKey(XKeycode.KEY_SHIFT_L, false)
     }
 
     private fun releaseKey(key: XKeycode) {
         if (!downKeys.remove(key)) return
-        xServer.injectKeyRelease(key)
+        sendKey(key, false)
     }
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
-    override fun onDetachedFromWindow() {
+    internal fun releaseHeldKeys() {
         downKeys.toList().forEach { key ->
-            xServer.injectKeyRelease(key)
+            sendKey(key, false)
         }
         downKeys.clear()
+    }
+
+    override fun onDetachedFromWindow() {
+        releaseHeldKeys()
         super.onDetachedFromWindow()
     }
 

@@ -400,7 +400,9 @@ class MainActivity : ComponentActivity() {
             isChangingConfigurations,
         )
 
-        if (SteamService.isConnected && !SteamService.isLoggedIn && !isChangingConfigurations && !SteamService.keepAlive) {
+        if (SteamService.isConnected && !SteamService.isLoggedIn && !isChangingConfigurations &&
+            !SteamService.keepAlive && !SteamService.hasActiveOperations()
+        ) {
             Timber.i("Stopping Steam Service")
             SteamService.stop()
         }
@@ -534,7 +536,7 @@ class MainActivity : ComponentActivity() {
             SteamService.keepAlive,
             SteamService.isImporting,
         )
-        // stop SteamService only if no downloads or sync are in progress
+        // Downloads, syncs, and a running Buran game can outlive this activity's foreground state.
         if (!isChangingConfigurations &&
             SteamService.isConnected &&
             !SteamService.hasActiveOperations() &&

@@ -61,6 +61,7 @@ import androidx.compose.material.icons.filled.Keyboard
 import androidx.compose.material.icons.filled.Mouse
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.QueryStats
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.TouchApp
@@ -71,6 +72,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -83,6 +85,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
@@ -152,6 +155,7 @@ object QuickMenuAction {
     const val SC_ROOT = 16
     const val CONTROLLER_LAYOUTS = 17
     const val LIVE_INPUT = 18
+    const val MANGO_HUD = 19
 }
 
 private object QuickMenuTab {
@@ -321,6 +325,17 @@ fun QuickMenu(
     fullScreen: Boolean = false,
     modifier: Modifier = Modifier,
     isGamescopeSession: Boolean = false,
+    availableControllerActions: Set<Int>? = null,
+    exitEnabled: Boolean = true,
+    externalFpsLimiterAvailable: Boolean = false,
+    externalFpsLimiterMin: Int = 5,
+    externalPerformanceHudAvailable: Boolean = false,
+    externalMangoHudEnabled: Boolean? = null,
+    externalOverlay: Boolean = false,
+    externalFramegenEnabled: Boolean? = null,
+    externalFramegenPending: Boolean = false,
+    externalFramegenFailed: Boolean = false,
+    onExternalFramegenToggle: () -> Unit = {},
 ) {
     val controllerItems = buildList {
         // Steam Controller editors live behind a single root entry (most relevant when a Triton is connected).
@@ -403,6 +418,195 @@ fun QuickMenu(
                 accentColor = PluviaTheme.colors.accentPurple,
             )
         )
+    }
+
+    if (availableControllerActions != null) {
+        if (isVisible) {
+            Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
+                var showHud by remember { mutableStateOf(false) }
+                val resumeFocus = remember { FocusRequester() }
+                LaunchedEffect(externalOverlay) {
+                    if (externalOverlay) resumeFocus.requestFocus()
+                }
+                Row(Modifier.fillMaxSize().padding(8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Column(Modifier.width(if (externalOverlay) 148.dp else 108.dp).verticalScroll(rememberScrollState())) {
+                        if (externalOverlay) {
+                            QuickMenuTabButton(
+                                icon = Icons.Default.Gamepad,
+                                labelResId = R.string.resume_game,
+                                selected = false,
+                                onSelected = onDismiss,
+                                activateOnFocus = false,
+                                modifier = Modifier.focusRequester(resumeFocus),
+                            )
+                        }
+                        if (externalPerformanceHudAvailable) {
+                            QuickMenuTabButton(
+                                icon = Icons.Default.Gamepad,
+                                labelResId = R.string.quick_menu_tab_controller,
+                                selected = !showHud,
+                                onSelected = { showHud = false },
+                            )
+                            QuickMenuTabButton(
+                                icon = Icons.Default.QueryStats,
+                                labelResId = R.string.quick_menu_hud_tab,
+                                selected = showHud,
+                                onSelected = { showHud = true },
+                            )
+                        }
+                        QuickMenuExitButton(
+                            labelResId = R.string.second_screen_exit_to_library,
+                            enabled = exitEnabled,
+                            onClick = { if (onItemSelected(QuickMenuAction.EXIT_GAME)) onDismiss() },
+                        )
+                    }
+                    if (showHud && externalPerformanceHudAvailable) {
+                        PerformanceHudQuickMenuTab(
+                            isPerformanceHudEnabled = isPerformanceHudEnabled,
+                            performanceHudConfig = performanceHudConfig,
+                            fpsLimiterEnabled = fpsLimiterEnabled,
+                            fpsLimiterTarget = fpsLimiterTarget,
+                            fpsLimiterMax = fpsLimiterMax,
+                            lsfgMultiplier = 1,
+                            onTogglePerformanceHud = { onItemSelected(QuickMenuAction.PERFORMANCE_HUD) },
+                            onPerformanceHudConfigChanged = onPerformanceHudConfigChanged,
+                            onFpsLimiterEnabledChanged = onFpsLimiterEnabledChanged,
+                            onFpsLimiterChanged = onFpsLimiterChanged,
+                            scrollState = rememberScrollState(),
+                            modifier = Modifier.weight(1f).fillMaxHeight(),
+                            showFpsLimiter = externalFpsLimiterAvailable,
+                            fpsLimiterMin = externalFpsLimiterMin,
+                            describeExternalFrameRate = true,
+                            framegenEnabled = externalFramegenEnabled,
+                            framegenPending = externalFramegenPending,
+                            framegenFailed = externalFramegenFailed,
+                            framegenCanToggle = exitEnabled,
+                            onFramegenToggle = onExternalFramegenToggle,
+                        )
+                    } else Column(
+                        Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        var confirmRestart by remember { mutableStateOf(false) }
+                        var touchpadHaptics by remember { mutableStateOf(PrefManager.touchpadMotionHaptics) }
+                        val accentColor = MaterialTheme.colorScheme.primary
+                        QuickMenuToggleRow(
+                            title = stringResource(R.string.settings_touchpad_scroll_haptics),
+                            subtitle = stringResource(R.string.settings_touchpad_scroll_haptics_summary),
+                            enabled = touchpadHaptics,
+                            onToggle = {
+                                touchpadHaptics = !touchpadHaptics
+                                PrefManager.touchpadMotionHaptics = touchpadHaptics
+                            },
+                            accentColor = accentColor,
+                        )
+                        controllerItems.filter { it.id in availableControllerActions }.forEach { item ->
+                            QuickMenuItemRow(item, isActive = item.id in activeToggleIds, onClick = {
+                                if (onItemSelected(item.id)) onDismiss()
+                            })
+                        }
+                        if (!externalPerformanceHudAvailable && QuickMenuAction.PERFORMANCE_HUD in availableControllerActions) {
+                            QuickMenuToggleRow(
+                                title = stringResource(R.string.second_screen_output_fps),
+                                subtitle = stringResource(R.string.second_screen_output_fps_description),
+                                enabled = isPerformanceHudEnabled,
+                                onToggle = { onItemSelected(QuickMenuAction.PERFORMANCE_HUD) },
+                                accentColor = accentColor,
+                            )
+                        }
+                        if (externalMangoHudEnabled != null) {
+                            QuickMenuToggleRow(
+                                title = stringResource(R.string.second_screen_mangohud),
+                                subtitle = stringResource(R.string.second_screen_mangohud_description),
+                                enabled = externalMangoHudEnabled,
+                                onToggle = { onItemSelected(QuickMenuAction.MANGO_HUD) },
+                                accentColor = accentColor,
+                            )
+                        }
+                        if (externalFpsLimiterAvailable && !externalPerformanceHudAvailable) {
+                            QuickMenuToggleRow(
+                                title = stringResource(R.string.performance_hud_fps_limiter),
+                                subtitle = stringResource(R.string.performance_hud_fps_limiter_description, fpsLimiterMax),
+                                enabled = fpsLimiterEnabled,
+                                onToggle = { onFpsLimiterEnabledChanged(!fpsLimiterEnabled) },
+                                accentColor = accentColor,
+                            )
+                            if (fpsLimiterEnabled) {
+                                QuickMenuAdjustmentRow(
+                                    title = stringResource(R.string.performance_hud_fps_limiter_target),
+                                    valueText = stringResource(R.string.performance_hud_fps_limiter_value, fpsLimiterTarget),
+                                    progress = fpsLimiterProgress(fpsLimiterTarget, fpsLimiterMax, externalFpsLimiterMin),
+                                    onDecrease = { onFpsLimiterChanged(previousFpsLimiterValue(fpsLimiterTarget, fpsLimiterMax, externalFpsLimiterMin)) },
+                                    onIncrease = { onFpsLimiterChanged(nextFpsLimiterValue(fpsLimiterTarget, fpsLimiterMax, externalFpsLimiterMin)) },
+                                    accentColor = accentColor,
+                                )
+                            }
+                        }
+                        if (QuickMenuAction.CONTAINER_RESTART in availableControllerActions) {
+                            if (confirmRestart) {
+                                Text(stringResource(R.string.second_screen_restart_confirm))
+                                Row {
+                                    TextButton(onClick = { confirmRestart = false }) {
+                                        Text(stringResource(R.string.cancel))
+                                    }
+                                    TextButton(onClick = {
+                                        confirmRestart = false
+                                        if (onItemSelected(QuickMenuAction.CONTAINER_RESTART)) onDismiss()
+                                    }) { Text(stringResource(R.string.second_screen_restart_game)) }
+                                }
+                            } else {
+                                QuickMenuItemRow(
+                                    QuickMenuItem(
+                                        id = QuickMenuAction.CONTAINER_RESTART,
+                                        icon = Icons.Default.Refresh,
+                                        labelResId = R.string.second_screen_restart_game,
+                                        enabled = exitEnabled,
+                                    ),
+                                    onClick = { confirmRestart = true },
+                                )
+                            }
+                        }
+                        var showUnavailable by remember { mutableStateOf(false) }
+                        TextButton(onClick = { showUnavailable = !showUnavailable }) {
+                            Text(stringResource(R.string.second_screen_buran_unavailable))
+                            Icon(
+                                imageVector = Icons.Default.KeyboardArrowDown,
+                                contentDescription = null,
+                                modifier = Modifier.rotate(if (showUnavailable) 180f else 0f),
+                            )
+                        }
+                        if (showUnavailable) {
+                            Text(
+                                text = stringResource(R.string.second_screen_buran_unavailable_details),
+                                modifier = Modifier.padding(horizontal = 12.dp),
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                            val unavailableActions = listOfNotNull(
+                                R.string.performance_hud.takeUnless { externalPerformanceHudAvailable },
+                                R.string.second_screen_mangohud.takeUnless { externalMangoHudEnabled != null },
+                                R.string.keyboard.takeUnless { QuickMenuAction.KEYBOARD in availableControllerActions },
+                                R.string.disable_mouse_input.takeUnless { QuickMenuAction.DISABLE_MOUSE in availableControllerActions },
+                                R.string.touchscreen_mode.takeUnless { QuickMenuAction.TOUCHSCREEN_MODE in availableControllerActions },
+                                R.string.second_screen_output_fps.takeUnless { QuickMenuAction.PERFORMANCE_HUD in availableControllerActions },
+                                R.string.performance_hud_fps_limiter.takeUnless { externalFpsLimiterAvailable },
+                                R.string.second_screen_restart_game.takeUnless { QuickMenuAction.CONTAINER_RESTART in availableControllerActions },
+                            )
+                            if (unavailableActions.isNotEmpty()) {
+                                Text(
+                                    text = stringResource(
+                                        R.string.second_screen_buran_missing_capabilities,
+                                        unavailableActions.map { stringResource(it) }.joinToString(", "),
+                                    ),
+                                    modifier = Modifier.padding(horizontal = 12.dp),
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return
     }
 
     // Created here rather than plumbed through XServerScreen: that composable
@@ -1008,6 +1212,14 @@ private fun PerformanceHudQuickMenuTab(
     scrollState: ScrollState,
     focusRequester: FocusRequester? = null,
     modifier: Modifier = Modifier,
+    showFpsLimiter: Boolean = true,
+    fpsLimiterMin: Int = 5,
+    describeExternalFrameRate: Boolean = false,
+    framegenEnabled: Boolean? = null,
+    framegenPending: Boolean = false,
+    framegenFailed: Boolean = false,
+    framegenCanToggle: Boolean = false,
+    onFramegenToggle: () -> Unit = {},
 ) {
     val accentColor = PluviaTheme.colors.accentPurple
 
@@ -1018,46 +1230,63 @@ private fun PerformanceHudQuickMenuTab(
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         // ── FPS Limiter (topmost) ────────────────────────────────────────
-        val limiterControlledByLsfg = lsfgMultiplier >= 2
-        QuickMenuToggleRow(
-            title = stringResource(R.string.performance_hud_fps_limiter),
-            subtitle = if (limiterControlledByLsfg) {
-                stringResource(R.string.performance_hud_fps_limiter_lsfg_override)
-            } else null,
-            enabled = fpsLimiterEnabled && !limiterControlledByLsfg,
-            onToggle = {
-                if (!limiterControlledByLsfg) onFpsLimiterEnabledChanged(!fpsLimiterEnabled)
-            },
-            accentColor = accentColor,
-            focusRequester = focusRequester,
-        )
+        if (showFpsLimiter) {
+            val limiterControlledByLsfg = lsfgMultiplier >= 2
+            QuickMenuToggleRow(
+                title = stringResource(R.string.performance_hud_fps_limiter),
+                subtitle = if (limiterControlledByLsfg) {
+                    stringResource(R.string.performance_hud_fps_limiter_lsfg_override)
+                } else null,
+                enabled = fpsLimiterEnabled && !limiterControlledByLsfg,
+                onToggle = {
+                    if (!limiterControlledByLsfg) onFpsLimiterEnabledChanged(!fpsLimiterEnabled)
+                },
+                accentColor = accentColor,
+                focusRequester = focusRequester,
+            )
 
-        AnimatedVisibility(
-            visible = fpsLimiterEnabled && !limiterControlledByLsfg,
-            enter = expandVertically() + fadeIn(),
-            exit = shrinkVertically() + fadeOut(),
-        ) {
-            Column {
-                Spacer(modifier = Modifier.height(4.dp))
-                QuickMenuAdjustmentRow(
-                    title = stringResource(R.string.performance_hud_fps_limiter_target),
-                    valueText = stringResource(
-                        R.string.performance_hud_fps_limiter_value,
-                        fpsLimiterTarget,
-                    ),
-                    progress = fpsLimiterProgress(fpsLimiterTarget, fpsLimiterMax),
-                    onDecrease = {
-                        onFpsLimiterChanged(previousFpsLimiterValue(fpsLimiterTarget, fpsLimiterMax))
-                    },
-                    onIncrease = {
-                        onFpsLimiterChanged(nextFpsLimiterValue(fpsLimiterTarget, fpsLimiterMax))
-                    },
-                    accentColor = accentColor,
-                )
+            AnimatedVisibility(
+                visible = fpsLimiterEnabled && !limiterControlledByLsfg,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut(),
+            ) {
+                Column {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    QuickMenuAdjustmentRow(
+                        title = stringResource(R.string.performance_hud_fps_limiter_target),
+                        valueText = stringResource(
+                            R.string.performance_hud_fps_limiter_value,
+                            fpsLimiterTarget,
+                        ),
+                        progress = fpsLimiterProgress(fpsLimiterTarget, fpsLimiterMax, fpsLimiterMin),
+                        onDecrease = {
+                            onFpsLimiterChanged(previousFpsLimiterValue(fpsLimiterTarget, fpsLimiterMax, fpsLimiterMin))
+                        },
+                        onIncrease = {
+                            onFpsLimiterChanged(nextFpsLimiterValue(fpsLimiterTarget, fpsLimiterMax, fpsLimiterMin))
+                        },
+                        accentColor = accentColor,
+                    )
+                }
             }
+
+            Spacer(modifier = Modifier.height(8.dp))
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        if (framegenEnabled != null) {
+            QuickMenuToggleRow(
+                title = stringResource(R.string.buran_framegen_2x),
+                subtitle = when {
+                    framegenFailed -> stringResource(R.string.buran_framegen_unavailable)
+                    framegenPending -> stringResource(R.string.buran_framegen_pending)
+                    else -> null
+                },
+                enabled = framegenEnabled,
+                canToggle = framegenCanToggle && !framegenPending && !framegenFailed,
+                onToggle = onFramegenToggle,
+                accentColor = accentColor,
+            )
+        }
 
         // ── Performance HUD ──────────────────────────────────────────────
         QuickMenuToggleRow(
@@ -1196,6 +1425,7 @@ private fun PerformanceHudQuickMenuTab(
 
             QuickMenuToggleRow(
                 title = stringResource(R.string.performance_hud_frame_rate),
+                subtitle = if (describeExternalFrameRate) stringResource(R.string.second_screen_hud_output_fps_description) else null,
                 enabled = performanceHudConfig.showFrameRate,
                 onToggle = {
                     onPerformanceHudConfigChanged(
@@ -1811,6 +2041,7 @@ private fun QuickMenuTabButton(
     selected: Boolean,
     onSelected: () -> Unit,
     activateOnFocus: Boolean = true,
+    modifier: Modifier = Modifier,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
@@ -1819,7 +2050,7 @@ private fun QuickMenuTabButton(
     val foreground = if (selected) colors.onSecondaryContainer else colors.onSurfaceVariant
 
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .heightIn(min = 48.dp)
             .clip(shape)
@@ -1857,6 +2088,8 @@ private fun QuickMenuTabButton(
 
 @Composable
 private fun QuickMenuExitButton(
+    labelResId: Int = R.string.exit_game,
+    enabled: Boolean = true,
     onClick: () -> Unit,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
@@ -1871,6 +2104,7 @@ private fun QuickMenuExitButton(
             .background(if (isFocused) colors.errorContainer else Color.Transparent)
             .focusRing(interactionSource, shape)
             .clickable(
+                enabled = enabled,
                 interactionSource = interactionSource,
                 indication = null,
                 role = Role.Button,
@@ -1880,7 +2114,11 @@ private fun QuickMenuExitButton(
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        val foreground = if (isFocused) colors.onErrorContainer else colors.error
+        val foreground = when {
+            !enabled -> colors.onSurfaceVariant
+            isFocused -> colors.onErrorContainer
+            else -> colors.error
+        }
         Icon(
             Icons.AutoMirrored.Filled.ExitToApp,
             contentDescription = null,
@@ -1888,7 +2126,7 @@ private fun QuickMenuExitButton(
             modifier = Modifier.size(18.dp),
         )
         Text(
-            text = stringResource(R.string.exit_game),
+            text = stringResource(labelResId),
             style = MaterialTheme.typography.labelMedium,
             color = foreground,
         )
@@ -2220,6 +2458,7 @@ private fun QuickMenuToggleRow(
     modifier: Modifier = Modifier,
     subtitle: String? = null,
     focusRequester: FocusRequester? = null,
+    canToggle: Boolean = true,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
@@ -2266,11 +2505,12 @@ private fun QuickMenuToggleRow(
             )
             .selectable(
                 selected = isFocused,
+                enabled = canToggle,
                 interactionSource = interactionSource,
                 indication = null,
                 onClick = onToggle,
             )
-            .focusable(interactionSource = interactionSource)
+            .focusable(enabled = canToggle, interactionSource = interactionSource)
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(16.dp),
