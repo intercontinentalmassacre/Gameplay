@@ -1831,14 +1831,18 @@ pub unsafe extern "C" fn vasprintf(
     rc
 }
 
+// Preserve the caller's variadic registers and stack until C creates the va_list.
+#[unsafe(naked)]
 #[no_mangle]
-pub unsafe extern "C" fn asprintf(
-    out: *mut *mut c_char,
-    fmt: *const c_char,
-    mut args: ...
-) -> c_int {
-    let ap = &mut args as *mut _ as *mut c_void;
-    vasprintf(out, fmt, ap)
+pub unsafe extern "C" fn asprintf() {
+    #[cfg(target_arch = "aarch64")]
+    core::arch::naked_asm!("b {}", sym gameplay_asprintf);
+    #[cfg(target_arch = "x86_64")]
+    core::arch::naked_asm!("jmp {}", sym gameplay_asprintf);
+}
+
+extern "C" {
+    fn gameplay_asprintf(out: *mut *mut c_char, fmt: *const c_char, ...) -> c_int;
 }
 
 #[no_mangle]

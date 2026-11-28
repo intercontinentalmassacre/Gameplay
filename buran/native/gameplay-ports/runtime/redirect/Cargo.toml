@@ -2,7 +2,7 @@
 name = "redirect"
 version = "0.1.0"
 edition = "2021"
-build = "../host_build.rs"
+build = "build.rs"
 
 [lib]
 name = "redirect"
