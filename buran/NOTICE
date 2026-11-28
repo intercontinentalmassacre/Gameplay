@@ -19,3 +19,14 @@ inventory and SHA-256 values are in box/packages.txt. The renderer and Wine
 release URLs and digests are in their staging scripts. The APK includes
 third-party notices under assets/notices, and the guest archives retain the
 notices of their bundled packages.
+
+Prebuilt Gameplay ports
+-----------------------
+
+The Buran variants of the Steam bootstrap, redirect and KGSL ports are
+packaged under prebuilt/gameplay-ports. The Steam bootstrap runs as an
+Android child executable. The redirect and KGSL shims run in the runtime
+or guest subprocesses that load them. The source and build script for
+these binaries are maintained separately in Gameplay's private native
+component repository. See THIRD_PARTY_NOTICES in the Gameplay repository
+for the corresponding upstream components and their notices.
