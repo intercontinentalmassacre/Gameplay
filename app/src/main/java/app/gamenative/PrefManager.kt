@@ -497,7 +497,7 @@ object PrefManager {
     private val QUICK_MENU_LAST_TAB = intPreferencesKey("quick_menu_last_tab")
     private val GAMEPAD_QUICK_MENU_BUTTON = intPreferencesKey("gamepad_quick_menu_button")
     var gamepadQuickMenuButton: Int
-        get() = getPref(GAMEPAD_QUICK_MENU_BUTTON, android.view.KeyEvent.KEYCODE_UNKNOWN)
+        get() = getPref(GAMEPAD_QUICK_MENU_BUTTON, android.view.KeyEvent.KEYCODE_BUTTON_SELECT)
         set(value) = setPref(GAMEPAD_QUICK_MENU_BUTTON, value)
 
     var quickMenuLastTab: Int

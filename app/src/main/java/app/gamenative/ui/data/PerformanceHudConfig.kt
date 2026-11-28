@@ -1,5 +1,7 @@
 package app.gamenative.ui.data
 
+import app.gamenative.PrefManager
+
 /**
  * Size presets for the floating performance HUD.
  */
@@ -48,4 +50,56 @@ data class PerformanceHudConfig(
         const val DEFAULT_COLOR_INTENSITY = 1f
         const val DEFAULT_SHOW_TEXT_OUTLINE = true
     }
+}
+
+internal fun loadPerformanceHudConfig(): PerformanceHudConfig {
+    return PerformanceHudConfig(
+        showFrameRate = PrefManager.performanceHudShowFrameRate,
+        showCpuUsage = PrefManager.performanceHudShowCpuUsage,
+        showGpuUsage = PrefManager.performanceHudShowGpuUsage,
+        showRamUsage = PrefManager.performanceHudShowRamUsage,
+        showBatteryLevel = PrefManager.performanceHudShowBatteryLevel,
+        lowBatteryWarningEnabled = PrefManager.performanceHudLowBatteryWarning,
+        lowBatteryThresholdPercent = PrefManager.performanceHudLowBatteryThreshold,
+        showPowerDraw = PrefManager.performanceHudShowPowerDraw,
+        showBatteryRuntime = PrefManager.performanceHudShowBatteryRuntime,
+        showBatteryTemperature = PrefManager.performanceHudShowBatteryTemperature,
+        highBatteryTemperatureWarningEnabled = PrefManager.performanceHudHighBatteryTemperatureWarning,
+        highBatteryTemperatureThresholdC = PrefManager.performanceHudHighBatteryTemperatureThreshold,
+        showClockTime = PrefManager.performanceHudShowClockTime,
+        showCpuTemperature = PrefManager.performanceHudShowCpuTemperature,
+        showGpuTemperature = PrefManager.performanceHudShowGpuTemperature,
+        showFrameRateGraph = PrefManager.performanceHudShowFrameRateGraph,
+        showCpuUsageGraph = PrefManager.performanceHudShowCpuUsageGraph,
+        showGpuUsageGraph = PrefManager.performanceHudShowGpuUsageGraph,
+        backgroundOpacity = PrefManager.performanceHudBackgroundOpacity,
+        colorIntensity = PrefManager.performanceHudColorIntensity,
+        showTextOutline = PrefManager.performanceHudShowTextOutline,
+        size = PerformanceHudSize.fromPrefValue(PrefManager.performanceHudSize),
+    )
+}
+
+internal fun persistPerformanceHudConfig(config: PerformanceHudConfig) {
+    PrefManager.performanceHudShowFrameRate = config.showFrameRate
+    PrefManager.performanceHudShowCpuUsage = config.showCpuUsage
+    PrefManager.performanceHudShowGpuUsage = config.showGpuUsage
+    PrefManager.performanceHudShowRamUsage = config.showRamUsage
+    PrefManager.performanceHudShowBatteryLevel = config.showBatteryLevel
+    PrefManager.performanceHudLowBatteryWarning = config.lowBatteryWarningEnabled
+    PrefManager.performanceHudLowBatteryThreshold = config.lowBatteryThresholdPercent
+    PrefManager.performanceHudShowPowerDraw = config.showPowerDraw
+    PrefManager.performanceHudShowBatteryRuntime = config.showBatteryRuntime
+    PrefManager.performanceHudShowBatteryTemperature = config.showBatteryTemperature
+    PrefManager.performanceHudHighBatteryTemperatureWarning = config.highBatteryTemperatureWarningEnabled
+    PrefManager.performanceHudHighBatteryTemperatureThreshold = config.highBatteryTemperatureThresholdC
+    PrefManager.performanceHudShowClockTime = config.showClockTime
+    PrefManager.performanceHudShowCpuTemperature = config.showCpuTemperature
+    PrefManager.performanceHudShowGpuTemperature = config.showGpuTemperature
+    PrefManager.performanceHudShowFrameRateGraph = config.showFrameRateGraph
+    PrefManager.performanceHudShowCpuUsageGraph = config.showCpuUsageGraph
+    PrefManager.performanceHudShowGpuUsageGraph = config.showGpuUsageGraph
+    PrefManager.performanceHudBackgroundOpacity = config.backgroundOpacity
+    PrefManager.performanceHudColorIntensity = config.colorIntensity
+    PrefManager.performanceHudShowTextOutline = config.showTextOutline
+    PrefManager.performanceHudSize = config.size.prefValue
 }

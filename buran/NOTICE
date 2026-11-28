@@ -1,0 +1,21 @@
+Buran embedded runtime
+======================
+
+Buran source and desktop-exit helper provenance:
+https://github.com/intercontinentalmassacre/Buran
+Base revision 93ac7b3e8f3540960308fdce048a6f39a995ac52
+
+The desktop-exit PE helpers shipped in src/main/assets are built from
+native/windows/desktop-exit.c and desktop-exit-kernel32.def. Their SHA-256 hashes:
+  buran-desktop-exit.exe     b68f2d493e9b4257884031bf922c6e536814007885f1b17978887f21923b0e18
+  buran-desktop-exit-x86.exe 0077a94d316ff9065258b42a1def74373f89ce46b1764d7fa75ce26c4b3e9a58
+
+Gameplay's performance HUD appears under org.buran.runtime.hud. Source
+attribution is in the adapted Kotlin files and the GNU GPL version 3 text is
+bundled in assets/notices/gameplay-performance-hud-gpl-3.0.txt.
+
+Third-party runtime payloads are staged by prepare-runtime.sh. The Box package
+inventory and SHA-256 values are in box/packages.txt. The renderer and Wine
+release URLs and digests are in their staging scripts. The APK includes
+third-party notices under assets/notices, and the guest archives retain the
+notices of their bundled packages.

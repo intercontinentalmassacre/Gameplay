@@ -1,0 +1,18 @@
+LIBRARY kernel32.dll
+EXPORTS
+    GetCommandLineW@0
+    GetEnvironmentVariableW@12
+    CreateProcessW@40
+    CreateJobObjectW@8
+    SetInformationJobObject@16
+    AssignProcessToJobObject@8
+    QueryInformationJobObject@20
+    ResumeThread@4
+    TerminateProcess@8
+    WaitForSingleObject@8
+    GetExitCodeProcess@8
+    Sleep@4
+    CreateFileW@28
+    WriteFile@20
+    CloseHandle@4
+    ExitProcess@4

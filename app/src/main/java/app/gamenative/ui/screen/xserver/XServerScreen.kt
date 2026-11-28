@@ -131,7 +131,8 @@ import app.gamenative.ui.component.gamescopeFpsCap
 import app.gamenative.ui.component.parseBooleanExtra
 import app.gamenative.ui.component.parsePositiveFpsLimit
 import app.gamenative.ui.data.PerformanceHudConfig
-import app.gamenative.ui.data.PerformanceHudSize
+import app.gamenative.ui.data.loadPerformanceHudConfig
+import app.gamenative.ui.data.persistPerformanceHudConfig
 import app.gamenative.ui.data.XServerState
 import app.gamenative.ui.widget.PerformanceHudView
 import app.gamenative.utils.AssetUtils
@@ -653,33 +654,6 @@ var win32AppWorkarounds: Win32AppWorkarounds? by remember { mutableStateOf(null)
         container.saveData()
     }
 
-    fun loadPerformanceHudConfig(): PerformanceHudConfig {
-        return PerformanceHudConfig(
-            showFrameRate = PrefManager.performanceHudShowFrameRate,
-            showCpuUsage = PrefManager.performanceHudShowCpuUsage,
-            showGpuUsage = PrefManager.performanceHudShowGpuUsage,
-            showRamUsage = PrefManager.performanceHudShowRamUsage,
-            showBatteryLevel = PrefManager.performanceHudShowBatteryLevel,
-            lowBatteryWarningEnabled = PrefManager.performanceHudLowBatteryWarning,
-            lowBatteryThresholdPercent = PrefManager.performanceHudLowBatteryThreshold,
-            showPowerDraw = PrefManager.performanceHudShowPowerDraw,
-            showBatteryRuntime = PrefManager.performanceHudShowBatteryRuntime,
-            showBatteryTemperature = PrefManager.performanceHudShowBatteryTemperature,
-            highBatteryTemperatureWarningEnabled = PrefManager.performanceHudHighBatteryTemperatureWarning,
-            highBatteryTemperatureThresholdC = PrefManager.performanceHudHighBatteryTemperatureThreshold,
-            showClockTime = PrefManager.performanceHudShowClockTime,
-            showCpuTemperature = PrefManager.performanceHudShowCpuTemperature,
-            showGpuTemperature = PrefManager.performanceHudShowGpuTemperature,
-            showFrameRateGraph = PrefManager.performanceHudShowFrameRateGraph,
-            showCpuUsageGraph = PrefManager.performanceHudShowCpuUsageGraph,
-            showGpuUsageGraph = PrefManager.performanceHudShowGpuUsageGraph,
-            backgroundOpacity = PrefManager.performanceHudBackgroundOpacity,
-            colorIntensity = PrefManager.performanceHudColorIntensity,
-            showTextOutline = PrefManager.performanceHudShowTextOutline,
-            size = PerformanceHudSize.fromPrefValue(PrefManager.performanceHudSize),
-        )
-    }
-
     var performanceHudConfig by remember { mutableStateOf(loadPerformanceHudConfig()) }
     var performanceHudView by remember { mutableStateOf<PerformanceHudView?>(null) }
     var performanceHudHost by remember { mutableStateOf<FrameLayout?>(null) }
@@ -696,31 +670,6 @@ var win32AppWorkarounds: Win32AppWorkarounds? by remember { mutableStateOf(null)
         !appImageSession && shouldLaunchGamescope(context, container, appId, bootToContainer || testGraphics)
     }
     if (isGamescopeSession) TrackGamescopeRefreshRate(xServerView as? View)
-
-    fun persistPerformanceHudConfig(config: PerformanceHudConfig) {
-        PrefManager.performanceHudShowFrameRate = config.showFrameRate
-        PrefManager.performanceHudShowCpuUsage = config.showCpuUsage
-        PrefManager.performanceHudShowGpuUsage = config.showGpuUsage
-        PrefManager.performanceHudShowRamUsage = config.showRamUsage
-        PrefManager.performanceHudShowBatteryLevel = config.showBatteryLevel
-        PrefManager.performanceHudLowBatteryWarning = config.lowBatteryWarningEnabled
-        PrefManager.performanceHudLowBatteryThreshold = config.lowBatteryThresholdPercent
-        PrefManager.performanceHudShowPowerDraw = config.showPowerDraw
-        PrefManager.performanceHudShowBatteryRuntime = config.showBatteryRuntime
-        PrefManager.performanceHudShowBatteryTemperature = config.showBatteryTemperature
-        PrefManager.performanceHudHighBatteryTemperatureWarning = config.highBatteryTemperatureWarningEnabled
-        PrefManager.performanceHudHighBatteryTemperatureThreshold = config.highBatteryTemperatureThresholdC
-        PrefManager.performanceHudShowClockTime = config.showClockTime
-        PrefManager.performanceHudShowCpuTemperature = config.showCpuTemperature
-        PrefManager.performanceHudShowGpuTemperature = config.showGpuTemperature
-        PrefManager.performanceHudShowFrameRateGraph = config.showFrameRateGraph
-        PrefManager.performanceHudShowCpuUsageGraph = config.showCpuUsageGraph
-        PrefManager.performanceHudShowGpuUsageGraph = config.showGpuUsageGraph
-        PrefManager.performanceHudBackgroundOpacity = config.backgroundOpacity
-        PrefManager.performanceHudColorIntensity = config.colorIntensity
-        PrefManager.performanceHudShowTextOutline = config.showTextOutline
-        PrefManager.performanceHudSize = config.size.prefValue
-    }
 
     fun applyPerformanceHudConfig(config: PerformanceHudConfig) {
         performanceHudConfig = config

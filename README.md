@@ -79,13 +79,17 @@ cd Gameplay
 
 ### Windows
 
+Prepare or copy the embedded Buran payload from a Linux x86-64 build before building modern variants on Windows. [Buran build instructions](buran/README.md)
+
 ```powershell
 $env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
 $env:ANDROID_HOME = "$env:LOCALAPPDATA\Android\Sdk"
 .\gradlew.bat :app:assembleModernDebug --no-daemon
 ```
 
-### Linux and macOS
+### Linux
+
+Modern variants build the embedded Buran payload on Linux x86-64. Install the additional runtime build tools before running Gradle. [Buran build instructions](buran/README.md)
 
 ```sh
 ./gradlew :app:assembleModernDebug --no-daemon
@@ -98,6 +102,10 @@ app/build/outputs/apk/modern/debug/app-modern-debug.apk
 ```
 
 The build check runs unit tests and assembles both `modernDebug` and `legacyDebug`. The `modernXr` and `legacyXr` flavors are experimental.
+
+### macOS
+
+For modern variants, provide the same prepared Buran payload described in the Windows section, then use the Linux Gradle command.
 
 ### Running tests
 

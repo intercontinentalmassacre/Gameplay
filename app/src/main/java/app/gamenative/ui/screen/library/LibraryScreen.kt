@@ -460,6 +460,17 @@ private fun LibraryScreenContent(
     var wasOptionsPanelOpen by remember { mutableStateOf(false) }
     // Keep a stable reference to the selected item so detail view doesn't disappear during list refresh/pagination.
     var selectedLibraryItem by remember { mutableStateOf<LibraryItem?>(null) }
+    fun closeLibraryItem() {
+        selectedAppId = null
+        selectedLibraryItem = null
+    }
+    DisposableEffect(Unit) {
+        val listener: (AndroidEvent.BuranSessionFinished) -> Unit = { event ->
+            if (selectedAppId == event.appId) closeLibraryItem()
+        }
+        PluviaApp.events.on<AndroidEvent.BuranSessionFinished, Unit>(listener)
+        onDispose { PluviaApp.events.off<AndroidEvent.BuranSessionFinished, Unit>(listener) }
+    }
     fun openLibraryItem(appId: String) {
         val item = state.appInfoList.find { it.appId == appId } ?: return
         selectedAppId = appId
@@ -684,10 +695,7 @@ private fun LibraryScreenContent(
         onSearchQuery("")
     }
 
-    BackHandler(selectedLibraryItem != null) {
-        selectedAppId = null
-        selectedLibraryItem = null
-    }
+    BackHandler(selectedLibraryItem != null, onBack = ::closeLibraryItem)
 
     // Restore focus when returning from game detail (without reloading list)
     LaunchedEffect(selectedAppId) {
@@ -1541,10 +1549,7 @@ private fun LibraryScreenContent(
         } else {
             LibraryDetailPane(
                 libraryItem = selectedLibraryItem,
-                onBack = {
-                    selectedAppId = null
-                    selectedLibraryItem = null
-                },
+                onBack = ::closeLibraryItem,
                 onClickPlay = {
                     selectedLibraryItem?.let { libraryItem ->
                         onClickPlay(libraryItem.appId, it)

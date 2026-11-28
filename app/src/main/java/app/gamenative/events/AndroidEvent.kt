@@ -16,6 +16,7 @@ interface AndroidEvent<T> : Event<T> {
     data class MotionEvent(val event: android.view.MotionEvent?) : AndroidEvent<Boolean>
     data object EndProcess : AndroidEvent<Unit>
     data class ExternalGameLaunch(val appId: String) : AndroidEvent<Unit>
+    data class BuranSessionFinished(val appId: String) : AndroidEvent<Unit>
     data class PromptSaveContainerConfig(val appId: String) : AndroidEvent<Unit>
     data class ShowGameFeedback(val appId: String) : AndroidEvent<Unit>
     data class ShowLaunchingOverlay(val appName: String) : AndroidEvent<Unit>

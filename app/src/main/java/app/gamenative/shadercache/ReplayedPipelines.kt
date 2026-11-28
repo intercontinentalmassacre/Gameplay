@@ -25,17 +25,48 @@ internal object ReplayedPipelines {
     fun pipelineNames(file: File): Set<String> =
         FozArchive.names(file).filterTo(HashSet()) { it.substring(0, FozArchive.TAG_CHARS) in PIPELINE_TAGS }
 
-    /** Every pipeline replayed for [driver]. */
-    fun known(dir: File, driver: String): Set<String> =
-        files(dir, driver).flatMapTo(HashSet()) { pipelineNames(it) }
+    fun pending(databases: List<File>, known: Set<String>): Set<String> =
+        databases.flatMapTo(HashSet()) { database -> pipelineNames(database).filterNot(known::contains) }
+
+    fun writeWhitelist(file: File, pending: Set<String>): Boolean = write(file, pending)
+
+    fun recorded(dir: File, driver: String): Set<String> =
+        files(dir, driver).flatMapTo(HashSet()) { pipelineNames(it.first) }
+
+    fun pendingIdentity(pending: Set<String>): String =
+        MessageDigest.getInstance("SHA-256").digest(pending.sorted().joinToString("").toByteArray(Charsets.US_ASCII))
+            .joinToString("") { "%02x".format(it) }
+
+    fun isStalled(file: File, pendingIdentity: String): Boolean =
+        file.isFile && file.readText() == "2 $pendingIdentity"
+
+    fun recordAttempt(file: File, pendingIdentity: String, progressed: Boolean) {
+        if (progressed) {
+            file.delete()
+            return
+        }
+        val attempt = if (file.isFile && file.readText() == "1 $pendingIdentity") 2 else 1
+        file.writeText("$attempt $pendingIdentity")
+    }
+
+    /** Only skip starting Fossilize for entries present in every known device UUID cache. */
+    fun known(dir: File, driver: String): Set<String> {
+        val caches = files(dir, driver).groupBy { it.second }.values.iterator()
+        if (!caches.hasNext()) return emptySet()
+        fun names(cache: List<Pair<File, String>>) = cache.flatMapTo(HashSet()) { pipelineNames(it.first) }
+        val common = names(caches.next())
+        while (caches.hasNext() && common.isNotEmpty()) common.retainAll(names(caches.next()))
+        return common
+    }
 
     /**
      * Merges what fossilize-replay processes wrote for [driver] into the database the next one reads.
      */
     fun fold(dir: File, driver: String) {
         val prefix = prefix(driver)
-        val run = Regex("${Regex.escape(prefix)}\\.([0-9a-f]{32})\\.\\d+\\.foz")
-        val runs = files(dir, driver).mapNotNull { file -> run.matchEntire(file.name)?.let { it.groupValues[1] to file } }
+        val runs = files(dir, driver).mapNotNull { (file, uuid) ->
+            if (file.name == "$prefix.$uuid.foz") null else uuid to file
+        }
         for ((uuid, written) in runs.groupBy({ it.first }, { it.second })) {
             val base = File(dir, "$prefix.$uuid.foz")
             if (write(base, pipelineNames(base) + written.flatMap { pipelineNames(it) })) written.forEach { it.delete() }
@@ -47,9 +78,12 @@ internal object ReplayedPipelines {
         return "replayed-" + digest.take(8).joinToString("") { "%02x".format(it) }
     }
 
-    private fun files(dir: File, driver: String): List<File> {
-        val start = prefix(driver) + "."
-        return dir.listFiles()?.filter { it.isFile && it.name.startsWith(start) && it.name.endsWith(".foz") }.orEmpty()
+    private fun files(dir: File, driver: String): List<Pair<File, String>> {
+        val pattern = Regex("${prefix(driver)}\\.([0-9a-f]{32})(?:\\.\\d+)?\\.foz")
+        return dir.listFiles().orEmpty().mapNotNull { file ->
+            if (!file.isFile) return@mapNotNull null
+            pattern.matchEntire(file.name)?.let { file to it.groupValues[1] }
+        }
     }
 
     /** Replaces [file] with a database of one empty entry per name; a reader sees the old or the new file. */

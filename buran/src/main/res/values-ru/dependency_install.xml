@@ -1,0 +1,4 @@
+<resources>
+    <string name="buran_cancel_dependency_install">Отменить установку</string>
+    <string name="buran_shader_prewarm">Подготовка сохранённых шейдеров…</string>
+</resources>

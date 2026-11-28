@@ -193,6 +193,14 @@ public class GlibcProgramLauncherComponent extends GuestProgramLauncherComponent
         this.workingDir = workingDir;
     }
 
+    private File redirectLibrary(Context context, File glibc64Dir) {
+        if (BuildConfig.DEBUG) {
+            File port = new File(context.getApplicationInfo().nativeLibraryDir, "libgameplay_redirect.so");
+            if (port.isFile()) return port;
+        }
+        return new File(glibc64Dir, "libredirect.so");
+    }
+
     private int execGuestProgram() {
         Context context = environment.getContext();
         ImageFs imageFs = ImageFs.find(context);
@@ -230,7 +238,7 @@ public class GlibcProgramLauncherComponent extends GuestProgramLauncherComponent
         // own env, but in this GLIBC path we only launch box64 directly.
         File glibc64Dir = imageFs.getGlibc64Dir();
         File sysvshm64 = new File(glibc64Dir, "libandroid-sysvshm.so");
-        File libredirect64 = new File(glibc64Dir, "libredirect.so");
+        File libredirect64 = redirectLibrary(context, glibc64Dir);
 
         if (sysvshm64.exists() || libredirect64.exists()) {
             StringBuilder ldPreload = new StringBuilder();
@@ -338,7 +346,7 @@ public class GlibcProgramLauncherComponent extends GuestProgramLauncherComponent
         // Only 64-bit ARM libs are relevant since box64 is the native process.
         File glibc64Dir = imageFs.getGlibc64Dir();
         File sysvshm64 = new File(glibc64Dir, "libandroid-sysvshm.so");
-        File libredirect64 = new File(glibc64Dir, "libredirect.so");
+        File libredirect64 = redirectLibrary(context, glibc64Dir);
 
         if (sysvshm64.exists() || libredirect64.exists()) {
             StringBuilder ldPreload = new StringBuilder();

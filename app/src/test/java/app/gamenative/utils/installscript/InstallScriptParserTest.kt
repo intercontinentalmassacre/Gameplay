@@ -193,6 +193,39 @@ class InstallScriptParserTest {
     }
 
     @Test
+    fun parseRunProcess_pairsNumberedCommandsAndKeepsProcessOrder() {
+        val vdf = """
+            "InstallScript" {
+                "Run Process" {
+                    "Runtime" {
+                        "Command 2" "/install /quiet"
+                        "Process 1" "%INSTALLDIR%\\first.exe"
+                        "HasRunKey" "HKLM\\Software\\Vendor\\Runtime"
+                        "Process 2" "%INSTALLDIR%\\second.exe"
+                        "Command 1" "/silent"
+                        "Command 9" "/ignored"
+                        "MinimumHasRunValue" "3"
+                        "Process 3" "third.exe"
+                    }
+                    "Unnumbered" {
+                        "Process" "legacy.exe"
+                        "Command" "/S"
+                    }
+                }
+            }
+        """.trimIndent()
+
+        val actions = InstallScriptParser.parseFromString(vdf, installDir).runProcessActions
+
+        assertEquals(listOf("Runtime", "Runtime (2)", "Runtime (3)", "Unnumbered"), actions.map { it.name })
+        assertEquals(listOf("$installDir\\first.exe", "$installDir\\second.exe", "third.exe", "legacy.exe"),
+            actions.map { it.process })
+        assertEquals(listOf("/silent", "/install /quiet", "", "/S"), actions.map { it.command })
+        assertEquals(List(3) { "HKLM\\Software\\Vendor\\Runtime" }, actions.take(3).map { it.hasRunKey })
+        assertEquals(listOf(3, 3, 3, 0), actions.map { it.minimumHasRunValue })
+    }
+
+    @Test
     fun parseRunProcess_parsesOSRequirement() {
         val vdf = """
             "InstallScript"

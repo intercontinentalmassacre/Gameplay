@@ -165,12 +165,33 @@ public abstract class TarCompressorUtils {
     }
 
     private static boolean extract(Type type, InputStream source, File destination, OnExtractFileListener onExtractFileListener) {
+        return extract(type, source, destination, onExtractFileListener, true);
+    }
+
+    /** Extracts regular prefix files without applying the archive's host filesystem links. */
+    public static boolean extractWithoutLinks(Type type, File source, File destination, OnExtractFileListener listener) {
+        if (source == null || !source.isFile()) return false;
+        try {
+            return extract(type, new BufferedInputStream(new FileInputStream(source), StreamUtils.BUFFER_SIZE),
+                    destination, listener, false);
+        } catch (FileNotFoundException e) {
+            return false;
+        }
+    }
+
+    public static boolean extractWithoutLinks(Type type, InputStream source, File destination, OnExtractFileListener listener) {
+        return extract(type, source, destination, listener, false);
+    }
+
+    private static boolean extract(Type type, InputStream source, File destination, OnExtractFileListener onExtractFileListener,
+                                   boolean keepLinks) {
         if (source == null) return false;
         try (InputStream inStream = getCompressorInputStream(type, source);
              ArchiveInputStream tar = new TarArchiveInputStream(inStream)) {
             TarArchiveEntry entry;
             while ((entry = (TarArchiveEntry)tar.getNextEntry()) != null) {
                 if (!tar.canReadEntryData(entry)) continue;
+                if (!keepLinks && (entry.isSymbolicLink() || entry.isLink())) continue;
 
                 // Skip macOS metadata files (._{filename}) and __MACOSX directories
                 String entryName = entry.getName();

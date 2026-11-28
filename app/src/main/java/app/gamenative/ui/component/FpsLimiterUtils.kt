@@ -15,11 +15,11 @@ internal fun parseBooleanExtra(value: String): Boolean? =
         else -> null
     }
 
-internal fun fpsLimiterSteps(maxFps: Int): List<Int> {
-    val sanitizedMax = maxFps.coerceAtLeast(5)
+internal fun fpsLimiterSteps(maxFps: Int, minFps: Int = 5): List<Int> {
+    val sanitizedMax = maxFps.coerceAtLeast(minFps)
     val flooredMax = (sanitizedMax / 5) * 5
     return buildList {
-        var value = 5
+        var value = minFps
         while (value <= flooredMax) {
             add(value)
             value += 5
@@ -37,20 +37,20 @@ internal fun fpsLimiterSteps(maxFps: Int): List<Int> {
 internal fun fpsLimiterCurrentIndex(steps: List<Int>, currentValue: Int): Int =
     steps.indexOfLast { it <= currentValue }.coerceAtLeast(0)
 
-internal fun fpsLimiterProgress(currentValue: Int, maxFps: Int): Float {
-    val steps = fpsLimiterSteps(maxFps)
+internal fun fpsLimiterProgress(currentValue: Int, maxFps: Int, minFps: Int = 5): Float {
+    val steps = fpsLimiterSteps(maxFps, minFps)
     val currentIndex = fpsLimiterCurrentIndex(steps, currentValue)
     return if (steps.lastIndex <= 0) 1f else currentIndex.toFloat() / steps.lastIndex.toFloat()
 }
 
-internal fun nextFpsLimiterValue(currentValue: Int, maxFps: Int): Int {
-    val steps = fpsLimiterSteps(maxFps)
+internal fun nextFpsLimiterValue(currentValue: Int, maxFps: Int, minFps: Int = 5): Int {
+    val steps = fpsLimiterSteps(maxFps, minFps)
     val currentIndex = fpsLimiterCurrentIndex(steps, currentValue)
     return steps[(currentIndex + 1).coerceAtMost(steps.lastIndex)]
 }
 
-internal fun previousFpsLimiterValue(currentValue: Int, maxFps: Int): Int {
-    val steps = fpsLimiterSteps(maxFps)
+internal fun previousFpsLimiterValue(currentValue: Int, maxFps: Int, minFps: Int = 5): Int {
+    val steps = fpsLimiterSteps(maxFps, minFps)
     val currentIndex = fpsLimiterCurrentIndex(steps, currentValue)
     return steps[(currentIndex - 1).coerceAtLeast(0)]
 }

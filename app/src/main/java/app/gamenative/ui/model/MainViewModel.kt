@@ -2,6 +2,9 @@ package app.gamenative.ui.model
 
 import android.content.Context
 import android.os.Process
+import app.gamenative.externaldisplay.BuranCompanionControls
+import app.gamenative.localgames.BuranGameLaunch
+import app.gamenative.externaldisplay.BuranQuickMenuSessions
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -20,6 +23,7 @@ import app.gamenative.enums.PathType
 import app.gamenative.events.AndroidEvent
 import app.gamenative.events.SteamEvent
 import app.gamenative.localgames.LocalContainerLaunch
+import app.gamenative.localgames.BuranCloudPaths
 import app.gamenative.localgames.LocalInstallerCompletionCoordinator
 import app.gamenative.localgames.InstallationSessionStore
 import app.gamenative.localgames.InstallationState
@@ -51,6 +55,7 @@ import com.winlator.xserver.Window
 import dagger.hilt.android.lifecycle.HiltViewModel
 import `in`.dragonbra.javasteam.steam.handlers.steamapps.AppProcessInfo
 import java.nio.file.Paths
+import java.io.Closeable
 import javax.inject.Inject
 import kotlin.io.path.name
 import kotlinx.coroutines.CancellationException
@@ -65,7 +70,13 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import timber.log.Timber
+
+internal class BuranSteamCloudSession(
+    val accountId: Long,
+    val prefixToPath: BuranCloudPaths.Resolver,
+)
 
 @HiltViewModel
 class MainViewModel @Inject constructor(
@@ -105,6 +116,193 @@ class MainViewModel @Inject constructor(
 
     private val _state = MutableStateFlow(MainState())
     val state: StateFlow<MainState> = _state.asStateFlow()
+
+    private var buranLaunchId: String? = null
+    private var buranAppId: String? = null
+    private var buranCloudSession: BuranSteamCloudSession? = null
+    private var buranSteamOnline = false
+    private var buranSteamOperationId: String? = null
+    private var buranSteamHost: Closeable? = null
+    private var buranNativeSteamClient = false
+    private var buranPlayingSteamId: Int? = null
+    private var buranPresenceUpdate: Job? = null
+    private var buranHudOnLowerScreen = false
+    private val _buranGuestReady = MutableStateFlow(false)
+    val buranGuestReady = _buranGuestReady.asStateFlow()
+    private val _buranCompanionControls = MutableStateFlow<BuranCompanionControls?>(null)
+    internal val buranCompanionControls = _buranCompanionControls.asStateFlow()
+
+    internal fun setBuranLaunch(
+        launchId: String?,
+        hudOnLowerScreen: Boolean = false,
+        appId: String? = null,
+        cloudSession: BuranSteamCloudSession? = null,
+        steamOnline: Boolean = false,
+        steamHost: Closeable? = null,
+        nativeSteamClient: Boolean = false,
+    ) {
+        val oldHost = buranSteamHost
+        val oldAppId = buranAppId
+        buranSteamHost = steamHost
+        buranNativeSteamClient = nativeSteamClient
+        if (oldHost != null && oldHost !== steamHost && oldAppId != null) {
+            ExitCloudSyncQueue.process.start(oldAppId) { oldHost.close() }
+        }
+        val operationId = launchId?.takeIf { steamOnline }
+        if (buranSteamOperationId != operationId) {
+            operationId?.let { SteamService.beginBuranOperation(it) }
+            buranSteamOperationId?.let { SteamService.endBuranOperation(it) }
+            buranSteamOperationId = operationId
+        }
+        if (playSession?.appId == buranAppId && buranAppId != null) {
+            playSession?.finish()
+            playSession = null
+        }
+        buranPlayingSteamId?.let { gameId ->
+            ActiveGameRegistry.clearIfMatches(gameId)
+            updateBuranSteamPresence(null)
+        }
+        buranPlayingSteamId = null
+        buranAppId = appId
+        buranCloudSession = cloudSession
+        buranSteamOnline = steamOnline
+        BuranQuickMenuSessions.close(buranLaunchId)
+        buranLaunchId = launchId
+        buranHudOnLowerScreen = hudOnLowerScreen
+        _buranGuestReady.value = false
+        _buranCompanionControls.value?.close()
+        _buranCompanionControls.value = null
+    }
+
+    internal fun finishBuranLaunch(context: Context) {
+        val appId = buranAppId
+        val cloudSession = buranCloudSession
+        val operationId = buranSteamOperationId
+        val steamHost = buranSteamHost
+        // Hold the operation until the exit queue finishes, even if the Activity goes away.
+        buranSteamOperationId = null
+        buranSteamHost = null
+        setBuranLaunch(null)
+        if (appId == null || (cloudSession == null && steamHost == null)) {
+            operationId?.let { SteamService.endBuranOperation(it) }
+            return
+        }
+
+        val appContext = context.applicationContext
+        val gameId = ContainerUtils.extractGameIdFromContainerId(appId)
+        cloudSession?.let { BuranCloudPaths.recordPendingExit(appContext, appId, it.accountId, it.prefixToPath) }
+        val syncJob = ExitCloudSyncQueue.process.start(appId) {
+            try {
+                steamHost?.close()
+            } catch (error: Exception) {
+                Timber.tag("Exit").w("Buran Steam client host cleanup failed: %s", error.javaClass.simpleName)
+            }
+            if (cloudSession == null) return@start
+            repeat(2) { attempt ->
+                // Steam can stop reporting the current user during a brief reconnect.
+                val loggedInAccount = withTimeoutOrNull(20_000L) {
+                    while (!SteamService.isConnected || !SteamService.isLoggedIn) delay(500)
+                    SteamService.userSteamId?.accountID
+                }
+                if (loggedInAccount != cloudSession.accountId) return@start
+
+                try {
+                    if (SteamService.closeApp(
+                            appContext,
+                            gameId,
+                            isOffline = false,
+                            expectedAccountId = cloudSession.accountId,
+                            prefixToPath = cloudSession.prefixToPath,
+                        ).await()
+                    ) {
+                        BuranCloudPaths.clearPendingExit(appContext, appId, cloudSession.accountId, cloudSession.prefixToPath)
+                        return@start
+                    }
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (error: Exception) {
+                    Timber.tag("Exit").e(error, "Buran cloud save sync failed for %s", appId)
+                }
+                if (attempt == 0) delay(1_000)
+            }
+        }
+        syncJob.invokeOnCompletion { operationId?.let { SteamService.endBuranOperation(it) } }
+    }
+
+    internal fun onBuranGuestReady(launchId: String, controls: BuranCompanionControls?) {
+        if (buranLaunchId != launchId) return
+        if (!_buranGuestReady.value) {
+            buranAppId?.let { appId ->
+                playSession?.finish()
+                playSession = librarySessions.start(appId)
+                if (buranSteamOnline && !buranNativeSteamClient &&
+                    ContainerUtils.extractGameSourceFromContainerId(appId) == GameSource.STEAM
+                ) {
+                    val gameId = ContainerUtils.extractGameIdFromContainerId(appId)
+                    val branch = SteamService.getInstalledApp(gameId)?.branch ?: "public"
+                    val game = GameProcessInfo(gameId, branch, emptyList())
+                    buranPlayingSteamId = gameId
+                    ActiveGameRegistry.set(game)
+                    updateBuranSteamPresence(game)
+                }
+            }
+        }
+        _buranCompanionControls.value?.close()
+        _buranCompanionControls.value = controls
+        _buranGuestReady.value = true
+        controls?.let {
+            if (buranHudOnLowerScreen) it.useLowerScreenHud(true) else it.syncPerformanceHud()
+        }
+    }
+
+    private fun updateBuranSteamPresence(game: GameProcessInfo?) {
+        val previousUpdate = buranPresenceUpdate
+        buranPresenceUpdate = viewModelScope.launch {
+            previousUpdate?.join()
+            try {
+                if (game == null) {
+                    if (ActiveGameRegistry.get() == null) SteamService.notifyRunningProcesses()
+                } else if (ActiveGameRegistry.get() == game) {
+                    SteamService.notifyRunningProcesses(game)
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                Timber.w(error, "Could not update Steam playing status for Buran")
+            }
+        }
+    }
+
+    internal fun setBuranHudDestination(lower: Boolean) {
+        if (buranLaunchId == null) return
+        buranHudOnLowerScreen = lower
+        _buranCompanionControls.value?.useLowerScreenHud(lower)
+    }
+
+    internal fun onBuranHudTelemetry(launchId: String, sessionId: String, fps: Float, generatedFps: Int?) {
+        val controls = _buranCompanionControls.value ?: return
+        if (buranLaunchId == launchId && controls.sessionId == sessionId) controls.onOutputFps(fps, generatedFps)
+    }
+
+    internal fun onBuranHudVisibility(launchId: String, sessionId: String, enabled: Boolean) {
+        val controls = _buranCompanionControls.value ?: return
+        if (buranLaunchId == launchId && controls.sessionId == sessionId) controls.onHudVisibilityChanged(enabled)
+    }
+
+    internal fun onBuranMangoHudStatus(launchId: String, sessionId: String, available: Boolean, enabled: Boolean) {
+        if (buranLaunchId != launchId) return
+        val controls = _buranCompanionControls.value ?: return
+        if (controls.sessionId == sessionId) controls.updateMangoHud(available, enabled)
+    }
+
+    internal fun onBuranFramegenStatus(context: Context, launchId: String, sessionId: String,
+                                       requested: Boolean, enabled: Boolean, failed: Boolean) {
+        if (buranLaunchId != launchId) return
+        val controls = _buranCompanionControls.value ?: return
+        if (controls.sessionId != sessionId) return
+        val accepted = controls.updateFramegen(requested, enabled, failed) ?: return
+        buranAppId?.let { BuranGameLaunch.setFramegenEnabled(context, it, accepted) }
+    }
 
     private val _uiEvent = Channel<MainUiEvent>()
     val uiEvent = _uiEvent.receiveAsFlow()
@@ -324,6 +522,7 @@ class MainViewModel @Inject constructor(
     }
 
     override fun onCleared() {
+        setBuranLaunch(null)
         playSession?.finish()
         PluviaApp.events.off<AndroidEvent.BackPressed, Unit>(onBackPressed)
         PluviaApp.events.off<AndroidEvent.ExternalGameLaunch, Unit>(onExternalGameLaunch)

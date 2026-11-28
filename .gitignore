@@ -7,6 +7,9 @@
 build/
 tools/*aab*
 /dist/nonfree/
+/app/src/modernDebug/jniLibs/arm64-v8a/libgameplay_redirect.so
+/app/src/modernDebug/jniLibs/arm64-v8a/libkgslshim.so
+/app/src/modernDebug/jniLibs/arm64-v8a/libsteambootstrap.so
 /dist/rea-work/
 
 # Build

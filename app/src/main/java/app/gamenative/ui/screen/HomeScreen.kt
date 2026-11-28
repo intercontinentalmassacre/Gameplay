@@ -3,6 +3,7 @@ package app.gamenative.ui.screen
 import android.content.res.Configuration
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -15,6 +16,7 @@ import app.gamenative.ui.enums.HomeDestination
 import app.gamenative.ui.model.HomeViewModel
 import app.gamenative.ui.screen.downloads.HomeDownloadsScreen
 import app.gamenative.ui.screen.library.HomeLibraryScreen
+import app.gamenative.ui.screen.library.LocalBuranSessionAppId
 import app.gamenative.ui.theme.PluviaTheme
 
 @Composable
@@ -32,6 +34,7 @@ fun HomeScreen(
     onDownloadsRequestedHandled: () -> Unit = {},
     isOffline: Boolean = false,
     isSteamConnected: Boolean = false,
+    buranSessionAppId: String? = null,
 ) {
     val homeState by viewModel.homeState.collectAsStateWithLifecycle()
 
@@ -51,24 +54,26 @@ fun HomeScreen(
         }
     }
 
-    when (homeState.currentDestination) {
-        HomeDestination.Library -> HomeLibraryScreen(
-            onClickPlay = onClickPlay,
-            onTestGraphics = onTestGraphics,
-            onPlayWithDiagnostics = onPlayWithDiagnostics,
-            onNavigateRoute = onNavigateRoute,
-            onLogout = onLogout,
-            onGoOnline = onGoOnline,
-            onDownloadsClick = { viewModel.onDestination(HomeDestination.Downloads) },
-            isOffline = isOffline,
-            isSteamConnected = isSteamConnected,
-        )
-        HomeDestination.Downloads -> HomeDownloadsScreen(
-            onBack = { viewModel.onDestination(HomeDestination.Library) },
-            onClickPlay = onClickPlay,
-            onTestGraphics = onTestGraphics,
-            onPlayWithDiagnostics = onPlayWithDiagnostics,
-        )
+    CompositionLocalProvider(LocalBuranSessionAppId provides buranSessionAppId) {
+        when (homeState.currentDestination) {
+            HomeDestination.Library -> HomeLibraryScreen(
+                onClickPlay = onClickPlay,
+                onTestGraphics = onTestGraphics,
+                onPlayWithDiagnostics = onPlayWithDiagnostics,
+                onNavigateRoute = onNavigateRoute,
+                onLogout = onLogout,
+                onGoOnline = onGoOnline,
+                onDownloadsClick = { viewModel.onDestination(HomeDestination.Downloads) },
+                isOffline = isOffline,
+                isSteamConnected = isSteamConnected,
+            )
+            HomeDestination.Downloads -> HomeDownloadsScreen(
+                onBack = { viewModel.onDestination(HomeDestination.Library) },
+                onClickPlay = onClickPlay,
+                onTestGraphics = onTestGraphics,
+                onPlayWithDiagnostics = onPlayWithDiagnostics,
+            )
+        }
     }
 }
 

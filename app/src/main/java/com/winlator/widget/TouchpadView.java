@@ -55,6 +55,7 @@ public class TouchpadView extends View implements View.OnCapturedPointerListener
     private boolean scrolling;
     private float sensitivity;
     private final XServer xServer;
+    private final RelativeInput relativeInput;
     private final float[] xform;
     private boolean simTouchScreen = false;
     private boolean continueClick = true;
@@ -180,6 +181,13 @@ public class TouchpadView extends View implements View.OnCapturedPointerListener
         void onOpenRadialMenu(float viewX, float viewY);
     }
 
+    public interface RelativeInput {
+        void move(float dx, float dy);
+        void button(Pointer.Button button, boolean down);
+        void scroll(int steps);
+        void reset();
+    }
+
     // Click highlight listener + debug gesture logger
     public interface ClickHighlightListener {
         void onClickAt(float screenX, float screenY);
@@ -229,7 +237,8 @@ public class TouchpadView extends View implements View.OnCapturedPointerListener
         // any held drag/long-press/2F/3F-hold injections, and resets gesture
         // state. Avoids leaking pressed buttons/keys when the view is removed
         // mid-gesture (e.g., game exit while a hold is active).
-        handleTsCancel();
+        if (relativeInput != null) cancelRelativeInput();
+        else handleTsCancel();
         super.onDetachedFromWindow();
     }
 
@@ -238,7 +247,17 @@ public class TouchpadView extends View implements View.OnCapturedPointerListener
     private boolean rightClickDragButtonDown;
 
     public TouchpadView(Context context, XServer xServer, boolean capturePointerOnExternalMouse) {
+        this(context, xServer, capturePointerOnExternalMouse, null);
+    }
+
+    public TouchpadView(Context context, RelativeInput relativeInput) {
+        this(context, null, false, relativeInput);
+        setFocusable(false);
+    }
+
+    private TouchpadView(Context context, XServer xServer, boolean capturePointerOnExternalMouse, RelativeInput relativeInput) {
         super(context);
+        this.relativeInput = relativeInput;
         this.capturePointerOnExternalMouse = capturePointerOnExternalMouse;
         this.fingers = new Finger[4];
         this.numFingers = (byte) 0;
@@ -261,8 +280,13 @@ public class TouchpadView extends View implements View.OnCapturedPointerListener
         setDefaultFocusHighlightEnabled(false);
         int screenWidth = AppUtils.getScreenWidth();
         int screenHeight = AppUtils.getScreenHeight();
-        ScreenInfo screenInfo = xServer.screenInfo;
-        updateXform(screenWidth, screenHeight, screenInfo.width, screenInfo.height);
+        if (relativeInput != null) {
+            XForm.makeScale(xform, 1f, 1f);
+            cursorTickDistance = CURSOR_TICK_DISTANCE_DP * getResources().getDisplayMetrics().density;
+        } else {
+            ScreenInfo screenInfo = xServer.screenInfo;
+            updateXform(screenWidth, screenHeight, screenInfo.width, screenInfo.height);
+        }
         if (capturePointerOnExternalMouse) {
             setFocusableInTouchMode(true);
             setOnCapturedPointerListener(this);
@@ -320,6 +344,7 @@ public class TouchpadView extends View implements View.OnCapturedPointerListener
     @Override
     protected void onSizeChanged(int w, int h, int oldw, int oldh) {
         super.onSizeChanged(w, h, oldw, oldh);
+        if (relativeInput != null) return;
         ScreenInfo screenInfo = this.xServer.screenInfo;
         updateXform(w, h, screenInfo.width, screenInfo.height);
     }
@@ -384,6 +409,9 @@ public class TouchpadView extends View implements View.OnCapturedPointerListener
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
+        if (relativeInput != null) {
+            return !event.isFromSource(InputDevice.SOURCE_MOUSE) && handleTouchpadEvent(event);
+        }
         boolean isStylus = isEventTriggeredByStylus(event);
         if (touchscreenMouseDisabled
                 && !isStylus
@@ -402,7 +430,7 @@ public class TouchpadView extends View implements View.OnCapturedPointerListener
 
     @Override
     public boolean onHoverEvent(MotionEvent event) {
-        if (isEventTriggeredByStylus(event)) {
+        if (relativeInput == null && isEventTriggeredByStylus(event)) {
             return handleStylusHoverEvent(event);
         }
         return super.onHoverEvent(event);
@@ -569,6 +597,7 @@ public class TouchpadView extends View implements View.OnCapturedPointerListener
             case MotionEvent.ACTION_CANCEL:
                 for (byte i = 0; i < MAX_FINGERS; i++) fingers[i] = null;
                 numFingers = 0;
+                if (relativeInput != null) cancelRelativeInput();
                 break;
         }
 
@@ -1931,8 +1960,9 @@ public class TouchpadView extends View implements View.OnCapturedPointerListener
             boolean skipPointerMove = false;
             Finger finger2 = this.numFingers == 2 ? findSecondFinger(finger1) : null;
             if (finger2 != null) {
-                ScreenInfo screenInfo = this.xServer.screenInfo;
-                float resolutionScale = 1000.0f / Math.min((int) screenInfo.width, (int) screenInfo.height);
+                float resolutionScale = relativeInput != null
+                        ? 1000.0f / Math.max(1, Math.min(getWidth(), getHeight()))
+                        : 1000.0f / Math.min((int) xServer.screenInfo.width, (int) xServer.screenInfo.height);
                 float currDistance = ((float) Math.hypot(finger1.x - finger2.x, finger1.y - finger2.y)) * resolutionScale;
                 if (currDistance < MAX_TWO_FINGERS_SCROLL_DISTANCE) {
                     float f = this.scrollAccumY + (((finger1.y + finger2.y) * 0.5f) - ((finger1.lastY + finger2.lastY) * 0.5f));
@@ -1942,16 +1972,27 @@ public class TouchpadView extends View implements View.OnCapturedPointerListener
                         this.scrollAccumY = 0.0f;
                     }
                     scrolling = true;
-                } else if (currDistance >= MAX_TWO_FINGERS_SCROLL_DISTANCE && !this.xServer.pointer.isButtonPressed(Pointer.Button.BUTTON_LEFT) && finger2.travelDistance() < MAX_TAP_TRAVEL_DISTANCE) {
+                } else if (currDistance >= MAX_TWO_FINGERS_SCROLL_DISTANCE && !isLeftButtonPressed() && finger2.travelDistance() < MAX_TAP_TRAVEL_DISTANCE) {
                     pressPointerButtonLeft(finger1);
                     skipPointerMove = true;
                 }
             }
             if (!this.scrolling && (b = this.numFingers) <= 2 && !skipPointerMove) {
                 if (b == 1) tickForCursorTravel(finger1);
+                if (relativeInput != null) {
+                    // During a two-finger drag only the finger holding the button moves the cursor.
+                    if (b == 1 || finger1 == fingerPointerButtonLeft) {
+                        // Send display-independent motion without the Winlator cursor acceleration.
+                        float gain = sensitivity / getResources().getDisplayMetrics().density;
+                        float dx = (finger1.x - finger1.lastX) * gain;
+                        float dy = (finger1.y - finger1.lastY) * gain;
+                        if (dx != 0 || dy != 0) relativeInput.move(dx, dy);
+                    }
+                    return;
+                }
                 if (!this.moveCursorToTouchpoint || b != 1) {
-                int dx = finger1.deltaX();
-                int dy = finger1.deltaY();
+                    int dx = finger1.deltaX();
+                    int dy = finger1.deltaY();
                     WinHandler winHandler = this.xServer.getWinHandler();
                     if (this.xServer.isRelativeMouseMovement()) {
                         winHandler.mouseEvent(MouseEventFlags.MOVE, dx, dy, 0);
@@ -2000,8 +2041,12 @@ public class TouchpadView extends View implements View.OnCapturedPointerListener
     }
 
     private void sendScrollStep(Pointer.Button button) {
-        xServer.injectPointerButtonPress(button);
-        xServer.injectPointerButtonRelease(button);
+        if (relativeInput != null) {
+            relativeInput.scroll(button == Pointer.Button.BUTTON_SCROLL_UP ? -1 : 1);
+        } else {
+            xServer.injectPointerButtonPress(button);
+            xServer.injectPointerButtonRelease(button);
+        }
         if (motionHapticsEnabled.getAsBoolean()) {
             performHapticFeedback(Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE
                     ? HapticFeedbackConstants.SEGMENT_TICK : HapticFeedbackConstants.CLOCK_TICK);
@@ -2018,9 +2063,26 @@ public class TouchpadView extends View implements View.OnCapturedPointerListener
         if (clickHapticsEnabled) performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY);
     }
 
+    private boolean isLeftButtonPressed() {
+        return relativeInput != null ? fingerPointerButtonLeft != null
+                : xServer.pointer.isButtonPressed(Pointer.Button.BUTTON_LEFT);
+    }
+
+    private void cancelRelativeInput() {
+        fingerPointerButtonLeft = null;
+        fingerPointerButtonRight = null;
+        relativeInput.reset();
+    }
+
     private void pressPointerButtonLeft(Finger finger) {
         if (isEnabled() && this.pointerButtonLeftEnabled) {
             vibrateForClick();
+            if (relativeInput != null) {
+                if (fingerPointerButtonLeft != null) relativeInput.button(Pointer.Button.BUTTON_LEFT, false);
+                relativeInput.button(Pointer.Button.BUTTON_LEFT, true);
+                fingerPointerButtonLeft = finger;
+                return;
+            }
             // Relative mouse movement support
             if (this.xServer.isRelativeMouseMovement()) {
                 this.xServer.getWinHandler().mouseEvent(MouseEventFlags.LEFTDOWN, 0, 0, 0);
@@ -2040,6 +2102,12 @@ public class TouchpadView extends View implements View.OnCapturedPointerListener
     private void pressPointerButtonRight(Finger finger) {
         if (isEnabled() && this.pointerButtonRightEnabled) {
             vibrateForClick();
+            if (relativeInput != null) {
+                if (fingerPointerButtonRight != null) relativeInput.button(Pointer.Button.BUTTON_RIGHT, false);
+                relativeInput.button(Pointer.Button.BUTTON_RIGHT, true);
+                fingerPointerButtonRight = finger;
+                return;
+            }
             // Relative mouse movement support
             if (this.xServer.isRelativeMouseMovement()) {
                 this.xServer.getWinHandler().mouseEvent(MouseEventFlags.RIGHTDOWN, 0, 0, 0);
@@ -2059,6 +2127,14 @@ public class TouchpadView extends View implements View.OnCapturedPointerListener
     private void releasePointerButtonLeft(Finger finger) {
         if (!isEnabled() || !this.pointerButtonLeftEnabled || finger != this.fingerPointerButtonLeft) return;
         final Finger capturedFinger = this.fingerPointerButtonLeft;
+        if (relativeInput != null) {
+            postDelayed(() -> {
+                if (fingerPointerButtonLeft != capturedFinger) return;
+                relativeInput.button(Pointer.Button.BUTTON_LEFT, false);
+                fingerPointerButtonLeft = null;
+            }, 30);
+            return;
+        }
         // Relative mouse movement support
         if (this.xServer.isRelativeMouseMovement()) {
             postDelayed(() -> {
@@ -2080,6 +2156,14 @@ public class TouchpadView extends View implements View.OnCapturedPointerListener
     private void releasePointerButtonRight(Finger finger) {
         if (!isEnabled() || !this.pointerButtonRightEnabled || finger != this.fingerPointerButtonRight) return;
         final Finger capturedFinger = this.fingerPointerButtonRight;
+        if (relativeInput != null) {
+            postDelayed(() -> {
+                if (fingerPointerButtonRight != capturedFinger) return;
+                relativeInput.button(Pointer.Button.BUTTON_RIGHT, false);
+                fingerPointerButtonRight = null;
+            }, 30);
+            return;
+        }
         // Relative mouse movement support
         if (this.xServer.isRelativeMouseMovement()) {
             postDelayed(() -> {

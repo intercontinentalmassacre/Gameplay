@@ -40,6 +40,9 @@ jobs:
           distribution: temurin
           java-version: "17"
 
+      - name: Prepare Buran build tools
+        run: bash scripts/ci/prepare_buran_runtime_tools.sh
+
       - name: Restore release signing key
         env:
           KEYSTORE_BASE64: ${{ secrets.GAMEPLAY_KEYSTORE_BASE64 }}

@@ -4,6 +4,8 @@ import android.content.Context
 import android.system.ErrnoException
 import android.system.Os
 import android.system.OsConstants
+import app.gamenative.service.SteamOverlayClient
+import java.io.Closeable
 import java.io.File
 
 object SteamBootstrap {
@@ -45,6 +47,7 @@ object SteamBootstrap {
 
     @Volatile
     private var hostCfg: HostCfg? = null
+    private var buranHost = false
 
     private data class HostCfg(
         val context: Context,
@@ -58,6 +61,7 @@ object SteamBootstrap {
         val steamId64: Long,
     )
 
+    @Synchronized
     fun start(
         context: Context,
         libsteamclientPath: String,
@@ -69,6 +73,7 @@ object SteamBootstrap {
         refreshToken: String? = null,
         steamId64: Long = 0L,
     ): Int {
+        if (buranHost || (!initialized && hostProcess?.isAlive == true)) return -1
         if (initialized) return 0
         installSqliteCompatLinkIfNeeded(libsteamclientPath)
         hostCfg = HostCfg(
@@ -86,7 +91,13 @@ object SteamBootstrap {
         return 0
     }
 
+    @Synchronized
     fun stop() {
+        if (buranHost) return
+        resetHost()
+    }
+
+    private fun resetHost() {
         if (!initialized) return
         stopHost()
         initialized = false
@@ -118,14 +129,80 @@ object SteamBootstrap {
     private fun pidOf(p: Process): Int? =
         runCatching { p.javaClass.getDeclaredField("pid").apply { isAccessible = true }.getInt(p) }.getOrNull()
 
+    @Synchronized
     fun prepareApp(appId: Int) {
         val cfg = hostCfg
-        if (!initialized || cfg == null || appId <= 0) return
+        if (buranHost || !initialized || cfg == null || appId <= 0) return
         stopHost()
+        if (hostProcess?.isAlive == true) return
 
         val hostBin = File(cfg.context.applicationInfo.nativeLibraryDir, "libsteambootstrap.so")
         if (!hostBin.exists()) return
 
+        launchHost(cfg, hostBin, appId, discardLogs = false)
+    }
+
+    internal class BuranLoginFailure(val result: Int, message: String) : IllegalStateException(message)
+
+    // Called on the I/O dispatcher. The returned handle stops only the host it started.
+    @Synchronized
+    internal fun startBuran(
+        context: Context,
+        appId: Int,
+        libsteamclientPath: String,
+        wineSteamRootLinux: String,
+        steam3Master: String,
+        steamClientService: String,
+        extraEnv: Map<String, String>,
+        accountName: String,
+        refreshToken: String,
+        steamId64: Long,
+    ): Closeable? {
+        if (initialized || hostProcess?.isAlive == true || appId <= 0 ||
+            accountName.isBlank() || refreshToken.isBlank() || steamId64 == 0L
+        ) return null
+        val hostBin = File(context.applicationInfo.nativeLibraryDir, "libburan_steambootstrap.so")
+        if (!hostBin.isFile || !hostBin.canExecute()) return null
+        if (start(
+                context, libsteamclientPath, wineSteamRootLinux, steam3Master, steamClientService,
+                extraEnv + ("SB_ISOLATED_SESSION" to "1"), accountName, refreshToken, steamId64,
+            ) != 0
+        ) return null
+        buranHost = true
+        var handedOff = false
+        try {
+            val process = launchHost(checkNotNull(hostCfg), hostBin, appId, discardLogs = true) ?: run {
+                val failure = getProcessStatus() as? ProcessStatus.Failed
+                if (failure?.reason?.startsWith("login") == true) {
+                    val code = failure.reason.substringAfterLast(':').toIntOrNull()
+                    if (code == null) error(context.getString(R.string.intent_launch_steam_login_failed))
+                    throw BuranLoginFailure(code, context.getString(R.string.buran_client_login_result, code))
+                }
+                return null
+            }
+            handedOff = true
+            return Closeable {
+                synchronized(this) {
+                    if (buranHost && hostProcess === process) releaseBuranHost()
+                }
+            }
+        } finally {
+            if (!handedOff) releaseBuranHost()
+        }
+    }
+
+    private fun releaseBuranHost() {
+        resetHost()
+        val process = hostProcess
+        if (process?.isAlive == true) {
+            runCatching { process.destroyForcibly() }
+            waitExit(process, 2_000)
+            if (!process.isAlive) hostProcess = null
+        }
+        buranHost = false
+    }
+
+    private fun launchHost(cfg: HostCfg, hostBin: File, appId: Int, discardLogs: Boolean): Process? {
         val readyFile = File(cfg.context.cacheDir, "sb_host_ready").apply {
             delete()
             writeText("INIT")
@@ -140,33 +217,35 @@ object SteamBootstrap {
             readyFile.absolutePath,
         )
         pb.redirectErrorStream(true)
-        pb.redirectOutput(ProcessBuilder.Redirect.appendTo(logFile))
+        pb.redirectOutput(if (discardLogs) ProcessBuilder.Redirect.to(File("/dev/null")) else ProcessBuilder.Redirect.appendTo(logFile))
         pb.environment().apply {
             put("HOME", cfg.home)
             put("Steam3Master", cfg.master)
             put("SteamClientService", cfg.clientService)
             for ((k, v) in cfg.extraEnv) put(k, v)
+            put("SB_OVERLAY_SOCKET", SteamOverlayClient.socketName)
             cfg.account?.let { put("SB_ACCOUNT", it) }
             cfg.refreshToken?.let { put("SB_REFRESH_TOKEN", it) }
             if (cfg.steamId64 != 0L) put("SB_STEAMID64", cfg.steamId64.toString())
         }
 
-        val proc = try { pb.start() } catch (_: Throwable) { return }
+        val proc = try { pb.start() } catch (_: Exception) { return null }
         hostProcess = proc
 
         val deadline = System.currentTimeMillis() + 60_000
         while (System.currentTimeMillis() < deadline) {
-            if (!proc.isAlive) return
+            if (!proc.isAlive) return null
 
             val status = getProcessStatus()
             when (status) {
-                is ProcessStatus.Ready -> return
-                is ProcessStatus.Failed, is ProcessStatus.Closed -> return
+                is ProcessStatus.Ready -> return proc
+                is ProcessStatus.Failed, is ProcessStatus.Closed -> return null
                 is ProcessStatus.Init -> {}
             }
 
-            try { Thread.sleep(100) } catch (_: InterruptedException) { return }
+            try { Thread.sleep(100) } catch (_: InterruptedException) { return null }
         }
+        return null
     }
 
     fun getProcessStatus(): ProcessStatus {

@@ -16,6 +16,7 @@ import app.gamenative.enums.OS
 import app.gamenative.enums.PathType
 import app.gamenative.enums.ReleaseState
 import app.gamenative.enums.SaveLocation
+import app.gamenative.localgames.BuranCloudPaths
 import app.gamenative.utils.CloudSaveBackupManager
 import app.gamenative.utils.Net
 import app.gamenative.service.DownloadService
@@ -3346,6 +3347,104 @@ class SteamAutoCloudTest {
     }
 
     private val saveGamesPrefix = "%WinMyDocuments%/My Games/TestGame/Steam/76561198025127569/SaveGames"
+
+    @Test
+    fun buranLocalLowSaveRoundTripsThroughCloudAliasAndPreservesBothSidesOfConflict() = runBlocking {
+        val profile = File(fixtureDir, "buran-profile").apply { mkdirs() }
+        val gameInstall = File(fixtureDir, "buran-game").apply { mkdirs() }
+        val steamRemote = File(fixtureDir, "buran-remote").apply { mkdirs() }
+        val relativePath = "MisterMorrisGames/Haiku"
+        val saveName = "slot1.haiku"
+        val storage = SaveFilePattern(
+            root = PathType.WinAppDataLocalLow,
+            path = relativePath,
+            pattern = "*.haiku",
+            uploadRoot = PathType.MacAppSupport,
+        )
+        val patterns = listOf(storage)
+        val game = db.steamAppDao().findApp(steamAppId)!!.copy(ufs = UFS(saveFilePatterns = patterns))
+        val prefixToPath = checkNotNull(BuranCloudPaths.resolver(gameInstall, steamRemote, profile, patterns))
+        val save = File(profile, "AppData/LocalLow/$relativePath/$saveName")
+        val cloudPrefix = "%MacAppSupport%/$relativePath"
+
+        fun cloudSave(changeNumber: Long, content: ByteArray) {
+            val manifest = makeCloudFileChangeList(
+                cloudChangeNumber = changeNumber,
+                files = listOf(cloudFile(saveName, content)),
+                pathPrefixes = listOf(cloudPrefix),
+            )
+            every { mockSteamCloud.getAppFileListChange(any(), any(), any()) } returns
+                CompletableFuture.completedFuture(manifest)
+            stubSingleFileDownload(content)
+        }
+
+        suspend fun sync(preferredSave: SaveLocation = SaveLocation.None) =
+            checkNotNull(SteamAutoCloud.syncUserFiles(
+                appInfo = game,
+                clientId = clientId,
+                steamInstance = mockSteamService,
+                steamCloud = mockSteamCloud,
+                preferredSave = preferredSave,
+                prefixToPath = prefixToPath,
+            ).await())
+
+        val desktopSave = "desktop save".toByteArray()
+        cloudSave(5, desktopSave)
+        val downloaded = sync()
+        assertEquals(SyncResult.Success, downloaded.syncResult)
+        assertEquals(1, downloaded.filesDownloaded)
+        assertArrayEquals(desktopSave, save.readBytes())
+
+        val uploadBatch = mock<`in`.dragonbra.javasteam.steam.handlers.steamcloud.AppUploadBatchResponse>()
+        whenever(uploadBatch.batchID).thenReturn(1)
+        whenever(uploadBatch.appChangeNumber).thenReturn(6L)
+        every { mockSteamCloud.beginAppUploadBatch(any(), any(), any(), any(), any(), any(), any()) } returns
+            CompletableFuture.completedFuture(uploadBatch)
+
+        val buranSave = "Buran save with new progress"
+        save.writeText(buranSave)
+        val uploaded = sync()
+        assertEquals(SyncResult.Success, uploaded.syncResult)
+        assertTrue(uploaded.uploadsCompleted)
+        assertEquals(1, uploaded.filesUploaded)
+        assertEquals(6L, db.appChangeNumbersDao().getByAppId(steamAppId)!!.changeNumber)
+
+        val divergentBuranSave = "Buran save after playing offline again"
+        val divergentDesktopSave = "desktop made different progress".toByteArray()
+        save.writeText(divergentBuranSave)
+        cloudSave(7, divergentDesktopSave)
+        val conflict = sync()
+        assertEquals(SyncResult.Conflict, conflict.syncResult)
+        assertEquals(0, conflict.filesDownloaded)
+        assertEquals(divergentBuranSave, save.readText())
+        assertEquals(6L, db.appChangeNumbersDao().getByAppId(steamAppId)!!.changeNumber)
+
+        val resolved = sync(SaveLocation.Remote)
+        assertEquals(SyncResult.Success, resolved.syncResult)
+        assertEquals(1, resolved.filesDownloaded)
+        assertArrayEquals(divergentDesktopSave, save.readBytes())
+        assertEquals(7L, db.appChangeNumbersDao().getByAppId(steamAppId)!!.changeNumber)
+
+        val keepBuranSave = "another Buran save explicitly chosen in the conflict prompt"
+        save.writeText(keepBuranSave)
+        cloudSave(8, "another conflicting desktop save".toByteArray())
+        assertEquals(SyncResult.Conflict, sync().syncResult)
+        whenever(uploadBatch.appChangeNumber).thenReturn(9L)
+        val kept = sync(SaveLocation.Local)
+        assertEquals(SyncResult.Success, kept.syncResult)
+        assertEquals(1, kept.filesUploaded)
+        assertEquals(0, kept.filesDownloaded)
+        assertEquals(keepBuranSave, save.readText())
+        assertEquals(9L, db.appChangeNumbersDao().getByAppId(steamAppId)!!.changeNumber)
+
+        verify(exactly = 2) {
+            mockSteamCloud.beginFileUpload(
+                steamAppId, any(), any(), any(), any(),
+                match { it.portableCloudPath() == "%MacAppSupport%$relativePath/$saveName" },
+                any(), any(), any(), any(), any(), any(), any(),
+            )
+        }
+    }
 
     // ── Equal CN, cloud has a file this device never synced → download it ──
     @Test

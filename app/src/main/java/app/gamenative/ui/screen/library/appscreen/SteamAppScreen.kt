@@ -741,6 +741,8 @@ class SteamAppScreen : BaseAppScreen() {
             return options
         }
 
+        gameRuntimeOption(context, appId)?.let(options::add)
+
         // Steam-specific options that only make sense once the game is installed.
         options += listOf(
             AppMenuOption(
